@@ -12,6 +12,9 @@ const equipmentData = [
     description: "High-resolution imaging for nanoscale analysis with EDX capabilities",
     image: microscope,
     available: true,
+    address: "Building A, Room 201, Research Complex",
+    technicalPerson: "Dr. Sarah Johnson",
+    contactNumber: "+1 (555) 123-4567",
   },
   {
     id: 2,
@@ -20,7 +23,10 @@ const equipmentData = [
     description: "Advanced mass spectrometry for molecular analysis and identification",
     image: spectrometer,
     available: false,
-    nextAvailable: "Tomorrow 2:00 PM"
+    nextAvailable: "Tomorrow 2:00 PM",
+    address: "Building B, Room 105, Science Wing",
+    technicalPerson: "Dr. Michael Chen",
+    contactNumber: "+1 (555) 234-5678",
   },
   {
     id: 3,
@@ -29,6 +35,9 @@ const equipmentData = [
     description: "High-performance liquid chromatography for separation and analysis",
     image: chromatograph,
     available: true,
+    address: "Building C, Room 302, Chemistry Lab",
+    technicalPerson: "Dr. Emily Rodriguez",
+    contactNumber: "+1 (555) 345-6789",
   },
   {
     id: 4,
@@ -37,6 +46,9 @@ const equipmentData = [
     description: "3D imaging and optical sectioning for biological samples",
     image: microscope,
     available: true,
+    address: "Building A, Room 215, Imaging Center",
+    technicalPerson: "Dr. James Wilson",
+    contactNumber: "+1 (555) 456-7890",
   },
   {
     id: 5,
@@ -45,7 +57,10 @@ const equipmentData = [
     description: "Nuclear magnetic resonance for molecular structure determination",
     image: spectrometer,
     available: false,
-    nextAvailable: "Dec 22, 10:00 AM"
+    nextAvailable: "Dec 22, 10:00 AM",
+    address: "Building D, Room 101, Spectroscopy Lab",
+    technicalPerson: "Dr. Rachel Thompson",
+    contactNumber: "+1 (555) 567-8901",
   },
   {
     id: 6,
@@ -54,6 +69,9 @@ const equipmentData = [
     description: "GC-MS system for volatile compound analysis",
     image: chromatograph,
     available: true,
+    address: "Building C, Room 308, Analytical Lab",
+    technicalPerson: "Dr. David Martinez",
+    contactNumber: "+1 (555) 678-9012",
   },
 ];
 

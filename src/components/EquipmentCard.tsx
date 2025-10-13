@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Calendar, Clock, Info, MapPin, User, Phone } from "lucide-react";
 
 interface EquipmentCardProps {
   name: string;
@@ -10,9 +11,12 @@ interface EquipmentCardProps {
   image: string;
   available: boolean;
   nextAvailable?: string;
+  address: string;
+  technicalPerson: string;
+  contactNumber: string;
 }
 
-const EquipmentCard = ({ name, category, description, image, available, nextAvailable }: EquipmentCardProps) => {
+const EquipmentCard = ({ name, category, description, image, available, nextAvailable, address, technicalPerson, contactNumber }: EquipmentCardProps) => {
   return (
     <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
       <div className="aspect-square overflow-hidden bg-muted">
@@ -45,11 +49,50 @@ const EquipmentCard = ({ name, category, description, image, available, nextAvai
         )}
       </CardContent>
 
-      <CardFooter>
-        <Button className="w-full gap-2" disabled={!available}>
+      <CardFooter className="flex gap-2">
+        <Button className="flex-1 gap-2" disabled={!available}>
           <Calendar className="h-4 w-4" />
           {available ? "Book Now" : "View Schedule"}
         </Button>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="icon">
+              <Info className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{name}</DialogTitle>
+              <DialogDescription>{category}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">{description}</p>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <MapPin className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Address</p>
+                    <p className="text-sm text-muted-foreground">{address}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <User className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Technical Person</p>
+                    <p className="text-sm text-muted-foreground">{technicalPerson}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Phone className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">Contact Number</p>
+                    <p className="text-sm text-muted-foreground">{contactNumber}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardFooter>
     </Card>
   );
