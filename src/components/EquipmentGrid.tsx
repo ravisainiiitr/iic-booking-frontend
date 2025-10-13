@@ -18,6 +18,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹500/- per sample",
+      government: "₹1000/- per sample",
+      industry: "₹2000/- per sample"
+    }
   },
   {
     id: 2,
@@ -29,6 +34,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1000/- per sample",
+      government: "₹2000/- per sample",
+      industry: "₹4000/- per sample"
+    }
   },
   {
     id: 3,
@@ -41,6 +51,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹3000/- per sample",
+      government: "₹4500/- per sample",
+      industry: "₹6000/- per sample"
+    }
   },
   {
     id: 4,
@@ -52,6 +67,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹3000/- per sample",
+      government: "₹4500/- per sample",
+      industry: "₹6000/- per sample"
+    }
   },
   {
     id: 5,
@@ -63,6 +83,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹4922/- per sample",
+      government: "₹4922/- per sample",
+      industry: "₹6000/- per sample"
+    }
   },
   {
     id: 6,
@@ -74,6 +99,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹6272/- per sample",
+      government: "₹6272/- per sample",
+      industry: "₹9000/- per sample"
+    }
   },
   {
     id: 7,
@@ -86,6 +116,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1000/- per sample",
+      government: "₹1500/- per sample",
+      industry: "₹3000/- per sample"
+    }
   },
   {
     id: 8,
@@ -97,6 +132,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹4560/- per sample",
+      government: "₹4560/- per sample",
+      industry: "₹6000/- per sample"
+    }
   },
   {
     id: 9,
@@ -108,6 +148,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹2000/- per sample",
+      government: "₹3000/- per sample",
+      industry: "₹5000/- per sample"
+    }
   },
   {
     id: 10,
@@ -120,6 +165,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹4000/- per sample",
+      government: "₹6000/- per sample",
+      industry: "₹10000/- per sample"
+    }
   },
   {
     id: 11,
@@ -131,6 +181,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1000/- per sample",
+      government: "₹1500/- per sample",
+      industry: "₹3000/- per sample"
+    }
   },
   {
     id: 12,
@@ -142,6 +197,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1500/- per sample",
+      government: "₹2500/- per sample",
+      industry: "₹4000/- per sample"
+    }
   },
   {
     id: 13,
@@ -153,6 +213,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹500/- per sample",
+      government: "₹1500/- per sample",
+      industry: "₹3000/- per sample"
+    }
   },
   {
     id: 14,
@@ -165,6 +230,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1000/- per sample",
+      government: "₹1500/- per sample",
+      industry: "₹3000/- per sample"
+    }
   },
   {
     id: 15,
@@ -176,6 +246,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹800/- per sample",
+      government: "₹1000/- per sample",
+      industry: "₹2000/- per sample"
+    }
   },
   {
     id: 16,
@@ -187,6 +262,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹3000/- for every additional element",
+      government: "₹3000/- for every additional element",
+      industry: "₹5000/- for every additional element"
+    }
   },
   {
     id: 17,
@@ -198,6 +278,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹500/- per sample",
+      government: "₹1500/- per sample",
+      industry: "₹1500/- per sample"
+    }
   },
   {
     id: 18,
@@ -210,6 +295,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹700/- per hour per sample",
+      government: "₹1000/- per hour per sample",
+      industry: "₹2000/- per hour per sample"
+    }
   },
   {
     id: 19,
@@ -221,6 +311,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1500/- per sample",
+      government: "₹2000/- per sample",
+      industry: "₹4000/- per sample"
+    }
   },
   {
     id: 20,
@@ -232,6 +327,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹2000/- per sample",
+      government: "₹2500/- per sample",
+      industry: "₹4000/- per sample"
+    }
   },
   {
     id: 21,
@@ -243,6 +343,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹1000/- per slot (1 hr)",
+      government: "₹1500/- per slot (1 hr)",
+      industry: "₹2000/- per slot (1 hr)"
+    }
   },
   {
     id: 22,
@@ -254,6 +359,11 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    pricing: {
+      educational: "₹2000/- per slot (1 hr)",
+      government: "₹2500/- per slot (1 hr)",
+      industry: "₹5000/- per slot (1 hr)"
+    }
   },
 ];
 

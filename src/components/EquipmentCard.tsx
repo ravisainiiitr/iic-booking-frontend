@@ -6,6 +6,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar, Clock, Info, MapPin, User, Phone } from "lucide-react";
 import { useState } from "react";
 
+interface Pricing {
+  educational: string;
+  government: string;
+  industry: string;
+}
+
 interface EquipmentCardProps {
   name: string;
   category: string;
@@ -16,10 +22,11 @@ interface EquipmentCardProps {
   address: string;
   technicalPerson: string;
   contactNumber: string;
+  pricing?: Pricing;
 }
 
-const EquipmentCard = ({ name, category, description, image, available, nextAvailable, address, technicalPerson, contactNumber }: EquipmentCardProps) => {
-  const [userType, setUserType] = useState<string>("internal");
+const EquipmentCard = ({ name, category, description, image, available, nextAvailable, address, technicalPerson, contactNumber, pricing }: EquipmentCardProps) => {
+  const [userType, setUserType] = useState<string>("educational");
 
   return (
     <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
@@ -40,29 +47,48 @@ const EquipmentCard = ({ name, category, description, image, available, nextAvai
         </div>
         <CardDescription className="text-sm">{category}</CardDescription>
         
-        <div className="flex items-center gap-3 pt-3">
-          <ToggleGroup 
-            type="single" 
-            value={userType} 
-            onValueChange={(value) => value && setUserType(value)}
-            className="gap-0 bg-muted/50 rounded-lg p-1 w-full"
-          >
-            <ToggleGroupItem 
-              value="internal" 
-              aria-label="Internal user"
-              className="flex-1 rounded-md data-[state=on]:bg-green-600 data-[state=on]:text-white data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
-            >
-              Internal
-            </ToggleGroupItem>
-            <ToggleGroupItem 
-              value="external" 
-              aria-label="External user"
-              className="flex-1 rounded-md data-[state=on]:bg-green-600 data-[state=on]:text-white data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
-            >
-              External
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
+        {pricing && (
+          <div className="space-y-3 pt-3">
+            <div className="flex items-center gap-2">
+              <ToggleGroup 
+                type="single" 
+                value={userType} 
+                onValueChange={(value) => value && setUserType(value)}
+                className="gap-0 bg-muted/50 rounded-lg p-1 w-full"
+              >
+                <ToggleGroupItem 
+                  value="educational" 
+                  aria-label="Educational user"
+                  className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
+                >
+                  Educational
+                </ToggleGroupItem>
+                <ToggleGroupItem 
+                  value="government" 
+                  aria-label="Government user"
+                  className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
+                >
+                  Govt R&D
+                </ToggleGroupItem>
+                <ToggleGroupItem 
+                  value="industry" 
+                  aria-label="Industry user"
+                  className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
+                >
+                  Industry
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            <div className="bg-primary/10 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground mb-1">Charges per sample</p>
+              <p className="text-lg font-semibold text-primary">
+                {userType === "educational" && pricing.educational}
+                {userType === "government" && pricing.government}
+                {userType === "industry" && pricing.industry}
+              </p>
+            </div>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent>
