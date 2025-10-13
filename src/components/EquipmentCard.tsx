@@ -84,8 +84,9 @@ const EquipmentCard = ({ name, category, description, image, available, nextAvai
         </Button>
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon">
+            <Button variant="outline" className="gap-2">
               <Info className="h-4 w-4" />
+              More Info
             </Button>
           </DialogTrigger>
           <DialogContent>
