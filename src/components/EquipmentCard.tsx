@@ -50,14 +50,14 @@ const EquipmentCard = ({ name, category, description, image, available, nextAvai
             <ToggleGroupItem 
               value="internal" 
               aria-label="Internal user"
-              className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
+              className="flex-1 rounded-md data-[state=on]:bg-green-600 data-[state=on]:text-white data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
             >
               Internal
             </ToggleGroupItem>
             <ToggleGroupItem 
               value="external" 
               aria-label="External user"
-              className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
+              className="flex-1 rounded-md data-[state=on]:bg-green-600 data-[state=on]:text-white data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
             >
               External
             </ToggleGroupItem>
