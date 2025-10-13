@@ -3,6 +3,9 @@ import microscope from "@/assets/microscope.jpg";
 import spectrometer from "@/assets/spectrometer.jpg";
 import chromatograph from "@/assets/chromatograph.jpg";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import { useState } from "react";
 
 const equipmentData = [
   {
@@ -255,6 +258,17 @@ const equipmentData = [
 ];
 
 const EquipmentGrid = () => {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredEquipment = equipmentData.filter((equipment) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      equipment.name.toLowerCase().includes(query) ||
+      equipment.category.toLowerCase().includes(query) ||
+      equipment.description.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <section id="equipment" className="py-24 bg-background">
       <div className="container mx-auto px-4">
@@ -265,6 +279,19 @@ const EquipmentGrid = () => {
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Browse our extensive collection of advanced scientific instruments
           </p>
+        </div>
+
+        <div className="max-w-2xl mx-auto mb-8">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search equipment by name, category, or description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 text-base"
+            />
+          </div>
         </div>
 
         <Tabs defaultValue="all" className="w-full">
@@ -279,7 +306,7 @@ const EquipmentGrid = () => {
 
           <TabsContent value="all">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {equipmentData.map((equipment) => (
+              {filteredEquipment.map((equipment) => (
                 <EquipmentCard key={equipment.id} {...equipment} />
               ))}
             </div>
@@ -287,7 +314,7 @@ const EquipmentGrid = () => {
 
           <TabsContent value="microscopy">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {equipmentData
+              {filteredEquipment
                 .filter((eq) => eq.category === "Microscopy")
                 .map((equipment) => (
                   <EquipmentCard key={equipment.id} {...equipment} />
@@ -297,7 +324,7 @@ const EquipmentGrid = () => {
 
           <TabsContent value="spectroscopy">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {equipmentData
+              {filteredEquipment
                 .filter((eq) => eq.category === "Spectroscopy")
                 .map((equipment) => (
                   <EquipmentCard key={equipment.id} {...equipment} />
@@ -307,7 +334,7 @@ const EquipmentGrid = () => {
 
           <TabsContent value="diffraction">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {equipmentData
+              {filteredEquipment
                 .filter((eq) => eq.category === "Diffraction")
                 .map((equipment) => (
                   <EquipmentCard key={equipment.id} {...equipment} />
@@ -317,7 +344,7 @@ const EquipmentGrid = () => {
 
           <TabsContent value="magnetometry">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {equipmentData
+              {filteredEquipment
                 .filter((eq) => eq.category === "Magnetometry")
                 .map((equipment) => (
                   <EquipmentCard key={equipment.id} {...equipment} />
@@ -327,7 +354,7 @@ const EquipmentGrid = () => {
 
           <TabsContent value="other">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {equipmentData
+              {filteredEquipment
                 .filter((eq) => !["Microscopy", "Spectroscopy", "Diffraction", "Magnetometry"].includes(eq.category))
                 .map((equipment) => (
                   <EquipmentCard key={equipment.id} {...equipment} />
