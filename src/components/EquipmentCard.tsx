@@ -40,30 +40,28 @@ const EquipmentCard = ({ name, category, description, image, available, nextAvai
         </div>
         <CardDescription className="text-sm">{category}</CardDescription>
         
-        <div className="flex items-center gap-2 pt-3">
-          <span className="text-xs font-medium text-muted-foreground">Internal</span>
+        <div className="flex items-center gap-3 pt-3">
           <ToggleGroup 
             type="single" 
             value={userType} 
             onValueChange={(value) => value && setUserType(value)}
-            className="gap-0 border rounded-md overflow-hidden"
+            className="gap-0 bg-muted/50 rounded-lg p-1 w-full"
           >
             <ToggleGroupItem 
               value="internal" 
               aria-label="Internal user"
-              className={`rounded-none border-r data-[state=on]:bg-blue-500 data-[state=on]:text-white hover:bg-blue-500/10`}
+              className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
             >
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
+              Internal
             </ToggleGroupItem>
             <ToggleGroupItem 
               value="external" 
               aria-label="External user"
-              className={`rounded-none data-[state=on]:bg-red-500 data-[state=on]:text-white hover:bg-red-500/10`}
+              className="flex-1 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm transition-all text-xs font-medium h-8"
             >
-              <div className="w-3 h-3 rounded-full bg-red-500" />
+              External
             </ToggleGroupItem>
           </ToggleGroup>
-          <span className="text-xs font-medium text-muted-foreground">External</span>
         </div>
       </CardHeader>
 
