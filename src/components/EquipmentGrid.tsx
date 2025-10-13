@@ -270,9 +270,9 @@ const EquipmentGrid = () => {
   });
 
   return (
-    <section id="equipment" className="py-24 bg-background">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
+    <section id="equipment" className="py-12">
+      <div className="mb-12">
+        <div className="text-center mb-8">
           <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Equipment Catalog
           </h2>
@@ -293,6 +293,7 @@ const EquipmentGrid = () => {
             />
           </div>
         </div>
+      </div>
 
         <Tabs defaultValue="all" className="w-full">
           <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-6 mb-12">
@@ -362,7 +363,6 @@ const EquipmentGrid = () => {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
     </section>
   );
 };
