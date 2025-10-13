@@ -7,71 +7,250 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const equipmentData = [
   {
     id: 1,
-    name: "Scanning Electron Microscope",
-    category: "Microscopy",
-    description: "High-resolution imaging for nanoscale analysis with EDX capabilities",
-    image: microscope,
+    name: "Powder X-Ray Diffractometer (XRD)",
+    category: "Diffraction",
+    description: "Powder X-ray diffraction for crystal structure analysis and phase identification",
+    image: spectrometer,
     available: true,
-    address: "Building A, Room 201, Research Complex",
-    technicalPerson: "Dr. Sarah Johnson",
-    contactNumber: "+1 (555) 123-4567",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
   },
   {
     id: 2,
-    name: "Mass Spectrometer",
-    category: "Spectroscopy",
-    description: "Advanced mass spectrometry for molecular analysis and identification",
+    name: "GI-XRD (Thin Film)",
+    category: "Diffraction",
+    description: "Grazing Incidence X-Ray Diffraction for thin film characterization",
     image: spectrometer,
-    available: false,
-    nextAvailable: "Tomorrow 2:00 PM",
-    address: "Building B, Room 105, Science Wing",
-    technicalPerson: "Dr. Michael Chen",
-    contactNumber: "+1 (555) 234-5678",
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
   },
   {
     id: 3,
-    name: "HPLC System",
-    category: "Chromatography",
-    description: "High-performance liquid chromatography for separation and analysis",
-    image: chromatograph,
-    available: true,
-    address: "Building C, Room 302, Chemistry Lab",
-    technicalPerson: "Dr. Emily Rodriguez",
-    contactNumber: "+1 (555) 345-6789",
+    name: "FE-SEM Gemini 560",
+    category: "Microscopy",
+    description: "Field Emission Scanning Electron Microscope for high-resolution imaging",
+    image: microscope,
+    available: false,
+    nextAvailable: "Tomorrow 10:00 AM",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
   },
   {
     id: 4,
-    name: "Confocal Microscope",
+    name: "FE-SEM Apero",
     category: "Microscopy",
-    description: "3D imaging and optical sectioning for biological samples",
+    description: "Field Emission Scanning Electron Microscope for advanced material analysis",
     image: microscope,
     available: true,
-    address: "Building A, Room 215, Imaging Center",
-    technicalPerson: "Dr. James Wilson",
-    contactNumber: "+1 (555) 456-7890",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
   },
   {
     id: 5,
-    name: "NMR Spectrometer",
-    category: "Spectroscopy",
-    description: "Nuclear magnetic resonance for molecular structure determination",
-    image: spectrometer,
-    available: false,
-    nextAvailable: "Dec 22, 10:00 AM",
-    address: "Building D, Room 101, Spectroscopy Lab",
-    technicalPerson: "Dr. Rachel Thompson",
-    contactNumber: "+1 (555) 567-8901",
+    name: "TEM",
+    category: "Microscopy",
+    description: "Transmission Electron Microscope for nanoscale imaging and analysis",
+    image: microscope,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
   },
   {
     id: 6,
-    name: "Gas Chromatograph",
-    category: "Chromatography",
-    description: "GC-MS system for volatile compound analysis",
-    image: chromatograph,
+    name: "EPMA",
+    category: "Analysis",
+    description: "Electron Probe Micro-Analysis for elemental composition studies",
+    image: spectrometer,
     available: true,
-    address: "Building C, Room 308, Analytical Lab",
-    technicalPerson: "Dr. David Martinez",
-    contactNumber: "+1 (555) 678-9012",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 7,
+    name: "VSM (Lake Shore)",
+    category: "Magnetometry",
+    description: "Vibrating Sample Magnetometer for magnetic properties measurement",
+    image: spectrometer,
+    available: false,
+    nextAvailable: "Dec 22, 2:00 PM",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 8,
+    name: "PPMS",
+    category: "Magnetometry",
+    description: "Physical Property Measurement System for comprehensive material characterization",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 9,
+    name: "SPM",
+    category: "Microscopy",
+    description: "Scanning Probe Microscope for surface topography and property mapping",
+    image: microscope,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 10,
+    name: "SQUID",
+    category: "Magnetometry",
+    description: "Superconducting Quantum Interference Device for ultra-sensitive magnetic measurements",
+    image: spectrometer,
+    available: false,
+    nextAvailable: "Dec 23, 11:00 AM",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 11,
+    name: "TIMS",
+    category: "Spectroscopy",
+    description: "Thermal Ionization Mass Spectrometer for isotope ratio analysis",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 12,
+    name: "ICP-MS",
+    category: "Spectroscopy",
+    description: "Inductively Coupled Plasma Mass Spectrometry for trace element analysis",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 13,
+    name: "MPAES",
+    category: "Spectroscopy",
+    description: "Microwave Plasma Atomic Emission Spectroscopy for elemental analysis",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 14,
+    name: "FLS (TCSPC)",
+    category: "Spectroscopy",
+    description: "Fluorescence Lifetime System for time-resolved spectroscopy",
+    image: spectrometer,
+    available: false,
+    nextAvailable: "Tomorrow 3:00 PM",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 15,
+    name: "DTA/TGA/DSC",
+    category: "Thermal Analysis",
+    description: "Differential Thermal Analysis and Thermogravimetric Analysis system",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 16,
+    name: "XPS",
+    category: "Spectroscopy",
+    description: "X-ray Photoelectron Spectroscopy for surface chemical analysis",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 17,
+    name: "XRF",
+    category: "Spectroscopy",
+    description: "X-Ray Fluorescence for elemental composition analysis",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 18,
+    name: "NMR",
+    category: "Spectroscopy",
+    description: "Nuclear Magnetic Resonance for molecular structure determination",
+    image: spectrometer,
+    available: false,
+    nextAvailable: "Dec 24, 9:00 AM",
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 19,
+    name: "EPR/ESR",
+    category: "Spectroscopy",
+    description: "Electron Paramagnetic Resonance Spectroscopy for radical and paramagnetic species",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 20,
+    name: "MCU",
+    category: "Crystallography",
+    description: "Macromolecular Crystallographic Unit for protein structure determination",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 21,
+    name: "UV-Vis-NIR Spectrophotometer",
+    category: "Spectroscopy",
+    description: "UV-Visible-Near Infrared Spectrophotometer for absorption measurements",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
+  },
+  {
+    id: 22,
+    name: "MALDI-TOF/TOF MS",
+    category: "Spectroscopy",
+    description: "Matrix-Assisted Laser Desorption/Ionization Time-of-Flight Mass Spectrometry",
+    image: spectrometer,
+    available: true,
+    address: "Institute Instrumentation Centre, IIT Roorkee",
+    technicalPerson: "Dr. Technical Expert",
+    contactNumber: "+91-1332-285797",
   },
 ];
 
@@ -89,11 +268,13 @@ const EquipmentGrid = () => {
         </div>
 
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-4 mb-12">
+          <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-6 mb-12">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="microscopy">Microscopy</TabsTrigger>
             <TabsTrigger value="spectroscopy">Spectroscopy</TabsTrigger>
-            <TabsTrigger value="chromatography">Chromatography</TabsTrigger>
+            <TabsTrigger value="diffraction">Diffraction</TabsTrigger>
+            <TabsTrigger value="magnetometry">Magnetometry</TabsTrigger>
+            <TabsTrigger value="other">Other</TabsTrigger>
           </TabsList>
 
           <TabsContent value="all">
@@ -124,10 +305,30 @@ const EquipmentGrid = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="chromatography">
+          <TabsContent value="diffraction">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {equipmentData
-                .filter((eq) => eq.category === "Chromatography")
+                .filter((eq) => eq.category === "Diffraction")
+                .map((equipment) => (
+                  <EquipmentCard key={equipment.id} {...equipment} />
+                ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="magnetometry">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {equipmentData
+                .filter((eq) => eq.category === "Magnetometry")
+                .map((equipment) => (
+                  <EquipmentCard key={equipment.id} {...equipment} />
+                ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="other">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {equipmentData
+                .filter((eq) => !["Microscopy", "Spectroscopy", "Diffraction", "Magnetometry"].includes(eq.category))
                 .map((equipment) => (
                   <EquipmentCard key={equipment.id} {...equipment} />
                 ))}
