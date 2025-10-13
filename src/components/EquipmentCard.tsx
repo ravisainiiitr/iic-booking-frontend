@@ -2,7 +2,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar, Clock, Info, MapPin, User, Phone } from "lucide-react";
+import { useState } from "react";
 
 interface EquipmentCardProps {
   name: string;
@@ -17,6 +19,8 @@ interface EquipmentCardProps {
 }
 
 const EquipmentCard = ({ name, category, description, image, available, nextAvailable, address, technicalPerson, contactNumber }: EquipmentCardProps) => {
+  const [userType, setUserType] = useState<string>("internal");
+
   return (
     <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
       <div className="aspect-square overflow-hidden bg-muted">
@@ -35,6 +39,32 @@ const EquipmentCard = ({ name, category, description, image, available, nextAvai
           </Badge>
         </div>
         <CardDescription className="text-sm">{category}</CardDescription>
+        
+        <div className="flex items-center gap-2 pt-3">
+          <span className="text-xs font-medium text-muted-foreground">Internal</span>
+          <ToggleGroup 
+            type="single" 
+            value={userType} 
+            onValueChange={(value) => value && setUserType(value)}
+            className="gap-0 border rounded-md overflow-hidden"
+          >
+            <ToggleGroupItem 
+              value="internal" 
+              aria-label="Internal user"
+              className={`rounded-none border-r data-[state=on]:bg-blue-500 data-[state=on]:text-white hover:bg-blue-500/10`}
+            >
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
+            </ToggleGroupItem>
+            <ToggleGroupItem 
+              value="external" 
+              aria-label="External user"
+              className={`rounded-none data-[state=on]:bg-red-500 data-[state=on]:text-white hover:bg-red-500/10`}
+            >
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <span className="text-xs font-medium text-muted-foreground">External</span>
+        </div>
       </CardHeader>
 
       <CardContent>
