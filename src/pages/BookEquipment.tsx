@@ -6,16 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, isSameDay } from "date-fns";
+import { equipmentData, type EquipmentData } from "@/data/equipmentData";
 
-interface Equipment {
-  id: string;
-  name: string;
-  description: string;
-  image_url: string;
-  video_url: string | null;
-  rate_per_hour: number;
-  available: boolean;
-}
+interface Equipment extends EquipmentData {}
 
 // Time slots from 9:00 AM to 5:30 PM (1-hour slots)
 const TIME_SLOTS = [
@@ -60,14 +53,9 @@ const BookEquipment = () => {
   };
 
   const fetchEquipment = async () => {
-    const { data, error } = await supabase
-      .from("equipment")
-      .select("*")
-      .eq("available", true);
-
-    if (!error && data) {
-      setEquipment(data);
-    }
+    // Use the static equipment data from the main page
+    const availableEquipment = equipmentData.filter(eq => eq.available);
+    setEquipment(availableEquipment as Equipment[]);
     setLoading(false);
   };
 
@@ -79,7 +67,7 @@ const BookEquipment = () => {
     const { data, error } = await supabase
       .from("bookings")
       .select("start_time, end_time")
-      .eq("equipment_id", selectedEquipment.id)
+      .eq("equipment_id", selectedEquipment.id.toString())
       .gte("start_time", currentWeekStart.toISOString())
       .lt("start_time", weekEnd.toISOString());
 
@@ -131,7 +119,7 @@ const BookEquipment = () => {
 
   const calculateTotalCost = (): number => {
     if (!selectedEquipment) return 0;
-    return selectedSlots.length * Number(selectedEquipment.rate_per_hour);
+    return selectedSlots.length * Number(selectedEquipment.internalRate);
   };
 
   const goToPreviousWeek = () => {
@@ -191,11 +179,11 @@ const BookEquipment = () => {
         const hours = (booking.end.getTime() - booking.start.getTime()) / (1000 * 60 * 60);
         return supabase.from("bookings").insert({
           user_id: userId,
-          equipment_id: selectedEquipment.id,
+          equipment_id: String(selectedEquipment.id),
           start_time: booking.start.toISOString(),
           end_time: booking.end.toISOString(),
           total_hours: hours,
-          total_cost: hours * Number(selectedEquipment.rate_per_hour),
+          total_cost: hours * Number(selectedEquipment.internalRate),
           status: "pending",
         });
       });
@@ -242,23 +230,23 @@ const BookEquipment = () => {
               <Card key={item.id} className="cursor-pointer hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="relative aspect-video mb-4 rounded-lg overflow-hidden bg-muted">
-                    {playingVideo === item.id && item.video_url ? (
+                    {playingVideo === item.id.toString() && item.video ? (
                       <video
-                        src={item.video_url}
+                        src={item.video}
                         controls
                         autoPlay
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <>
+                     <>
                         <img
-                          src={item.image_url}
+                          src={item.image}
                           alt={item.name}
                           className="w-full h-full object-cover"
                         />
-                        {item.video_url && (
+                        {item.video && (
                           <button
-                            onClick={() => setPlayingVideo(item.id)}
+                            onClick={() => setPlayingVideo(item.id.toString())}
                             className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors group"
                           >
                             <Play className="h-16 w-16 text-white group-hover:scale-110 transition-transform" />
@@ -270,7 +258,7 @@ const BookEquipment = () => {
                   <CardTitle>{item.name}</CardTitle>
                   <CardDescription>{item.description}</CardDescription>
                   <div className="text-lg font-semibold text-primary mt-2">
-                    ${Number(item.rate_per_hour).toFixed(2)}/hour
+                    ₹{Number(item.internalRate).toFixed(2)}/hour
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -292,7 +280,7 @@ const BookEquipment = () => {
                   <div>
                     <CardTitle>Book {selectedEquipment.name}</CardTitle>
                     <CardDescription>
-                      ${Number(selectedEquipment.rate_per_hour).toFixed(2)}/hour - Select your preferred time slots
+                      ₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour - Select your preferred time slots
                     </CardDescription>
                   </div>
                   <Button
@@ -387,7 +375,7 @@ const BookEquipment = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Total Cost</span>
-                      <span className="text-2xl font-bold">${calculateTotalCost().toFixed(2)}</span>
+                      <span className="text-2xl font-bold">₹{calculateTotalCost().toFixed(2)}</span>
                     </div>
                   </div>
                 )}
