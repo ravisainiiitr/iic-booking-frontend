@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ArrowLeft, Play } from "lucide-react";
+import { ArrowLeft, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { z } from "zod";
+import { format, addDays, startOfWeek, addWeeks, isSameDay } from "date-fns";
 
 interface Equipment {
   id: string;
@@ -19,24 +17,27 @@ interface Equipment {
   available: boolean;
 }
 
-const bookingSchema = z.object({
-  startTime: z.string().min(1, "Start time is required"),
-  endTime: z.string().min(1, "End time is required"),
-}).refine(
-  (data) => new Date(data.endTime) > new Date(data.startTime),
-  { message: "End time must be after start time", path: ["endTime"] }
-);
+// Time slots from 9:00 AM to 5:30 PM (1-hour slots)
+const TIME_SLOTS = [
+  "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
+];
+
+interface TimeSlot {
+  date: Date;
+  time: string;
+  isBooked: boolean;
+}
 
 const BookEquipment = () => {
   const navigate = useNavigate();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [totalCost, setTotalCost] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<TimeSlot[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -44,10 +45,10 @@ const BookEquipment = () => {
   }, []);
 
   useEffect(() => {
-    if (startTime && endTime && selectedEquipment) {
-      calculateCost();
+    if (selectedEquipment) {
+      fetchBookedSlots();
     }
-  }, [startTime, endTime, selectedEquipment]);
+  }, [selectedEquipment, currentWeekStart]);
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -70,53 +71,146 @@ const BookEquipment = () => {
     setLoading(false);
   };
 
-  const calculateCost = () => {
-    if (!selectedEquipment || !startTime || !endTime) return;
+  const fetchBookedSlots = async () => {
+    if (!selectedEquipment) return;
 
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const weekEnd = addDays(currentWeekStart, 7);
     
-    if (hours > 0) {
-      setTotalCost(hours * Number(selectedEquipment.rate_per_hour));
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("start_time, end_time")
+      .eq("equipment_id", selectedEquipment.id)
+      .gte("start_time", currentWeekStart.toISOString())
+      .lt("start_time", weekEnd.toISOString());
+
+    if (!error && data) {
+      const slots: TimeSlot[] = [];
+      data.forEach((booking) => {
+        const start = new Date(booking.start_time);
+        const end = new Date(booking.end_time);
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        
+        for (let i = 0; i < hours; i++) {
+          const slotDate = new Date(start.getTime() + i * 60 * 60 * 1000);
+          slots.push({
+            date: slotDate,
+            time: format(slotDate, "HH:mm"),
+            isBooked: true
+          });
+        }
+      });
+      setBookedSlots(slots);
     }
   };
 
-  const handleBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const isSlotBooked = (date: Date, time: string): boolean => {
+    return bookedSlots.some(slot => 
+      isSameDay(slot.date, date) && slot.time === time
+    );
+  };
+
+  const isSlotSelected = (date: Date, time: string): boolean => {
+    return selectedSlots.some(slot => 
+      isSameDay(slot.date, date) && slot.time === time
+    );
+  };
+
+  const toggleSlot = (date: Date, time: string) => {
+    if (isSlotBooked(date, time)) return;
+
+    const slot: TimeSlot = { date, time, isBooked: false };
+    
+    if (isSlotSelected(date, time)) {
+      setSelectedSlots(prev => prev.filter(s => 
+        !(isSameDay(s.date, date) && s.time === time)
+      ));
+    } else {
+      setSelectedSlots(prev => [...prev, slot]);
+    }
+  };
+
+  const calculateTotalCost = (): number => {
+    if (!selectedEquipment) return 0;
+    return selectedSlots.length * Number(selectedEquipment.rate_per_hour);
+  };
+
+  const goToPreviousWeek = () => {
+    setCurrentWeekStart(addWeeks(currentWeekStart, -1));
+    setSelectedSlots([]);
+  };
+
+  const goToNextWeek = () => {
+    setCurrentWeekStart(addWeeks(currentWeekStart, 1));
+    setSelectedSlots([]);
+  };
+
+  const handleBooking = async () => {
+    if (!userId || !selectedEquipment || selectedSlots.length === 0) {
+      toast.error("Please select at least one time slot");
+      return;
+    }
 
     try {
-      const validated = bookingSchema.parse({ startTime, endTime });
+      // Sort slots by date and time
+      const sortedSlots = [...selectedSlots].sort((a, b) => a.date.getTime() - b.date.getTime());
       
-      if (!userId || !selectedEquipment) {
-        toast.error("Please select equipment and ensure you're logged in");
-        return;
-      }
+      // Group consecutive slots into bookings
+      const bookings: Array<{start: Date, end: Date}> = [];
+      let currentBooking: {start: Date, end: Date} | null = null;
 
-      const start = new Date(validated.startTime);
-      const end = new Date(validated.endTime);
-      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      sortedSlots.forEach((slot, index) => {
+        const slotDateTime = new Date(slot.date);
+        const [hours, minutes] = slot.time.split(':');
+        slotDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-      const { error } = await supabase.from("bookings").insert({
-        user_id: userId,
-        equipment_id: selectedEquipment.id,
-        start_time: validated.startTime,
-        end_time: validated.endTime,
-        total_hours: hours,
-        total_cost: totalCost,
-        status: "pending",
+        if (!currentBooking) {
+          currentBooking = {
+            start: slotDateTime,
+            end: new Date(slotDateTime.getTime() + 60 * 60 * 1000)
+          };
+        } else {
+          // Check if this slot is consecutive
+          if (slotDateTime.getTime() === currentBooking.end.getTime()) {
+            currentBooking.end = new Date(slotDateTime.getTime() + 60 * 60 * 1000);
+          } else {
+            bookings.push(currentBooking);
+            currentBooking = {
+              start: slotDateTime,
+              end: new Date(slotDateTime.getTime() + 60 * 60 * 1000)
+            };
+          }
+        }
+
+        if (index === sortedSlots.length - 1 && currentBooking) {
+          bookings.push(currentBooking);
+        }
       });
 
-      if (error) throw error;
+      // Insert all bookings
+      const insertPromises = bookings.map(booking => {
+        const hours = (booking.end.getTime() - booking.start.getTime()) / (1000 * 60 * 60);
+        return supabase.from("bookings").insert({
+          user_id: userId,
+          equipment_id: selectedEquipment.id,
+          start_time: booking.start.toISOString(),
+          end_time: booking.end.toISOString(),
+          total_hours: hours,
+          total_cost: hours * Number(selectedEquipment.rate_per_hour),
+          status: "pending",
+        });
+      });
 
-      toast.success("Booking created successfully!");
+      const results = await Promise.all(insertPromises);
+      const errors = results.filter(r => r.error);
+
+      if (errors.length > 0) {
+        throw new Error("Failed to create some bookings");
+      }
+
+      toast.success(`${bookings.length} booking(s) created successfully!`);
       navigate("/my-bookings");
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
-      } else {
-        toast.error(error.message || "Failed to create booking");
-      }
+      toast.error(error.message || "Failed to create booking");
     }
   };
 
@@ -191,57 +285,132 @@ const BookEquipment = () => {
             ))}
           </div>
         ) : (
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle>Book {selectedEquipment.name}</CardTitle>
-              <CardDescription>
-                ${Number(selectedEquipment.rate_per_hour).toFixed(2)}/hour
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleBooking} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start-time">Start Time</Label>
-                  <Input
-                    id="start-time"
-                    type="datetime-local"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    required
-                  />
+          <div className="max-w-6xl mx-auto">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Book {selectedEquipment.name}</CardTitle>
+                    <CardDescription>
+                      ${Number(selectedEquipment.rate_per_hour).toFixed(2)}/hour - Select your preferred time slots
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedEquipment(null);
+                      setSelectedSlots([]);
+                    }}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end-time">End Time</Label>
-                  <Input
-                    id="end-time"
-                    type="datetime-local"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    required
-                  />
+              </CardHeader>
+              <CardContent>
+                {/* Week Navigation */}
+                <div className="flex justify-between items-center mb-6">
+                  <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+                    <ChevronLeft className="h-4 w-4 mr-2" />
+                    Previous Week
+                  </Button>
+                  <span className="font-semibold">
+                    {format(currentWeekStart, "MMM dd")} - {format(addDays(currentWeekStart, 6), "MMM dd, yyyy")}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={goToNextWeek}>
+                    Next Week
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
                 </div>
-                {totalCost > 0 && (
-                  <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm text-muted-foreground">Total Cost</p>
-                    <p className="text-2xl font-bold">${totalCost.toFixed(2)}</p>
+
+                {/* Slot Grid */}
+                <div className="overflow-x-auto">
+                  <div className="min-w-[800px]">
+                    {/* Header with days */}
+                    <div className="grid grid-cols-8 gap-2 mb-2">
+                      <div className="font-semibold text-sm p-2">Time</div>
+                      {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                        const day = addDays(currentWeekStart, dayOffset);
+                        return (
+                          <div key={dayOffset} className="font-semibold text-sm p-2 text-center">
+                            <div>{format(day, "EEE")}</div>
+                            <div className="text-muted-foreground">{format(day, "MMM dd")}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Time slots */}
+                    {TIME_SLOTS.map((time) => (
+                      <div key={time} className="grid grid-cols-8 gap-2 mb-2">
+                        <div className="text-sm p-2 font-medium flex items-center">
+                          {time}
+                        </div>
+                        {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                          const day = addDays(currentWeekStart, dayOffset);
+                          const isBooked = isSlotBooked(day, time);
+                          const isSelected = isSlotSelected(day, time);
+                          const isPast = new Date(day.setHours(parseInt(time.split(':')[0]), 0, 0, 0)) < new Date();
+
+                          return (
+                            <button
+                              key={dayOffset}
+                              onClick={() => toggleSlot(day, time)}
+                              disabled={isBooked || isPast}
+                              className={`
+                                p-3 rounded-md text-sm transition-all
+                                ${isBooked ? 'bg-destructive/20 text-destructive cursor-not-allowed' : ''}
+                                ${isPast && !isBooked ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}
+                                ${isSelected ? 'bg-primary text-primary-foreground' : ''}
+                                ${!isBooked && !isPast && !isSelected ? 'bg-muted hover:bg-accent' : ''}
+                              `}
+                            >
+                              {isBooked ? 'Booked' : isSelected ? 'Selected' : isPast ? 'Past' : 'Available'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Booking Summary */}
+                {selectedSlots.length > 0 && (
+                  <div className="mt-6 p-4 bg-muted rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium">Selected Slots: {selectedSlots.length}</span>
+                      <span className="text-sm text-muted-foreground">
+                        Total Hours: {selectedSlots.length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Total Cost</span>
+                      <span className="text-2xl font-bold">${calculateTotalCost().toFixed(2)}</span>
+                    </div>
                   </div>
                 )}
-                <div className="flex gap-4">
+
+                {/* Action Buttons */}
+                <div className="mt-6 flex gap-4">
                   <Button
-                    type="button"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => setSelectedEquipment(null)}
+                    onClick={() => setSelectedSlots([])}
+                    disabled={selectedSlots.length === 0}
                   >
-                    Cancel
+                    Clear Selection
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    Confirm Booking
+                  <Button
+                    className="flex-1"
+                    onClick={handleBooking}
+                    disabled={selectedSlots.length === 0}
+                  >
+                    Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''})
                   </Button>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </main>
     </div>
