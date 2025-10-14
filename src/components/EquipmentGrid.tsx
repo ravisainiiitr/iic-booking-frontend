@@ -19,6 +19,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 500,
+    externalRate: 2000,
   },
   {
     id: 2,
@@ -31,6 +33,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 600,
+    externalRate: 2500,
   },
   {
     id: 3,
@@ -44,6 +48,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 800,
+    externalRate: 3500,
   },
   {
     id: 4,
@@ -56,6 +62,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 750,
+    externalRate: 3200,
   },
   {
     id: 5,
@@ -68,6 +76,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1000,
+    externalRate: 4500,
   },
   {
     id: 6,
@@ -80,6 +90,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 900,
+    externalRate: 4000,
   },
   {
     id: 7,
@@ -93,6 +105,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 650,
+    externalRate: 2800,
   },
   {
     id: 8,
@@ -105,6 +119,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1200,
+    externalRate: 5000,
   },
   {
     id: 9,
@@ -117,6 +133,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 700,
+    externalRate: 3000,
   },
   {
     id: 10,
@@ -130,6 +148,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1500,
+    externalRate: 6000,
   },
   {
     id: 11,
@@ -142,6 +162,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1100,
+    externalRate: 4800,
   },
   {
     id: 12,
@@ -154,6 +176,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 950,
+    externalRate: 4200,
   },
   {
     id: 13,
@@ -166,6 +190,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 600,
+    externalRate: 2600,
   },
   {
     id: 14,
@@ -179,6 +205,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 850,
+    externalRate: 3700,
   },
   {
     id: 15,
@@ -191,6 +219,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 550,
+    externalRate: 2400,
   },
   {
     id: 16,
@@ -203,6 +233,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1000,
+    externalRate: 4500,
   },
   {
     id: 17,
@@ -215,6 +247,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 700,
+    externalRate: 3000,
   },
   {
     id: 18,
@@ -228,6 +262,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1300,
+    externalRate: 5500,
   },
   {
     id: 19,
@@ -240,6 +276,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 800,
+    externalRate: 3500,
   },
   {
     id: 20,
@@ -252,6 +290,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1400,
+    externalRate: 6000,
   },
   {
     id: 21,
@@ -264,6 +304,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 450,
+    externalRate: 2000,
   },
   {
     id: 22,
@@ -276,6 +318,8 @@ const equipmentData = [
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
+    internalRate: 1200,
+    externalRate: 5200,
   },
 ];
 

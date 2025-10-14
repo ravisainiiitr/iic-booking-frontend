@@ -17,6 +17,8 @@ interface EquipmentCardProps {
   address: string;
   technicalPerson: string;
   contactNumber: string;
+  internalRate?: number;
+  externalRate?: number;
   make?: string;
   model?: string;
   yearOfInstallation?: string;
@@ -36,6 +38,8 @@ const EquipmentCard = ({
   address, 
   technicalPerson, 
   contactNumber,
+  internalRate,
+  externalRate,
   make,
   model,
   yearOfInstallation,
@@ -129,10 +133,30 @@ const EquipmentCard = ({
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground line-clamp-2">
           {description}
         </p>
+        
+        {(internalRate || externalRate) && (
+          <div className="pt-2 border-t">
+            <p className="text-xs font-semibold text-foreground mb-2">Charges (per hour)</p>
+            <div className="grid grid-cols-2 gap-2">
+              {userType === "internal" && internalRate && (
+                <div className="bg-muted/50 rounded-md p-2">
+                  <p className="text-xs text-muted-foreground">Internal</p>
+                  <p className="text-sm font-semibold text-foreground">₹{internalRate}</p>
+                </div>
+              )}
+              {userType === "external" && externalRate && (
+                <div className="bg-muted/50 rounded-md p-2">
+                  <p className="text-xs text-muted-foreground">External</p>
+                  <p className="text-sm font-semibold text-foreground">₹{externalRate}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
 
       <CardFooter className="flex gap-2">
