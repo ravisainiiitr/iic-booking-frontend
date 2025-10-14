@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar, FlaskConical, ChevronDown } from "lucide-react";
 import {
@@ -10,6 +11,8 @@ import {
 } from "@/components/ui/navigation-menu";
 
 const Header = () => {
+  const navigate = useNavigate();
+  
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 py-4">
@@ -89,12 +92,12 @@ const Header = () => {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
               Sign In
             </Button>
-            <Button size="sm" className="gap-2">
+            <Button size="sm" className="gap-2" onClick={() => navigate("/dashboard")}>
               <Calendar className="h-4 w-4" />
-              Book Now
+              Dashboard
             </Button>
           </div>
         </div>

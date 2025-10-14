@@ -1,0 +1,170 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { User, Session } from "@supabase/supabase-js";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar, CreditCard, FileText, LogOut, Package } from "lucide-react";
+import { toast } from "sonner";
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (!session) {
+          navigate("/auth");
+        } else {
+          fetchWalletBalance(session.user.id);
+        }
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+      
+      if (!session) {
+        navigate("/auth");
+      } else {
+        fetchWalletBalance(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const fetchWalletBalance = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("wallets")
+      .select("balance")
+      .eq("user_id", userId)
+      .single();
+
+    if (!error && data) {
+      setWalletBalance(Number(data.balance));
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success("Signed out successfully");
+    navigate("/auth");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold">LabBooking Pro</h1>
+          <div className="flex items-center gap-4">
+            <div className="text-sm">
+              <span className="text-muted-foreground">Balance:</span>{" "}
+              <span className="font-semibold">${walletBalance.toFixed(2)}</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold mb-2">
+            Welcome, {user?.user_metadata?.full_name || user?.email}!
+          </h2>
+          <p className="text-muted-foreground">
+            Manage your equipment bookings and account
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/book-equipment")}
+          >
+            <CardHeader>
+              <Package className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>Book Equipment</CardTitle>
+              <CardDescription>
+                Browse and book available laboratory equipment
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full">Browse Equipment</Button>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/my-bookings")}
+          >
+            <CardHeader>
+              <Calendar className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>View Bookings</CardTitle>
+              <CardDescription>
+                Check your current and past bookings
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="secondary">View Bookings</Button>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/wallet")}
+          >
+            <CardHeader>
+              <CreditCard className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>Wallet</CardTitle>
+              <CardDescription>
+                Recharge your wallet and view transactions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="secondary">Manage Wallet</Button>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/reports")}
+          >
+            <CardHeader>
+              <FileText className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>Reports</CardTitle>
+              <CardDescription>
+                View your booking history and statistics
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="secondary">View Reports</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;
