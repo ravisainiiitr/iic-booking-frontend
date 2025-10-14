@@ -14,6 +14,7 @@ const equipmentData = [
     category: "Diffraction",
     description: "Powder X-ray diffraction for crystal structure analysis and phase identification",
     image: spectrometer,
+    video: "https://www.w3schools.com/html/mov_bbb.mp4",
     available: true,
     address: "Institute Instrumentation Centre, IIT Roorkee",
     technicalPerson: "Dr. Technical Expert",

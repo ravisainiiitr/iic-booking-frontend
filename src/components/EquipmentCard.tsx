@@ -3,14 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Calendar, Clock, Info, MapPin, User, Phone } from "lucide-react";
-import { useState } from "react";
+import { Calendar, Clock, MapPin, User, Phone, Play, Info } from "lucide-react";
+import { useState, useRef } from "react";
 
 interface EquipmentCardProps {
   name: string;
   category: string;
   description: string;
   image: string;
+  video?: string;
   available: boolean;
   nextAvailable?: string;
   address: string;
@@ -18,17 +19,57 @@ interface EquipmentCardProps {
   contactNumber: string;
 }
 
-const EquipmentCard = ({ name, category, description, image, available, nextAvailable, address, technicalPerson, contactNumber }: EquipmentCardProps) => {
+const EquipmentCard = ({ name, category, description, image, video, available, nextAvailable, address, technicalPerson, contactNumber }: EquipmentCardProps) => {
   const [userType, setUserType] = useState<string>("internal");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handlePlayVideo = () => {
+    if (videoRef.current) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const handlePauseVideo = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
 
   return (
     <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
-      <div className="aspect-square overflow-hidden bg-muted">
-        <img 
-          src={image} 
-          alt={name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        />
+      <div className="aspect-square overflow-hidden bg-muted relative">
+        {video ? (
+          <>
+            <video 
+              ref={videoRef}
+              src={video}
+              className="w-full h-full object-cover"
+              onEnded={() => setIsPlaying(false)}
+              onClick={handlePauseVideo}
+              poster={image}
+            />
+            {!isPlaying && (
+              <button
+                onClick={handlePlayVideo}
+                className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors group/play"
+                aria-label="Play video"
+              >
+                <div className="bg-primary/90 hover:bg-primary rounded-full p-4 transition-all group-hover/play:scale-110">
+                  <Play className="h-8 w-8 text-primary-foreground fill-current" />
+                </div>
+              </button>
+            )}
+          </>
+        ) : (
+          <img 
+            src={image} 
+            alt={name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        )}
       </div>
       
       <CardHeader>
