@@ -1,8 +1,11 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Calendar, Search } from "lucide-react";
+import { Calendar, Search, LogIn } from "lucide-react";
 import heroLab from "@/assets/hero-lab.jpg";
 
 const Hero = () => {
+  const navigate = useNavigate();
+  
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
       {/* Background Image with Overlay */}
@@ -31,11 +34,29 @@ const Hero = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" variant="secondary" className="gap-2 text-lg px-8 py-6 h-auto">
+            <Button 
+              size="lg" 
+              className="gap-2 text-lg px-8 py-6 h-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+              onClick={() => navigate("/auth")}
+            >
+              <LogIn className="h-5 w-5" />
+              Login with Channeli (IIT Roorkee)
+            </Button>
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="gap-2 text-lg px-8 py-6 h-auto"
+              onClick={() => navigate("/book-equipment")}
+            >
               <Calendar className="h-5 w-5" />
               Book Equipment
             </Button>
-            <Button size="lg" variant="outline" className="gap-2 text-lg px-8 py-6 h-auto border-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="gap-2 text-lg px-8 py-6 h-auto border-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              onClick={() => navigate("/#equipment")}
+            >
               <Search className="h-5 w-5" />
               Browse Catalog
             </Button>
