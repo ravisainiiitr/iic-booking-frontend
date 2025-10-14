@@ -75,8 +75,8 @@ const EquipmentCard = ({ name, category, description, image, video, available, n
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
-          <Badge variant={available ? "default" : "secondary"} className="shrink-0">
-            {available ? "Available" : "Busy"}
+          <Badge variant={available ? "default" : "destructive"} className={available ? "shrink-0 bg-green-600 hover:bg-green-700" : "shrink-0"}>
+            {available ? "Working" : "Not Working"}
           </Badge>
         </div>
         <CardDescription className="text-sm">{category}</CardDescription>
@@ -110,12 +110,6 @@ const EquipmentCard = ({ name, category, description, image, video, available, n
         <p className="text-sm text-muted-foreground line-clamp-2">
           {description}
         </p>
-        {!available && nextAvailable && (
-          <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            <span>Next available: {nextAvailable}</span>
-          </div>
-        )}
       </CardContent>
 
       <CardFooter className="flex gap-2">
@@ -125,8 +119,8 @@ const EquipmentCard = ({ name, category, description, image, video, available, n
         </Button>
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" size="icon">
-              <Info className="h-4 w-4" />
+            <Button variant="outline" className="flex-1">
+              More Info
             </Button>
           </DialogTrigger>
           <DialogContent>
