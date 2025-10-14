@@ -9,7 +9,7 @@ import { useState } from "react";
 
 const equipmentData = [
   {
-    id: 1,
+    id: "1",
     name: "Powder X-Ray Diffractometer (XRD)",
     category: "Diffraction",
     description: "Powder X-ray diffraction for crystal structure analysis and phase identification",
@@ -20,10 +20,12 @@ const equipmentData = [
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
     internalRate: 500,
-    externalRate: 2000,
+    externalEducationalRate: 1500,
+    externalGovtRate: 1800,
+    externalIndustryRate: 2500,
   },
   {
-    id: 2,
+    id: "2",
     name: "GI-XRD (Thin Film)",
     category: "Diffraction",
     description: "Grazing Incidence X-Ray Diffraction for thin film characterization",
@@ -34,10 +36,12 @@ const equipmentData = [
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
     internalRate: 600,
-    externalRate: 2500,
+    externalEducationalRate: 1800,
+    externalGovtRate: 2200,
+    externalIndustryRate: 3000,
   },
   {
-    id: 3,
+    id: "3",
     name: "FE-SEM Gemini 560",
     category: "Microscopy",
     description: "Field Emission Scanning Electron Microscope for high-resolution imaging",
@@ -49,7 +53,9 @@ const equipmentData = [
     technicalPerson: "Dr. Technical Expert",
     contactNumber: "+91-1332-285797",
     internalRate: 800,
-    externalRate: 3500,
+    externalEducationalRate: 2500,
+    externalGovtRate: 3000,
+    externalIndustryRate: 4000,
   },
   {
     id: 4,

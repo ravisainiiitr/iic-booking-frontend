@@ -18,13 +18,16 @@ interface EquipmentCardProps {
   technicalPerson: string;
   contactNumber: string;
   internalRate?: number;
-  externalRate?: number;
+  externalEducationalRate?: number;
+  externalGovtRate?: number;
+  externalIndustryRate?: number;
   make?: string;
   model?: string;
   yearOfInstallation?: string;
   specifications?: string;
   sampleRequirements?: string;
   detailsUrl?: string;
+  id?: string | number;
 }
 
 const EquipmentCard = ({ 
@@ -39,13 +42,16 @@ const EquipmentCard = ({
   technicalPerson, 
   contactNumber,
   internalRate,
-  externalRate,
+  externalEducationalRate,
+  externalGovtRate,
+  externalIndustryRate,
   make,
   model,
   yearOfInstallation,
   specifications,
   sampleRequirements,
-  detailsUrl
+  detailsUrl,
+  id
 }: EquipmentCardProps) => {
   const [userType, setUserType] = useState<string>("internal");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -138,29 +144,55 @@ const EquipmentCard = ({
           {description}
         </p>
         
-        {(internalRate || externalRate) && (
+        {(internalRate || externalEducationalRate || externalGovtRate || externalIndustryRate) && (
           <div className="pt-2 border-t">
             <p className="text-xs font-semibold text-foreground mb-2">Charges (per hour)</p>
-            <div className="grid grid-cols-2 gap-2">
-              {userType === "internal" && internalRate && (
+            {userType === "internal" && internalRate && (
+              <div className="grid grid-cols-1 gap-2">
                 <div className="bg-muted/50 rounded-md p-2">
                   <p className="text-xs text-muted-foreground">Internal</p>
                   <p className="text-sm font-semibold text-foreground">₹{internalRate}</p>
                 </div>
-              )}
-              {userType === "external" && externalRate && (
-                <div className="bg-muted/50 rounded-md p-2">
-                  <p className="text-xs text-muted-foreground">External</p>
-                  <p className="text-sm font-semibold text-foreground">₹{externalRate}</p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+            {userType === "external" && (
+              <div className="grid grid-cols-1 gap-2">
+                {externalEducationalRate && (
+                  <div className="bg-muted/50 rounded-md p-2">
+                    <p className="text-xs text-muted-foreground">Educational Institute</p>
+                    <p className="text-sm font-semibold text-foreground">₹{externalEducationalRate}</p>
+                  </div>
+                )}
+                {externalGovtRate && (
+                  <div className="bg-muted/50 rounded-md p-2">
+                    <p className="text-xs text-muted-foreground">Government R&D Organization</p>
+                    <p className="text-sm font-semibold text-foreground">₹{externalGovtRate}</p>
+                  </div>
+                )}
+                {externalIndustryRate && (
+                  <div className="bg-muted/50 rounded-md p-2">
+                    <p className="text-xs text-muted-foreground">Industries</p>
+                    <p className="text-sm font-semibold text-foreground">₹{externalIndustryRate}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
 
       <CardFooter className="flex gap-2">
-        <Button className="flex-1 gap-2" disabled={!available}>
+        <Button 
+          className="flex-1 gap-2" 
+          disabled={!available}
+          onClick={() => {
+            if (userType === "external") {
+              window.open("https://istem.gov.in/", "_blank");
+            } else {
+              window.location.href = `/book-equipment${id ? `?equipment=${id}` : ''}`;
+            }
+          }}
+        >
           <Calendar className="h-4 w-4" />
           Book Now
         </Button>
