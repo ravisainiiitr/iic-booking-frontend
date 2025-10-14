@@ -350,7 +350,9 @@ const BookEquipment = () => {
                           const day = addDays(currentWeekStart, dayOffset);
                           const isBooked = isSlotBooked(day, time);
                           const isSelected = isSlotSelected(day, time);
-                          const isPast = new Date(day.setHours(parseInt(time.split(':')[0]), 0, 0, 0)) < new Date();
+                          const slotDateTime = new Date(day);
+                          slotDateTime.setHours(parseInt(time.split(':')[0]), 0, 0, 0);
+                          const isPast = slotDateTime < new Date();
 
                           return (
                             <button
