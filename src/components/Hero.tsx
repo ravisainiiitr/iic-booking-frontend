@@ -53,9 +53,14 @@ const Hero = () => {
             </Button>
             <Button 
               size="lg" 
-              variant="outline" 
-              className="gap-2 text-lg px-8 py-6 h-auto border-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
-              onClick={() => navigate("/#equipment")}
+              variant="secondary" 
+              className="gap-2 text-lg px-8 py-6 h-auto"
+              onClick={() => {
+                navigate("/");
+                setTimeout(() => {
+                  document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }}
             >
               <Search className="h-5 w-5" />
               Browse Catalog

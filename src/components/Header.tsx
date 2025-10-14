@@ -95,10 +95,6 @@ const Header = () => {
             <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
               Sign In
             </Button>
-            <Button size="sm" className="gap-2" onClick={() => navigate("/dashboard")}>
-              <Calendar className="h-4 w-4" />
-              Dashboard
-            </Button>
           </div>
         </div>
       </div>

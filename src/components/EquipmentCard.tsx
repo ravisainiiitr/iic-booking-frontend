@@ -121,7 +121,7 @@ const EquipmentCard = ({ name, category, description, image, video, available, n
       <CardFooter className="flex gap-2">
         <Button className="flex-1 gap-2" disabled={!available}>
           <Calendar className="h-4 w-4" />
-          {available ? "Book Now" : "View Schedule"}
+          Book Now
         </Button>
         <Dialog>
           <DialogTrigger asChild>
