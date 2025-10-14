@@ -17,9 +17,32 @@ interface EquipmentCardProps {
   address: string;
   technicalPerson: string;
   contactNumber: string;
+  make?: string;
+  model?: string;
+  yearOfInstallation?: string;
+  specifications?: string;
+  sampleRequirements?: string;
+  detailsUrl?: string;
 }
 
-const EquipmentCard = ({ name, category, description, image, video, available, nextAvailable, address, technicalPerson, contactNumber }: EquipmentCardProps) => {
+const EquipmentCard = ({ 
+  name, 
+  category, 
+  description, 
+  image, 
+  video, 
+  available, 
+  nextAvailable, 
+  address, 
+  technicalPerson, 
+  contactNumber,
+  make,
+  model,
+  yearOfInstallation,
+  specifications,
+  sampleRequirements,
+  detailsUrl
+}: EquipmentCardProps) => {
   const [userType, setUserType] = useState<string>("internal");
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -123,36 +146,89 @@ const EquipmentCard = ({ name, category, description, image, video, available, n
               More Info
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{name}</DialogTitle>
+              <DialogTitle className="text-2xl">{name}</DialogTitle>
               <DialogDescription>{category}</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <p className="text-sm text-muted-foreground">{description}</p>
-              <div className="space-y-3">
+            <div className="space-y-6 py-4">
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-2">Description</h4>
+                <p className="text-sm text-muted-foreground">{description}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {make && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">Make</p>
+                    <p className="text-sm text-muted-foreground">{make}</p>
+                  </div>
+                )}
+                {model && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">Model</p>
+                    <p className="text-sm text-muted-foreground">{model}</p>
+                  </div>
+                )}
+                {yearOfInstallation && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">Year of Installation</p>
+                    <p className="text-sm text-muted-foreground">{yearOfInstallation}</p>
+                  </div>
+                )}
+              </div>
+
+              {specifications && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground">Specifications</h4>
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">{specifications}</p>
+                </div>
+              )}
+
+              {sampleRequirements && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground">Sample Requirements</h4>
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">{sampleRequirements}</p>
+                </div>
+              )}
+
+              <div className="border-t pt-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-primary mt-0.5" />
+                  <MapPin className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium">Address</p>
+                    <p className="text-sm font-semibold text-foreground">Address</p>
                     <p className="text-sm text-muted-foreground">{address}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-primary mt-0.5" />
+                  <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium">Technical Person</p>
+                    <p className="text-sm font-semibold text-foreground">Technical Person</p>
                     <p className="text-sm text-muted-foreground">{technicalPerson}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Phone className="h-5 w-5 text-primary mt-0.5" />
+                  <Phone className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium">Contact Number</p>
+                    <p className="text-sm font-semibold text-foreground">Contact Number</p>
                     <p className="text-sm text-muted-foreground">{contactNumber}</p>
                   </div>
                 </div>
               </div>
+
+              {detailsUrl && (
+                <div className="pt-2">
+                  <a 
+                    href={detailsUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline inline-flex items-center gap-2"
+                  >
+                    View full technical details
+                    <Info className="h-4 w-4" />
+                  </a>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
