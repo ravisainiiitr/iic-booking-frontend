@@ -25,11 +25,11 @@ const Header = () => {
           </div>
           
           <nav className="hidden md:flex items-center gap-8">
-            <a href="#equipment" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Equipment
+            <a href="#home" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              Home
             </a>
-            <a href="#features" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Features
+            <a href="#facilities" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              Facilities
             </a>
             <NavigationMenu>
               <NavigationMenuList>
@@ -86,8 +86,17 @@ const Header = () => {
                 </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
-            <a href="#about" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              About
+            <a href="#booking" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              Booking
+            </a>
+            <a href="#outreach" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              Outreach
+            </a>
+            <a href="#important-links" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              Important Links
+            </a>
+            <a href="#contact-us" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              Contact Us
             </a>
           </nav>
 
