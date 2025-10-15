@@ -15,6 +15,7 @@ interface TestUser {
 }
 
 const testUsers: TestUser[] = [
+  { email: 'iicbooking@iitr.ac.in', password: '123456', full_name: 'Admin User', role: 'admin' },
   { email: 'student@iitr.ac.in', password: 'student123', full_name: 'IITR Student', role: 'iitr_student' },
   { email: 'faculty@iitr.ac.in', password: 'faculty123', full_name: 'IITR Faculty', role: 'iitr_faculty' },
   { email: 'officer@iitr.ac.in', password: 'officer123', full_name: 'Officer in Charge', role: 'officer_in_charge' },
