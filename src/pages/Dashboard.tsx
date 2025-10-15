@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar, CreditCard, FileText, LogOut, Package } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +14,7 @@ const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [profileData, setProfileData] = useState<{ full_name?: string; avatar_url?: string } | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -53,6 +55,17 @@ const Dashboard = () => {
     if (!error && data) {
       setWalletBalance(Number(data.balance));
     }
+
+    // Fetch profile data
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", userId)
+      .single();
+
+    if (profile) {
+      setProfileData(profile);
+    }
   };
 
   const handleSignOut = async () => {
@@ -79,6 +92,10 @@ const Dashboard = () => {
               <span className="text-muted-foreground">Balance:</span>{" "}
               <span className="font-semibold">${walletBalance.toFixed(2)}</span>
             </div>
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={profileData?.avatar_url} alt={profileData?.full_name || user?.email || "User"} />
+              <AvatarFallback>{(profileData?.full_name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
+            </Avatar>
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -88,13 +105,19 @@ const Dashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">
-            Welcome, {user?.user_metadata?.full_name || user?.email}!
-          </h2>
-          <p className="text-muted-foreground">
-            Manage your equipment bookings and account
-          </p>
+        <div className="mb-8 flex items-center gap-4">
+          <Avatar className="h-16 w-16">
+            <AvatarImage src={profileData?.avatar_url} alt={profileData?.full_name || user?.email || "User"} />
+            <AvatarFallback className="text-2xl">{(profileData?.full_name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div>
+            <h2 className="text-3xl font-bold mb-2">
+              Welcome, {profileData?.full_name || user?.email}!
+            </h2>
+            <p className="text-muted-foreground">
+              Manage your equipment bookings and account
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
