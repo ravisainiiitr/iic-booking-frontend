@@ -5,7 +5,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, CreditCard, FileText, LogOut, Package } from "lucide-react";
+import { Calendar, CreditCard, FileText, LogOut, Package, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 
 const Dashboard = () => {
@@ -14,7 +14,13 @@ const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState<number>(0);
-  const [profileData, setProfileData] = useState<{ full_name?: string; avatar_url?: string } | null>(null);
+  const [profileData, setProfileData] = useState<{ 
+    full_name?: string; 
+    avatar_url?: string;
+    phone?: string;
+    department?: string;
+    supervisor_name?: string;
+  } | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -59,7 +65,7 @@ const Dashboard = () => {
     // Fetch profile data
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, avatar_url")
+      .select("full_name, avatar_url, phone, department, supervisor_name")
       .eq("id", userId)
       .single();
 
@@ -105,19 +111,55 @@ const Dashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center gap-4">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={profileData?.avatar_url} alt={profileData?.full_name || user?.email || "User"} />
-            <AvatarFallback className="text-2xl">{(profileData?.full_name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-3xl font-bold mb-2">
-              Welcome, {profileData?.full_name || user?.email}!
-            </h2>
-            <p className="text-muted-foreground">
-              Manage your equipment bookings and account
-            </p>
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={profileData?.avatar_url} alt={profileData?.full_name || user?.email || "User"} />
+              <AvatarFallback className="text-2xl">{(profileData?.full_name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h2 className="text-3xl font-bold mb-2">
+                Welcome, {profileData?.full_name || user?.email}!
+              </h2>
+              <p className="text-muted-foreground">
+                Manage your equipment bookings and account
+              </p>
+            </div>
           </div>
+
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">{profileData?.full_name ? user?.email : "Not set"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Phone</p>
+                  <p className="font-medium">{profileData?.phone || "Not set"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Department</p>
+                  <p className="font-medium">{profileData?.department || "Not set"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Supervisor</p>
+                  <p className="font-medium">{profileData?.supervisor_name || "Not set"}</p>
+                </div>
+              </div>
+              <Button 
+                className="mt-4"
+                variant="outline"
+                onClick={() => navigate("/profile")}
+              >
+                <UserIcon className="h-4 w-4 mr-2" />
+                Edit Profile
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
