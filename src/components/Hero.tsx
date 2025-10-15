@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar, Search, LogIn } from "lucide-react";
-import heroLab from "@/assets/hero-lab.jpg";
+import iitrCampus from "@/assets/iitr-campus.jpg";
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -11,8 +11,8 @@ const Hero = () => {
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
         <img 
-          src={heroLab} 
-          alt="Advanced scientific laboratory" 
+          src={iitrCampus} 
+          alt="IIT Roorkee campus view showcasing the institute's architectural heritage" 
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-accent/90" />
