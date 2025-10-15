@@ -1,0 +1,140 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+type UserRole = 'admin' | 'iitr_student' | 'iitr_faculty' | 'officer_in_charge' | 'operator' | 'accounts' | 'external_academic' | 'external_rnd' | 'industrial_user';
+
+interface TestUser {
+  email: string;
+  password: string;
+  full_name: string;
+  role: UserRole;
+}
+
+const testUsers: TestUser[] = [
+  { email: 'student@iitr.ac.in', password: 'student123', full_name: 'IITR Student', role: 'iitr_student' },
+  { email: 'faculty@iitr.ac.in', password: 'faculty123', full_name: 'IITR Faculty', role: 'iitr_faculty' },
+  { email: 'officer@iitr.ac.in', password: 'officer123', full_name: 'Officer in Charge', role: 'officer_in_charge' },
+  { email: 'operator@iitr.ac.in', password: 'operator123', full_name: 'Lab Operator', role: 'operator' },
+  { email: 'accounts@iitr.ac.in', password: 'accounts123', full_name: 'Accounts Department', role: 'accounts' },
+  { email: 'academic@external.com', password: 'academic123', full_name: 'External Academic', role: 'external_academic' },
+  { email: 'rnd@external.com', password: 'rnd123', full_name: 'External R&D', role: 'external_rnd' },
+  { email: 'industrial@company.com', password: 'industrial123', full_name: 'Industrial User', role: 'industrial_user' },
+];
+
+export default function SetupTestUsers() {
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<string[]>([]);
+
+  const createAllUsers = async () => {
+    setCreating(true);
+    const createdEmails: string[] = [];
+
+    for (const user of testUsers) {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: user.email,
+          password: user.password,
+          options: {
+            data: {
+              full_name: user.full_name
+            },
+            emailRedirectTo: `${window.location.origin}/`
+          }
+        });
+
+        if (error) {
+          if (error.message.includes('already registered')) {
+            console.log(`User ${user.email} already exists`);
+            createdEmails.push(user.email);
+          } else {
+            throw error;
+          }
+        } else if (data.user) {
+          // Assign role
+          await supabase
+            .from('user_roles')
+            .insert({ user_id: data.user.id, role: user.role });
+          
+          createdEmails.push(user.email);
+        }
+      } catch (error: any) {
+        console.error(`Failed to create ${user.email}:`, error);
+        toast.error(`Failed to create ${user.email}: ${error.message}`);
+      }
+    }
+
+    setCreated(createdEmails);
+    setCreating(false);
+    
+    if (createdEmails.length === testUsers.length) {
+      toast.success('All test users created successfully!');
+    } else {
+      toast.info(`Created ${createdEmails.length} out of ${testUsers.length} users`);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20 flex items-center justify-center p-4">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle>Setup Test Users</CardTitle>
+          <CardDescription>
+            Create all test user accounts for the lab booking system
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <h3 className="font-semibold mb-4">Test Users to Create:</h3>
+            {testUsers.map((user) => (
+              <div key={user.email} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                <div>
+                  <p className="font-medium">{user.email}</p>
+                  <p className="text-sm text-muted-foreground">{user.full_name} - {user.role}</p>
+                </div>
+                {created.includes(user.email) && (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <Button 
+            onClick={createAllUsers} 
+            disabled={creating}
+            className="w-full"
+          >
+            {creating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating Users...
+              </>
+            ) : (
+              'Create All Test Users'
+            )}
+          </Button>
+
+          {created.length > 0 && (
+            <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+              <h4 className="font-semibold mb-2">✅ Users Created</h4>
+              <p className="text-sm">
+                {created.length} user(s) created successfully. You can now login with these credentials at /auth
+              </p>
+            </div>
+          )}
+
+          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+            <h4 className="font-semibold mb-2">📝 Note</h4>
+            <p className="text-sm">
+              All test users have simple passwords (e.g., student123, faculty123). 
+              The admin account is: iicbooking@iitr.ac.in / 123456
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

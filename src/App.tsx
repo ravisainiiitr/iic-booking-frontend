@@ -13,6 +13,7 @@ import Wallet from "./pages/Wallet";
 import Reports from "./pages/Reports";
 import AdminPanel from "./pages/AdminPanel";
 import UserManagement from "./pages/UserManagement";
+import SetupTestUsers from "./pages/SetupTestUsers";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/reports" element={<Reports />} />
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/user-management" element={<UserManagement />} />
+          <Route path="/setup-test-users" element={<SetupTestUsers />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
