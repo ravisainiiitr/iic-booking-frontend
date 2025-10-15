@@ -82,7 +82,7 @@ const NoticeBoard = () => {
         <CardDescription>Latest updates and announcements</CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[400px] pr-4">
+        <ScrollArea className="h-[280px] pr-4">
           <div className="space-y-4">
             {notices.map((notice) => (
               <div
