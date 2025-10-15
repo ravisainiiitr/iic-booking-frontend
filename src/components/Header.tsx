@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Calendar, FlaskConical, ChevronDown } from "lucide-react";
+import { Calendar, FlaskConical, ChevronDown, Settings } from "lucide-react";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -12,6 +14,24 @@ import {
 
 const Header = () => {
   const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  useEffect(() => {
+    checkAdminStatus();
+  }, []);
+
+  const checkAdminStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      setIsAdmin(!!roles);
+    }
+  };
   
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
@@ -101,6 +121,12 @@ const Header = () => {
           </nav>
 
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Admin
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
               Sign In
             </Button>
