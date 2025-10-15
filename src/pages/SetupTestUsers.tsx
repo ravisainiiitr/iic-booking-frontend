@@ -15,7 +15,7 @@ interface TestUser {
 }
 
 const testUsers: TestUser[] = [
-  { email: 'iicbooking@iitr.ac.in', password: '123456', full_name: 'Admin User', role: 'admin' },
+  { email: 'admin@iitr.ac.in', password: 'admin@2025', full_name: 'System Administrator', role: 'admin' },
   { email: 'student@iitr.ac.in', password: 'student123', full_name: 'IITR Student', role: 'iitr_student' },
   { email: 'faculty@iitr.ac.in', password: 'faculty123', full_name: 'IITR Faculty', role: 'iitr_faculty' },
   { email: 'officer@iitr.ac.in', password: 'officer123', full_name: 'Officer in Charge', role: 'officer_in_charge' },
@@ -131,7 +131,7 @@ export default function SetupTestUsers() {
             <h4 className="font-semibold mb-2">📝 Note</h4>
             <p className="text-sm">
               All test users have simple passwords (e.g., student123, faculty123). 
-              The admin account is: iicbooking@iitr.ac.in / 123456
+              The admin account is: admin@iitr.ac.in / admin@2025
             </p>
           </div>
         </CardContent>
