@@ -12,6 +12,7 @@ import MyBookings from "./pages/MyBookings";
 import Wallet from "./pages/Wallet";
 import Reports from "./pages/Reports";
 import AdminPanel from "./pages/AdminPanel";
+import UserManagement from "./pages/UserManagement";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/user-management" element={<UserManagement />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
