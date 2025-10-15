@@ -132,26 +132,32 @@ const Dashboard = () => {
               <CardTitle>Profile Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{profileData?.full_name ? user?.email : "Not set"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium">{profileData?.phone || "Not set"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Department</p>
-                  <p className="font-medium">{profileData?.department || "Not set"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Supervisor</p>
-                  <p className="font-medium">{profileData?.supervisor_name || "Not set"}</p>
+              <div className="flex items-start gap-6 mb-6">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={profileData?.avatar_url} alt={profileData?.full_name || user?.email || "User"} />
+                  <AvatarFallback className="text-2xl">{(profileData?.full_name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Email</p>
+                    <p className="font-medium">{user?.email || "Not set"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Phone</p>
+                    <p className="font-medium">{profileData?.phone || "Not set"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Department</p>
+                    <p className="font-medium">{profileData?.department || "Not set"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Supervisor</p>
+                    <p className="font-medium">{profileData?.supervisor_name || "Not set"}</p>
+                  </div>
                 </div>
               </div>
               <Button 
-                className="mt-4"
+                className="w-full md:w-auto"
                 variant="outline"
                 onClick={() => navigate("/profile")}
               >
