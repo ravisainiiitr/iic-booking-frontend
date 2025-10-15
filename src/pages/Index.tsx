@@ -4,7 +4,6 @@ import EquipmentGrid from "@/components/EquipmentGrid";
 import Features from "@/components/Features";
 import Footer from "@/components/Footer";
 import NoticeBoard from "@/components/NoticeBoard";
-import Analytics from "@/components/Analytics";
 
 const Index = () => {
   return (
@@ -19,7 +18,6 @@ const Index = () => {
           </div>
           <div className="space-y-8">
             <NoticeBoard />
-            <Analytics />
           </div>
         </div>
       </div>
