@@ -1,20 +1,48 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar, Search, LogIn } from "lucide-react";
-import iitrCampus from "@/assets/iitr-campus.jpg";
+import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
+import { useEffect, useState } from "react";
+import Autoplay from "embla-carousel-autoplay";
+import instrument1 from "@/assets/instrument-1.jpeg";
+import instrument2 from "@/assets/instrument-2.jpeg";
+import instrument3 from "@/assets/instrument-3.jpg";
+import instrument4 from "@/assets/instrument-4.jpg";
 
 const Hero = () => {
   const navigate = useNavigate();
+  const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
+  
+  const instrumentImages = [
+    { src: instrument1, alt: "Advanced scientific instrument - Laboratory equipment" },
+    { src: instrument2, alt: "Rigaku MiniFlex analytical instrument" },
+    { src: instrument3, alt: "Laboratory mass spectrometer system" },
+    { src: instrument4, alt: "High-tech laboratory instrumentation" },
+  ];
   
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
-      {/* Background Image with Overlay */}
+      {/* Background Carousel with Overlay */}
       <div className="absolute inset-0 z-0">
-        <img 
-          src={iitrCampus} 
-          alt="IIT Roorkee campus view showcasing the institute's architectural heritage" 
-          className="w-full h-full object-cover"
-        />
+        <Carousel
+          plugins={[autoplay]}
+          className="w-full h-full"
+          opts={{
+            loop: true,
+          }}
+        >
+          <CarouselContent className="h-screen">
+            {instrumentImages.map((image, index) => (
+              <CarouselItem key={index} className="h-screen">
+                <img 
+                  src={image.src} 
+                  alt={image.alt}
+                  className="w-full h-full object-cover brightness-75 contrast-110"
+                />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+        </Carousel>
         <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-accent/90" />
       </div>
 
