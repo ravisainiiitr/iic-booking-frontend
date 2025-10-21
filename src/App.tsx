@@ -15,6 +15,7 @@ import AdminPanel from "./pages/AdminPanel";
 import UserManagement from "./pages/UserManagement";
 import SetupTestUsers from "./pages/SetupTestUsers";
 import Profile from "./pages/Profile";
+import PeriodicTable from "./pages/PeriodicTable";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/setup-test-users" element={<SetupTestUsers />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/periodic-table" element={<PeriodicTable />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
