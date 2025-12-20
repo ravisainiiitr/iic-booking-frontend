@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Play, ChevronLeft, ChevronRight } from "lucide-react";
@@ -44,12 +44,19 @@ const BookEquipment = () => {
   }, [selectedEquipment, currentWeekStart]);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const token = apiClient.getToken();
+    if (!token) {
       navigate("/auth");
-    } else {
-      setUserId(session.user.id);
+      return;
     }
+
+    const userResponse = await apiClient.getCurrentUser();
+    if (userResponse.error || !userResponse.data) {
+      navigate("/auth");
+      return;
+    }
+
+    setUserId(userResponse.data.id);
   };
 
   const fetchEquipment = async () => {
@@ -64,16 +71,16 @@ const BookEquipment = () => {
 
     const weekEnd = addDays(currentWeekStart, 7);
     
-    const { data, error } = await supabase
-      .from("bookings")
-      .select("start_time, end_time")
-      .eq("equipment_id", selectedEquipment.id.toString())
-      .gte("start_time", currentWeekStart.toISOString())
-      .lt("start_time", weekEnd.toISOString());
+    const response = await apiClient.getBookings();
+    if (response.data) {
+      const equipmentBookings = response.data.filter((booking: any) => 
+        booking.equipment_id === selectedEquipment.id.toString() &&
+        new Date(booking.start_time) >= currentWeekStart &&
+        new Date(booking.start_time) < weekEnd
+      );
 
-    if (!error && data) {
       const slots: TimeSlot[] = [];
-      data.forEach((booking) => {
+      equipmentBookings.forEach((booking: any) => {
         const start = new Date(booking.start_time);
         const end = new Date(booking.end_time);
         const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
@@ -174,11 +181,10 @@ const BookEquipment = () => {
         }
       });
 
-      // Insert all bookings
-      const insertPromises = bookings.map(booking => {
+      // Create all bookings
+      const bookingPromises = bookings.map(booking => {
         const hours = (booking.end.getTime() - booking.start.getTime()) / (1000 * 60 * 60);
-        return supabase.from("bookings").insert({
-          user_id: userId,
+        return apiClient.createBooking({
           equipment_id: String(selectedEquipment.id),
           start_time: booking.start.toISOString(),
           end_time: booking.end.toISOString(),
@@ -188,7 +194,7 @@ const BookEquipment = () => {
         });
       });
 
-      const results = await Promise.all(insertPromises);
+      const results = await Promise.all(bookingPromises);
       const errors = results.filter(r => r.error);
 
       if (errors.length > 0) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,30 +31,35 @@ const MyBookings = () => {
   }, []);
 
   const checkAuthAndFetchBookings = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const token = apiClient.getToken();
+    if (!token) {
       navigate("/auth");
       return;
     }
 
-    fetchBookings(session.user.id);
+    const userResponse = await apiClient.getCurrentUser();
+    if (userResponse.error || !userResponse.data) {
+      navigate("/auth");
+      return;
+    }
+
+    fetchBookings();
   };
 
-  const fetchBookings = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("bookings")
-      .select(`
-        *,
-        equipment:equipment_id (
-          name,
-          description
-        )
-      `)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setBookings(data as any);
+  const fetchBookings = async () => {
+    const response = await apiClient.getBookings();
+    if (response.data) {
+      // Fetch equipment details for each booking
+      const bookingsWithEquipment = await Promise.all(
+        response.data.map(async (booking: any) => {
+          const equipmentResponse = await apiClient.getEquipmentById(booking.equipment_id);
+          return {
+            ...booking,
+            equipment: equipmentResponse.data || { name: "Unknown", description: "" }
+          };
+        })
+      );
+      setBookings(bookingsWithEquipment);
     }
     setLoading(false);
   };

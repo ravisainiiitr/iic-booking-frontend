@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Calendar, FlaskConical, ChevronDown, Settings } from "lucide-react";
 import {
@@ -11,6 +11,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
+import NotificationPanel from "@/components/NotificationPanel";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -21,15 +22,13 @@ const Header = () => {
   }, []);
 
   const checkAdminStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!roles);
+    const token = apiClient.getToken();
+    if (token) {
+      const userResponse = await apiClient.getCurrentUser();
+      if (userResponse.data) {
+        const adminCheck = await apiClient.checkAdminRole(userResponse.data.id);
+        setIsAdmin(!!adminCheck.data);
+      }
     }
   };
   
@@ -40,7 +39,7 @@ const Header = () => {
           <div className="flex items-center gap-2">
             <FlaskConical className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              LabBooking Pro
+              IIC Booking
             </span>
           </div>
           
@@ -121,6 +120,7 @@ const Header = () => {
           </nav>
 
           <div className="flex items-center gap-3">
+            <NotificationPanel />
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
                 <Settings className="h-4 w-4 mr-2" />

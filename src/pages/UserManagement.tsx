@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ type UserRole = 'admin' | 'iitr_student' | 'iitr_faculty' | 'officer_in_charge' 
 interface UserData {
   id: string;
   email: string;
-  full_name: string;
+  name?: string;
+  full_name?: string;
   role: UserRole;
 }
 
@@ -54,21 +55,20 @@ export default function UserManagement() {
 
   const checkAdminAccess = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
+      const token = apiClient.getToken();
+      if (!token) {
         navigate('/auth');
         return;
       }
 
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .eq('role', 'admin')
-        .single();
+      const userResponse = await apiClient.getCurrentUser();
+      if (userResponse.error || !userResponse.data) {
+        navigate('/auth');
+        return;
+      }
 
-      if (!roleData) {
+      const adminCheck = await apiClient.checkAdminRole(userResponse.data.id);
+      if (adminCheck.error || !adminCheck.data) {
         toast({
           title: "Access Denied",
           description: "You don't have permission to access this page.",
@@ -88,22 +88,17 @@ export default function UserManagement() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, email, full_name');
-
-      if (profiles) {
+      const usersResponse = await apiClient.getUsers();
+      if (usersResponse.data) {
         const usersWithRoles = await Promise.all(
-          profiles.map(async (profile) => {
-            const { data: roleData } = await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', profile.id)
-              .single();
-
+          usersResponse.data.map(async (user: any) => {
+            const rolesResponse = await apiClient.getUserRoles(user.id);
             return {
-              ...profile,
-              role: roleData?.role || 'iitr_student'
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              full_name: user.full_name || user.name || '',
+              role: rolesResponse.data?.[0]?.role || 'iitr_student'
             } as UserData;
           })
         );
@@ -132,32 +127,25 @@ export default function UserManagement() {
     }
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const response = await apiClient.createUser({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.full_name
-          }
-        }
+        full_name: formData.full_name,
+        role: formData.role
       });
 
-      if (authError) throw authError;
-
-      if (authData.user) {
-        await supabase
-          .from('user_roles')
-          .insert({ user_id: authData.user.id, role: formData.role });
-
-        toast({
-          title: "Success",
-          description: "User created successfully"
-        });
-
-        setIsDialogOpen(false);
-        setFormData({ email: '', password: '', full_name: '', role: 'iitr_student' });
-        loadUsers();
+      if (response.error) {
+        throw new Error(response.error);
       }
+
+      toast({
+        title: "Success",
+        description: "User created successfully"
+      });
+
+      setIsDialogOpen(false);
+      setFormData({ email: '', password: '', full_name: '', role: 'iitr_student' });
+      loadUsers();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -171,15 +159,10 @@ export default function UserManagement() {
     if (!editingUser) return;
 
     try {
-      await supabase
-        .from('profiles')
-        .update({ full_name: formData.full_name })
-        .eq('id', editingUser.id);
-
-      await supabase
-        .from('user_roles')
-        .update({ role: formData.role })
-        .eq('user_id', editingUser.id);
+      await apiClient.updateUser(editingUser.id, {
+        full_name: formData.full_name,
+        role: formData.role
+      });
 
       toast({
         title: "Success",
@@ -204,7 +187,7 @@ export default function UserManagement() {
     setFormData({
       email: user.email,
       password: '',
-      full_name: user.full_name,
+      full_name: user.full_name || user.name || '',
       role: user.role
     });
     setIsDialogOpen(true);
@@ -312,7 +295,7 @@ export default function UserManagement() {
                 {users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.full_name}</TableCell>
+                    <TableCell>{user.full_name || user.name || 'N/A'}</TableCell>
                     <TableCell>{roleLabels[user.role]}</TableCell>
                     <TableCell>
                       <Button

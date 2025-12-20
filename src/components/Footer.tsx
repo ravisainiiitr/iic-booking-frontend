@@ -9,7 +9,7 @@ const Footer = () => {
             <div className="flex items-center gap-2">
               <FlaskConical className="h-6 w-6 text-primary" />
               <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                LabBooking Pro
+                IIC Booking
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -38,15 +38,15 @@ const Footer = () => {
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>Email: support@labbooking.pro</li>
-              <li>Phone: +1 (555) 123-4567</li>
+              <li>Email: support@iicbooking.com</li>
+              <li>Phone: +91 9876543210</li>
               <li>Hours: 24/7 Online Support</li>
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-          <p>&copy; 2024 LabBooking Pro. All rights reserved.</p>
+          <p>&copy; 2025 IIC Booking. All rights reserved.</p>
         </div>
       </div>
     </footer>

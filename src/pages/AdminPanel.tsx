@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,21 +43,20 @@ const AdminPanel = () => {
 
   const checkAdminAccess = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
+      const token = apiClient.getToken();
+      if (!token) {
         navigate("/auth");
         return;
       }
 
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
+      const userResponse = await apiClient.getCurrentUser();
+      if (userResponse.error || !userResponse.data) {
+        navigate("/auth");
+        return;
+      }
 
-      if (!roles) {
+      const adminCheck = await apiClient.checkAdminRole(userResponse.data.id);
+      if (adminCheck.error || !adminCheck.data) {
         toast({
           title: "Access Denied",
           description: "You don't have admin permissions",
@@ -79,17 +78,15 @@ const AdminPanel = () => {
 
   const loadEquipment = async () => {
     try {
-      const { data, error } = await supabase
-        .from("equipment")
-        .select("*")
-        .order("name");
-
-      if (error) throw error;
-      setEquipment(data || []);
-    } catch (error) {
+      const response = await apiClient.getEquipment();
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      setEquipment(response.data || []);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to load equipment",
+        description: error.message || "Failed to load equipment",
         variant: "destructive",
       });
     } finally {
@@ -111,23 +108,22 @@ const AdminPanel = () => {
     if (!editingId) return;
 
     try {
-      const { error } = await supabase
-        .from("equipment")
-        .update({
-          name: formData.name,
-          category: formData.category,
-          description: formData.description,
-          video_url: formData.video_url,
-          available: formData.available,
-          internal_rate: formData.internal_rate,
-          external_rate: formData.external_rate,
-          location: formData.location,
-          technical_contact: formData.technical_contact,
-          full_details_url: formData.full_details_url,
-        })
-        .eq("id", editingId);
+      const response = await apiClient.updateEquipment(editingId, {
+        name: formData.name,
+        category: formData.category,
+        description: formData.description,
+        video_url: formData.video_url,
+        available: formData.available,
+        internal_rate: formData.internal_rate,
+        external_rate: formData.external_rate,
+        location: formData.location,
+        technical_contact: formData.technical_contact,
+        full_details_url: formData.full_details_url,
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error);
+      }
 
       toast({
         title: "Success",
@@ -136,10 +132,10 @@ const AdminPanel = () => {
 
       await loadEquipment();
       cancelEditing();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update equipment",
+        description: error.message || "Failed to update equipment",
         variant: "destructive",
       });
     }

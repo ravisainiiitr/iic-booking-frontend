@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
@@ -27,30 +27,33 @@ const Reports = () => {
   }, []);
 
   const checkAuthAndFetchStats = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const token = apiClient.getToken();
+    if (!token) {
       navigate("/auth");
       return;
     }
 
-    fetchStats(session.user.id);
+    const userResponse = await apiClient.getCurrentUser();
+    if (userResponse.error || !userResponse.data) {
+      navigate("/auth");
+      return;
+    }
+
+    fetchStats();
   };
 
-  const fetchStats = async (userId: string) => {
-    const { data: bookings, error } = await supabase
-      .from("bookings")
-      .select("*")
-      .eq("user_id", userId);
-
-    if (!error && bookings) {
+  const fetchStats = async () => {
+    const response = await apiClient.getBookings();
+    if (response.data) {
+      const bookings = response.data;
       const stats: BookingStats = {
         totalBookings: bookings.length,
-        totalSpent: bookings.reduce((sum, b) => sum + Number(b.total_cost), 0),
-        totalHours: bookings.reduce((sum, b) => sum + Number(b.total_hours), 0),
+        totalSpent: bookings.reduce((sum: number, b: any) => sum + Number(b.total_cost), 0),
+        totalHours: bookings.reduce((sum: number, b: any) => sum + Number(b.total_hours), 0),
         statusCounts: {},
       };
 
-      bookings.forEach((booking) => {
+      bookings.forEach((booking: any) => {
         stats.statusCounts[booking.status] = 
           (stats.statusCounts[booking.status] || 0) + 1;
       });

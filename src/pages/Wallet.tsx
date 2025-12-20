@@ -1,32 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ArrowLeft, ArrowDown, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
-import { z } from "zod";
 
 interface Transaction {
-  id: string;
-  amount: number;
-  transaction_type: string;
+  id: number;
+  transaction_type: "credit" | "debit";
+  amount: string;
   description: string;
   created_at: string;
 }
-
-const rechargeSchema = z.object({
-  amount: z.number().min(1, "Amount must be at least $1").max(10000, "Amount cannot exceed $10,000"),
-});
 
 const Wallet = () => {
   const navigate = useNavigate();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rechargeAmount, setRechargeAmount] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | null>(null);
 
@@ -35,86 +27,80 @@ const Wallet = () => {
   }, []);
 
   const checkAuthAndFetchWallet = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const token = apiClient.getToken();
+    if (!token) {
       navigate("/auth");
       return;
     }
 
-    setUserId(session.user.id);
-    fetchWalletData(session.user.id);
-  };
-
-  const fetchWalletData = async (userId: string) => {
-    const { data: wallet, error: walletError } = await supabase
-      .from("wallets")
-      .select("id, balance")
-      .eq("user_id", userId)
-      .single();
-
-    if (!walletError && wallet) {
-      setBalance(Number(wallet.balance));
-      setWalletId(wallet.id);
-      fetchTransactions(userId);
+    const userResponse = await apiClient.getCurrentUser();
+    if (userResponse.error || !userResponse.data) {
+      navigate("/auth");
+      return;
     }
-    setLoading(false);
-  };
 
-  const fetchTransactions = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("wallet_transactions")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(20);
+    // Check if user type allows wallets (student, faculty, external)
+    // user_type can be a number or string, so check user_type_code or user_type_name
+    const allowedWalletTypes = ['student', 'faculty', 'external'];
+    const userTypeCode = userResponse.data?.user_type_code || 
+      (typeof userResponse.data?.user_type === 'string' ? userResponse.data.user_type.toLowerCase() : null);
+    const userCanHaveWallet = userTypeCode && allowedWalletTypes.includes(userTypeCode);
 
-    if (!error && data) {
-      setTransactions(data);
+    if (!userCanHaveWallet) {
+      toast.error("Only students, faculty, and external users can have wallets.");
+      navigate("/dashboard");
+      return;
     }
+
+    setUserId(userResponse.data.id);
+    await fetchWalletData();
   };
 
-  const handleRecharge = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const fetchWalletData = async () => {
     try {
-      const amount = parseFloat(rechargeAmount);
-      const validated = rechargeSchema.parse({ amount });
-
-      if (!userId || !walletId) {
-        toast.error("User or wallet information not found");
-        return;
+      const walletResponse = await apiClient.getWallet();
+      if (walletResponse.error) {
+        if (walletResponse.error.includes("Only students, faculty, and external users")) {
+          toast.error("Only students, faculty, and external users can have wallets.");
+          navigate("/dashboard");
+          return;
+        }
+        // If wallet doesn't exist yet, show empty state instead of error
+        if (walletResponse.error.includes("404") || walletResponse.error.includes("Not found")) {
+          setBalance(0);
+          setTransactions([]);
+          setLoading(false);
+          return;
+        }
+        throw new Error(walletResponse.error);
       }
-
-      // Update wallet balance
-      const newBalance = balance + validated.amount;
-      const { error: updateError } = await supabase
-        .from("wallets")
-        .update({ balance: newBalance })
-        .eq("id", walletId);
-
-      if (updateError) throw updateError;
-
-      // Create transaction record
-      const { error: txError } = await supabase.from("wallet_transactions").insert({
-        wallet_id: walletId,
-        user_id: userId,
-        amount: validated.amount,
-        transaction_type: "credit",
-        description: "Wallet recharge",
-      });
-
-      if (txError) throw txError;
-
-      setBalance(newBalance);
-      setRechargeAmount("");
-      toast.success(`Successfully recharged $${validated.amount.toFixed(2)}`);
-      fetchTransactions(userId);
+      
+      if (walletResponse.data) {
+        setBalance(Number(walletResponse.data.wallet.balance));
+        setWalletId(String(walletResponse.data.wallet.id));
+        
+        // Use recent_transactions from the wallet response, or fetch separately
+        if (walletResponse.data.recent_transactions && walletResponse.data.recent_transactions.length > 0) {
+          setTransactions(walletResponse.data.recent_transactions);
+        } else {
+          await fetchTransactions();
+        }
+      }
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
-      } else {
-        toast.error(error.message || "Failed to recharge wallet");
-      }
+      console.error("Wallet error:", error);
+      // Don't redirect on error, just show empty state
+      setBalance(0);
+      setTransactions([]);
+      toast.error(error.message || "Failed to load wallet data. Showing empty wallet.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    const response = await apiClient.getWalletTransactions();
+    if (response.data?.transactions) {
+      setTransactions(response.data.transactions);
     }
   };
 
@@ -140,45 +126,17 @@ const Wallet = () => {
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Wallet</h1>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Balance</CardTitle>
-              <CardDescription>Available funds in your wallet</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-primary">
-                ${balance.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recharge Wallet</CardTitle>
-              <CardDescription>Add funds to your wallet</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRecharge} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount ($)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    placeholder="100.00"
-                    value={rechargeAmount}
-                    onChange={(e) => setRechargeAmount(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full">
-                  Recharge
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Current Balance</CardTitle>
+            <CardDescription>Available funds in your wallet</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold text-primary">
+              ${balance.toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -208,7 +166,7 @@ const Wallet = () => {
                         </div>
                       )}
                       <div>
-                        <p className="font-medium">{tx.description}</p>
+                        <p className="font-medium">{tx.description || "Transaction"}</p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(tx.created_at).toLocaleString()}
                         </p>

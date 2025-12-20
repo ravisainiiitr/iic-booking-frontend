@@ -1,66 +1,76 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [profileData, setProfileData] = useState({
-    full_name: "",
+    name: "",
     email: "",
-    phone: "",
-    department: "",
-    supervisor_name: "",
-    avatar_url: ""
+    user_type: "",
+    emp_id: "",
+    phone_number: "",
+    profile_picture: "",
+    department: null as any,
+    department_name: "",
+    department_code: "",
+    supervisor: null as any,
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
-        setUser(session.user);
-        fetchProfile(session.user.id);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!session) {
-          navigate("/auth");
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    checkAuthAndLoadProfile();
   }, [navigate]);
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+  const checkAuthAndLoadProfile = async () => {
+    const token = apiClient.getToken();
+    if (!token) {
+      navigate("/auth");
+      return;
+    }
 
-    if (!error && data) {
+    try {
+      const userResponse = await apiClient.getCurrentUser();
+      if (userResponse.error || !userResponse.data) {
+        navigate("/auth");
+        return;
+      }
+
+      setUser(userResponse.data);
+      await fetchProfile();
+    } catch (error) {
+      console.error("Error loading profile:", error);
+      navigate("/auth");
+    }
+  };
+
+  const fetchProfile = async () => {
+    // Use getCurrentUser since profiles/me/ returns the same data
+    const response = await apiClient.getCurrentUser();
+    
+    if (response.data) {
       setProfileData({
-        full_name: data.full_name || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        department: data.department || "",
-        supervisor_name: data.supervisor_name || "",
-        avatar_url: data.avatar_url || ""
+        name: response.data.name || "",
+        email: response.data.email || "",
+        user_type: response.data.user_type || "",
+        emp_id: response.data.emp_id || "",
+        phone_number: response.data.phone_number || "",
+        profile_picture: response.data.profile_picture || "",
+        department: response.data.department || null,
+        department_name: response.data.department_name || "",
+        department_code: response.data.department_code || "",
+        supervisor: response.data.supervisor || null,
       });
     }
     setLoading(false);
@@ -70,23 +80,32 @@ const Profile = () => {
     if (!event.target.files || !event.target.files[0] || !user) return;
 
     const file = event.target.files[0];
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${user.id}/${Math.random()}.${fileExt}`;
-
     setUploading(true);
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file);
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('avatar', file);
 
-      if (uploadError) throw uploadError;
+      const response = await fetch('http://127.0.0.1:8000/api/profiles/me/avatar/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiClient.getToken()}`,
+        },
+        body: formData,
+      });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
+      if (!response.ok) {
+        throw new Error('Failed to upload avatar');
+      }
 
-      setProfileData(prev => ({ ...prev, avatar_url: publicUrl }));
+      const data = await response.json();
+      setProfileData(prev => ({ ...prev, profile_picture: data.profile_picture || data.avatar_url }));
+      // Update user in localStorage if available
+      const userResponse = await apiClient.getCurrentUser();
+      if (userResponse.data) {
+        localStorage.setItem('user', JSON.stringify(userResponse.data));
+      }
       toast.success("Avatar uploaded successfully");
     } catch (error: any) {
       toast.error("Error uploading avatar: " + error.message);
@@ -101,18 +120,26 @@ const Profile = () => {
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: profileData.full_name,
-          phone: profileData.phone,
-          department: profileData.department,
-          supervisor_name: profileData.supervisor_name,
-          avatar_url: profileData.avatar_url
-        })
-        .eq("id", user.id);
+      // Update profile using /api/users/{user_id}/
+      // Only send writable fields: name, user_type, emp_id, phone_number, profile_picture, department
+      const response = await apiClient.updateProfile({
+        name: profileData.name,
+        user_type: profileData.user_type,
+        emp_id: profileData.emp_id,
+        phone_number: profileData.phone_number,
+        profile_picture: profileData.profile_picture,
+        department: profileData.department, // Department ID if changing
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Refresh user data after update
+      const userResponse = await apiClient.getCurrentUser();
+      if (userResponse.data) {
+        localStorage.setItem('user', JSON.stringify(userResponse.data));
+      }
 
       toast.success("Profile updated successfully");
       navigate("/dashboard");
@@ -151,9 +178,9 @@ const Profile = () => {
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center gap-4">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={profileData.avatar_url} alt={profileData.full_name} />
+                <AvatarImage src={profileData.profile_picture || user?.profile_picture} alt={profileData.name || user?.name} />
                 <AvatarFallback className="text-3xl">
-                  {(profileData.full_name || profileData.email || "U")[0].toUpperCase()}
+                  {(profileData.name || user?.name || profileData.email || "U")[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div>
@@ -188,44 +215,100 @@ const Profile = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name</Label>
+                <Label htmlFor="name">Name</Label>
                 <Input
-                  id="full_name"
+                  id="name"
                   type="text"
-                  value={profileData.full_name}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, full_name: e.target.value }))}
+                  value={profileData.name}
+                  onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
+                  maxLength={255}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="emp_id">Employee ID</Label>
                 <Input
-                  id="phone"
+                  id="emp_id"
+                  type="text"
+                  value={profileData.emp_id}
+                  onChange={(e) => setProfileData(prev => ({ ...prev, emp_id: e.target.value }))}
+                  maxLength={50}
+                  placeholder="Employee/Student ID"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone_number">Phone Number</Label>
+                <Input
+                  id="phone_number"
                   type="tel"
-                  value={profileData.phone}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                  value={profileData.phone_number}
+                  onChange={(e) => setProfileData(prev => ({ ...prev, phone_number: e.target.value }))}
+                  maxLength={20}
+                  placeholder="Contact phone number"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
-                <Input
-                  id="department"
-                  type="text"
-                  value={profileData.department}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, department: e.target.value }))}
-                />
+                <Label htmlFor="user_type">User Type</Label>
+                <Select
+                  value={profileData.user_type}
+                  onValueChange={(value) => setProfileData(prev => ({ ...prev, user_type: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select user type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="faculty">Faculty</SelectItem>
+                    <SelectItem value="external">External</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="operator">Operator</SelectItem>
+                    <SelectItem value="finance">Finance</SelectItem>
+                    <SelectItem value="type_8">Type 8</SelectItem>
+                    <SelectItem value="type_9">Type 9</SelectItem>
+                    <SelectItem value="type_10">Type 10</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supervisor_name">Supervisor Name</Label>
+                <Label htmlFor="department_name">Department</Label>
                 <Input
-                  id="supervisor_name"
+                  id="department_name"
                   type="text"
-                  value={profileData.supervisor_name}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, supervisor_name: e.target.value }))}
+                  value={profileData.department_name || ""}
+                  disabled
                 />
+                <p className="text-xs text-muted-foreground">Department name (read-only)</p>
               </div>
+
+              {profileData.department_code && (
+                <div className="space-y-2">
+                  <Label htmlFor="department_code">Department Code</Label>
+                  <Input
+                    id="department_code"
+                    type="text"
+                    value={profileData.department_code}
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground">Department code (read-only)</p>
+                </div>
+              )}
+
+              {profileData.supervisor && (
+                <div className="space-y-2">
+                  <Label htmlFor="supervisor">Supervisor</Label>
+                  <Input
+                    id="supervisor"
+                    type="text"
+                    value={typeof profileData.supervisor === 'object' ? profileData.supervisor.name : String(profileData.supervisor)}
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground">Supervisor (read-only)</p>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4">

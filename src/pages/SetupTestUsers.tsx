@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -36,30 +36,21 @@ export default function SetupTestUsers() {
 
     for (const user of testUsers) {
       try {
-        const { data, error } = await supabase.auth.signUp({
+        const response = await apiClient.createUser({
           email: user.email,
           password: user.password,
-          options: {
-            data: {
-              full_name: user.full_name
-            },
-            emailRedirectTo: `${window.location.origin}/`
-          }
+          full_name: user.full_name,
+          role: user.role
         });
 
-        if (error) {
-          if (error.message.includes('already registered')) {
+        if (response.error) {
+          if (response.error.includes('already') || response.error.includes('exists')) {
             console.log(`User ${user.email} already exists`);
             createdEmails.push(user.email);
           } else {
-            throw error;
+            throw new Error(response.error);
           }
-        } else if (data.user) {
-          // Assign role
-          await supabase
-            .from('user_roles')
-            .insert({ user_id: data.user.id, role: user.role });
-          
+        } else {
           createdEmails.push(user.email);
         }
       } catch (error: any) {
