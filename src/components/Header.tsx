@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Calendar, FlaskConical, ChevronDown, Settings } from "lucide-react";
@@ -16,19 +16,73 @@ import NotificationPanel from "@/components/NotificationPanel";
 const Header = () => {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const checkingRef = useRef(false);
+  const hasCheckedRef = useRef(false);
   
   useEffect(() => {
-    checkAdminStatus();
+    // Only check once, prevent multiple calls
+    if (!hasCheckedRef.current && !checkingRef.current) {
+      checkAuthStatus();
+    }
   }, []);
 
-  const checkAdminStatus = async () => {
-    const token = apiClient.getToken();
-    if (token) {
-      const userResponse = await apiClient.getCurrentUser();
-      if (userResponse.data) {
-        const adminCheck = await apiClient.checkAdminRole(userResponse.data.id);
-        setIsAdmin(!!adminCheck.data);
+  const checkAuthStatus = async () => {
+    // Prevent multiple simultaneous calls
+    if (checkingRef.current) {
+      return;
+    }
+
+    try {
+      checkingRef.current = true;
+      hasCheckedRef.current = true;
+      
+      const token = apiClient.getToken();
+      if (token) {
+        setIsAuthenticated(true);
+        
+        // Check if we have cached admin status
+        const cachedAdminStatus = localStorage.getItem('is_admin');
+        const cachedUserId = localStorage.getItem('admin_check_user_id');
+        const storedUser = localStorage.getItem('user');
+        
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            // If we have cached status for the same user, use it
+            if (cachedAdminStatus !== null && cachedUserId === String(user.id)) {
+              setIsAdmin(cachedAdminStatus === 'true');
+              checkingRef.current = false;
+              return;
+            }
+          } catch (e) {
+            // Invalid cached data, continue to fetch
+          }
+        }
+        
+        const userResponse = await apiClient.getCurrentUser();
+        if (userResponse.data) {
+          const adminCheck = await apiClient.checkAdminRole(userResponse.data.id.toString());
+          const isAdminValue = !!adminCheck.data;
+          setIsAdmin(isAdminValue);
+          
+          // Cache the admin status
+          localStorage.setItem('is_admin', String(isAdminValue));
+          localStorage.setItem('admin_check_user_id', String(userResponse.data.id));
+        }
+      } else {
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+        // Clear cached admin status when logged out
+        localStorage.removeItem('is_admin');
+        localStorage.removeItem('admin_check_user_id');
       }
+    } catch (error) {
+      console.error("Error checking auth status:", error);
+      setIsAuthenticated(false);
+      setIsAdmin(false);
+    } finally {
+      checkingRef.current = false;
     }
   };
   
@@ -120,7 +174,7 @@ const Header = () => {
           </nav>
 
           <div className="flex items-center gap-3">
-            <NotificationPanel />
+            {isAuthenticated && <NotificationPanel />}
             {isAdmin && (
               <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
                 <Settings className="h-4 w-4 mr-2" />

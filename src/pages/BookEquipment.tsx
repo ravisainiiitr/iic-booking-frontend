@@ -6,9 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, isSameDay } from "date-fns";
-import { equipmentData, type EquipmentData } from "@/data/equipmentData";
+import { type EquipmentData } from "@/data/equipmentData";
 
 interface Equipment extends EquipmentData {}
+
+interface ApiEquipment {
+  equipment_id: number;
+  code: string;
+  name: string;
+  profile_type: string;
+  profile_type_display: string;
+  status: string;
+  status_display: string;
+  location: string;
+  image_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ApiEquipmentsResponse {
+  equipments: ApiEquipment[];
+  count: number;
+}
 
 // Time slots from 9:00 AM to 5:30 PM (1-hour slots)
 const TIME_SLOTS = [
@@ -25,6 +44,7 @@ const BookEquipment = () => {
   const navigate = useNavigate();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingEquipmentDetail, setLoadingEquipmentDetail] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
@@ -56,14 +76,106 @@ const BookEquipment = () => {
       return;
     }
 
-    setUserId(userResponse.data.id);
+    setUserId(String(userResponse.data.id));
   };
 
   const fetchEquipment = async () => {
-    // Use the static equipment data from the main page
-    const availableEquipment = equipmentData.filter(eq => eq.available);
-    setEquipment(availableEquipment as Equipment[]);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const response = await apiClient.getEquipments();
+      
+      if (response.error) {
+        toast.error(response.error || "Failed to load equipment");
+        setLoading(false);
+        return;
+      }
+
+      if (!response.data || !response.data.equipments || response.data.equipments.length === 0) {
+        toast.info("No equipment available");
+        setEquipment([]);
+        setLoading(false);
+        return;
+      }
+
+      // Transform API response to match EquipmentData interface
+      const transformedEquipment: Equipment[] = response.data.equipments
+        .filter((eq: ApiEquipment) => eq.status === "ACTIVE") // Only show active equipment
+        .map((eq: ApiEquipment) => ({
+          id: eq.equipment_id,
+          name: eq.name,
+          category: eq.profile_type_display || eq.profile_type || "Uncategorized",
+          description: `${eq.name} - ${eq.profile_type_display || ""}`,
+          image: eq.image_url || "/placeholder.svg",
+          video: "", // API doesn't provide video_url
+          available: eq.status === "ACTIVE",
+          address: eq.location || "",
+          technicalPerson: "", // API doesn't provide this
+          contactNumber: "", // API doesn't provide this
+          internalRate: 0, // API doesn't provide rate in this endpoint
+          externalRate: 0, // API doesn't provide rate in this endpoint
+        }));
+
+      setEquipment(transformedEquipment);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load equipment");
+      setEquipment([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEquipmentDetail = async (equipmentId: number | string) => {
+    try {
+      setLoadingEquipmentDetail(true);
+      const response = await apiClient.getEquipmentDetailById(equipmentId);
+      
+      if (response.error) {
+        toast.error(response.error || "Failed to load equipment details");
+        setLoadingEquipmentDetail(false);
+        return;
+      }
+
+      if (!response.data) {
+        toast.error("Equipment details not found");
+        setLoadingEquipmentDetail(false);
+        return;
+      }
+
+      const eq = response.data;
+      
+      // Get pricing from charge_profiles (use first active profile or student profile)
+      const studentProfile = eq.charge_profiles?.find(
+        (p: any) => p.user_type === "student" && p.is_active
+      );
+      const firstActiveProfile = eq.charge_profiles?.find((p: any) => p.is_active);
+      const pricingProfile = studentProfile || firstActiveProfile;
+      
+      // Transform API response to match EquipmentData interface
+      const transformedEquipment: Equipment = {
+        id: eq.equipment_id,
+        name: eq.name,
+        category: eq.profile_type_display || eq.profile_type || "Uncategorized",
+        description: eq.description || `${eq.name} - ${eq.profile_type_display || ""}`,
+        image: eq.image_url || "/placeholder.svg",
+        video: "", // API doesn't provide video_url in detail response
+        available: eq.status === "ACTIVE",
+        address: eq.location || "",
+        technicalPerson: "", // API doesn't provide technical_contact in detail response
+        contactNumber: "", // API doesn't provide this separately
+        internalRate: pricingProfile ? parseFloat(pricingProfile.primary_unit_charge || "0") : 0,
+        externalRate: pricingProfile ? parseFloat(pricingProfile.secondary_unit_charge || "0") : 0,
+      };
+
+      setSelectedEquipment(transformedEquipment);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load equipment details");
+    } finally {
+      setLoadingEquipmentDetail(false);
+    }
+  };
+
+  const handleEquipmentSelect = (equipmentId: number | string) => {
+    fetchEquipmentDetail(equipmentId);
   };
 
   const fetchBookedSlots = async () => {
@@ -217,7 +329,15 @@ const BookEquipment = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20 relative">
+      {loadingEquipmentDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card p-6 rounded-lg flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="text-sm text-muted-foreground">Loading equipment details...</p>
+          </div>
+        </div>
+      )}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <Button variant="ghost" onClick={() => navigate("/dashboard")}>
@@ -233,7 +353,11 @@ const BookEquipment = () => {
         {!selectedEquipment ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {equipment.map((item) => (
-              <Card key={item.id} className="cursor-pointer hover:shadow-lg transition-shadow">
+              <Card 
+                key={item.id} 
+                className="cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => navigate(`/equipment/${item.id}`)}
+              >
                 <CardHeader>
                   <div className="relative aspect-video mb-4 rounded-lg overflow-hidden bg-muted">
                     {playingVideo === item.id.toString() && item.video ? (
@@ -242,6 +366,7 @@ const BookEquipment = () => {
                         controls
                         autoPlay
                         className="w-full h-full object-cover"
+                        onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
                      <>
@@ -252,7 +377,10 @@ const BookEquipment = () => {
                         />
                         {item.video && (
                           <button
-                            onClick={() => setPlayingVideo(item.id.toString())}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPlayingVideo(item.id.toString());
+                            }}
                             className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors group"
                           >
                             <Play className="h-16 w-16 text-white group-hover:scale-110 transition-transform" />
@@ -270,9 +398,12 @@ const BookEquipment = () => {
                 <CardContent>
                   <Button
                     className="w-full"
-                    onClick={() => setSelectedEquipment(item)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/equipment/${item.id}`);
+                    }}
                   >
-                    Select Equipment
+                    View Details
                   </Button>
                 </CardContent>
               </Card>

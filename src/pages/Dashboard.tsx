@@ -69,12 +69,8 @@ const Dashboard = () => {
         // Update stored user data
         localStorage.setItem('user', JSON.stringify(userResponse.data));
         
-        // Check if user type allows wallets (student, faculty, external)
-        // user_type can be a number or string, so check user_type_code or user_type_name
-        const allowedWalletTypes = ['student', 'faculty', 'external'];
-        const userTypeCode = userResponse.data?.user_type_code || 
-          (typeof userResponse.data?.user_type === 'string' ? userResponse.data.user_type.toLowerCase() : null);
-        const userCanHaveWallet = userTypeCode && allowedWalletTypes.includes(userTypeCode);
+        // Check if user can have wallet using the can_have_wallet field
+        const userCanHaveWallet = userResponse.data?.can_have_wallet === true;
         setHasWallet(userCanHaveWallet);
         
         if (userCanHaveWallet && isMounted) {
@@ -109,8 +105,8 @@ const Dashboard = () => {
       } else {
         // Fallback to full wallet endpoint if balance endpoint fails
         const walletResponse = await apiClient.getWallet();
-        if (walletResponse.data?.wallet) {
-          setWalletBalance(Number(walletResponse.data.wallet.balance));
+        if (walletResponse.data?.balance) {
+          setWalletBalance(Number(walletResponse.data.balance));
         }
       }
     } catch (error) {
@@ -122,8 +118,14 @@ const Dashboard = () => {
 
 
   const handleSignOut = async () => {
-    await apiClient.signOut();
-    toast.success("Signed out successfully");
+    const response = await apiClient.signOut();
+    if (response.error) {
+      toast.error(response.error);
+    } else if ('data' in response && response.data) {
+      toast.success(response.data.message || "Signed out successfully");
+    } else {
+      toast.success("Signed out successfully");
+    }
     navigate("/auth");
   };
 
@@ -145,7 +147,7 @@ const Dashboard = () => {
             {hasWallet && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Balance:</span>{" "}
-                <span className="font-semibold">${walletBalance.toFixed(2)}</span>
+                <span className="font-semibold">₹{walletBalance.toFixed(2)}</span>
               </div>
             )}
             <DropdownMenu>

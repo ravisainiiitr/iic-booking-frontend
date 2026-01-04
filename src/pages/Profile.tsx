@@ -19,7 +19,7 @@ const Profile = () => {
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
-    user_type: "",
+    user_type: 0,
     emp_id: "",
     phone_number: "",
     profile_picture: "",
@@ -63,7 +63,7 @@ const Profile = () => {
       setProfileData({
         name: response.data.name || "",
         email: response.data.email || "",
-        user_type: response.data.user_type || "",
+        user_type: response.data.user_type || 0,
         emp_id: response.data.emp_id || "",
         phone_number: response.data.phone_number || "",
         profile_picture: response.data.profile_picture || "",
@@ -252,8 +252,8 @@ const Profile = () => {
               <div className="space-y-2">
                 <Label htmlFor="user_type">User Type</Label>
                 <Select
-                  value={profileData.user_type}
-                  onValueChange={(value) => setProfileData(prev => ({ ...prev, user_type: value }))}
+                  value={String(profileData.user_type)}
+                  onValueChange={(value) => setProfileData(prev => ({ ...prev, user_type: parseInt(value, 10) || 0 }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select user type" />

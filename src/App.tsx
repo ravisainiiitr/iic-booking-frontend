@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import EmailVerificationCallback from "./pages/EmailVerificationCallback";
 import Dashboard from "./pages/Dashboard";
 import BookEquipment from "./pages/BookEquipment";
 import MyBookings from "./pages/MyBookings";
@@ -18,6 +19,7 @@ import UserManagement from "./pages/UserManagement";
 import SetupTestUsers from "./pages/SetupTestUsers";
 import Profile from "./pages/Profile";
 import PeriodicTable from "./pages/PeriodicTable";
+import EquipmentProfile from "./pages/EquipmentProfile";
 
 const queryClient = new QueryClient();
 
@@ -32,8 +34,10 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/verify-email" element={<EmailVerificationCallback />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/book-equipment" element={<BookEquipment />} />
+            <Route path="/equipment/:id" element={<EquipmentProfile />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="/reports" element={<Reports />} />

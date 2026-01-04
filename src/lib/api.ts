@@ -5,6 +5,49 @@ interface ApiResponse<T> {
   data?: T;
   error?: string;
   message?: string;
+  fieldErrors?: Record<string, string[] | string>; // For field-specific errors like {"email": ["..."]}
+}
+
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  user_type: number; // Changed from string to number
+  emp_id?: string | null;
+  phone_number?: string | null;
+  profile_picture?: string | null;
+  department?: number;
+  department_code?: string;
+  can_have_wallet?: boolean;
+  // Optional fields that may be present in some responses
+  department_name?: string;
+  supervisor?: number | null;
+  uses_admin_panel?: boolean;
+  uses_react_app?: boolean;
+  uses_omniport_auth?: boolean;
+  uses_email_auth?: boolean;
+  url?: string;
+  is_active?: boolean;
+  email_verified?: boolean;
+  admin_approved?: boolean;
+}
+
+interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+interface RegisterResponse {
+  message?: string;
+  token: string | null;
+  user: User;
+}
+
+interface EmailVerificationError {
+  error: string;
+  message: string;
+  email_verified: boolean;
+  admin_approved: boolean;
 }
 
 class ApiClient {
@@ -40,8 +83,84 @@ class ApiClient {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        // Handle field-specific errors (e.g., {"email": ["A user with this email already exists."]})
+        const fieldErrors: Record<string, string[] | string> = {};
+        let hasFieldErrors = false;
+        
+        if (typeof data === 'object' && data !== null) {
+          for (const [field, messages] of Object.entries(data)) {
+            // Skip common error fields that are not field-specific, but include email_verified and admin_approved
+            if (field === 'detail' || (field === 'message' && !data.email_verified)) {
+              continue;
+            }
+            
+            // Handle email verification error structure
+            if (field === 'email_verified' || field === 'admin_approved') {
+              fieldErrors[field] = String(messages);
+              hasFieldErrors = true;
+            } else if (Array.isArray(messages) && messages.length > 0) {
+              fieldErrors[field] = messages;
+              hasFieldErrors = true;
+            } else if (typeof messages === 'string') {
+              fieldErrors[field] = messages;
+              hasFieldErrors = true;
+            }
+          }
+        }
+        
+        // If we have field-specific errors, return them
+        if (hasFieldErrors) {
+          // Check if we have email_verified or admin_approved fields - these need special handling
+          const errorData = data as any;
+          if (fieldErrors.email_verified || fieldErrors.admin_approved) {
+            // For email verification/pending approval errors, use the error or message field
+            return {
+              error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`,
+              fieldErrors: {
+                ...fieldErrors,
+                email_verified: String(errorData.email_verified ?? ''),
+                admin_approved: String(errorData.admin_approved ?? ''),
+                message: errorData.message || errorData.error,
+              },
+            };
+          }
+          
+          // Get the first error message from field errors
+          const firstFieldError = Object.values(fieldErrors)[0];
+          const firstErrorMessage = Array.isArray(firstFieldError) 
+            ? firstFieldError[0] 
+            : firstFieldError;
+          
+          return {
+            error: firstErrorMessage || `HTTP error! status: ${response.status}`,
+            fieldErrors: fieldErrors,
+          };
+        }
+        
+        // Otherwise, return standard error
+        // Check if it's an email verification or pending approval error with structured response
+        const errorData = data as any;
+        if (errorData.error && (
+          errorData.email_verified === false || 
+          errorData.error.includes("Email not verified") ||
+          errorData.error.includes("pending approval") ||
+          errorData.error.includes("Account pending approval") ||
+          (errorData.email_verified === true && errorData.admin_approved === false)
+        )) {
+          return {
+            error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`,
+            fieldErrors: {
+              ...fieldErrors,
+              email_verified: String(errorData.email_verified ?? ''),
+              admin_approved: String(errorData.admin_approved ?? ''),
+              message: errorData.message || errorData.error,
+            },
+          };
+        }
+        
         return {
-          error: data.detail || data.message || `HTTP error! status: ${response.status}`,
+          error: data.detail || data.message || data.error || `HTTP error! status: ${response.status}`,
+          fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
         };
       }
 
@@ -74,9 +193,11 @@ class ApiClient {
 
   // Auth endpoints
   // Omniport OAuth
-  async getOmniportAuthUrl(redirectUri?: string) {
-    const params = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : '';
-    const url = `${this.baseURL}/auth/omniport/authorize/${params}`;
+  async getOmniportAuthUrl() {
+    // Remove trailing slash from baseURL if present, then add the endpoint
+    const baseUrl = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    // Django REST framework typically uses trailing slashes
+    const url = `${baseUrl}/auth/omniport/authorize/`;
     
     try {
       const response = await fetch(url, {
@@ -84,13 +205,37 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/json',
         },
+        redirect: 'manual', // Don't automatically follow redirects
       });
+
+      // Check if response is a redirect (3xx status)
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('Location');
+        return {
+          error: `Backend returned a redirect (${response.status}) to ${location || 'unknown location'}. The backend should return JSON, not redirect. Please check backend configuration.`,
+        };
+      }
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         return {
           error: data.detail || data.message || `HTTP error! status: ${response.status}`,
+        };
+      }
+
+      // Validate that auth_url is present and is not pointing to the Django backend
+      if (!data.auth_url) {
+        return {
+          error: 'Backend did not return auth_url in response',
+        };
+      }
+
+      // Check if auth_url is pointing to Django backend instead of Omniport
+      if (data.auth_url.includes('127.0.0.1:8000') || data.auth_url.includes('localhost:8000')) {
+        console.error('Backend returned Django URL instead of Omniport URL:', data.auth_url);
+        return {
+          error: 'Backend configuration error: auth_url points to Django backend instead of Omniport',
         };
       }
 
@@ -103,7 +248,7 @@ class ApiClient {
   }
 
   async exchangeOmniportCode(code: string, state: string) {
-    const response = await this.request<{ token: string; user: any }>('/auth/omniport/callback/', {
+    const response = await this.request<AuthResponse>('/auth/omniport/callback/', {
       method: 'POST',
       body: JSON.stringify({ code, state }),
     });
@@ -129,7 +274,7 @@ class ApiClient {
     phone_number: string | undefined,
     department: number
   ) {
-    const response = await this.request<{ token: string; user: any }>('/auth/register/', {
+      const response = await this.request<RegisterResponse>('/auth/register/', {
       method: 'POST',
       body: JSON.stringify({
         email,
@@ -155,7 +300,7 @@ class ApiClient {
   }
 
   async signIn(email: string, password: string) {
-    const response = await this.request<{ token: string; user: any }>('/auth/login/', {
+    const response = await this.request<AuthResponse>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -171,14 +316,41 @@ class ApiClient {
     return response;
   }
 
+  async resendVerificationEmail(email: string) {
+    const response = await this.request<{ message: string }>('/auth/resend-verification/', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+
+    return response;
+  }
+
   async signOut() {
-    this.setToken(null);
-    localStorage.removeItem('user');
-    return Promise.resolve({ data: { success: true } });
+    try {
+      // Call the logout API endpoint
+      const response = await this.request<{ message: string }>('/auth/logout/', {
+        method: 'POST',
+      });
+
+      // Clear token and user data regardless of API response
+      // This ensures local state is cleared even if API call fails
+      this.setToken(null);
+      localStorage.removeItem('user');
+
+      return response;
+    } catch (error: any) {
+      // Even if API call fails, clear local storage
+      this.setToken(null);
+      localStorage.removeItem('user');
+      
+      return {
+        error: error.message || 'Failed to logout',
+      };
+    }
   }
 
   async getCurrentUser() {
-    return this.request<any>('/auth/user/');
+    return this.request<User>('/auth/user/');
   }
 
   // Profile endpoints
@@ -187,7 +359,7 @@ class ApiClient {
   async getProfile(userId?: string) {
     if (userId) {
       // For other users, use users endpoint
-      return this.request<any>(`/users/${userId}/`);
+      return this.request<User>(`/users/${userId}/`);
     }
     // For current user, use auth/user endpoint
     return this.getCurrentUser();
@@ -195,7 +367,7 @@ class ApiClient {
 
   async updateProfile(data: {
     name?: string;
-    user_type?: string;
+    user_type?: number | string;
     emp_id?: string;
     phone_number?: string;
     profile_picture?: string;
@@ -208,7 +380,7 @@ class ApiClient {
     }
     
     // Use /api/users/{user_id}/ for PATCH
-    return this.request<any>(`/users/${userResponse.data.id}/`, {
+    return this.request<User>(`/users/${userResponse.data.id}/`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
@@ -219,8 +391,97 @@ class ApiClient {
     return this.request<any[]>('/equipment/');
   }
 
+  async getEquipments() {
+    return this.request<{
+      equipments: Array<{
+        equipment_id: number;
+        code: string;
+        name: string;
+        profile_type: string;
+        profile_type_display: string;
+        status: string;
+        status_display: string;
+        location: string;
+        image_url: string;
+        created_at: string;
+        updated_at: string;
+      }>;
+      count: number;
+    }>('/equipments/');
+  }
+
   async getEquipmentById(id: string) {
     return this.request<any>(`/equipment/${id}/`);
+  }
+
+  async getEquipmentDetailById(id: number | string) {
+    return this.request<{
+      equipment_id: number;
+      code: string;
+      name: string;
+      description: string;
+      profile_type: string;
+      profile_type_display: string;
+      status: string;
+      status_display: string;
+      location: string;
+      s3_path: string;
+      image_url: string;
+      slot_duration_minutes: number;
+      slots_per_day: number;
+      internal_weekly_quota: number;
+      external_weekly_quota: number;
+      internal_monthly_quota: number;
+      external_monthly_quota: number;
+      specifications: Array<{
+        equipment_specification_id: number;
+        spec_key: string;
+        spec_value: string;
+        created_at: string;
+      }>;
+      accessories: Array<any>;
+      additional_accessories: Array<{
+        equipment_additional_accessory_id: number;
+        additional_accessory_name: string;
+        additional_accessory_description: string;
+        is_optional: boolean;
+        created_at: string;
+      }>;
+      input_fields: Array<{
+        field_key: string;
+        field_label: string;
+        field_type: string;
+        is_required: boolean;
+        default_value: string;
+        options: Array<any>;
+        help_text: string;
+        created_at: string;
+        updated_at: string;
+      }>;
+      charge_profiles: Array<{
+        equipment: number;
+        user_type: string;
+        is_active: boolean;
+        primary_unit_charge: string;
+        secondary_unit_charge: string;
+        breakpoint: string;
+        time_formula: string | null;
+        created_at: string;
+        updated_at: string;
+      }>;
+      slot_options: Array<any>;
+      slot_masters: Array<{
+        slot_number: number;
+        slot_name: string;
+        open_time: string;
+        close_time: string;
+        is_active: boolean;
+        created_at: string;
+        updated_at: string;
+      }>;
+      created_at: string;
+      updated_at: string;
+    }>(`/equipments/${id}/`);
   }
 
   async updateEquipment(id: string, data: any) {
@@ -228,6 +489,34 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  async calculateEquipmentCharge(equipmentId: number | string, fieldValues: Record<string, string | boolean>) {
+    // Convert field values to query parameters
+    const params = new URLSearchParams();
+    Object.entries(fieldValues).forEach(([key, value]) => {
+      params.append(key, String(value));
+    });
+    
+    const queryString = params.toString();
+    const endpoint = queryString 
+      ? `/equipments/${equipmentId}/calculate/?${queryString}`
+      : `/equipments/${equipmentId}/calculate/`;
+    
+    return this.request<{
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      user_type: string;
+      profile_type: string;
+      input_values: Record<string, number | string>;
+      total_time_minutes: number;
+      total_charge: string;
+      charge_breakdown: Array<{
+        description: string;
+        amount: number;
+      }>;
+    }>(endpoint);
   }
 
   // Booking endpoints
@@ -260,32 +549,19 @@ class ApiClient {
   // Wallet endpoints
   async getWallet() {
     return this.request<{
-      wallet: {
-        id: number;
-        user: number;
-        balance: string;
-        created_at: string;
-        updated_at: string;
-        transactions: Array<{
-          id: number;
-          transaction_type: "credit" | "debit";
-          amount: string;
-          description: string;
-          created_at: string;
-        }>;
-      };
-      recent_transactions: Array<{
+      balance: string;
+      transactions: Array<{
         id: number;
         transaction_type: "credit" | "debit";
         amount: string;
         description: string;
         created_at: string;
       }>;
-    }>('/wallets/me/');
+    }>('/wallet/');
   }
 
   async getWalletBalance() {
-    return this.request<{ balance: string }>('/wallets/me/balance/');
+    return this.request<{ balance: string }>('/wallet/balance/');
   }
 
   async creditWallet(amount: number, description?: string) {
@@ -298,7 +574,7 @@ class ApiClient {
         updated_at: string;
       };
       transaction: any;
-    }>('/wallets/me/credit/', {
+    }>('/wallet/credit/', {
       method: 'POST',
       body: JSON.stringify({ amount, description }),
     });
@@ -314,7 +590,7 @@ class ApiClient {
         updated_at: string;
       };
       transaction: any;
-    }>('/wallets/me/debit/', {
+    }>('/wallets/debit/', {
       method: 'POST',
       body: JSON.stringify({ amount, description }),
     });
@@ -327,7 +603,7 @@ class ApiClient {
       total_count: number;
       limit: number;
       offset: number;
-    }>('/wallets/me/transactions/');
+    }>('/wallet/transactions/');
   }
 
   // User roles endpoints
@@ -348,6 +624,11 @@ class ApiClient {
   // Department endpoints
   async getDepartments() {
     return this.request<{ departments: Array<{ id: number; name: string; code: string }>; count: number }>('/departments/');
+  }
+
+  // User type endpoints
+  async getUserTypes() {
+    return this.request<{ user_types: Array<{ code: string; name: string; description: string }> }>('/auth/register/user-types/');
   }
 
   async createUser(data: {

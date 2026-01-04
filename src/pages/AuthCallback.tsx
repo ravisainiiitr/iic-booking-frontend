@@ -16,6 +16,7 @@ const AuthCallback = () => {
     const processCallback = async () => {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
+      const token = searchParams.get('token');
       const errorParam = searchParams.get('error');
 
       // Handle OAuth errors
@@ -26,10 +27,61 @@ const AuthCallback = () => {
         return;
       }
 
+      // Handle direct token-based authentication (server redirects with token)
+      if (token) {
+        try {
+          // Store the token
+          apiClient.setToken(token);
+          
+          // Build user object from URL parameters
+          const userId = searchParams.get('user_id');
+          const email = searchParams.get('email');
+          const name = searchParams.get('name');
+          const userType = searchParams.get('user_type');
+          const usesAdminPanel = searchParams.get('uses_admin_panel');
+          const usesReactApp = searchParams.get('uses_react_app');
+
+          if (userId && email && name) {
+            const userData = {
+              id: parseInt(userId, 10),
+              email: decodeURIComponent(email),
+              name: decodeURIComponent(name.replace(/\+/g, ' ')),
+              user_type: userType ? (isNaN(Number(userType)) ? userType : parseInt(userType, 10)) : '',
+              uses_admin_panel: usesAdminPanel === 'true',
+              uses_react_app: usesReactApp === 'true',
+            };
+
+            localStorage.setItem('user', JSON.stringify(userData));
+          } else {
+            // If user data not in URL, fetch from API
+            const userResponse = await apiClient.getCurrentUser();
+            if (userResponse.data) {
+              localStorage.setItem('user', JSON.stringify(userResponse.data));
+            }
+          }
+
+          setStatus('success');
+          toast.success('Authentication successful!');
+
+          // Redirect to dashboard after short delay
+          setTimeout(() => {
+            navigate("/dashboard");
+          }, 1500);
+          return;
+        } catch (err: any) {
+          setStatus('error');
+          const errorMessage = err.message || 'Authentication failed';
+          setError(errorMessage);
+          toast.error(errorMessage);
+          return;
+        }
+      }
+
+      // Handle OAuth code flow (existing logic)
       if (!code) {
         setStatus('error');
-        setError('No authorization code received');
-        toast.error('No authorization code received');
+        setError('No authorization code or token received');
+        toast.error('No authorization code or token received');
         return;
       }
 

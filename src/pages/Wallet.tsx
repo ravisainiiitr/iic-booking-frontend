@@ -19,8 +19,7 @@ const Wallet = () => {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [walletId, setWalletId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -39,15 +38,11 @@ const Wallet = () => {
       return;
     }
 
-    // Check if user type allows wallets (student, faculty, external)
-    // user_type can be a number or string, so check user_type_code or user_type_name
-    const allowedWalletTypes = ['student', 'faculty', 'external'];
-    const userTypeCode = userResponse.data?.user_type_code || 
-      (typeof userResponse.data?.user_type === 'string' ? userResponse.data.user_type.toLowerCase() : null);
-    const userCanHaveWallet = userTypeCode && allowedWalletTypes.includes(userTypeCode);
+    // Check if user can have wallet using the can_have_wallet field
+    const userCanHaveWallet = userResponse.data?.can_have_wallet === true;
 
     if (!userCanHaveWallet) {
-      toast.error("Only students, faculty, and external users can have wallets.");
+      toast.error("Your account type does not support wallet functionality.");
       navigate("/dashboard");
       return;
     }
@@ -76,13 +71,13 @@ const Wallet = () => {
       }
       
       if (walletResponse.data) {
-        setBalance(Number(walletResponse.data.wallet.balance));
-        setWalletId(String(walletResponse.data.wallet.id));
+        setBalance(Number(walletResponse.data.balance));
         
-        // Use recent_transactions from the wallet response, or fetch separately
-        if (walletResponse.data.recent_transactions && walletResponse.data.recent_transactions.length > 0) {
-          setTransactions(walletResponse.data.recent_transactions);
+        // Use transactions from the wallet response
+        if (walletResponse.data.transactions && walletResponse.data.transactions.length > 0) {
+          setTransactions(walletResponse.data.transactions);
         } else {
+          // If no transactions in response, try fetching separately
           await fetchTransactions();
         }
       }
@@ -133,7 +128,7 @@ const Wallet = () => {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-primary">
-              ${balance.toFixed(2)}
+              ₹{balance.toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -179,7 +174,7 @@ const Wallet = () => {
                           : "text-red-600 dark:text-red-400"
                       }`}
                     >
-                      {tx.transaction_type === "credit" ? "+" : "-"}$
+                      {tx.transaction_type === "credit" ? "+" : "-"}₹
                       {Number(tx.amount).toFixed(2)}
                     </div>
                   </div>
