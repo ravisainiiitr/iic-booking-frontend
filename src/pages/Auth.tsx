@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,14 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Upload, X, FileText, User } from "lucide-react";
 
 const authSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   password_confirm: z.string().min(8, "Password confirmation must be at least 8 characters"),
   name: z.string().min(2, "Name must be at least 2 characters"),
-  user_type: z.enum(["student", "faculty", "external"], {
+  user_type: z.enum(["external", "RND", "Institutes", "other"], {
     errorMap: () => ({ message: "Please select a user type" }),
   }),
   emp_id: z.string().min(1, "Employee/Student ID is required").max(50, "ID must be less than 50 characters"),
@@ -36,6 +37,8 @@ interface Department {
   id: number;
   name: string;
   code: string;
+  department_type?: string;
+  department_type_display?: string;
 }
 
 interface UserType {
@@ -47,6 +50,7 @@ interface UserType {
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { login, isAuthenticated, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [email, setEmail] = useState("");
@@ -65,6 +69,11 @@ const Auth = () => {
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState("signin");
+  const [documents, setDocuments] = useState<File[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<string[]>([]);
+  const [documentErrors, setDocumentErrors] = useState<string[]>([]);
+  const [profilePicture, setProfilePicture] = useState<File | null>(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,44 +91,22 @@ const Auth = () => {
       });
     }
 
-    // Check if user is already authenticated
-    const token = apiClient.getToken();
-    if (token && !hasRedirected) {
-      apiClient.getCurrentUser().then((response) => {
-        if (!isMounted) return;
-        
-        if (response.data && !hasRedirected) {
-          // Update stored user data
-          localStorage.setItem('user', JSON.stringify(response.data));
+    // Check if user is already authenticated using AuthContext
+    if (isAuthenticated && !hasRedirected) {
           hasRedirected = true;
           navigate("/dashboard");
-        } else {
-          apiClient.setToken(null);
-          localStorage.removeItem('user');
-          if (isMounted) {
-            setCheckingAuth(false);
-          }
-        }
-      }).catch(() => {
-        if (!isMounted) return;
-        apiClient.setToken(null);
-        localStorage.removeItem('user');
+    }
+    
+    // Set checking auth to false
         if (isMounted) {
           setCheckingAuth(false);
-        }
-      });
-    } else {
-      // No token, show login form
-      if (isMounted) {
-        setCheckingAuth(false);
-      }
     }
 
     return () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated]);
 
   // Fetch departments and user types only when signup tab is active
   useEffect(() => {
@@ -137,7 +124,8 @@ const Auth = () => {
   const fetchDepartments = async () => {
     setLoadingDepartments(true);
     try {
-      const response = await apiClient.getDepartments();
+      // Only fetch external departments for signup (since only external users can register)
+      const response = await apiClient.getDepartments('external', false);
       if (response.data?.departments) {
         setDepartments(response.data.departments);
       }
@@ -195,6 +183,12 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate profile picture is selected
+    if (!profilePicture) {
+      toast.error("Profile picture is required");
+      return;
+    }
+    
     try {
       const validated = authSchema.parse({ 
         email, 
@@ -216,12 +210,15 @@ const Auth = () => {
         validated.user_type,
         validated.emp_id,
         validated.phone_number,
-        validated.department
+        validated.department,
+        documents.length > 0 ? documents : undefined,
+        documents.length > 0 && documentTypes.length > 0 ? documentTypes : undefined,
+        profilePicture
       );
 
-      if (response.error) {
+      if ('error' in response && response.error) {
         // Check if it's an email already exists error
-        const emailError = response.fieldErrors?.email;
+        const emailError = 'fieldErrors' in response ? response.fieldErrors?.email : undefined;
         if (emailError) {
           const emailErrorMessage = Array.isArray(emailError) ? emailError[0] : emailError;
           if (emailErrorMessage.includes("already exists") || emailErrorMessage.includes("already registered")) {
@@ -242,7 +239,7 @@ const Auth = () => {
         throw new Error(response.error);
       }
 
-      if (response.data) {
+      if ('data' in response && response.data) {
         // Check if token is provided (immediate login) or if email verification is required
         if (response.data.token) {
           // Token provided - user is logged in immediately
@@ -266,6 +263,11 @@ const Auth = () => {
           setEmpId("");
           setPhoneNumber("");
           setDepartment("");
+          setProfilePicture(null);
+          setProfilePicturePreview(null);
+          setDocuments([]);
+          setDocumentTypes([]);
+          setDocumentErrors([]);
           
           // Switch to signin tab to guide user
           setActiveTab("signin");
@@ -282,6 +284,10 @@ const Auth = () => {
         setEmpId("");
         setPhoneNumber("");
         setDepartment("");
+        setProfilePicture(null);
+        setProfilePicturePreview(null);
+        setDocuments([]);
+        setDocumentErrors([]);
         setActiveTab("signin");
       }
     } catch (error: any) {
@@ -311,22 +317,38 @@ const Auth = () => {
 
   const handleResendVerification = async () => {
     if (!email) {
-      toast.error("Please enter your email address first");
+      toast.error("Please enter your email address first", {
+        duration: 5000,
+      });
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await apiClient.resendVerificationEmail(email);
+    // Create a promise that resolves/rejects based on the API response
+    const resendPromise = apiClient.resendVerificationEmail(email).then((response) => {
       if (response.error) {
-        toast.error(response.error || "Failed to resend verification email");
-      } else {
-        toast.success(response.data?.message || "Verification email sent! Please check your inbox.");
+        throw new Error(response.error || "Failed to resend verification email");
       }
+      return response.data?.message || "Verification email sent! Please check your inbox.";
+    });
+    
+    toast.promise(resendPromise, {
+      loading: "Sending verification email...",
+      success: (message) => message,
+      error: (error: any) => {
+        if (error?.message) {
+          return error.message;
+        }
+        return "Failed to resend verification email";
+      },
+      duration: 6000,
+    });
+
+    try {
+      await resendPromise;
+      // The toast.promise will handle the notification display
     } catch (error: any) {
-      toast.error(error.message || "Failed to resend verification email");
-    } finally {
-      setLoading(false);
+      // Error is already handled by toast.promise
+      console.error("Error resending verification email:", error);
     }
   };
 
@@ -337,77 +359,75 @@ const Auth = () => {
       const validated = signInSchema.parse({ email, password });
       setLoading(true);
 
+      // Use AuthContext login method which handles token and user data
+      const loginResult = await login(validated.email, validated.password);
+
+      if (!loginResult.success) {
+        // Check if it's an email verification error or pending approval error
+        // We need to call the API directly to get detailed error information
       const response = await apiClient.signIn(validated.email, validated.password);
 
       if (response.error) {
-        // Check if it's an email verification error or pending approval error
         const errorData = response.fieldErrors as any;
+        const adminApproved = errorData?.admin_approved ?? (response as any).admin_approved;
+        const emailVerified = errorData?.email_verified ?? (response as any).email_verified;
+        const errorMessage = errorData?.message ?? (response as any).message ?? response.error;
         
-        // Check if it's a pending admin approval error
-        const isPendingApprovalError = 
-          errorData?.admin_approved === false ||
-          errorData?.admin_approved === 'false' ||
-          response.error.includes("pending approval") ||
-          response.error.includes("Account pending approval") ||
-          (errorData?.email_verified === true && errorData?.admin_approved === false);
-        
-        // Check if it's an email verification error
-        const isEmailVerificationError = 
-          errorData?.email_verified === false || 
-          response.error.includes("Email not verified") || 
-          response.error.includes("email not verified") ||
-          response.error.toLowerCase().includes("verify your email");
+        const isPendingApprovalError = String(adminApproved).toLowerCase() === 'false';
+        const isEmailVerificationError = String(emailVerified).toLowerCase() === 'false';
+
+        if (isEmailVerificationError) {
+          const message = errorMessage || "Please verify your email address before logging in.";
+          toast.error(message, {
+            action: {
+              label: "Resend Verification Email",
+              onClick: handleResendVerification,
+            },
+            duration: 8000,
+          });
+          return;
+        }
         
         if (isPendingApprovalError) {
-          const errorMessage = errorData?.message || response.error || "Your account is pending admin approval. You will be notified once approved.";
-          toast.info(errorMessage, {
+          const message = errorMessage || "Your account is pending admin approval. You will be notified once approved.";
+          toast.info(message, {
             duration: 8000,
           });
           return;
         }
-        
-        if (isEmailVerificationError) {
-          const errorMessage = errorData?.message || response.error || "Please verify your email address before logging in.";
-          toast.error(errorMessage, {
-            action: {
-              label: "Resend Verification Email",
-              onClick: handleResendVerification,
-            },
-            duration: 8000,
-          });
-          return;
-        }
-        
-        throw new Error(response.error);
       }
 
-      if (response.data?.token) {
-        toast.success("Signed in successfully!");
-        navigate("/dashboard");
-      } else {
-        throw new Error("No token received");
+        throw new Error(loginResult.error || "Login failed");
       }
+
+      // Login successful
+        toast.success("Signed in successfully!");
+      // Refresh user data to ensure we have the latest
+      await refreshUser();
+        navigate("/dashboard");
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
+      // Check if error message contains email verification or pending approval
+      const errorMessage = error.message || "Failed to sign in";
+      if (errorMessage.includes("pending approval") || errorMessage.includes("Account pending approval") || errorMessage.includes("admin approval")) {
+        toast.info(errorMessage, {
+          duration: 8000,
+        });
+      } else if (
+        errorMessage.includes("Email not verified") || 
+        errorMessage.includes("email not verified") || 
+        errorMessage.toLowerCase().includes("verify your email") ||
+        errorMessage.toLowerCase().includes("verification link") ||
+        errorMessage.toLowerCase().includes("request a new one")
+      ) {
+        toast.error(errorMessage, {
+          action: {
+            label: "Resend Verification Email",
+            onClick: handleResendVerification,
+          },
+          duration: 8000,
+        });
       } else {
-        // Check if error message contains email verification or pending approval
-        const errorMessage = error.message || "Failed to sign in";
-        if (errorMessage.includes("pending approval") || errorMessage.includes("Account pending approval") || errorMessage.includes("admin approval")) {
-          toast.info(errorMessage, {
-            duration: 8000,
-          });
-        } else if (errorMessage.includes("Email not verified") || errorMessage.includes("email not verified") || errorMessage.includes("verify your email")) {
-          toast.error(errorMessage, {
-            action: {
-              label: "Resend Verification Email",
-              onClick: handleResendVerification,
-            },
-            duration: 8000,
-          });
-        } else {
-          toast.error(errorMessage);
-        }
+        toast.error(errorMessage);
       }
     } finally {
       setLoading(false);
@@ -434,7 +454,7 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">IIC Booking</CardTitle>
+          <CardTitle className="text-2xl text-center">INDIAN INSTITUTE OF TECHNOLOGY ROORKEE</CardTitle>
           <CardDescription className="text-center">
             Sign in with Omniport (IIT Roorkee) or create an account
           </CardDescription>
@@ -569,6 +589,12 @@ const Auth = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                      <strong>Note:</strong> Only external users can register via this portal. 
+                      <br/>Students, Faculty, and Management users must sign in with Omniport.
+                    </p>
+                  </div>
                   {userType && userTypes.find(t => t.code === userType)?.description && (
                     <p className="text-xs text-muted-foreground">
                       {userTypes.find(t => t.code === userType)?.description}
@@ -676,9 +702,10 @@ const Auth = () => {
                       <SelectValue placeholder={loadingDepartments ? "Loading departments..." : "Select department"} />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Only show external departments (since only external users can register) */}
                       {departments.map((dept) => (
                         <SelectItem key={dept.id} value={dept.id.toString()}>
-                          {dept.name} ({dept.code})
+                          {dept.name} {dept.code ? `(${dept.code})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -688,6 +715,180 @@ const Auth = () => {
                       No departments available
                     </p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-profile-picture">
+                    Profile Picture <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="space-y-3">
+                    {profilePicturePreview && (
+                      <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-primary">
+                        <img
+                          src={profilePicturePreview}
+                          alt="Profile preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-0 right-0 h-6 w-6 rounded-full p-0"
+                          onClick={() => {
+                            setProfilePicture(null);
+                            setProfilePicturePreview(null);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="signup-profile-picture"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            // Validate it's an image
+                            if (!file.type.startsWith('image/')) {
+                              toast.error("Please select an image file");
+                              return;
+                            }
+                            setProfilePicture(file);
+                            // Create preview
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setProfilePicturePreview(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="cursor-pointer"
+                        required
+                      />
+                      {!profilePicturePreview && (
+                        <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed rounded-full bg-muted">
+                          <User className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Upload your profile picture (JPG, PNG, GIF, WEBP)
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-documents">Documents (Optional)</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="signup-documents"
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          const errors: string[] = [];
+                          const validFiles: File[] = [];
+                          
+                          files.forEach((file) => {
+                            const fileExtension = file.name.split('.').pop()?.toLowerCase();
+                            const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx'];
+                            const isValidImage = file.type.startsWith('image/');
+                            const isValidPdf = file.type === 'application/pdf';
+                            const isValidDoc = file.type === 'application/msword' || 
+                                             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                            
+                            if (isValidImage || isValidPdf || isValidDoc || (fileExtension && validExtensions.includes(fileExtension))) {
+                              validFiles.push(file);
+                            } else {
+                              errors.push(`${file.name}: Invalid file type. Only images, PDF, and DOC files are allowed.`);
+                            }
+                          });
+                          
+                          if (errors.length > 0) {
+                            setDocumentErrors(errors);
+                            toast.error(errors[0]);
+                          } else {
+                            setDocumentErrors([]);
+                            setDocuments((prev) => [...prev, ...validFiles]);
+                            // Initialize document types for new files (default to empty string)
+                            setDocumentTypes((prev) => [...prev, ...Array(validFiles.length).fill("")]);
+                          }
+                          
+                          // Reset input
+                          e.target.value = '';
+                        }}
+                        className="cursor-pointer"
+                      />
+                    </div>
+                    {documents.length > 0 && (
+                      <div className="space-y-3">
+                        {documents.map((file, index) => (
+                          <div
+                            key={index}
+                            className="p-3 border rounded-lg bg-muted/50 space-y-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm truncate">{file.name}</span>
+                                <span className="text-xs text-muted-foreground flex-shrink-0">
+                                  ({(file.size / 1024).toFixed(1)} KB)
+                                </span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 flex-shrink-0"
+                                onClick={() => {
+                                  setDocuments((prev) => prev.filter((_, i) => i !== index));
+                                  setDocumentTypes((prev) => prev.filter((_, i) => i !== index));
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`doc-type-${index}`} className="text-xs">
+                                Document Type (Optional)
+                              </Label>
+                              <Select
+                                value={documentTypes[index] || ""}
+                                onValueChange={(value) => {
+                                  const newTypes = [...documentTypes];
+                                  newTypes[index] = value;
+                                  setDocumentTypes(newTypes);
+                                }}
+                              >
+                                <SelectTrigger id={`doc-type-${index}`} className="h-8 text-sm">
+                                  <SelectValue placeholder="Select document type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="identity_proof">Identity Proof</SelectItem>
+                                  <SelectItem value="address_proof">Address Proof</SelectItem>
+                                  <SelectItem value="qualification">Qualification</SelectItem>
+                                  <SelectItem value="other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {documentErrors.length > 0 && (
+                      <div className="text-xs text-destructive space-y-1">
+                        {documentErrors.map((error, index) => (
+                          <p key={index}>{error}</p>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Accepted formats: Images (JPG, PNG, GIF, WEBP), PDF, DOC, DOCX
+                    </p>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Sign Up"}

@@ -1,4 +1,5 @@
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, HelpCircle } from "lucide-react";
+import TicketForm from "@/components/TicketForm";
 
 const Footer = () => {
   return (
@@ -9,7 +10,7 @@ const Footer = () => {
             <div className="flex items-center gap-2">
               <FlaskConical className="h-6 w-6 text-primary" />
               <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                IIC Booking
+                INDIAN INSTITUTE OF TECHNOLOGY ROORKEE
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -31,22 +32,29 @@ const Footer = () => {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">User Guide</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Support</a></li>
+              <li>
+                <TicketForm
+                  trigger={
+                    <button className="hover:text-primary transition-colors flex items-center gap-1">
+                      Support
+                    </button>
+                  }
+                />
+              </li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>Email: support@iicbooking.com</li>
-              <li>Phone: +91 9876543210</li>
+              <li>Email: iicbooking@iitr.ac.in</li>
               <li>Hours: 24/7 Online Support</li>
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-          <p>&copy; 2025 IIC Booking. All rights reserved.</p>
+          <p>&copy; 2026 INDIAN INSTITUTE OF TECHNOLOGY ROORKEE. All rights reserved.</p>
         </div>
       </div>
     </footer>

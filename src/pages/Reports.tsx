@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import DashboardHeader from "@/components/DashboardHeader";
 
 interface BookingStats {
   totalBookings: number;
@@ -44,18 +44,19 @@ const Reports = () => {
 
   const fetchStats = async () => {
     const response = await apiClient.getBookings();
-    if (response.data) {
-      const bookings = response.data;
+    if (response.data && response.data.bookings) {
+      const bookings = response.data.bookings;
       const stats: BookingStats = {
-        totalBookings: bookings.length,
-        totalSpent: bookings.reduce((sum: number, b: any) => sum + Number(b.total_cost), 0),
-        totalHours: bookings.reduce((sum: number, b: any) => sum + Number(b.total_hours), 0),
+        totalBookings: response.data.count || bookings.length,
+        totalSpent: bookings.reduce((sum: number, b: any) => sum + Number(b.total_charge || 0), 0),
+        totalHours: bookings.reduce((sum: number, b: any) => sum + Number(b.total_hours || 0), 0),
         statusCounts: {},
       };
 
       bookings.forEach((booking: any) => {
-        stats.statusCounts[booking.status] = 
-          (stats.statusCounts[booking.status] || 0) + 1;
+        const status = booking.status || booking.status_display || 'UNKNOWN';
+        stats.statusCounts[status] = 
+          (stats.statusCounts[status] || 0) + 1;
       });
 
       setStats(stats);
@@ -73,15 +74,7 @@ const Reports = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <Button variant="ghost" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
-      </header>
-
+      <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Reports & Statistics</h1>
 
@@ -98,7 +91,7 @@ const Reports = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-4xl font-bold text-primary">
-                ${stats.totalSpent.toFixed(2)}
+                ₹{stats.totalSpent.toFixed(2)}
               </CardTitle>
               <CardDescription>Total Spent</CardDescription>
             </CardHeader>
@@ -116,7 +109,7 @@ const Reports = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-4xl font-bold text-primary">
-                ${stats.totalBookings > 0 ? (stats.totalSpent / stats.totalBookings).toFixed(2) : "0.00"}
+                ₹{stats.totalBookings > 0 ? (stats.totalSpent / stats.totalBookings).toFixed(2) : "0.00"}
               </CardTitle>
               <CardDescription>Average Cost per Booking</CardDescription>
             </CardHeader>

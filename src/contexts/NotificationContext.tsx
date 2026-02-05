@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 export interface Notification {
   id: string | number;
@@ -16,6 +17,7 @@ interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
   loading: boolean;
+  wsConnected: boolean;
   addNotification: (notification: Omit<Notification, "id" | "read" | "createdAt">) => void;
   markAsRead: (id: string | number) => void;
   markAllAsRead: () => void;
@@ -31,14 +33,61 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const hasInitialized = useRef(false);
   const isFetching = useRef(false);
+  
+  // Get WebSocket URL from API base URL
+  const getWebSocketUrl = () => {
+    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    // Convert HTTP/HTTPS to WS/WSS
+    const wsProtocol = apiBaseUrl.startsWith('https') ? 'wss' : 'ws';
+    const wsHost = apiBaseUrl.replace(/^https?:\/\//, '');
+    return `${wsProtocol}://${wsHost}/ws/notifications/`;
+  };
+  
+  const token = apiClient.getToken();
+  
+  // WebSocket connection for real-time notifications
+  const { isConnected: wsConnected } = useWebSocket({
+    url: getWebSocketUrl(),
+    token,
+    onMessage: (message) => {
+      if (message.type === 'notification' && message.data) {
+        const notificationData = message.data;
+        const newNotification: Notification = {
+          id: notificationData.id || `ws-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          title: notificationData.title || 'Notification',
+          message: notificationData.message || '',
+          type: notificationData.type || 'info',
+          read: notificationData.read || false,
+          createdAt: notificationData.created_at || new Date().toISOString(),
+          link: notificationData.link,
+          isFromAPI: true,
+        };
+        
+        // Add notification to state
+        setNotifications((prev) => [newNotification, ...prev]);
+      } else if (message.type === 'connection') {
+        console.log('WebSocket: Connected to notification service', message);
+      } else if (message.type === 'pong') {
+        // Heartbeat response
+        console.log('WebSocket: Pong received');
+      }
+    },
+    onOpen: () => {
+      console.log('WebSocket: Notification service connected');
+    },
+    onClose: () => {
+      console.log('WebSocket: Notification service disconnected');
+    },
+    onError: (error) => {
+      console.error('WebSocket: Error in notification service', error);
+    },
+    reconnect: true,
+    reconnectInterval: 3000,
+    maxReconnectAttempts: 5,
+  });
 
   // Memoize refreshNotifications to prevent infinite loops
   const refreshNotifications = useCallback(async () => {
-    // Disabled: Notifications API endpoint not available yet
-    // Uncomment below when API is ready
-    return;
-    
-    /*
     const token = apiClient.getToken();
     if (!token || isFetching.current) return;
 
@@ -76,7 +125,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       isFetching.current = false;
     }
-    */
   }, []);
 
   // Fetch notifications from API on mount and when token changes
@@ -85,7 +133,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    // Load from localStorage (API notifications disabled)
+    // Load from localStorage (for local notifications only)
     const stored = localStorage.getItem("notifications");
     if (stored) {
       try {
@@ -96,9 +144,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    // Disabled: Notifications API endpoint not available yet
-    // Uncomment below when API is ready
-    /*
+    // Fetch notifications from API
     const initTimer = setTimeout(() => {
       // Check if we're on auth page - don't fetch notifications there
       if (window.location.pathname === '/auth' || window.location.pathname === '/auth/callback') {
@@ -123,7 +169,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     }, 500);
 
     return () => clearTimeout(initTimer);
-    */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -214,6 +259,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         unreadCount,
         loading,
+        wsConnected,
         addNotification,
         markAsRead,
         markAllAsRead,

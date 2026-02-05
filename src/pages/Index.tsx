@@ -16,7 +16,7 @@ const Index = () => {
           <div className="lg:col-span-2">
             <EquipmentGrid />
           </div>
-          <div className="space-y-8">
+          <div className="flex">
             <NoticeBoard />
           </div>
         </div>

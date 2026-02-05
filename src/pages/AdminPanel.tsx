@@ -8,9 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, X } from "lucide-react";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import { Loader2, Save, X, Wrench } from "lucide-react";
+import DashboardHeader from "@/components/DashboardHeader";
 
 interface Equipment {
   id: string;
@@ -55,8 +54,10 @@ const AdminPanel = () => {
         return;
       }
 
-      const adminCheck = await apiClient.checkAdminRole(userResponse.data.id);
-      if (adminCheck.error || !adminCheck.data) {
+      const isAdminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
+      const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
+      const isAdmin = isAdminByType || adminCheck.data?.is_admin === true;
+      if (!isAdmin) {
         toast({
           title: "Access Denied",
           description: "You don't have admin permissions",
@@ -78,11 +79,27 @@ const AdminPanel = () => {
 
   const loadEquipment = async () => {
     try {
-      const response = await apiClient.getEquipment();
+      const response = await apiClient.getEquipments(undefined, undefined);
       if (response.error) {
         throw new Error(response.error);
       }
-      setEquipment(response.data || []);
+      const list = response.data?.equipments || [];
+      setEquipment(
+        list.map((e: { equipment_id: number; name: string; profile_type_display?: string; profile_type?: string; description?: string | null; image_url?: string | null; video_url?: string | null; status?: string; location?: string | null }) => ({
+          id: String(e.equipment_id),
+          name: e.name ?? "",
+          category: e.profile_type_display ?? e.profile_type ?? null,
+          description: e.description ?? null,
+          image_url: e.image_url ?? null,
+          video_url: e.video_url ?? null,
+          available: e.status === "ACTIVE",
+          internal_rate: null,
+          external_rate: null,
+          location: e.location ?? null,
+          technical_contact: null,
+          full_details_url: null,
+        }))
+      );
     } catch (error: any) {
       toast({
         title: "Error",
@@ -110,15 +127,9 @@ const AdminPanel = () => {
     try {
       const response = await apiClient.updateEquipment(editingId, {
         name: formData.name,
-        category: formData.category,
-        description: formData.description,
-        video_url: formData.video_url,
-        available: formData.available,
-        internal_rate: formData.internal_rate,
-        external_rate: formData.external_rate,
-        location: formData.location,
-        technical_contact: formData.technical_contact,
-        full_details_url: formData.full_details_url,
+        description: formData.description ?? undefined,
+        status: formData.available ? "ACTIVE" : "INACTIVE",
+        location: formData.location ?? undefined,
       });
 
       if (response.error) {
@@ -150,10 +161,18 @@ const AdminPanel = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
+      <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold mb-8">Admin Panel - Equipment Management</h1>
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <h1 className="text-4xl font-bold flex items-center gap-2">
+            <Wrench className="h-10 w-10" />
+            Equipment Management
+          </h1>
+          <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
+          </Button>
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-12">
@@ -309,7 +328,6 @@ const AdminPanel = () => {
           </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 };

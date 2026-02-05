@@ -4,6 +4,7 @@ import { Calendar, Search, LogIn } from "lucide-react";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import { useEffect, useState } from "react";
 import Autoplay from "embla-carousel-autoplay";
+import { useAuth } from "@/contexts/AuthContext";
 import instrument1 from "@/assets/instrument-1.jpeg";
 import instrument2 from "@/assets/instrument-2.jpeg";
 import instrument3 from "@/assets/instrument-3.jpg";
@@ -11,6 +12,7 @@ import instrument4 from "@/assets/instrument-4.jpg";
 
 const Hero = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
   
   const instrumentImages = [
@@ -62,19 +64,21 @@ const Hero = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button 
-              size="lg" 
-              className="gap-2 text-lg px-8 py-6 h-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-              onClick={() => navigate("/auth")}
-            >
-              <LogIn className="h-5 w-5" />
-              Login with Channeli (IIT Roorkee)
-            </Button>
+            {!isAuthenticated && (
+              <Button 
+                size="lg" 
+                className="gap-2 text-lg px-8 py-6 h-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                onClick={() => navigate("/auth")}
+              >
+                <LogIn className="h-5 w-5" />
+                Login with Channeli (IIT Roorkee)
+              </Button>
+            )}
             <Button 
               size="lg" 
               variant="secondary" 
               className="gap-2 text-lg px-8 py-6 h-auto"
-              onClick={() => navigate("/book-equipment")}
+              onClick={() => navigate("/equipments")}
             >
               <Calendar className="h-5 w-5" />
               Book Equipment
