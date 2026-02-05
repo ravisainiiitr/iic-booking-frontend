@@ -1,0 +1,17 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: ./compose/local/Dockerfile
+    image: iic_booking_local_frontend
+    container_name: iic_booking_local_frontend
+    volumes:
+      - .:/app:z
+      - /app/node_modules
+    ports:
+      - '8000:8000'
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8000/api}
+    command: npm run dev -- --host 0.0.0.0
+    stdin_open: true
+    tty: true
