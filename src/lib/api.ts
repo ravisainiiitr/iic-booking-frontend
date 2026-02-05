@@ -1,5 +1,20 @@
 // API client for Django REST API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+// Support runtime configuration via window.__RUNTIME_CONFIG__ (for Docker/production)
+// Falls back to VITE_API_URL env var (for build-time) or default
+const getApiBaseUrl = (): string => {
+  // Check for runtime config (injected by Docker entrypoint)
+  if (typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL) {
+    return (window as any).__RUNTIME_CONFIG__.VITE_API_URL;
+  }
+  // Check for build-time env var
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // Default fallback
+  return 'http://127.0.0.1:8000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface ApiResponse<T> {
   data?: T;

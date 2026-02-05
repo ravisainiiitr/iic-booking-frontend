@@ -1,0 +1,6 @@
+# Production environment variables for sci-reserve frontend
+# This file is used by docker-compose.production.yml
+
+# API Base URL for production
+# Points to production Django backend
+VITE_API_URL=http://15.206.88.2:8080/api

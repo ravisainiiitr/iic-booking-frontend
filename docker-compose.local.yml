@@ -9,9 +9,11 @@ services:
       - .:/app:z
       - /app/node_modules
     ports:
-      - '8000:8000'
+      - '8000:8080'
+    env_file:
+      - ./.envs/.local/.frontend
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8000/api}
+      - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8080/api}
     command: npm run dev -- --host 0.0.0.0
     stdin_open: true
     tty: true
