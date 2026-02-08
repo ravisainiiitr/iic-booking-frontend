@@ -724,11 +724,9 @@ const BookEquipment = () => {
     });
   };
 
-  // Check if we should use weekly slots from daily_slots
+  // Use weekly slots from API whenever we have daily_slots (any profile type: HOUR, SAMPLE, etc.)
   const useWeeklySlots = (): boolean => {
-    return equipmentDetail?.profile_type === "HOUR" && 
-           equipmentDetail?.daily_slots !== undefined && 
-           equipmentDetail.daily_slots.length > 0;
+    return equipmentDetail?.daily_slots !== undefined && equipmentDetail.daily_slots.length > 0;
   };
 
   // Get unique time slots from daily_slots

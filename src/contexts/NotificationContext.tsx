@@ -57,11 +57,17 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const token = apiClient.getToken();
-  
-  // WebSocket connection for real-time notifications
+
+  // Allow disabling WebSocket via env or runtime config (e.g. production when WS not yet configured)
+  const wsEnabled =
+    typeof window !== "undefined" && (window as any).__RUNTIME_CONFIG__?.VITE_WS_ENABLED !== undefined
+      ? (window as any).__RUNTIME_CONFIG__.VITE_WS_ENABLED === true || (window as any).__RUNTIME_CONFIG__.VITE_WS_ENABLED === "true"
+      : import.meta.env.VITE_WS_ENABLED !== "false" && import.meta.env.VITE_WS_ENABLED !== false;
+
+  // WebSocket connection for real-time notifications (skipped when wsEnabled is false)
   const { isConnected: wsConnected } = useWebSocket({
     url: getWebSocketUrl(),
-    token,
+    token: wsEnabled ? token : null,
     onMessage: (message) => {
       if (message.type === 'notification' && message.data) {
         const notificationData = message.data;

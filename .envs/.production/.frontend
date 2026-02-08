@@ -4,3 +4,6 @@
 # API Base URL for production
 # Points to production Django backend
 VITE_API_URL=http://15.206.88.2:8080/api
+
+# Optional: set to false to disable WebSocket (real-time notifications). Notifications still load on refresh.
+# VITE_WS_ENABLED=false
