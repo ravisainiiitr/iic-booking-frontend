@@ -573,13 +573,16 @@ const BookEquipment = () => {
     if (!equipmentDetail?.daily_slots) return undefined;
     
     const normalizedDate = startOfDay(date);
-    const dateString = format(normalizedDate, "yyyy-MM-dd");
+    const expectedDateStr = format(normalizedDate, "yyyy-MM-dd");
     
-    // Check in all daily_slots for matching date and time
     return equipmentDetail.daily_slots.find(slot => {
-      const slotDate = startOfDay(parseISO(slot.date));
-      const slotTime = format(parseISO(slot.start_datetime), "HH:mm");
-      return isSameDay(slotDate, normalizedDate) && slotTime === time;
+      const slotDateStr = typeof slot.date === "string"
+        ? (slot.date.includes("T") ? format(parseISO(slot.date), "yyyy-MM-dd") : slot.date)
+        : "";
+      const slotTime = slot.start_datetime
+        ? format(parseISO(slot.start_datetime), "HH:mm")
+        : "";
+      return slotDateStr === expectedDateStr && slotTime === time;
     });
   };
 
@@ -1326,13 +1329,16 @@ const BookEquipment = () => {
                           const slotExists = slotData !== undefined;
                           const isAvailable = slotExists && !isBooked && !isPast;
                           
-                          // Get slot status from the actual slot data; prefer booking status if booking exists, else holiday name for this date, else slot status
+                          // Get slot status from the actual slot data; prefer booking status if booking exists, else slot status (never empty when slot exists)
                           const slotStatus = slotData?.status ?? "";
                           const isSlotBookedStatus = slotStatus !== "" && slotStatus !== "AVAILABLE";
                           const dateStr = format(day, "yyyy-MM-dd");
                           const holidayName = equipmentDetail?.weekly_holidays?.[dateStr];
                           const bookingStatusDisplay = slotData?.booking_status_display ?? null;
-                          const slotStatusLabel = slotData?.status_display || (slotStatus ? slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase() : "");
+                          const rawSlotStatusLabel = slotData?.status_display || (slotStatus ? slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase() : "");
+                          const slotStatusLabel = slotExists && slotData
+                            ? (rawSlotStatusLabel || (slotData.status === "AVAILABLE" ? "Available" : slotData.status === "BOOKED" ? "Booked" : slotData.status === "BLOCKED" ? "Blocked" : "Available"))
+                            : rawSlotStatusLabel;
                           const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
 
                           // STRICT VALIDATION: Check if selecting this slot would exceed the time limit
