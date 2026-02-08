@@ -454,7 +454,7 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">INDIAN INSTITUTE OF TECHNOLOGY ROORKEE</CardTitle>
+          <CardTitle className="text-2xl text-center">INSTITUTE INSTRUMENTATION CENTRE - IIC</CardTitle>
           <CardDescription className="text-center">
             Sign in with Omniport (IIT Roorkee) or create an account
           </CardDescription>

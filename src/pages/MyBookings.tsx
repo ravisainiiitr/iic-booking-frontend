@@ -29,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import BookingEventHistory from "@/components/BookingEventHistory";
+import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { X, Calendar as CalendarIcon, History } from "lucide-react";
 
 interface Booking {
@@ -83,8 +84,6 @@ const MyBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelRefund, setCancelRefund] = useState(false);
-  const [rescheduleStartTime, setRescheduleStartTime] = useState("");
-  const [rescheduleEndTime, setRescheduleEndTime] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
 
@@ -144,22 +143,6 @@ const MyBookings = () => {
 
   const handleRescheduleClick = (booking: Booking) => {
     setSelectedBooking(booking);
-    // Pre-fill with current booking times
-    const startDate = new Date(booking.start_time);
-    const endDate = new Date(booking.end_time);
-    
-    // Format as datetime-local input format (YYYY-MM-DDTHH:mm)
-    const formatDateTime = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    };
-    
-    setRescheduleStartTime(formatDateTime(startDate));
-    setRescheduleEndTime(formatDateTime(endDate));
     setRescheduleDialogOpen(true);
   };
 
@@ -189,32 +172,15 @@ const MyBookings = () => {
     }
   };
 
-  const handleRescheduleConfirm = async () => {
+  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string) => {
     if (!selectedBooking) return;
-
-    if (!rescheduleStartTime || !rescheduleEndTime) {
-      toast.error("Please select both start and end times");
-      return;
-    }
-
-    const startDate = new Date(rescheduleStartTime);
-    const endDate = new Date(rescheduleEndTime);
-
-    if (endDate <= startDate) {
-      toast.error("End time must be after start time");
-      return;
-    }
 
     setActionLoading(true);
     try {
-      // Convert to ISO string for API
-      const startISO = startDate.toISOString();
-      const endISO = endDate.toISOString();
-
       const response = await apiClient.userRescheduleBooking(
         selectedBooking.booking_id,
-        startISO,
-        endISO
+        startTimeISO,
+        endTimeISO
       );
 
       if (response.error) {
@@ -436,57 +402,35 @@ const MyBookings = () => {
 
         {/* Reschedule Booking Dialog */}
         <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Reschedule Booking</DialogTitle>
               <DialogDescription>
-                Select new start and end times for your booking.
                 {selectedBooking && (
-                  <div className="mt-2 text-sm">
-                    <p><strong>Equipment:</strong> {selectedBooking.equipment_name}</p>
-                    <p><strong>Current Start:</strong> {new Date(selectedBooking.start_time).toLocaleString()}</p>
-                    <p><strong>Current End:</strong> {new Date(selectedBooking.end_time).toLocaleString()}</p>
-                  </div>
+                  <span><strong>{selectedBooking.equipment_name}</strong> – Select the same number of consecutive slots in the week below.</span>
                 )}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="reschedule-start">New Start Time</Label>
-                <Input
-                  id="reschedule-start"
-                  type="datetime-local"
-                  value={rescheduleStartTime}
-                  onChange={(e) => setRescheduleStartTime(e.target.value)}
-                  min={new Date().toISOString().slice(0, 16)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reschedule-end">New End Time</Label>
-                <Input
-                  id="reschedule-end"
-                  type="datetime-local"
-                  value={rescheduleEndTime}
-                  onChange={(e) => setRescheduleEndTime(e.target.value)}
-                  min={rescheduleStartTime || new Date().toISOString().slice(0, 16)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setRescheduleDialogOpen(false)}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleRescheduleConfirm}
-                disabled={actionLoading || !rescheduleStartTime || !rescheduleEndTime}
-              >
-                {actionLoading ? "Rescheduling..." : "Confirm Reschedule"}
-              </Button>
-            </DialogFooter>
+            {selectedBooking && (
+              <RescheduleSlotPicker
+                equipmentId={selectedBooking.equipment}
+                booking={{
+                  booking_id: selectedBooking.booking_id,
+                  equipment: selectedBooking.equipment,
+                  start_time: selectedBooking.start_time,
+                  end_time: selectedBooking.end_time,
+                  daily_slots: (selectedBooking.daily_slots ?? []).map((s) => ({
+                    id: s.id,
+                    start_datetime: s.start_datetime,
+                    end_datetime: s.end_datetime,
+                    date: s.date,
+                  })),
+                }}
+                onConfirm={handleRescheduleConfirm}
+                onCancel={() => setRescheduleDialogOpen(false)}
+                confirmLoading={actionLoading}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </main>

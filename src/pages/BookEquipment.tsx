@@ -31,6 +31,10 @@ interface DailySlot {
   start_datetime: string;
   end_datetime: string;
   status: string;
+  status_display?: string;
+  booking_id?: number | null;
+  booking_status?: string | null;
+  booking_status_display?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +52,7 @@ interface EquipmentDetail {
   image_url: string;
   slot_duration_minutes?: number;
   daily_slots?: DailySlot[];
+  weekly_holidays?: Record<string, string>;
   input_fields?: Array<any>;
   charge_profiles?: Array<any>;
   [key: string]: any;
@@ -407,18 +412,19 @@ const BookEquipment = () => {
       );
 
       if (slotsResponse.data && slotsResponse.data.slots) {
-        // Update equipmentDetail with fetched slots using functional update
+        // Update equipmentDetail with fetched slots and holidays
         setEquipmentDetail(prev => {
           if (!prev) return prev;
-          // Only update if slots actually changed
           const newSlots = slotsResponse.data!.slots;
+          const newHolidays = slotsResponse.data?.holidays ?? {};
           const currentSlots = prev.daily_slots || [];
-          if (JSON.stringify(currentSlots) === JSON.stringify(newSlots)) {
-            return prev; // No change, return same object
+          if (JSON.stringify(currentSlots) === JSON.stringify(newSlots) && JSON.stringify(prev.weekly_holidays ?? {}) === JSON.stringify(newHolidays)) {
+            return prev;
           }
           return {
             ...prev,
             daily_slots: newSlots,
+            weekly_holidays: newHolidays,
           };
         });
         setLastFetchedWeek(weekKey);
@@ -892,10 +898,11 @@ const BookEquipment = () => {
       });
 
       const results = await Promise.all(bookingPromises);
-      const errors = results.filter(r => r.error);
+      const errors = results.filter((r): r is typeof r & { error: string } => !!r.error);
 
       if (errors.length > 0) {
-        throw new Error("Failed to create some bookings");
+        const message = errors[0].error || "Failed to create some bookings";
+        throw new Error(message);
       }
 
       toast.success(`${bookings.length} booking(s) created successfully!`);
@@ -1319,9 +1326,14 @@ const BookEquipment = () => {
                           const slotExists = slotData !== undefined;
                           const isAvailable = slotExists && !isBooked && !isPast;
                           
-                          // Get slot status from the actual slot data
-                          const slotStatus = slotData?.status || "N/A";
-                          const isSlotBookedStatus = slotStatus !== "AVAILABLE" && slotStatus !== "N/A";
+                          // Get slot status from the actual slot data; prefer booking status if booking exists, else holiday name for this date, else slot status
+                          const slotStatus = slotData?.status ?? "";
+                          const isSlotBookedStatus = slotStatus !== "" && slotStatus !== "AVAILABLE";
+                          const dateStr = format(day, "yyyy-MM-dd");
+                          const holidayName = equipmentDetail?.weekly_holidays?.[dateStr];
+                          const bookingStatusDisplay = slotData?.booking_status_display ?? null;
+                          const slotStatusLabel = slotData?.status_display || (slotStatus ? slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase() : "");
+                          const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
 
                           // STRICT VALIDATION: Check if selecting this slot would exceed the time limit
                           const currentSelectedMinutes = calculatedCharge ? getTotalSelectedMinutes() : 0;
@@ -1354,36 +1366,35 @@ const BookEquipment = () => {
                           // Disable if charge not calculated
                           const chargeNotCalculated = !calculatedCharge;
                           
-                          // Determine the actual status to display
-                          // Only show "Selected" for selected slots, all others show their normal status
-                          let displayStatus = 'N/A';
+                          // Determine the actual status to display: booking status > holiday name > slot status (never N/A)
+                          let displayStatus = holidayName || "—";
                           let isDisabled = true;
                           
                           if (slotExists) {
                             if (isSlotBookedStatus || isBooked) {
-                              displayStatus = 'Booked';
+                              displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                               isDisabled = true;
                             } else if (isSelected) {
-                              displayStatus = 'Selected';
+                              displayStatus = "Selected";
                               isDisabled = false; // Allow deselecting
                             } else if (isPast) {
-                              displayStatus = 'Past';
+                              displayStatus = "Past";
                               isDisabled = true;
                             } else if (chargeNotCalculated) {
-                              displayStatus = 'N/A';
+                              displayStatus = slotDisplayLabel || slotStatusLabel || "—";
                               isDisabled = true;
                             } else if (notConsecutive) {
-                              // Show "Available" but keep disabled when not consecutive
-                              displayStatus = 'Available';
+                              displayStatus = "Available";
                               isDisabled = true;
                             } else if (limitReached || wouldExceedLimit) {
-                              // Show "Available" but keep disabled when limit is reached
-                              displayStatus = 'Available';
+                              displayStatus = "Available";
                               isDisabled = true;
                             } else {
-                              displayStatus = 'Available';
+                              displayStatus = "Available";
                               isDisabled = false;
                             }
+                          } else {
+                            displayStatus = holidayName || "—";
                           }
 
                           return (

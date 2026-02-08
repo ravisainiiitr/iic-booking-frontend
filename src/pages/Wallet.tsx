@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -102,6 +102,20 @@ const Wallet = () => {
   const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
   const [loadingRechargeRequests, setLoadingRechargeRequests] = useState(false);
   const [showRechargeHistory, setShowRechargeHistory] = useState(false);
+  const [subWallets, setSubWallets] = useState<Array<{
+    id: number;
+    department_id: number;
+    department_name: string;
+    department_code: string | null;
+    balance: string;
+    created_at: string;
+    updated_at: string;
+  }>>([]);
+  const [showAllSubWallets, setShowAllSubWallets] = useState(false);
+  const SUB_WALLETS_PREVIEW_COUNT = 3;
+  const [internalDepartments, setInternalDepartments] = useState<Array<{ id: number; name: string; code: string | null }>>([]);
+  const [rechargeDepartmentId, setRechargeDepartmentId] = useState<number | null>(null);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -129,6 +143,22 @@ const Wallet = () => {
       fetchJoinRequests();
     }
   }, [showRequestForm]);
+
+  // Fetch departments with equipment (valid for sub-wallet recharge) when recharge dialog opens
+  useEffect(() => {
+    if (showRechargeDialog && internalDepartments.length === 0) {
+      setLoadingDepartments(true);
+      apiClient.getDepartmentsForRecharge().then((res) => {
+        if (res.data?.departments) {
+          setInternalDepartments(res.data.departments);
+        }
+        setLoadingDepartments(false);
+      }).catch(() => setLoadingDepartments(false));
+    }
+    if (!showRechargeDialog) {
+      setRechargeDepartmentId(null);
+    }
+  }, [showRechargeDialog]);
 
   const checkAuthAndFetchWallet = async () => {
     const token = apiClient.getToken();
@@ -505,6 +535,9 @@ const Wallet = () => {
           // If no transactions in response, try fetching separately
           await fetchTransactions();
         }
+
+        // Sub-wallets (department-wise balances)
+        setSubWallets(walletResponse.data.sub_wallets ?? []);
         
         // If this is a shared wallet, fetch join requests to get the approved request
         if (walletResponse.data.is_shared) {
@@ -546,22 +579,21 @@ const Wallet = () => {
 
   const handleRecharge = async () => {
     const amount = parseFloat(rechargeAmount);
-    
+    if (!rechargeDepartmentId) {
+      toast.error("Please select a department (sub-wallet to credit)");
+      return;
+    }
     if (!amount || amount < 1) {
       toast.error("Please enter a valid amount (minimum ₹1)");
       return;
     }
-
     if (amount > 100000) {
       toast.error("Maximum recharge amount is ₹1,00,000");
       return;
     }
-
     try {
       setRecharging(true);
-      
-      // Create Razorpay order
-      const orderResponse = await apiClient.createRazorpayOrder(amount);
+      const orderResponse = await apiClient.createRazorpayOrder(amount, rechargeDepartmentId);
       if (orderResponse.error) {
         toast.error(orderResponse.error || "Failed to create payment order");
         return;
@@ -595,7 +627,7 @@ const Wallet = () => {
             toast.success(verifyResponse.data?.message || `Successfully recharged ₹${amount.toFixed(2)}`);
             setShowRechargeDialog(false);
             setRechargeAmount("");
-            
+            setRechargeDepartmentId(null);
             // Refresh wallet data
             await fetchWalletData();
           } catch (error: any) {
@@ -639,17 +671,19 @@ const Wallet = () => {
 
   const handleSendOtp = async () => {
     const amount = parseFloat(rechargeAmount);
-    
+    if (!rechargeDepartmentId) {
+      toast.error("Please select a department (sub-wallet to credit)");
+      return;
+    }
     if (!amount || amount < 0.01) {
       toast.error("Please enter a valid amount (minimum ₹0.01)");
       return;
     }
-
     try {
       setSendingOtp(true);
-      
       const response = await apiClient.sendUserOtpForRecharge(
         amount,
+        rechargeDepartmentId,
         projectDetails.trim() || undefined
       );
 
@@ -946,7 +980,7 @@ const Wallet = () => {
           <CardHeader>
             <CardTitle>Current Balance</CardTitle>
             <CardDescription>
-              {isShared ? "Available funds in shared wallet" : "Available funds in your wallet"}
+              {isShared ? "Available funds in shared wallet" : "Consolidated balance across all department sub-wallets. Recharge a sub-wallet to add funds."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -978,6 +1012,7 @@ const Wallet = () => {
                         onClick={() => {
                           setShowRechargeDialog(false);
                           setRechargeAmount("");
+                          setRechargeDepartmentId(null);
                           setProjectDetails("");
                           setRechargeType("razorpay");
                           setOtpStep("form");
@@ -989,10 +1024,24 @@ const Wallet = () => {
                       </Button>
                     </div>
                     <CardDescription>
-                      Choose how you want to recharge your wallet
+                      Recharge a department sub-wallet. Select department and amount.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Department (sub-wallet to credit)</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={rechargeDepartmentId ?? ""}
+                        onChange={(e) => setRechargeDepartmentId(e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">Select department</option>
+                        {internalDepartments.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ""}</option>
+                        ))}
+                      </select>
+                      {loadingDepartments && <p className="text-xs text-muted-foreground">Loading departments...</p>}
+                    </div>
                     {/* Recharge Type Tabs */}
                     <div className="flex gap-2 border-b">
                       <Button
@@ -1074,7 +1123,7 @@ const Wallet = () => {
                         </div>
                         <Button
                           onClick={handleRecharge}
-                          disabled={recharging || !rechargeAmount || parseFloat(rechargeAmount) < 1}
+                          disabled={recharging || !rechargeDepartmentId || !rechargeAmount || parseFloat(rechargeAmount) < 1}
                           className="w-full"
                           size="lg"
                         >
@@ -1116,7 +1165,7 @@ const Wallet = () => {
                         </div>
                         <Button
                           onClick={handleSendOtp}
-                          disabled={sendingOtp || !rechargeAmount || parseFloat(rechargeAmount) < 0.01}
+                          disabled={sendingOtp || !rechargeDepartmentId || !rechargeAmount || parseFloat(rechargeAmount) < 0.01}
                           className="w-full"
                           size="lg"
                         >
@@ -1233,6 +1282,66 @@ const Wallet = () => {
                   </Button>
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Department Sub-Wallets */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Department Sub-Wallets
+            </CardTitle>
+            <CardDescription>
+              Funds allocated by department. Equipment linked to a department deducts from the corresponding sub-wallet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {subWallets.length === 0 ? (
+              <p className="text-muted-foreground text-center py-6">
+                No department sub-wallets yet. Book equipment linked to a department or transfer from main wallet to create one.
+              </p>
+            ) : (
+              <>
+                <ul className="space-y-3">
+                  {(showAllSubWallets ? subWallets : subWallets.slice(0, SUB_WALLETS_PREVIEW_COUNT)).map((sw) => (
+                    <li
+                      key={sw.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                    >
+                      <div>
+                        <p className="font-medium">{sw.department_name}</p>
+                        {sw.department_code && (
+                          <p className="text-xs text-muted-foreground">{sw.department_code}</p>
+                        )}
+                      </div>
+                      <span className="text-lg font-semibold text-primary">
+                        ₹{Number(sw.balance).toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {subWallets.length > SUB_WALLETS_PREVIEW_COUNT && (
+                  <Button
+                    variant="ghost"
+                    className="w-full mt-4 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowAllSubWallets((v) => !v)}
+                  >
+                    {showAllSubWallets ? (
+                      <>
+                        <ChevronUp className="h-4 w-4 mr-2" />
+                        View less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4 mr-2" />
+                        View more ({subWallets.length - SUB_WALLETS_PREVIEW_COUNT} more)
+                      </>
+                    )}
+                  </Button>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -1578,52 +1687,15 @@ const Wallet = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Transaction History</CardTitle>
-            <CardDescription>Recent wallet transactions</CardDescription>
+            <CardTitle>Transactions</CardTitle>
+            <CardDescription>
+              Transactions are recorded per department. View balance and activity in the Department Sub-Wallets section above; use each department’s sub-wallet for recharges and bookings.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {transactions.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No transactions yet
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {transactions.map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-4">
-                      {tx.transaction_type === "credit" ? (
-                        <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                          <ArrowDown className="h-5 w-5 text-green-600 dark:text-green-400" />
-                        </div>
-                      ) : (
-                        <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
-                          <ArrowUp className="h-5 w-5 text-red-600 dark:text-red-400" />
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-medium">{tx.description || "Transaction"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(tx.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className={`text-lg font-semibold ${
-                        tx.transaction_type === "credit"
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {tx.transaction_type === "credit" ? "+" : "-"}₹
-                      {Number(tx.amount).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <p className="text-center text-muted-foreground py-6">
+              No main wallet transactions. All activity is in department sub-wallets.
+            </p>
           </CardContent>
         </Card>
       </main>

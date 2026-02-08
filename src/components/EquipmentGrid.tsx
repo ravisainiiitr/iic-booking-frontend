@@ -18,11 +18,9 @@ interface ApiEquipment {
   location: string;
   image_url: string;
   video_url?: string | null;
-  department?: number | null;
-  department_name?: string | null;
-  department_code?: string | null;
-  department_type?: string | null;
-  department_type_display?: string | null;
+  category?: number | null;
+  category_name?: string | null;
+  category_code?: string | null;
 }
 
 const EquipmentGrid = () => {
@@ -72,7 +70,7 @@ const EquipmentGrid = () => {
     }
   };
 
-  // Get unique departments (equipment groups) from equipment data with counts
+  // Get unique categories (equipment groups) from equipment data with counts
   interface EquipmentGroup {
     name: string;
     count: number;
@@ -81,10 +79,10 @@ const EquipmentGrid = () => {
   const equipmentGroups = useMemo<EquipmentGroup[]>(() => {
     const groupMap = new Map<string, number>();
     equipment.forEach((eq) => {
-      // Use department_name, fallback to "Unassigned" if no department
-      const deptName = eq.department_name || "Unassigned";
-      const count = groupMap.get(deptName) || 0;
-      groupMap.set(deptName, count + 1);
+      // Use category_name, fallback to "Unassigned" if no category
+      const categoryName = eq.category_name || "Unassigned";
+      const count = groupMap.get(categoryName) || 0;
+      groupMap.set(categoryName, count + 1);
     });
     // Convert to array and sort by name, but include count
     return Array.from(groupMap.entries())
@@ -108,7 +106,7 @@ const EquipmentGrid = () => {
       id: eq.equipment_id,
       name: eq.name,
       category: eq.profile_type_display || eq.profile_type || "Uncategorized",
-      description: `${eq.name} - ${eq.profile_type_display || ""}`,
+      description: `${eq.name}`,
       image: eq.image_url || "/placeholder.svg",
       video: eq.video_url || undefined, // Use video_url if available, otherwise undefined
       available: eq.status === "ACTIVE",
@@ -123,11 +121,11 @@ const EquipmentGrid = () => {
     return transformEquipment(equipment);
   }, [equipment]);
 
-  // Get filtered equipment for specific department
-  const getGroupEquipment = (departmentName: string) => {
+  // Get filtered equipment for specific category
+  const getGroupEquipment = (categoryName: string) => {
     const filtered = equipment.filter((eq) => {
-      const eqDeptName = eq.department_name || "Unassigned";
-      return eqDeptName === departmentName;
+      const eqCategoryName = eq.category_name || "Unassigned";
+      return eqCategoryName === categoryName;
     });
     return transformEquipment(filtered);
   };
@@ -225,7 +223,7 @@ const EquipmentGrid = () => {
                 {groupEquipment.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground text-lg">
-                      {searchQuery ? "No equipment found matching your search." : `No equipment available in ${group.name} department.`}
+                      {searchQuery ? "No equipment found matching your search." : `No equipment available in ${group.name} category.`}
                     </p>
                   </div>
                 ) : (

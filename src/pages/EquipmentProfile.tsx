@@ -49,6 +49,10 @@ interface EquipmentProfile {
     start_datetime: string;
     end_datetime: string;
     status: string;
+    status_display?: string;
+    booking_id?: number | null;
+    booking_status?: string | null;
+    booking_status_display?: string | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -89,9 +93,14 @@ const EquipmentProfile = () => {
     start_datetime: string;
     end_datetime: string;
     status: string;
+    status_display?: string;
+    booking_id?: number | null;
+    booking_status?: string | null;
+    booking_status_display?: string | null;
     created_at: string;
     updated_at: string;
   }> | null>(null);
+  const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string>>({});
 
   const fetchSlotsForWeek = useCallback(async (isAuto = false) => {
     if (!equipment || !id) return;
@@ -104,8 +113,8 @@ const EquipmentProfile = () => {
     try {
       const slotsResponse = await apiClient.getEquipmentSlots(id, startDateStr, endDateStr);
       if (slotsResponse.data) {
-        const availableSlots = (slotsResponse.data.slots || []).filter((slot) => slot.status === "AVAILABLE");
-        setApiSlots(availableSlots);
+        setApiSlots(slotsResponse.data.slots || []);
+        setWeeklyHolidays(slotsResponse.data.holidays ?? {});
       }
     } catch (error: any) {
       console.error("Error calling slots API:", error);
@@ -311,10 +320,6 @@ const EquipmentProfile = () => {
                         <span>{equipment.location}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Info className="h-4 w-4" />
-                        <span>{equipment.profile_type_display}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
                         <span className="font-mono">{equipment.code}</span>
                       </div>
                     </div>
@@ -388,11 +393,22 @@ const EquipmentProfile = () => {
                               const day = addDays(weekStartMonday, dayOffset);
                               const slotData = getSlotData(day, time);
                               const slotExists = slotData !== undefined;
+                              const dateStr = format(day, "yyyy-MM-dd");
                               const [hours, minutes] = time.split(':').map(Number);
                               const slotDateTime = new Date(day);
                               slotDateTime.setHours(hours, minutes || 0, 0, 0);
                               const isPast = slotDateTime < new Date();
                               const isAvailable = slotExists && slotData?.status === "AVAILABLE" && !isPast;
+                              const bookingStatusDisplay = slotData?.booking_status_display ?? null;
+                              const slotStatusLabel = slotData?.status_display || (slotData?.status ? slotData.status.charAt(0).toUpperCase() + slotData.status.slice(1).toLowerCase() : "");
+                              const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
+                              const displayStatus = slotExists
+                                ? (slotData?.status !== "AVAILABLE"
+                                    ? (slotDisplayLabel || slotStatusLabel || "Unavailable")
+                                    : isPast
+                                      ? "Past"
+                                      : "Available")
+                                : (weeklyHolidays[dateStr] || "—");
 
                               return (
                                 <div
@@ -405,10 +421,7 @@ const EquipmentProfile = () => {
                                     ${isAvailable ? 'bg-green-100 text-green-800' : ''}
                                   `}
                                 >
-                                  {!slotExists ? 'N/A' : 
-                                   slotData?.status !== "AVAILABLE" ? 'Booked' : 
-                                   isPast ? 'Past' : 
-                                   'Available'}
+                                  {displayStatus}
                                 </div>
                               );
                             })}

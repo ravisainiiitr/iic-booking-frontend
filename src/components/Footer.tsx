@@ -10,7 +10,7 @@ const Footer = () => {
             <div className="flex items-center gap-2">
               <FlaskConical className="h-6 w-6 text-primary" />
               <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                INDIAN INSTITUTE OF TECHNOLOGY ROORKEE
+                INSTITUTE INSTRUMENTATION CENTRE - IIC
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -54,7 +54,7 @@ const Footer = () => {
         </div>
 
         <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-          <p>&copy; 2026 INDIAN INSTITUTE OF TECHNOLOGY ROORKEE. All rights reserved.</p>
+          <p>&copy; 2026 INSTITUTE INSTRUMENTATION CENTRE - IIC. All rights reserved.</p>
         </div>
       </div>
     </footer>

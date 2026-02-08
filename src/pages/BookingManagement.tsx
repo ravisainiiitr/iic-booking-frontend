@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import UserProfile from "@/components/UserProfile";
+import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { CheckCircle2, XCircle, Clock, RotateCcw, Calendar, X, History } from "lucide-react";
 
 interface Booking {
@@ -87,8 +88,7 @@ const BookingManagement = () => {
     booking: null,
   });
   const [actionNotes, setActionNotes] = useState("");
-  const [rescheduleStartTime, setRescheduleStartTime] = useState("");
-  const [rescheduleEndTime, setRescheduleEndTime] = useState("");
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [refundOnCancel, setRefundOnCancel] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
@@ -162,16 +162,13 @@ const BookingManagement = () => {
   const openActionDialog = (type: ActionType, booking: Booking) => {
     setActionDialog({ open: true, type, booking });
     setActionNotes("");
-    setRescheduleStartTime("");
-    setRescheduleEndTime("");
     setRefundOnCancel(false);
   };
 
   const closeActionDialog = () => {
     setActionDialog({ open: false, type: null, booking: null });
     setActionNotes("");
-    setRescheduleStartTime("");
-    setRescheduleEndTime("");
+    setRescheduleLoading(false);
     setRefundOnCancel(false);
   };
 
@@ -232,19 +229,11 @@ const BookingManagement = () => {
     }
   };
 
-  const handleReschedule = async () => {
+  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string) => {
     if (!actionDialog.booking) return;
 
-    if (!rescheduleStartTime || !rescheduleEndTime) {
-      toast.error("Please provide both start and end times");
-      return;
-    }
-
+    setRescheduleLoading(true);
     try {
-      // Convert datetime-local format to ISO string
-      const startTimeISO = new Date(rescheduleStartTime).toISOString();
-      const endTimeISO = new Date(rescheduleEndTime).toISOString();
-
       const response = await apiClient.rescheduleBooking(
         actionDialog.booking.booking_id,
         startTimeISO,
@@ -259,6 +248,8 @@ const BookingManagement = () => {
       fetchBookings();
     } catch (error: any) {
       toast.error(error.message || "Failed to reschedule booking");
+    } finally {
+      setRescheduleLoading(false);
     }
   };
 
@@ -524,7 +515,7 @@ const BookingManagement = () => {
 
         {/* Action Dialogs */}
         <Dialog open={actionDialog.open} onOpenChange={(open) => !open && closeActionDialog()}>
-          <DialogContent>
+          <DialogContent className={actionDialog.type === 'reschedule' ? 'sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto' : ''}>
             <DialogHeader>
               <DialogTitle>
                 {actionDialog.type === 'complete' && 'Complete Booking'}
@@ -554,36 +545,25 @@ const BookingManagement = () => {
               </DialogDescription>
             </DialogHeader>
 
-            {actionDialog.type === 'reschedule' && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start-time">New Start Time</Label>
-                  <Input
-                    id="start-time"
-                    type="datetime-local"
-                    value={rescheduleStartTime}
-                    onChange={(e) => setRescheduleStartTime(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end-time">New End Time</Label>
-                  <Input
-                    id="end-time"
-                    type="datetime-local"
-                    value={rescheduleEndTime}
-                    onChange={(e) => setRescheduleEndTime(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={actionNotes}
-                    onChange={(e) => setActionNotes(e.target.value)}
-                    placeholder="Add any notes about the reschedule..."
-                  />
-                </div>
-              </div>
+            {actionDialog.type === 'reschedule' && actionDialog.booking && (
+              <RescheduleSlotPicker
+                equipmentId={actionDialog.booking.equipment}
+                booking={{
+                  booking_id: actionDialog.booking.booking_id,
+                  equipment: actionDialog.booking.equipment,
+                  start_time: actionDialog.booking.start_time,
+                  end_time: actionDialog.booking.end_time,
+                  daily_slots: (actionDialog.booking.daily_slots ?? []).map((s) => ({
+                    id: s.id,
+                    start_datetime: s.start_datetime,
+                    end_datetime: s.end_datetime,
+                    date: s.date,
+                  })),
+                }}
+                onConfirm={handleRescheduleConfirm}
+                onCancel={closeActionDialog}
+                confirmLoading={rescheduleLoading}
+              />
             )}
 
             {actionDialog.type === 'cancel' && (
@@ -628,22 +608,23 @@ const BookingManagement = () => {
               </div>
             )}
 
-            <DialogFooter>
-              <Button variant="outline" onClick={closeActionDialog}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (actionDialog.type === 'complete') handleComplete();
-                  else if (actionDialog.type === 'refund') handleRefund();
-                  else if (actionDialog.type === 'absent') handleAbsent();
-                  else if (actionDialog.type === 'reschedule') handleReschedule();
-                  else if (actionDialog.type === 'cancel') handleCancel();
-                }}
-              >
-                Confirm
-              </Button>
-            </DialogFooter>
+            {actionDialog.type !== 'reschedule' && (
+              <DialogFooter>
+                <Button variant="outline" onClick={closeActionDialog}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (actionDialog.type === 'complete') handleComplete();
+                    else if (actionDialog.type === 'refund') handleRefund();
+                    else if (actionDialog.type === 'absent') handleAbsent();
+                    else if (actionDialog.type === 'cancel') handleCancel();
+                  }}
+                >
+                  Confirm
+                </Button>
+              </DialogFooter>
+            )}
           </DialogContent>
         </Dialog>
       </main>

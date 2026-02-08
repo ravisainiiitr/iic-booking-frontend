@@ -35,11 +35,24 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const isFetching = useRef(false);
   
   // Get WebSocket URL from API base URL
+  // Uses the same runtime configuration as the API client
   const getWebSocketUrl = () => {
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    // Get API base URL (supports runtime config via window.__RUNTIME_CONFIG__)
+    let apiBaseUrl: string;
+    if (typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL) {
+      apiBaseUrl = (window as any).__RUNTIME_CONFIG__.VITE_API_URL;
+    } else if (import.meta.env.VITE_API_URL) {
+      apiBaseUrl = import.meta.env.VITE_API_URL;
+    } else {
+      apiBaseUrl = 'http://127.0.0.1:8000/api';
+    }
+    
+    // Remove /api suffix if present (WebSocket is at /ws/notifications/, not /api/ws/notifications/)
+    const baseUrl = apiBaseUrl.replace(/\/api\/?$/, '');
+    
     // Convert HTTP/HTTPS to WS/WSS
-    const wsProtocol = apiBaseUrl.startsWith('https') ? 'wss' : 'ws';
-    const wsHost = apiBaseUrl.replace(/^https?:\/\//, '');
+    const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
+    const wsHost = baseUrl.replace(/^https?:\/\//, '');
     return `${wsProtocol}://${wsHost}/ws/notifications/`;
   };
   

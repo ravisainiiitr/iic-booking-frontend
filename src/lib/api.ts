@@ -566,11 +566,9 @@ class ApiClient {
         location: string;
         image_url: string;
         video_url?: string | null;
-        department?: number | null;
-        department_name?: string | null;
-        department_code?: string | null;
-        department_type?: string | null;
-        department_type_display?: string | null;
+        category?: number | null;
+        category_name?: string | null;
+        category_code?: string | null;
         created_at: string;
         updated_at: string;
       }>;
@@ -741,11 +739,16 @@ class ApiClient {
         start_datetime: string;
         end_datetime: string;
         status: string;
+        status_display?: string;
+        booking_id?: number | null;
+        booking_status?: string | null;
+        booking_status_display?: string | null;
         created_at: string;
         updated_at: string;
       }>;
       count: number;
       total_time_minutes?: number;
+      holidays?: Record<string, string>;
     }>(endpoint);
   }
 
@@ -759,6 +762,15 @@ class ApiClient {
         amount: string;
         description: string;
         created_at: string;
+      }>;
+      sub_wallets?: Array<{
+        id: number;
+        department_id: number;
+        department_name: string;
+        department_code: string | null;
+        balance: string;
+        created_at: string;
+        updated_at: string;
       }>;
       is_shared?: boolean;
       wallet_owner?: {
@@ -816,16 +828,24 @@ class ApiClient {
     }>('/wallet/transactions/');
   }
 
-  async createRazorpayOrder(amount: number) {
+  /** Departments that have equipment (valid for sub-wallet recharge). */
+  async getDepartmentsForRecharge() {
+    return this.request<{
+      departments: Array<{ id: number; name: string; code: string | null; department_type: string }>;
+    }>('/wallet/departments-for-recharge/');
+  }
+
+  async createRazorpayOrder(amount: number, departmentId: number) {
     return this.request<{
       order_id: string;
       amount: number;
       currency: string;
       key: string;
       wallet_id: number;
+      department_id?: number;
     }>('/wallet/razorpay/create-order/', {
       method: 'POST',
-      body: JSON.stringify({ amount }),
+      body: JSON.stringify({ amount, department_id: departmentId }),
     });
   }
 
@@ -963,7 +983,6 @@ class ApiClient {
       grouped?: {
         internal: Array<{ id: number; name: string; code: string; department_type: string; department_type_display: string }>;
         external: Array<{ id: number; name: string; code: string; department_type: string; department_type_display: string }>;
-        equipment: Array<{ id: number; name: string; code: string; department_type: string; department_type_display: string }>;
       };
     }>(url);
   }
@@ -1124,13 +1143,13 @@ class ApiClient {
   }
 
   // Wallet recharge request endpoints
-  async sendUserOtpForRecharge(amount: number, projectDetails?: string) {
+  async sendUserOtpForRecharge(amount: number, departmentId: number, projectDetails?: string) {
     return this.request<{
       request_id: number;
       message: string;
     }>('/wallet/recharge-request/send-otp/', {
       method: 'POST',
-      body: JSON.stringify({ amount, project_details: projectDetails }),
+      body: JSON.stringify({ amount, department_id: departmentId, project_details: projectDetails }),
     });
   }
 

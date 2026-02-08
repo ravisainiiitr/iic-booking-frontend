@@ -105,7 +105,7 @@ const Header = () => {
               className="h-8 w-8"
             />
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              INDIAN INSTITUTE OF TECHNOLOGY ROORKEE
+              INSTITUTE INSTRUMENTATION CENTRE - IIC
             </span>
           </div>
           
