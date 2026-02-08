@@ -333,7 +333,7 @@ const Profile = () => {
                     <SelectItem value="faculty">Faculty</SelectItem>
                     <SelectItem value="external">Educational Institute</SelectItem>
                     <SelectItem value="RND">Govt R&D Center</SelectItem>
-                    <SelectItem value="Institutes">Institute</SelectItem>
+                    <SelectItem value="Industry">Industry</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                     <SelectItem value="type_9">Type 9</SelectItem>
                     <SelectItem value="type_10">Type 10</SelectItem>

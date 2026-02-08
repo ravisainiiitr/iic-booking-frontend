@@ -17,7 +17,7 @@ const authSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   password_confirm: z.string().min(8, "Password confirmation must be at least 8 characters"),
   name: z.string().min(2, "Name must be at least 2 characters"),
-  user_type: z.enum(["external", "RND", "Institutes", "other"], {
+  user_type: z.enum(["external", "RND", "Industry", "other"], {
     errorMap: () => ({ message: "Please select a user type" }),
   }),
   emp_id: z.string().min(1, "Employee/Student ID is required").max(50, "ID must be less than 50 characters"),

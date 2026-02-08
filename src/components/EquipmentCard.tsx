@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, Heart } from "lucide-react";
+import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, Heart, IndianRupee } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -68,6 +68,12 @@ interface EquipmentDetail {
     manager_email?: string | null;
     manager_phone?: string | null;
     manager_profile_picture?: string | null;
+  }>;
+  base_charges_by_user_type?: Array<{
+    user_type: string;
+    user_type_display: string;
+    profile_type_display: string | null;
+    primary_unit_charge: string;
   }>;
 }
 
@@ -257,6 +263,36 @@ const EquipmentCard = ({
                           {equipmentDetail?.location || address}
                         </p>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Base charges by user type */}
+                {equipmentDetail?.base_charges_by_user_type && equipmentDetail.base_charges_by_user_type.length > 0 && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4" />
+                      Base charges (user type wise)
+                    </h4>
+                    <div className="rounded-md border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50 border-b">
+                            <th className="text-left font-semibold p-3">User type</th>
+                            <th className="text-left font-semibold p-3">Profile</th>
+                            <th className="text-right font-semibold p-3">Charge (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {equipmentDetail.base_charges_by_user_type.map((row) => (
+                            <tr key={row.user_type} className="border-b last:border-0">
+                              <td className="p-3 font-medium text-foreground">{row.user_type_display}</td>
+                              <td className="p-3 text-muted-foreground">{row.profile_type_display || "—"}</td>
+                              <td className="p-3 text-right">₹{row.primary_unit_charge}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}

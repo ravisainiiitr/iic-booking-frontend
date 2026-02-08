@@ -157,7 +157,7 @@ const EquipmentProfile = () => {
   const canBookEquipment = (): boolean => {
     if (!userType) return false;
 
-    const allowedStringTypes = ['student', 'faculty', 'external', 'rnd', 'institute'];
+    const allowedStringTypes = ['student', 'faculty', 'external', 'rnd', 'industry'];
     
     // Handle string user_type (case-insensitive)
     if (typeof userType === 'string') {

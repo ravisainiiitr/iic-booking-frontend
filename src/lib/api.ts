@@ -332,7 +332,7 @@ class ApiClient {
     password: string,
     password_confirm: string,
     name: string,
-    user_type: "external" | "RND" | "Institutes" | "other",
+    user_type: "external" | "RND" | "Industry" | "other",
     emp_id: string,
     phone_number: string | undefined,
     department: number,

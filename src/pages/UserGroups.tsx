@@ -38,7 +38,7 @@ const USER_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "faculty", label: "Faculty" },
   { value: "external", label: "External" },
   { value: "RND", label: "R&D" },
-  { value: "Institutes", label: "Institute" },
+  { value: "Industry", label: "Industry" },
   { value: "other", label: "Other" },
 ];
 
