@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: ./compose/production/Dockerfile
       args:
-        - VITE_API_URL=${VITE_API_URL}
+        - VITE_API_URL=${VITE_API_URL:-http://15.206.88.2:8080/api}
     image: iic_booking_production_frontend
     container_name: iic_booking_production_frontend
     env_file:
