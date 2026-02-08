@@ -92,13 +92,14 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket: Error', error);
         isConnectingRef.current = false;
         onError?.(error);
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket: Closed', event.code, event.reason);
+        if (event.code !== 1000) {
+          console.warn('WebSocket: Closed', event.code, event.reason || 'Connection failed');
+        }
         isConnectingRef.current = false;
         setIsConnected(false);
         onClose?.();

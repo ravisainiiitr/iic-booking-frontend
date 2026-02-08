@@ -91,8 +91,12 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     onClose: () => {
       console.log('WebSocket: Notification service disconnected');
     },
-    onError: (error) => {
-      console.error('WebSocket: Error in notification service', error);
+    onError: () => {
+      // Real-time notifications unavailable (e.g. proxy/network); app continues with polling/refresh
+      if (typeof window !== 'undefined' && !(window as any).__ws_error_logged) {
+        (window as any).__ws_error_logged = true;
+        console.warn('WebSocket: Notification service unavailable. Notifications will still load on refresh.');
+      }
     },
     reconnect: true,
     reconnectInterval: 3000,
