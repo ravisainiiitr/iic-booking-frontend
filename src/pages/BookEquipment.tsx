@@ -148,12 +148,6 @@ const BookEquipment = () => {
       
       // Initialize input field values with default values
       if (eq.input_fields && eq.input_fields.length > 0) {
-        console.log('Input fields from API:', eq.input_fields.map((f: any) => ({
-          key: f.field_key,
-          label: f.field_label,
-          type: f.field_type,
-          required: f.is_required
-        })));
         
         const initialValues: Record<string, string | boolean | string[]> = {};
         eq.input_fields.forEach((field: any) => {
@@ -473,11 +467,6 @@ const BookEquipment = () => {
     if (selectedEquipment && equipmentDetail && showSlots && chargeCalculated) {
       if (equipmentDetail.profile_type === "HOUR" && equipmentDetail.daily_slots && equipmentDetail.daily_slots.length > 0) {
         // Use daily_slots from API response
-        console.log("Processing daily slots:", {
-          profileType: equipmentDetail.profile_type,
-          slotsCount: equipmentDetail.daily_slots.length,
-          weekStart: currentWeekStart
-        });
         processDailySlots();
       } else {
         // No daily slots available, clear booked slots
@@ -485,33 +474,33 @@ const BookEquipment = () => {
     }
   }, [selectedEquipment, currentWeekStart, equipmentDetail, processDailySlots, showSlots, chargeCalculated]);
 
-  // Safety check: Ensure selected slots don't exceed total_time_minutes
+  // Safety check: keep only slots that fit within total (each slot counts as min(slotDuration, remaining))
   useEffect(() => {
     if (calculatedCharge && selectedSlots.length > 0) {
-      const totalSelectedMinutes = getTotalSelectedMinutes();
-      if (totalSelectedMinutes > calculatedCharge.total_time_minutes) {
-        // Remove excess slots to bring it back within limit
-        // Remove slots one by one until we're under the limit
+      const totalLimit = calculatedCharge.total_time_minutes;
+      let currentTotal = 0;
+      let fitCount = 0;
+      for (const slot of selectedSlots) {
+        const slotDuration = getSlotDurationMinutes(slot);
+        const contribution = Math.min(slotDuration, totalLimit - currentTotal);
+        if (contribution <= 0) break;
+        fitCount += 1;
+        currentTotal += contribution;
+      }
+      if (fitCount < selectedSlots.length) {
         setSelectedSlots(prev => {
-          let currentTotal = 0;
+          let total = 0;
           const validSlots: TimeSlot[] = [];
-          
           for (const slot of prev) {
             const slotDuration = getSlotDurationMinutes(slot);
-            if (currentTotal + slotDuration <= calculatedCharge.total_time_minutes) {
-              validSlots.push(slot);
-              currentTotal += slotDuration;
-            } else {
-              break; // Stop adding slots once we hit the limit
-            }
+            const contribution = Math.min(slotDuration, totalLimit - total);
+            if (contribution <= 0) break;
+            validSlots.push(slot);
+            total += contribution;
           }
-          
-          if (validSlots.length < prev.length) {
-            toast.error(
-              `Selected slots exceeded the limit. Reduced to ${validSlots.length} slot(s) (${currentTotal} minutes / ${calculatedCharge.total_time_minutes} minutes).`
-            );
-          }
-          
+          toast.error(
+            `Selected slots exceeded the limit. Reduced to ${validSlots.length} slot(s) (${total} minutes / ${totalLimit} minutes).`
+          );
           return validSlots;
         });
       }
@@ -609,10 +598,17 @@ const BookEquipment = () => {
     }, 0);
   };
 
+  // Effective selected minutes capped at total (e.g. one 60-min slot for 7-min total counts as 7)
+  const getEffectiveSelectedMinutes = (): number => {
+    const raw = getTotalSelectedMinutes();
+    if (!calculatedCharge) return raw;
+    return Math.min(raw, calculatedCharge.total_time_minutes);
+  };
+
   // Get remaining minutes that can be selected
   const getRemainingMinutes = (): number => {
     if (!calculatedCharge) return 0;
-    return Math.max(0, calculatedCharge.total_time_minutes - getTotalSelectedMinutes());
+    return Math.max(0, calculatedCharge.total_time_minutes - getEffectiveSelectedMinutes());
   };
 
   // Check if a slot is consecutive to selected slots
@@ -696,10 +692,13 @@ const BookEquipment = () => {
           // Calculate duration of the slot being added
           const slotDuration = getSlotDurationMinutes(slot);
           const newTotalMinutes = currentSelectedMinutes + slotDuration;
-          
+          console.log("newTotalMinutes", newTotalMinutes);
+          console.log("calculatedCharge.total_time_minutes", calculatedCharge.total_time_minutes);
+          console.log("currentSelectedMinutes", currentSelectedMinutes);
           // STRICT CHECK: Prevent selecting if it would exceed the limit
-          if (newTotalMinutes > calculatedCharge.total_time_minutes) {
+          if (newTotalMinutes < calculatedCharge.total_time_minutes) {
             const remaining = calculatedCharge.total_time_minutes - currentSelectedMinutes;
+            console.log("remaining", remaining);
             toast.error(
               `Cannot select more slots. Maximum ${calculatedCharge.total_time_minutes} minutes allowed. ` +
               `You have selected ${currentSelectedMinutes} minutes. ${remaining > 0 ? `Only ${remaining} minutes remaining.` : 'Limit reached.'}`
@@ -748,11 +747,6 @@ const BookEquipment = () => {
     });
     
     const sortedTimes = Array.from(uniqueTimes).sort();
-    console.log("Time slots extracted from daily_slots:", {
-      totalSlots: equipmentDetail.daily_slots.length,
-      uniqueTimes: sortedTimes,
-      sampleSlot: equipmentDetail.daily_slots[0]
-    });
     // If we have slots, return them; otherwise fallback to default
     return sortedTimes.length > 0 ? sortedTimes : [];
   };
@@ -1238,6 +1232,13 @@ const BookEquipment = () => {
                       <h3 className="text-lg font-semibold mb-4">Step 3: Select Time Slots</h3>
                     </div>
 
+                {/* Show loading while slots are being fetched (avoids grid full of disabled cells) */}
+                {loadingSlots && (!equipmentDetail?.daily_slots || equipmentDetail.daily_slots.length === 0) && (
+                  <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    <span className="animate-pulse">Loading slots for this week…</span>
+                  </div>
+                )}
+
                 {/* Week Navigation */}
                 <div className="flex justify-between items-center mb-6">
                   <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
@@ -1274,34 +1275,29 @@ const BookEquipment = () => {
                     {(() => {
                       const useWeekly = useWeeklySlots();
                       const timeSlots = useWeekly ? getTimeSlotsFromDailySlots() : TIME_SLOTS;
-                      // Ensure we always have slots to display
                       const slotsToDisplay = timeSlots.length > 0 ? timeSlots : TIME_SLOTS;
-                      
-                      // Debug logging
-                      if (useWeekly) {
-                        console.log("Rendering weekly slots:", {
-                          timeSlotsCount: timeSlots.length,
-                          slotsToDisplayCount: slotsToDisplay.length,
-                          selectedSlotsCount: selectedSlots.length,
-                          equipmentDetail: equipmentDetail ? {
-                            profileType: equipmentDetail.profile_type,
-                            dailySlotsCount: equipmentDetail.daily_slots?.length || 0,
-                            firstSlot: equipmentDetail.daily_slots?.[0]
-                          } : null,
-                          currentWeekStart: currentWeekStart
-                        });
-                      }
-                      
+                      const hasSlotsFromApi = (equipmentDetail?.daily_slots?.length ?? 0) > 0;
+                      const fetchedButEmpty = !loadingSlots && lastFetchedWeek && !hasSlotsFromApi;
+
                       if (slotsToDisplay.length === 0) {
                         return (
                           <div className="col-span-8 p-4 text-center text-muted-foreground">
                             <p>No time slots available for this equipment.</p>
                             {equipmentDetail?.daily_slots && equipmentDetail.daily_slots.length > 0 && (
                               <p className="text-xs mt-2">
-                                Found {equipmentDetail.daily_slots.length} slots in API response. 
+                                Found {equipmentDetail.daily_slots.length} slots in API response.
                                 Try navigating to a different week.
                               </p>
                             )}
+                          </div>
+                        );
+                      }
+
+                      if (fetchedButEmpty) {
+                        return (
+                          <div className="col-span-8 p-4 text-center text-muted-foreground">
+                            <p>No slots available for this week.</p>
+                            <p className="text-xs mt-2">Try another week using the buttons above, or contact support if the issue continues.</p>
                           </div>
                         );
                       }
@@ -1339,19 +1335,21 @@ const BookEquipment = () => {
                             : rawSlotStatusLabel;
                           const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
 
-                          // STRICT VALIDATION: Check if selecting this slot would exceed the time limit
-                          const currentSelectedMinutes = calculatedCharge ? getTotalSelectedMinutes() : 0;
-                          
-                          // Calculate duration of this specific slot
+                          // Enable slot when slot duration >= remaining time (e.g. 60 min slot is fine for 7 min total)
+                          const totalMinutes = calculatedCharge?.total_time_minutes ?? 0;
+                          const currentSelectedMinutes = calculatedCharge ? getEffectiveSelectedMinutes() : 0;
+                          const remainingMinutes = Math.max(0, totalMinutes - currentSelectedMinutes);
+
                           const thisSlotDuration = slotData?.start_datetime && slotData?.end_datetime
                             ? Math.round((parseISO(slotData.end_datetime).getTime() - parseISO(slotData.start_datetime).getTime()) / (1000 * 60))
                             : (equipmentDetail?.slot_duration_minutes || 60);
-                          
+
+                          // Slot is usable if it covers remaining time (duration >= remaining). Count only min(slot, remaining) toward limit.
+                          const effectiveDurationIfSelected = Math.min(thisSlotDuration, remainingMinutes);
                           const wouldExceedLimit = calculatedCharge && !isSelected && !isBooked && !isPast && slotExists
-                            ? (currentSelectedMinutes + thisSlotDuration) > calculatedCharge.total_time_minutes
+                            ? (currentSelectedMinutes + effectiveDurationIfSelected) > totalMinutes
                             : false;
-                          
-                          // Also check if we've already reached or exceeded the limit
+
                           const limitReached = calculatedCharge
                             ? currentSelectedMinutes >= calculatedCharge.total_time_minutes
                             : false;
@@ -1412,9 +1410,7 @@ const BookEquipment = () => {
                                   } else if (limitReached) {
                                     toast.error(`You have reached the maximum allowed time (${calculatedCharge?.total_time_minutes || 0} minutes).`);
                                   } else if (wouldExceedLimit) {
-                                    const remaining = calculatedCharge
-                                      ? calculatedCharge.total_time_minutes - getTotalSelectedMinutes()
-                                      : 0;
+                                    const remaining = getRemainingMinutes();
                                     toast.error(`Cannot select more slots. Only ${remaining} minutes remaining.`);
                                   }
                                   return;
@@ -1450,7 +1446,7 @@ const BookEquipment = () => {
                           <span className="text-sm text-muted-foreground">
                             {calculatedCharge ? (
                               <>
-                                {getTotalSelectedMinutes()} minutes / {calculatedCharge.total_time_minutes} minutes
+                                {getEffectiveSelectedMinutes()} minutes / {calculatedCharge.total_time_minutes} minutes
                               </>
                             ) : (
                               <>Total Hours: {selectedSlots.length}</>
