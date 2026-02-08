@@ -97,9 +97,6 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       };
 
       ws.onclose = (event) => {
-        if (event.code !== 1000) {
-          console.warn('WebSocket: Closed', event.code, event.reason || 'Connection failed');
-        }
         isConnectingRef.current = false;
         setIsConnected(false);
         onClose?.();
@@ -109,17 +106,27 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           wsRef.current = null;
         }
 
-        // Attempt to reconnect if needed
+        // 1006 = abnormal closure (connection refused / failed). Don't retry - server or proxy likely doesn't support WS.
+        const connectionFailed = event.code === 1006 || event.code === 1011 || event.code === 1002;
+        if (connectionFailed) {
+          shouldReconnectRef.current = false;
+          return;
+        }
+
+        if (event.code !== 1000) {
+          console.warn('WebSocket: Closed', event.code, event.reason || '');
+        }
+
+        // Attempt to reconnect only for transient closures (e.g. server restart)
         if (shouldReconnectRef.current && reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1;
           const attempts = reconnectAttemptsRef.current;
           console.log(`WebSocket: Reconnecting in ${reconnectInterval}ms (attempt ${attempts}/${maxReconnectAttempts})`);
-          
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, reconnectInterval);
-        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-          console.error('WebSocket: Max reconnect attempts reached');
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts && reconnectAttemptsRef.current > 0) {
+          console.warn('WebSocket: Reconnect limit reached.');
         }
       };
 

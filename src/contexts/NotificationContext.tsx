@@ -89,7 +89,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       console.log('WebSocket: Notification service connected');
     },
     onClose: () => {
-      console.log('WebSocket: Notification service disconnected');
+      // No log here to avoid console noise when WS is unavailable (connection fails then closes)
     },
     onError: () => {
       // Real-time notifications unavailable (e.g. proxy/network); app continues with polling/refresh
