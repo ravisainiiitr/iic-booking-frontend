@@ -32,6 +32,7 @@ interface DailySlot {
   end_datetime: string;
   status: string;
   status_display?: string;
+  blocked_label?: string | null;
   booking_id?: number | null;
   booking_status?: string | null;
   booking_status_display?: string | null;
@@ -1550,10 +1551,33 @@ const BookEquipment = () => {
                           const dateStr = format(day, "yyyy-MM-dd");
                           const holidayName = equipmentDetail?.weekly_holidays?.[dateStr];
                           const bookingStatusDisplay = slotData?.booking_status_display ?? null;
-                          const rawSlotStatusLabel = slotData?.status_display || (slotStatus ? slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase() : "");
-                          const slotStatusLabel = slotExists && slotData
-                            ? (rawSlotStatusLabel || (slotData.status === "AVAILABLE" ? "Available" : slotData.status === "BOOKED" ? "Booked" : slotData.status === "BLOCKED" ? "Blocked" : "Available"))
-                            : rawSlotStatusLabel;
+                          const bookingId = slotData?.booking_id ?? null;
+                          const blockedLabel = slotData?.blocked_label ?? null;
+                          
+                          // Build status label with special handling for BLOCKED and BOOKED
+                          let rawSlotStatusLabel = slotData?.status_display || "";
+                          if (!rawSlotStatusLabel && slotStatus) {
+                            const statusMap: Record<string, string> = {
+                              "AVAILABLE": "Available",
+                              "BOOKED": "Booked",
+                              "BLOCKED": "Blocked",
+                              "UNDER_MAINTENANCE": "Under Maintenance",
+                              "OPERATOR_ABSENT": "Operator Absent"
+                            };
+                            rawSlotStatusLabel = statusMap[slotStatus] || slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
+                          }
+                          
+                          // For BOOKED status, append booking ID if available
+                          let slotStatusLabel = rawSlotStatusLabel;
+                          if (slotStatus === "BOOKED" && bookingId) {
+                            slotStatusLabel = `${rawSlotStatusLabel} #${bookingId}`;
+                          }
+                          
+                          // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
+                          if (slotStatus === "BLOCKED") {
+                            slotStatusLabel = blockedLabel || "Blocked";
+                          }
+                          
                           const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
 
                           // Slot selection rules: (a) required <= one slot → single slot; (b) required > one slot → multiple until covered; (c) 10% tail allowed
@@ -1591,11 +1615,13 @@ const BookEquipment = () => {
                           const chargeNotCalculated = !calculatedCharge;
                           
                           // Determine the actual status to display: booking status > holiday name > slot status (never N/A)
+                          // If slot exists on holiday/Saturday/Sunday and has booking, show BOOKED status
                           let displayStatus = holidayName || "—";
                           let isDisabled = true;
                           
                           if (slotExists) {
-                            if (isSlotBookedStatus || isBooked) {
+                            // Priority: Show booking status if slot has booking (even on holidays/Saturday/Sunday)
+                            if (isSlotBookedStatus || isBooked || bookingId) {
                               displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                               isDisabled = true;
                             } else if (isSelected) {

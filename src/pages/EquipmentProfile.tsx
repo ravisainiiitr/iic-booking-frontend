@@ -50,6 +50,7 @@ interface EquipmentProfile {
     end_datetime: string;
     status: string;
     status_display?: string;
+    blocked_label?: string | null;
     booking_id?: number | null;
     booking_status?: string | null;
     booking_status_display?: string | null;
@@ -94,6 +95,7 @@ const EquipmentProfile = () => {
     end_datetime: string;
     status: string;
     status_display?: string;
+    blocked_label?: string | null;
     booking_id?: number | null;
     booking_status?: string | null;
     booking_status_display?: string | null;
@@ -225,7 +227,24 @@ const EquipmentProfile = () => {
     return Array.from(uniqueTimes).sort();
   };
 
-  const getSlotData = (date: Date, time: string) => {
+  const getSlotData = (date: Date, time: string): {
+    id: number;
+    slot_master: number;
+    slot_number: number;
+    slot_name: string;
+    equipment_code: string;
+    date: string;
+    start_datetime: string;
+    end_datetime: string;
+    status: string;
+    status_display?: string;
+    blocked_label?: string | null;
+    booking_id?: number | null;
+    booking_status?: string | null;
+    booking_status_display?: string | null;
+    created_at: string;
+    updated_at: string;
+  } | undefined => {
     if (!apiSlots || apiSlots.length === 0) return undefined;
     
     const normalizedDate = startOfDay(date);
@@ -400,10 +419,39 @@ const EquipmentProfile = () => {
                               const isPast = slotDateTime < new Date();
                               const isAvailable = slotExists && slotData?.status === "AVAILABLE" && !isPast;
                               const bookingStatusDisplay = slotData?.booking_status_display ?? null;
-                              const slotStatusLabel = slotData?.status_display || (slotData?.status ? slotData.status.charAt(0).toUpperCase() + slotData.status.slice(1).toLowerCase() : "");
+                              const bookingId = slotData?.booking_id ?? null;
+                              const blockedLabel = slotData?.blocked_label ?? null;
+                              const slotStatus = slotData?.status ?? "";
+                              
+                              // Build status label with special handling for BLOCKED and BOOKED
+                              let slotStatusLabel = slotData?.status_display || "";
+                              if (!slotStatusLabel && slotStatus) {
+                                const statusMap: Record<string, string> = {
+                                  "AVAILABLE": "Available",
+                                  "BOOKED": "Booked",
+                                  "BLOCKED": "Blocked",
+                                  "UNDER_MAINTENANCE": "Under Maintenance",
+                                  "OPERATOR_ABSENT": "Operator Absent"
+                                };
+                                slotStatusLabel = statusMap[slotStatus] || slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
+                              }
+                              
+                              // For BOOKED status, append booking ID if available
+                              if (slotStatus === "BOOKED" && bookingId) {
+                                slotStatusLabel = `${slotStatusLabel} #${bookingId}`;
+                              }
+                              
+                              // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
+                              if (slotStatus === "BLOCKED") {
+                                slotStatusLabel = blockedLabel || "Blocked";
+                              }
+                              
                               const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
+                              // If slot exists on holiday/Saturday/Sunday and has booking, show BOOKED status
+                              // Priority: booking status > slot status > holiday name
+                              const hasBooking = bookingId || slotData?.status === "BOOKED";
                               const displayStatus = slotExists
-                                ? (slotData?.status !== "AVAILABLE"
+                                ? (hasBooking || slotData?.status !== "AVAILABLE"
                                     ? (slotDisplayLabel || slotStatusLabel || "Unavailable")
                                     : isPast
                                       ? (slotDisplayLabel || slotStatusLabel || "Available")

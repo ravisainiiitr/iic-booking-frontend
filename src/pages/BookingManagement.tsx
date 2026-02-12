@@ -28,7 +28,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { CheckCircle2, XCircle, Clock, RotateCcw, Calendar, X, History } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, RotateCcw, Calendar, History } from "lucide-react";
 
 interface Booking {
   booking_id: number;
@@ -75,7 +75,7 @@ interface Booking {
   updated_at: string;
 }
 
-type ActionType = 'complete' | 'refund' | 'absent' | 'reschedule' | 'cancel' | null;
+type ActionType = 'complete' | 'refund' | 'absent' | 'reschedule' | null;
 
 const BookingManagement = () => {
   const navigate = useNavigate();
@@ -89,12 +89,15 @@ const BookingManagement = () => {
   });
   const [actionNotes, setActionNotes] = useState("");
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
-  const [refundOnCancel, setRefundOnCancel] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("BOOKED");
   const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
 
   // Check if user is operator or manager
-  const isOperatorOrManager = user?.user_type === 'operator' || user?.user_type === 'manager' || user?.user_type === 'admin';
+  const userType: any = user?.user_type;
+  const userTypeStr = userType ? String(userType).toLowerCase() : '';
+  const isOperator = userTypeStr === 'operator';
+  const isManagerOrAdmin = userTypeStr === 'manager' || userTypeStr === 'admin';
+  const isOperatorOrManager = isOperator || isManagerOrAdmin;
 
   useEffect(() => {
     // Wait for auth to finish loading
@@ -162,14 +165,12 @@ const BookingManagement = () => {
   const openActionDialog = (type: ActionType, booking: Booking) => {
     setActionDialog({ open: true, type, booking });
     setActionNotes("");
-    setRefundOnCancel(false);
   };
 
   const closeActionDialog = () => {
     setActionDialog({ open: false, type: null, booking: null });
     setActionNotes("");
     setRescheduleLoading(false);
-    setRefundOnCancel(false);
   };
 
   const handleComplete = async () => {
@@ -253,32 +254,10 @@ const BookingManagement = () => {
     }
   };
 
-  const handleCancel = async () => {
-    if (!actionDialog.booking) return;
-
-    try {
-      const response = await apiClient.cancelBooking(
-        actionDialog.booking.booking_id,
-        refundOnCancel,
-        actionNotes || undefined
-      );
-      if (response.error) {
-        toast.error(response.error);
-        return;
-      }
-      toast.success(response.data?.message || "Booking cancelled successfully");
-      closeActionDialog();
-      fetchBookings();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to cancel booking");
-    }
-  };
-
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
     const colors: Record<string, string> = {
-      pending: "bg-yellow-500",
-      confirmed: "bg-blue-500",
+      booked: "bg-blue-500",
       completed: "bg-green-500",
       cancelled: "bg-red-500",
       absent: "bg-orange-500",
@@ -291,17 +270,21 @@ const BookingManagement = () => {
     if (!action) return false;
     const status = booking.status.toUpperCase();
     
+    // Operators can only mark bookings as complete
+    if (isOperator) {
+      return action === 'complete' && status === 'BOOKED';
+    }
+    
+    // Managers and admins can perform all actions
     switch (action) {
       case 'complete':
-        return status === 'PENDING' || status === 'CONFIRMED';
+        return status === 'BOOKED';
       case 'refund':
-        return status !== 'REFUNDED';
+        return status !== 'REFUNDED' && status !== 'COMPLETED';
       case 'absent':
-        return status === 'PENDING' || status === 'CONFIRMED';
+        return status === 'BOOKED';
       case 'reschedule':
-        return status === 'PENDING' || status === 'CONFIRMED';
-      case 'cancel':
-        return status !== 'CANCELLED' && status !== 'REFUNDED';
+        return status === 'BOOKED';
       default:
         return false;
     }
@@ -331,8 +314,7 @@ const BookingManagement = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                <SelectItem value="BOOKED">Booked</SelectItem>
                 <SelectItem value="COMPLETED">Completed</SelectItem>
                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
                 <SelectItem value="ABSENT">Absent</SelectItem>
@@ -446,16 +428,6 @@ const BookingManagement = () => {
                           Reschedule
                         </Button>
                       )}
-                      {canPerformAction(booking, 'cancel') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openActionDialog('cancel', booking)}
-                        >
-                          <X className="h-4 w-4 mr-2" />
-                          Cancel
-                        </Button>
-                      )}
                     </div>
                   </div>
 
@@ -522,7 +494,6 @@ const BookingManagement = () => {
                 {actionDialog.type === 'refund' && 'Refund Booking'}
                 {actionDialog.type === 'absent' && 'Mark Booking as Absent'}
                 {actionDialog.type === 'reschedule' && 'Reschedule Booking'}
-                {actionDialog.type === 'cancel' && 'Cancel Booking'}
               </DialogTitle>
               <DialogDescription>
                 {actionDialog.booking && (
@@ -566,32 +537,6 @@ const BookingManagement = () => {
               />
             )}
 
-            {actionDialog.type === 'cancel' && (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="refund"
-                    checked={refundOnCancel}
-                    onChange={(e) => setRefundOnCancel(e.target.checked)}
-                    className="rounded"
-                  />
-                  <Label htmlFor="refund" className="cursor-pointer">
-                    Refund booking amount to user's wallet
-                  </Label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={actionNotes}
-                    onChange={(e) => setActionNotes(e.target.value)}
-                    placeholder="Add any notes about the cancellation..."
-                  />
-                </div>
-              </div>
-            )}
-
             {(actionDialog.type === 'refund' || actionDialog.type === 'absent') && (
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes (Optional)</Label>
@@ -618,7 +563,6 @@ const BookingManagement = () => {
                     if (actionDialog.type === 'complete') handleComplete();
                     else if (actionDialog.type === 'refund') handleRefund();
                     else if (actionDialog.type === 'absent') handleAbsent();
-                    else if (actionDialog.type === 'cancel') handleCancel();
                   }}
                 >
                   Confirm

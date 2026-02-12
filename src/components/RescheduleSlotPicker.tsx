@@ -13,6 +13,7 @@ export interface RescheduleSlot {
   end_datetime: string;
   status: string;
   status_display?: string;
+  blocked_label?: string | null;
   booking_id?: number | null;
   booking_status?: string | null;
   booking_status_display?: string | null;
@@ -461,12 +462,77 @@ export default function RescheduleSlotPicker({
                   if (slot) {
                     if (selected) label = "Selected";
                     else if (currentBooking) label = "Current Booking";
-                    else if (booked && !currentBookingSlotIds.has(slot.id))
-                      label = slot.booking_status_display || slot.status_display || (slot.status === "BOOKED" ? "Booked" : "Blocked");
-                    else if (past) label = slot.booking_status_display || slot.status_display || slot.status || "Available";
+                    else if (booked && !currentBookingSlotIds.has(slot.id)) {
+                      // Build status label with special handling for BLOCKED and BOOKED
+                      let statusLabel = slot.booking_status_display || slot.status_display || "";
+                      if (!statusLabel && slot.status) {
+                        const statusMap: Record<string, string> = {
+                          "AVAILABLE": "Available",
+                          "BOOKED": "Booked",
+                          "BLOCKED": "Blocked",
+                          "UNDER_MAINTENANCE": "Under Maintenance",
+                          "OPERATOR_ABSENT": "Operator Absent"
+                        };
+                        statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
+                      }
+                      
+                      // For BOOKED status, append booking ID if available
+                      if (slot.status === "BOOKED" && slot.booking_id) {
+                        statusLabel = `${statusLabel} #${slot.booking_id}`;
+                      }
+                      
+                      // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
+                      if (slot.status === "BLOCKED") {
+                        statusLabel = slot.blocked_label || "Blocked";
+                      }
+                      
+                      label = statusLabel || "Unavailable";
+                    }
+                    else if (past) {
+                      let statusLabel = slot.booking_status_display || slot.status_display || "";
+                      if (!statusLabel && slot.status) {
+                        const statusMap: Record<string, string> = {
+                          "AVAILABLE": "Available",
+                          "BOOKED": "Booked",
+                          "BLOCKED": "Blocked",
+                          "UNDER_MAINTENANCE": "Under Maintenance",
+                          "OPERATOR_ABSENT": "Operator Absent"
+                        };
+                        statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
+                      }
+                      if (slot.status === "BOOKED" && slot.booking_id) {
+                        statusLabel = `${statusLabel} #${slot.booking_id}`;
+                      }
+                      // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
+                      if (slot.status === "BLOCKED") {
+                        statusLabel = slot.blocked_label || "Blocked";
+                      }
+                      label = statusLabel || "Available";
+                    }
                     else if (available) label = "Available";
-                    else label = slot.booking_status_display || slot.status_display || slot.status || "—";
+                    else {
+                      let statusLabel = slot.booking_status_display || slot.status_display || "";
+                      if (!statusLabel && slot.status) {
+                        const statusMap: Record<string, string> = {
+                          "AVAILABLE": "Available",
+                          "BOOKED": "Booked",
+                          "BLOCKED": "Blocked",
+                          "UNDER_MAINTENANCE": "Under Maintenance",
+                          "OPERATOR_ABSENT": "Operator Absent"
+                        };
+                        statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
+                      }
+                      if (slot.status === "BOOKED" && slot.booking_id) {
+                        statusLabel = `${statusLabel} #${slot.booking_id}`;
+                      }
+                      // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
+                      if (slot.status === "BLOCKED") {
+                        statusLabel = slot.blocked_label || "Blocked";
+                      }
+                      label = statusLabel || "—";
+                    }
                   } else {
+                    // No slot exists for this date/time - show holiday name if it's a holiday
                     label = holidays[dateStr] || "—";
                   }
 

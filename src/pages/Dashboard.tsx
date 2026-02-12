@@ -27,9 +27,13 @@ const Dashboard = () => {
   const [showWalletOption, setShowWalletOption] = useState(false);
   
   // Check if user is operator, manager, or admin (for booking management)
-  const isOperatorOrManager = user?.user_type === 'operator' || user?.user_type === 'manager' || user?.user_type === 'admin';
-  // Admin panel users (admin, manager, operator, finance) see Admin Settings section
-  const isAdminPanelUser = apiClient.isAdminPanelUser(user?.user_type);
+  const userType: any = user?.user_type;
+  const userTypeStr = userType ? String(userType).toLowerCase() : '';
+  const isOperatorOrManager = 
+    userTypeStr === 'operator' || userTypeStr === 'manager' || userTypeStr === 'admin';
+  
+  // Admin Settings section is only visible to admins (not managers, operators, or finance)
+  const isAdmin = userTypeStr === 'admin';
 
   useEffect(() => {
     let isMounted = true;
@@ -188,7 +192,7 @@ const Dashboard = () => {
           >
             <CardHeader>
               <Package className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Book Equipment</CardTitle>
+              <CardTitle>Equipment</CardTitle>
               <CardDescription>
                 Browse and book available laboratory equipment
               </CardDescription>
@@ -198,21 +202,23 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate("/my-bookings")}
-          >
-            <CardHeader>
-              <Calendar className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>View Bookings</CardTitle>
-              <CardDescription>
-                Check your current and past bookings
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="secondary">View Bookings</Button>
-            </CardContent>
-          </Card>
+          {!isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate("/my-bookings")}
+            >
+              <CardHeader>
+                <Calendar className="h-10 w-10 text-primary mb-2" />
+                <CardTitle>View Bookings</CardTitle>
+                <CardDescription>
+                  Check your current and past bookings
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full" variant="secondary">View Bookings</Button>
+              </CardContent>
+            </Card>
+          )}
 
           <Card 
             className="cursor-pointer hover:shadow-lg transition-shadow"
@@ -249,7 +255,7 @@ const Dashboard = () => {
           )}
         </div>
 
-        {isAdminPanelUser && (
+        {isAdmin && (
           <section className="mt-12">
             <h3 className="text-xl font-semibold mb-4">Admin Settings</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
