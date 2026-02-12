@@ -450,7 +450,7 @@ const EquipmentCard = ({
                       </Button>
                     }
                     initialValues={{
-                      ticket_type_id: undefined, // Will be set to equipment-related type if available
+                      ticket_type: undefined, // Will be auto-selected to equipment type
                       subject: `Interest in ${equipmentDetail?.name || name}`,
                       description: `I am interested in using ${equipmentDetail?.name || name}${equipmentDetail?.code ? ` (Code: ${equipmentDetail.code})` : ''}.\n\nEquipment Details:\n- Name: ${equipmentDetail?.name || name}\n- Category: ${category}\n${equipmentDetail?.location ? `- Location: ${equipmentDetail.location}\n` : ''}${equipmentDetail?.description ? `- Description: ${equipmentDetail.description}\n` : ''}\n\nPlease let me know about availability and booking procedures.`,
                       related_equipment_id: equipmentDetail?.equipment_id || (id ? Number(id) : undefined),

@@ -25,12 +25,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { X, Calendar as CalendarIcon, History } from "lucide-react";
+import TicketForm, { TICKET_TYPE } from "@/components/TicketForm";
+import { X, Calendar as CalendarIcon, History, HelpCircle } from "lucide-react";
 
 interface Booking {
   booking_id: number;
@@ -40,6 +40,7 @@ interface Booking {
   equipment: number;
   equipment_code: string;
   equipment_name: string;
+  equipment_reschedule_hours_threshold?: number;
   charge_profile: number;
   user_type_snapshot: string;
   total_time_minutes: number;
@@ -83,7 +84,6 @@ const MyBookings = () => {
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
-  const [cancelRefund, setCancelRefund] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
 
@@ -108,11 +108,24 @@ const MyBookings = () => {
   };
 
   const fetchBookings = async () => {
-    const response = await apiClient.getBookings();
-    if (response.data && response.data.bookings) {
-      setBookings(response.data.bookings);
+    try {
+      setLoading(true);
+      const response = await apiClient.getBookings();
+      if (response.error) {
+        toast.error(response.error || "Failed to load bookings");
+        setBookings([]);
+      } else if (response.data && response.data.bookings) {
+        setBookings(response.data.bookings);
+      } else {
+        setBookings([]);
+      }
+    } catch (error: any) {
+      console.error("Error fetching bookings:", error);
+      toast.error("Failed to load bookings");
+      setBookings([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -131,17 +144,113 @@ const MyBookings = () => {
 
   const canCancelOrReschedule = (status: string) => {
     const statusLower = status.toLowerCase();
-    return statusLower === "pending" || statusLower === "confirmed";
+    return statusLower === "pending" || statusLower === "booked";
+  };
+
+  // Check if booking is within the reschedule/cancel threshold window
+  const isWithinThresholdWindow = (booking: Booking): boolean => {
+    // Check status first
+    if (!canCancelOrReschedule(booking.status)) {
+      return false;
+    }
+
+    // Check if start time exists
+    if (!booking.start_time) {
+      return false;
+    }
+
+    try {
+      const startTime = new Date(booking.start_time);
+      const now = new Date();
+      
+      // Check if start time is in the past
+      if (startTime <= now) {
+        return false;
+      }
+      
+      const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      // Get threshold from equipment (default to 48 hours if not specified)
+      const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
+
+      // Show options if booking is more than threshold hours away
+      return hoursUntilStart > threshold;
+    } catch (error) {
+      console.error('Error calculating threshold window:', error);
+      return false;
+    }
+  };
+
+  const canReschedule = (booking: Booking) => {
+    // Check status first
+    if (!canCancelOrReschedule(booking.status)) {
+      return false;
+    }
+
+    // Check if reschedule is allowed based on time threshold
+    if (!booking.start_time) {
+      return false;
+    }
+
+    try {
+      const startTime = new Date(booking.start_time);
+      const now = new Date();
+      
+      // Check if start time is in the past
+      if (startTime <= now) {
+        return false;
+      }
+      
+      const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      // Get threshold from equipment (default to 48 hours if not specified)
+      const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
+
+      // Allow reschedule if booking is more than threshold hours away
+      return hoursUntilStart > threshold;
+    } catch (error) {
+      console.error('Error calculating reschedule eligibility:', error);
+      return false;
+    }
   };
 
   const handleCancelClick = (booking: Booking) => {
+    // Check if cancel is allowed based on time threshold
+    if (!isWithinThresholdWindow(booking)) {
+      if (booking.start_time) {
+        const startTime = new Date(booking.start_time);
+        const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
+        const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
+        toast.error(
+          `Cancel is only available until ${cutoffTime.toLocaleString()}. Kindly contact the admin to cancel the booking.`
+        );
+      } else {
+        toast.error("Cannot cancel this booking. Start time is not available.");
+      }
+      return;
+    }
+    
     setSelectedBooking(booking);
     setCancelNotes("");
-    setCancelRefund(false);
     setCancelDialogOpen(true);
   };
 
   const handleRescheduleClick = (booking: Booking) => {
+    // Check if reschedule is allowed based on time threshold
+    if (!canReschedule(booking)) {
+      if (booking.start_time) {
+        const startTime = new Date(booking.start_time);
+        const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
+        const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
+        toast.error(
+          `Reschedule is only available until ${cutoffTime.toLocaleString()}. Kindly contact the admin to reschedule the booking.`
+        );
+      } else {
+        toast.error("Cannot reschedule this booking. Start time is not available.");
+      }
+      return;
+    }
+    
     setSelectedBooking(booking);
     setRescheduleDialogOpen(true);
   };
@@ -151,21 +260,32 @@ const MyBookings = () => {
 
     setActionLoading(true);
     try {
+      // Cancel booking with refund (always refund)
       const response = await apiClient.userCancelBooking(
         selectedBooking.booking_id,
-        cancelRefund,
+        true, // Always refund
         cancelNotes || undefined
       );
 
       if (response.error) {
         toast.error(response.error || "Failed to cancel booking");
-      } else {
-        toast.success(response.data?.message || "Booking cancelled successfully");
-        setCancelDialogOpen(false);
-        setSelectedBooking(null);
-        await fetchBookings(); // Refresh bookings list
+        setActionLoading(false);
+        return;
       }
+      
+      if (!response.data) {
+        toast.error("Invalid response from server");
+        setActionLoading(false);
+        return;
+      }
+      
+      toast.success(response.data.message || "Booking cancelled and refund processed successfully");
+      setCancelDialogOpen(false);
+      setSelectedBooking(null);
+      setCancelNotes("");
+      await fetchBookings(); // Refresh bookings list
     } catch (error: any) {
+      console.error("Cancel booking error:", error);
       toast.error(error.message || "Failed to cancel booking");
     } finally {
       setActionLoading(false);
@@ -302,6 +422,14 @@ const MyBookings = () => {
                         variant="outline"
                         onClick={() => handleRescheduleClick(booking)}
                         className="flex-1"
+                        title={!canReschedule(booking) && booking.start_time ? 
+                          `Reschedule is only available until ${(() => {
+                            const startTime = new Date(booking.start_time);
+                            const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
+                            const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
+                            return cutoffTime.toLocaleString();
+                          })()}` : 
+                          'Reschedule this booking'}
                       >
                         <CalendarIcon className="h-4 w-4 mr-2" />
                         Reschedule
@@ -314,6 +442,42 @@ const MyBookings = () => {
                         <X className="h-4 w-4 mr-2" />
                         Cancel
                       </Button>
+                    </div>
+                  )}
+                  {canCancelOrReschedule(booking.status) && !canReschedule(booking) && booking.start_time && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <p>
+                        Reschedule is only available until{' '}
+                        {(() => {
+                          const startTime = new Date(booking.start_time);
+                          const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
+                          const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
+                          return cutoffTime.toLocaleString();
+                        })()}
+                      </p>
+                    </div>
+                  )}
+                  {booking.status.toLowerCase() === 'booked' && (
+                    <div className="mt-4 pt-4 border-t">
+                      <TicketForm
+                        trigger={
+                          <Button variant="outline" size="sm" className="w-full">
+                            <HelpCircle className="h-4 w-4 mr-2" />
+                            Create Support Ticket
+                          </Button>
+                        }
+                        initialValues={{
+                          ticket_type: "booking", // Auto-set to booking for booking-related tickets
+                          subject: `Support Request for Booking #${booking.booking_id} - ${booking.equipment_name}`,
+                          description: `Booking Details:\n- Booking ID: #${booking.booking_id}\n- Equipment: ${booking.equipment_name} (${booking.equipment_code})\n- Start Time: ${new Date(booking.start_time).toLocaleString()}\n- End Time: ${new Date(booking.end_time).toLocaleString()}\n- Total Charge: ₹${Number(booking.total_charge).toFixed(2)}\n\nPlease describe your issue or request:`,
+                          related_equipment_id: booking.equipment,
+                          related_booking_id: booking.booking_id,
+                        }}
+                        hideTicketType={true} // Hide ticket type field since it's auto-set to booking
+                        onSuccess={() => {
+                          toast.success("Support ticket created successfully");
+                        }}
+                      />
                     </div>
                   )}
                   <div className="mt-4 pt-4 border-t">
@@ -366,15 +530,15 @@ const MyBookings = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-4 py-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="refund"
-                  checked={cancelRefund}
-                  onCheckedChange={(checked) => setCancelRefund(checked === true)}
-                />
-                <Label htmlFor="refund" className="text-sm font-normal cursor-pointer">
-                  Request refund to wallet
-                </Label>
+              {selectedBooking && (
+                <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
+                  <p className="font-medium text-blue-900 mb-1">Refund Information</p>
+                  <p className="text-blue-800">
+                    The booking will be cancelled and ₹{Number(selectedBooking.total_charge).toFixed(2)} will be refunded to your wallet immediately.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cancel-notes">Cancellation Notes (Optional)</Label>

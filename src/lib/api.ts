@@ -1232,6 +1232,39 @@ class ApiClient {
     });
   }
 
+  async resendWalletRechargeNotification(requestId: number) {
+    return this.request<{
+      message: string;
+    }>(`/wallet/recharge-requests/${requestId}/resend-notification/`, {
+      method: 'POST',
+    });
+  }
+
+  async approveWalletRechargeRequest(requestId: number, responseMessage?: string) {
+    return this.request<{
+      request: any;
+      transaction?: any;
+      message: string;
+    }>(`/wallet/recharge-requests/${requestId}/approve/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        response_message: responseMessage || undefined,
+      }),
+    });
+  }
+
+  async rejectWalletRechargeRequest(requestId: number, responseMessage: string) {
+    return this.request<{
+      request: any;
+      message: string;
+    }>(`/wallet/recharge-requests/${requestId}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        response_message: responseMessage,
+      }),
+    });
+  }
+
   // Booking endpoints
   // Booking action endpoints (operator/manager only)
   async completeBooking(bookingId: number) {
@@ -1739,18 +1772,12 @@ class ApiClient {
     });
   }
 
-  // Ticket Type endpoints
+  // Ticket Type endpoints (returns constants)
   async getTicketTypes() {
     return this.request<{
       ticket_types: Array<{
-        ticket_type_id: number;
         code: string;
         name: string;
-        description: string | null;
-        is_active: boolean;
-        display_order: number;
-        created_at: string;
-        updated_at: string;
       }>;
       count: number;
     }>('/ticket-types/');

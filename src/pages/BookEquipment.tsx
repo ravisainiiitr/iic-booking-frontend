@@ -78,6 +78,7 @@ const BookEquipment = () => {
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userType, setUserType] = useState<string | number | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [inputFieldValues, setInputFieldValues] = useState<Record<string, string | boolean | string[]>>({});
@@ -97,12 +98,33 @@ const BookEquipment = () => {
   const fetchingSlotsRef = useRef<boolean>(false);
 
   useEffect(() => {
-    // Get user ID from localStorage (set by DashboardHeader) to avoid duplicate API calls
+    // Get user ID and type from localStorage (set by DashboardHeader) to avoid duplicate API calls
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
         setUserId(String(user.id));
+        setUserType(user.user_type || null);
+        
+        // Set initial week based on user type
+        const now = new Date();
+        const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+        const userTypeValue: any = user.user_type;
+        let normalizedType: string | null = null;
+        if (typeof userTypeValue === 'string') {
+          normalizedType = userTypeValue.toLowerCase();
+        } else if (typeof userTypeValue === 'number') {
+          normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
+        }
+        
+        if (normalizedType === 'student' || normalizedType === 'faculty') {
+          // Students/Faculty: Start with current week
+          setCurrentWeekStart(currentWeek);
+        } else {
+          // Other users: Start with week beginning 15 days from current date
+          const fifteenDaysFromNow = addDays(now, 15);
+          setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+        }
       } catch (e) {
         // If localStorage fails, check auth
         checkAuth();
@@ -436,6 +458,11 @@ const BookEquipment = () => {
       return;
     }
 
+    // Check if current week is allowed for this user
+    if (!isWeekAllowed(currentWeekStart)) {
+      return;
+    }
+
     const weekEnd = addDays(currentWeekStart, 7);
 
     equipmentDetail.daily_slots.forEach((slot) => {
@@ -514,6 +541,11 @@ const BookEquipment = () => {
       return;
     }
 
+    // Check if current week is allowed for this user
+    if (!isWeekAllowed(currentWeekStart)) {
+      return;
+    }
+
     // Get the current week key
     const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 0 });
     const weekEnd = addDays(weekStart, 7);
@@ -528,7 +560,7 @@ const BookEquipment = () => {
 
     // Fetch slots
     fetchSlotsForWeek();
-  }, [showSlots, chargeCalculated, selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, fetchSlotsForWeek]);
+  }, [showSlots, chargeCalculated, selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, fetchSlotsForWeek, userType]);
 
   const checkAuth = async () => {
     const token = apiClient.getToken();
@@ -544,6 +576,27 @@ const BookEquipment = () => {
     }
 
     setUserId(String(userResponse.data.id));
+    setUserType(userResponse.data.user_type || null);
+    
+    // Set initial week based on user type
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const userTypeValue: any = userResponse.data.user_type;
+    let normalizedType: string | null = null;
+    if (typeof userTypeValue === 'string') {
+      normalizedType = userTypeValue.toLowerCase();
+    } else if (typeof userTypeValue === 'number') {
+      normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
+    }
+    
+    if (normalizedType === 'student' || normalizedType === 'faculty') {
+      // Students/Faculty: Start with current week
+      setCurrentWeekStart(currentWeek);
+    } else {
+      // Other users: Start with week beginning 15 days from current date
+      const fifteenDaysFromNow = addDays(now, 15);
+      setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+    }
   };
 
 
@@ -799,14 +852,118 @@ const BookEquipment = () => {
     return selectedSlots.length * Number(selectedEquipment.internalRate);
   };
 
+  // Normalize user type to string for comparison
+  const normalizeUserType = (type: string | number | null): string | null => {
+    if (type === null || type === undefined) return null;
+    if (typeof type === 'string') return type.toLowerCase();
+    if (typeof type === 'number') {
+      // Map common number codes to strings (adjust based on your backend mapping)
+      // Common mappings: 1=student, 2=faculty, etc.
+      const typeMap: Record<number, string> = {
+        1: 'student',
+        2: 'faculty',
+        // Add other mappings as needed
+      };
+      return typeMap[type] || String(type);
+    }
+    return null;
+  };
+
+  // Check if a week is allowed for the current user
+  const isWeekAllowed = (weekStart: Date): boolean => {
+    if (!userType) return false;
+    
+    const normalizedType = normalizeUserType(userType);
+    if (!normalizedType) return false;
+    
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const nextWeek = addWeeks(currentWeek, 1);
+    
+    // For other users: 15 days from current date, then one week window
+    const fifteenDaysFromNow = addDays(now, 15);
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    
+    // Normalize week starts for comparison
+    const weekStartNormalized = startOfWeek(weekStart, { weekStartsOn: 0 });
+    const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 0 });
+    const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 0 });
+    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 0 });
+    
+    if (normalizedType === 'student' || normalizedType === 'faculty') {
+      // Students/Faculty: Can select current week OR next week only
+      return (
+        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === nextWeekNormalized.getTime()
+      );
+    } else {
+      // Other users: Can select one week window starting 15 days from current date
+      return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
+    }
+  };
+
+  // Get allowed weeks for navigation
+  const getAllowedWeeks = (): Date[] => {
+    if (!userType) return [];
+    
+    const normalizedType = normalizeUserType(userType);
+    if (!normalizedType) return [];
+    
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const nextWeek = addWeeks(currentWeek, 1);
+    
+    // For other users: 15 days from current date, then one week window
+    const fifteenDaysFromNow = addDays(now, 15);
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    
+    if (normalizedType === 'student' || normalizedType === 'faculty') {
+      // Students/Faculty: Current week and next week
+      return [currentWeek, nextWeek];
+    } else {
+      // Other users: One week window starting 15 days from current date
+      return [allowedWeekStart];
+    }
+  };
+
   const goToPreviousWeek = () => {
-    setCurrentWeekStart(addWeeks(currentWeekStart, -1));
-    setSelectedSlots([]);
+    const allowedWeeks = getAllowedWeeks();
+    const currentIndex = allowedWeeks.findIndex(week => 
+      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+    );
+    
+    if (currentIndex > 0) {
+      setCurrentWeekStart(allowedWeeks[currentIndex - 1]);
+      setSelectedSlots([]);
+    }
   };
 
   const goToNextWeek = () => {
-    setCurrentWeekStart(addWeeks(currentWeekStart, 1));
-    setSelectedSlots([]);
+    const allowedWeeks = getAllowedWeeks();
+    const currentIndex = allowedWeeks.findIndex(week => 
+      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+    );
+    
+    if (currentIndex < allowedWeeks.length - 1) {
+      setCurrentWeekStart(allowedWeeks[currentIndex + 1]);
+      setSelectedSlots([]);
+    }
+  };
+
+  const canGoToPreviousWeek = (): boolean => {
+    const allowedWeeks = getAllowedWeeks();
+    const currentIndex = allowedWeeks.findIndex(week => 
+      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+    );
+    return currentIndex > 0;
+  };
+
+  const canGoToNextWeek = (): boolean => {
+    const allowedWeeks = getAllowedWeeks();
+    const currentIndex = allowedWeeks.findIndex(week => 
+      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+    );
+    return currentIndex < allowedWeeks.length - 1;
   };
 
   // Handle input field changes - charge will auto-calculate via useEffect
@@ -1283,14 +1440,36 @@ const BookEquipment = () => {
 
                 {/* Week Navigation */}
                 <div className="flex justify-between items-center mb-6">
-                  <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={goToPreviousWeek}
+                    disabled={!canGoToPreviousWeek()}
+                  >
                     <ChevronLeft className="h-4 w-4 mr-2" />
                     Previous Week
                   </Button>
-                  <span className="font-semibold">
-                    {format(currentWeekStart, "MMM dd")} - {format(addDays(currentWeekStart, 6), "MMM dd, yyyy")}
-                  </span>
-                  <Button variant="outline" size="sm" onClick={goToNextWeek}>
+                  <div className="text-center">
+                    <span className="font-semibold">
+                      {format(currentWeekStart, "MMM dd")} - {format(addDays(currentWeekStart, 6), "MMM dd, yyyy")}
+                    </span>
+                    {userType && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Available: Current week and next week only
+                      </p>
+                    )}
+                    {userType && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Available: One week window starting 15 days from today
+                      </p>
+                    )}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={goToNextWeek}
+                    disabled={!canGoToNextWeek()}
+                  >
                     Next Week
                     <ChevronRight className="h-4 w-4 ml-2" />
                   </Button>

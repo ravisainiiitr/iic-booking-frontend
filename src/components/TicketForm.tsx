@@ -34,11 +34,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { HelpCircle } from "lucide-react";
 
+// Ticket Type Constants
+export const TICKET_TYPE = {
+  BOOKING: "booking",
+  EQUIPMENT: "equipment",
+  OTHER: "other",
+} as const;
+
 const ticketFormSchema = z.object({
   public_name: z.string().min(2, "Name must be at least 2 characters").optional().or(z.literal("")),
   public_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   public_phone: z.string().optional().or(z.literal("")),
-  ticket_type: z.number({ required_error: "Please select a ticket type" }).min(1, "Please select a ticket type"),
+  ticket_type: z.enum([TICKET_TYPE.BOOKING, TICKET_TYPE.EQUIPMENT, TICKET_TYPE.OTHER], {
+    required_error: "Please select a ticket type",
+  }),
   subject: z.string().min(5, "Subject must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
 });
@@ -49,34 +58,46 @@ interface TicketFormProps {
   onSuccess?: () => void;
   trigger?: React.ReactNode;
   initialValues?: {
-    ticket_type_id?: number;
+    ticket_type?: string;
     subject?: string;
     description?: string;
     related_equipment_id?: number;
+    related_booking_id?: number;
   };
+  hideTicketType?: boolean; // Hide ticket type field when auto-set
 }
 
-interface TicketType {
-  ticket_type_id: number;
-  code: string;
-  name: string;
-  description: string | null;
-  is_active: boolean;
-  display_order: number;
-}
+// Ticket type options for display
+const TICKET_TYPE_OPTIONS = [
+  { code: TICKET_TYPE.BOOKING, name: "Booking" },
+  { code: TICKET_TYPE.EQUIPMENT, name: "Equipment" },
+  { code: TICKET_TYPE.OTHER, name: "Other" },
+] as const;
 
-const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
+const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false }: TicketFormProps) => {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
-  const [loadingTypes, setLoadingTypes] = useState(false);
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
+
+  // Determine default ticket type based on initialValues
+  const getDefaultTicketType = (): string => {
+    if (initialValues?.ticket_type) {
+      return initialValues.ticket_type;
+    }
+    if (initialValues?.related_booking_id) {
+      return TICKET_TYPE.BOOKING;
+    }
+    if (initialValues?.related_equipment_id) {
+      return TICKET_TYPE.EQUIPMENT;
+    }
+    return TICKET_TYPE.OTHER;
+  };
 
   const form = useForm<TicketFormValues>({
     resolver: zodResolver(ticketFormSchema),
     defaultValues: {
-      ticket_type: initialValues?.ticket_type_id || undefined as any,
+      ticket_type: getDefaultTicketType() as any,
       public_name: "",
       public_email: "",
       public_phone: "",
@@ -85,12 +106,6 @@ const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
     },
   });
 
-  useEffect(() => {
-    if (open) {
-      loadTicketTypes();
-    }
-  }, [open]);
-  
   // Set initial values when they change or dialog opens
   useEffect(() => {
     if (open && initialValues) {
@@ -100,78 +115,27 @@ const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
       if (initialValues.description) {
         form.setValue("description", initialValues.description);
       }
+      if (initialValues.ticket_type) {
+        form.setValue("ticket_type", initialValues.ticket_type as any);
+      } else {
+        // Auto-select based on related items
+        if (initialValues.related_booking_id) {
+          form.setValue("ticket_type", TICKET_TYPE.BOOKING as any);
+        } else if (initialValues.related_equipment_id) {
+          form.setValue("ticket_type", TICKET_TYPE.EQUIPMENT as any);
+        } else {
+          form.setValue("ticket_type", TICKET_TYPE.OTHER as any);
+        }
+      }
     }
   }, [open, initialValues, form]);
-
-  const loadTicketTypes = async () => {
-    setLoadingTypes(true);
-    try {
-      const response = await apiClient.getTicketTypes();
-      if (response.error) {
-        toast({
-          title: "Error",
-          description: response.error || "Failed to load ticket types",
-          variant: "destructive",
-        });
-      } else {
-        const types = response.data?.ticket_types || [];
-        setTicketTypes(types);
-        
-        if (types.length > 0) {
-          // If initialValues has related_equipment_id, prefer equipment-related ticket types
-          let selectedType;
-          if (initialValues?.related_equipment_id) {
-            // Try to find equipment-related ticket types first
-            selectedType = types.find(t => 
-              t.code === "equipment_issue" || 
-              t.code === "equipment_request" ||
-              t.code === "equipment_interest" ||
-              t.name.toLowerCase().includes("equipment")
-            );
-            // Fallback to "request" if no equipment type found
-            if (!selectedType) {
-              selectedType = types.find(t => t.code === "request");
-            }
-          } else {
-            // For general tickets, try "request" type first
-            selectedType = types.find(t => t.code === "request" || t.code === "show_interest");
-          }
-          
-          // Final fallback to first available type
-          if (!selectedType) {
-            selectedType = types[0];
-          }
-          
-          if (selectedType) {
-            form.setValue("ticket_type", selectedType.ticket_type_id, { shouldValidate: true });
-          }
-        } else {
-          toast({
-            title: "Warning",
-            description: "No ticket types available. Please contact support.",
-            variant: "destructive",
-          });
-        }
-        
-      }
-    } catch (error: any) {
-      console.error("Error loading ticket types:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load ticket types",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingTypes(false);
-    }
-  };
 
   const onSubmit = async (data: TicketFormValues) => {
     console.log("Form submitted with data:", data);
     setIsSubmitting(true);
     try {
       // Validate ticket type is selected
-      if (!data.ticket_type || data.ticket_type < 1) {
+      if (!data.ticket_type) {
         toast({
           title: "Error",
           description: "Please select a ticket type",
@@ -190,6 +154,11 @@ const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
       // Add related equipment if provided
       if (initialValues?.related_equipment_id) {
         ticketData.related_equipment = initialValues.related_equipment_id;
+      }
+
+      // Add related booking if provided
+      if (initialValues?.related_booking_id) {
+        ticketData.related_booking = initialValues.related_booking_id;
       }
 
       // If user is not authenticated, include public user info
@@ -245,14 +214,13 @@ const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
     if (!newOpen) {
       // Reset form when dialog closes
       form.reset({
-        ticket_type: initialValues?.ticket_type_id || undefined as any,
+        ticket_type: initialValues?.ticket_type || getDefaultTicketType() as any,
         public_name: "",
         public_email: "",
         public_phone: "",
         subject: initialValues?.subject || "",
         description: initialValues?.description || "",
       });
-      setTicketTypes([]);
     }
   };
 
@@ -329,40 +297,35 @@ const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
                 />
               </>
             )}
-            <FormField
-              control={form.control}
-              name="ticket_type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ticket Type *</FormLabel>
-                  <Select
-                    onValueChange={(value) => {
-                      const numValue = parseInt(value);
-                      field.onChange(numValue);
-                    }}
-                    value={field.value && field.value > 0 ? field.value.toString() : undefined}
-                    disabled={loadingTypes || ticketTypes.length === 0}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingTypes ? "Loading..." : ticketTypes.length === 0 ? "No ticket types available" : "Select ticket type"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {ticketTypes.map((type) => (
-                        <SelectItem key={type.ticket_type_id} value={type.ticket_type_id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                  {ticketTypes.length === 0 && !loadingTypes && (
-                    <p className="text-sm text-destructive">No ticket types available. Please contact support.</p>
-                  )}
-                </FormItem>
-              )}
-            />
+            {!hideTicketType && (
+              <FormField
+                control={form.control}
+                name="ticket_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ticket Type *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select ticket type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TICKET_TYPE_OPTIONS.map((type) => (
+                          <SelectItem key={type.code} value={type.code}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="subject"
@@ -404,7 +367,7 @@ const TicketForm = ({ onSuccess, trigger, initialValues }: TicketFormProps) => {
               </Button>
               <Button 
                 type="submit" 
-                disabled={isSubmitting || loadingTypes || ticketTypes.length === 0}
+                disabled={isSubmitting}
               >
                 {isSubmitting ? "Creating..." : "Create Ticket"}
               </Button>

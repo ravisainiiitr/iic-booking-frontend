@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -104,6 +104,7 @@ const Wallet = () => {
   const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
   const [loadingRechargeRequests, setLoadingRechargeRequests] = useState(false);
   const [showRechargeHistory, setShowRechargeHistory] = useState(false);
+  const [resendingNotification, setResendingNotification] = useState<number | null>(null);
   const [subWallets, setSubWallets] = useState<Array<{
     id: number;
     department_id: number;
@@ -1736,23 +1737,58 @@ const Wallet = () => {
                           </p>
                         </div>
                         {req.status === "PENDING" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const response = await apiClient.cancelWalletRechargeRequest(req.id);
-                              if (response.error) {
-                                toast.error(response.error || "Failed to cancel request");
-                              } else {
-                                toast.success("Request cancelled");
-                                await fetchRechargeRequests();
-                              }
-                            }}
-                            className="text-orange-600 hover:text-orange-700 border-orange-600 hover:border-orange-700"
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            Cancel
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                setResendingNotification(req.id);
+                                try {
+                                  const response = await apiClient.resendWalletRechargeNotification(req.id);
+                                  if (response.error) {
+                                    toast.error(response.error || "Failed to resend notification");
+                                  } else {
+                                    toast.success(response.data?.message || "Notification resent successfully");
+                                  }
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to resend notification");
+                                } finally {
+                                  setResendingNotification(null);
+                                }
+                              }}
+                              disabled={resendingNotification === req.id}
+                              className="text-blue-600 hover:text-blue-700 border-blue-600 hover:border-blue-700"
+                            >
+                              {resendingNotification === req.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-1"></div>
+                                  Sending...
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="h-4 w-4 mr-1" />
+                                  Resend Notification
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                const response = await apiClient.cancelWalletRechargeRequest(req.id);
+                                if (response.error) {
+                                  toast.error(response.error || "Failed to cancel request");
+                                } else {
+                                  toast.success("Request cancelled");
+                                  await fetchRechargeRequests();
+                                }
+                              }}
+                              className="text-orange-600 hover:text-orange-700 border-orange-600 hover:border-orange-700"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
                         )}
                       </div>
                     ))}

@@ -50,13 +50,160 @@ export default function RescheduleSlotPicker({
   const requiredSlotCount = booking.daily_slots?.length ?? 1;
   const currentBookingSlotIds = new Set((booking.daily_slots ?? []).map((s) => s.id));
 
+  const [userType, setUserType] = useState<string | number | null>(null);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [slots, setSlots] = useState<RescheduleSlot[]>([]);
   const [holidays, setHolidays] = useState<Record<string, string>>({});
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selectedSlots, setSelectedSlots] = useState<RescheduleSlot[]>([]);
 
+  // Fetch user type on mount
+  useEffect(() => {
+    const fetchUserType = async () => {
+      try {
+        // First try to get from localStorage
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          setUserType(user.user_type || null);
+          
+          // Set initial week based on user type
+          const now = new Date();
+          const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+          const userTypeValue: any = user.user_type;
+          let normalizedType: string | null = null;
+          if (typeof userTypeValue === 'string') {
+            normalizedType = userTypeValue.toLowerCase();
+          } else if (typeof userTypeValue === 'number') {
+            normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
+          }
+          
+          if (normalizedType === 'student' || normalizedType === 'faculty') {
+            // Students/Faculty: Start with current week
+            setWeekStart(currentWeek);
+          } else {
+            // Other users: Start with week beginning 15 days from current date
+            const fifteenDaysFromNow = addDays(now, 15);
+            setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+          }
+        } else {
+          // If not in localStorage, fetch from API
+          const response = await apiClient.getCurrentUser();
+          if (response.data) {
+            setUserType(response.data.user_type || null);
+            
+            // Set initial week based on user type
+            const now = new Date();
+            const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+            const userTypeValue: any = response.data.user_type;
+            let normalizedType: string | null = null;
+            if (typeof userTypeValue === 'string') {
+              normalizedType = userTypeValue.toLowerCase();
+            } else if (typeof userTypeValue === 'number') {
+              normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
+            }
+            
+            if (normalizedType === 'student' || normalizedType === 'faculty') {
+              // Students/Faculty: Start with current week
+              setWeekStart(currentWeek);
+            } else {
+              // Other users: Start with week beginning 15 days from current date
+              const fifteenDaysFromNow = addDays(now, 15);
+              setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user type:", error);
+      }
+    };
+    
+    fetchUserType();
+  }, []);
+
+  // Normalize user type to string for comparison
+  const normalizeUserType = (type: string | number | null): string | null => {
+    if (type === null || type === undefined) return null;
+    if (typeof type === 'string') return type.toLowerCase();
+    if (typeof type === 'number') {
+      // Map common number codes to strings (adjust based on your backend mapping)
+      // Common mappings: 1=student, 2=faculty, etc.
+      const typeMap: Record<number, string> = {
+        1: 'student',
+        2: 'faculty',
+        // Add other mappings as needed
+      };
+      return typeMap[type] || String(type);
+    }
+    return null;
+  };
+
+  // Check if a week is allowed for the current user
+  const isWeekAllowed = (weekStartDate: Date): boolean => {
+    if (!userType) return false;
+    
+    const normalizedType = normalizeUserType(userType);
+    if (!normalizedType) return false;
+    
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const nextWeek = addWeeks(currentWeek, 1);
+    
+    // For other users: 15 days from current date, then one week window
+    const fifteenDaysFromNow = addDays(now, 15);
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    
+    // Normalize week starts for comparison
+    const weekStartNormalized = startOfWeek(weekStartDate, { weekStartsOn: 0 });
+    const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 0 });
+    const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 0 });
+    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 0 });
+    
+    if (normalizedType === 'student' || normalizedType === 'faculty') {
+      // Students/Faculty: Can select current week OR next week only
+      return (
+        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === nextWeekNormalized.getTime()
+      );
+    } else {
+      // Other users: Can select one week window starting 15 days from current date
+      return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
+    }
+  };
+
+  // Get allowed weeks for navigation
+  const getAllowedWeeks = (): Date[] => {
+    if (!userType) return [];
+    
+    const normalizedType = normalizeUserType(userType);
+    if (!normalizedType) return [];
+    
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const nextWeek = addWeeks(currentWeek, 1);
+    
+    // For other users: 15 days from current date, then one week window
+    const fifteenDaysFromNow = addDays(now, 15);
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    
+    if (normalizedType === 'student' || normalizedType === 'faculty') {
+      // Students/Faculty: Current week and next week
+      return [currentWeek, nextWeek];
+    } else {
+      // Other users: One week window starting 15 days from current date
+      return [allowedWeekStart];
+    }
+  };
+
   const fetchSlots = useCallback(async () => {
+    // Check if current week is allowed for this user
+    if (!isWeekAllowed(weekStart)) {
+      setSlots([]);
+      setHolidays({});
+      setLoadingSlots(false);
+      return;
+    }
+
     setLoadingSlots(true);
     const weekEnd = addDays(weekStart, 7);
     const startStr = format(weekStart, "yyyy-MM-dd");
@@ -70,7 +217,7 @@ export default function RescheduleSlotPicker({
     }
     setHolidays(res.data?.holidays ?? {});
     setSelectedSlots([]);
-  }, [equipmentId, weekStart]);
+  }, [equipmentId, weekStart, userType]);
 
   useEffect(() => {
     fetchSlots();
@@ -103,6 +250,9 @@ export default function RescheduleSlotPicker({
   const isSelected = (slot: RescheduleSlot): boolean =>
     selectedSlots.some((s) => s.id === slot.id);
 
+  const isCurrentBooking = (slot: RescheduleSlot): boolean =>
+    currentBookingSlotIds.has(slot.id);
+
   const isPast = (slot: RescheduleSlot): boolean => {
     try {
       return parseISO(slot.start_datetime) < new Date();
@@ -127,7 +277,7 @@ export default function RescheduleSlotPicker({
   };
 
   const toggleSlot = (slot: RescheduleSlot) => {
-    if (!isAvailable(slot) || isPast(slot)) return;
+    if (!isAvailable(slot) || isPast(slot) || isCurrentBooking(slot)) return;
 
     setSelectedSlots((prev) => {
       const already = prev.find((s) => s.id === slot.id);
@@ -197,19 +347,65 @@ export default function RescheduleSlotPicker({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setWeekStart((w) => addWeeks(w, -1))}
+          onClick={() => {
+            const allowedWeeks = getAllowedWeeks();
+            const currentIndex = allowedWeeks.findIndex(week => 
+              startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+            );
+            
+            if (currentIndex > 0) {
+              setWeekStart(allowedWeeks[currentIndex - 1]);
+              setSelectedSlots([]);
+            }
+          }}
+          disabled={(() => {
+            const allowedWeeks = getAllowedWeeks();
+            const currentIndex = allowedWeeks.findIndex(week => 
+              startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+            );
+            return currentIndex <= 0;
+          })()}
         >
           <ChevronLeft className="h-4 w-4" />
           Previous week
         </Button>
-        <Label className="text-sm font-medium shrink-0">
-          {format(weekStart, "MMM d")} – {format(addDays(weekStart, 6), "MMM d, yyyy")}
-        </Label>
+        <div className="text-center">
+          <Label className="text-sm font-medium shrink-0">
+            {format(weekStart, "MMM d")} – {format(addDays(weekStart, 6), "MMM d, yyyy")}
+          </Label>
+          {userType && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Available: Current week and next week only
+            </p>
+          )}
+          {userType && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Available: One week window starting 15 days from today
+            </p>
+          )}
+        </div>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setWeekStart((w) => addWeeks(w, 1))}
+          onClick={() => {
+            const allowedWeeks = getAllowedWeeks();
+            const currentIndex = allowedWeeks.findIndex(week => 
+              startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+            );
+            
+            if (currentIndex < allowedWeeks.length - 1) {
+              setWeekStart(allowedWeeks[currentIndex + 1]);
+              setSelectedSlots([]);
+            }
+          }}
+          disabled={(() => {
+            const allowedWeeks = getAllowedWeeks();
+            const currentIndex = allowedWeeks.findIndex(week => 
+              startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+            );
+            return currentIndex >= allowedWeeks.length - 1;
+          })()}
         >
           Next week
           <ChevronRight className="h-4 w-4" />
@@ -248,11 +444,13 @@ export default function RescheduleSlotPicker({
                   const dateStr = format(day, "yyyy-MM-dd");
                   const available = slot && isAvailable(slot) && !isPast(slot);
                   const selected = slot && isSelected(slot);
+                  const currentBooking = slot && isCurrentBooking(slot);
                   const booked = slot && !isAvailable(slot);
                   const past = slot && isPast(slot);
                   const disabled =
                     !slot ||
                     past ||
+                    currentBooking ||
                     (booked && !currentBookingSlotIds.has(slot.id)) ||
                     (available &&
                       !selected &&
@@ -262,6 +460,7 @@ export default function RescheduleSlotPicker({
                   let label: string;
                   if (slot) {
                     if (selected) label = "Selected";
+                    else if (currentBooking) label = "Current Booking";
                     else if (booked && !currentBookingSlotIds.has(slot.id))
                       label = slot.booking_status_display || slot.status_display || (slot.status === "BOOKED" ? "Booked" : "Blocked");
                     else if (past) label = slot.booking_status_display || slot.status_display || slot.status || "Available";
@@ -281,10 +480,11 @@ export default function RescheduleSlotPicker({
                         p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center
                         ${!slot ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
                         ${past && slot ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
+                        ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold cursor-not-allowed opacity-75" : ""}
                         ${booked && slot && !currentBookingSlotIds.has(slot.id) ? "bg-destructive/20 text-destructive cursor-not-allowed" : ""}
                         ${selected ? "bg-primary text-primary-foreground cursor-pointer" : ""}
-                        ${available && !selected ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
-                        ${available && disabled && !selected ? "bg-green-100/60 text-green-800 cursor-not-allowed opacity-70" : ""}
+                        ${available && !selected && !currentBooking ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
+                        ${available && disabled && !selected && !currentBooking ? "bg-green-100/60 text-green-800 cursor-not-allowed opacity-70" : ""}
                       `}
                     >
                       {label}

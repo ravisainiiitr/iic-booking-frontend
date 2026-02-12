@@ -26,6 +26,7 @@ import Profile from "./pages/Profile";
 import PeriodicTable from "./pages/PeriodicTable";
 import EquipmentProfile from "./pages/EquipmentProfile";
 import Tickets from "./pages/Tickets";
+import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,10 @@ const App = () => (
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/periodic-table" element={<PeriodicTable />} />
                 <Route path="/tickets" element={<Tickets />} />
+                {/* Wallet recharge request action pages - redirect to Django backend */}
+                <Route path="/wallet/recharge-requests/:requestId" element={<WalletRechargeRequestAction />} />
+                <Route path="/wallet/recharge-requests/:requestId/approve" element={<WalletRechargeRequestAction />} />
+                <Route path="/wallet/recharge-requests/:requestId/reject" element={<WalletRechargeRequestAction />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
