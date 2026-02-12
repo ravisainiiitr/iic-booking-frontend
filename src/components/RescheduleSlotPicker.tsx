@@ -264,7 +264,7 @@ export default function RescheduleSlotPicker({
                     if (selected) label = "Selected";
                     else if (booked && !currentBookingSlotIds.has(slot.id))
                       label = slot.booking_status_display || slot.status_display || (slot.status === "BOOKED" ? "Booked" : "Blocked");
-                    else if (past) label = "Past";
+                    else if (past) label = slot.booking_status_display || slot.status_display || slot.status || "Available";
                     else if (available) label = "Available";
                     else label = slot.booking_status_display || slot.status_display || slot.status || "—";
                   } else {

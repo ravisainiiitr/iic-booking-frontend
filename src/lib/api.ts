@@ -828,6 +828,29 @@ class ApiClient {
     }>('/wallet/transactions/');
   }
 
+  /** Get transactions for a specific sub-wallet (department). */
+  async getSubWalletTransactions(departmentId: number, limit = 50, offset = 0) {
+    return this.request<{
+      sub_wallet: {
+        id: number;
+        department_id: number;
+        department_name: string;
+        department_code: string | null;
+        balance: string;
+      };
+      transactions: Array<{
+        id: number;
+        transaction_type: 'credit' | 'debit';
+        amount: string;
+        description: string;
+        created_at: string;
+      }>;
+      count: number;
+      limit: number;
+      offset: number;
+    }>(`/wallet/sub-wallets/${departmentId}/transactions/?limit=${limit}&offset=${offset}`);
+  }
+
   /** Departments that have equipment (valid for sub-wallet recharge). */
   async getDepartmentsForRecharge() {
     return this.request<{

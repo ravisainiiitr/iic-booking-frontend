@@ -148,9 +148,11 @@ const EquipmentList = () => {
                 </div>
                 <CardTitle>{item.name}</CardTitle>
                 <CardDescription>{item.description}</CardDescription>
-                <div className="text-lg font-semibold text-primary mt-2">
-                  ₹{Number(item.internalRate).toFixed(2)}/hour
-                </div>
+                {Number(item.internalRate) > 0 && (
+                  <div className="text-lg font-semibold text-primary mt-2">
+                    ₹{Number(item.internalRate).toFixed(2)}/hour
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
                 <Button

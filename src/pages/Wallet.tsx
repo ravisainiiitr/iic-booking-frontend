@@ -19,6 +19,8 @@ interface Transaction {
   amount: string;
   description: string;
   created_at: string;
+  department_name?: string;
+  department_code?: string | null;
 }
 
 interface RazorpayOptions {
@@ -528,16 +530,46 @@ const Wallet = () => {
           setWalletOwner(null);
         }
         
-        // Use transactions from the wallet response
-        if (walletResponse.data.transactions && walletResponse.data.transactions.length > 0) {
-          setTransactions(walletResponse.data.transactions);
-        } else {
-          // If no transactions in response, try fetching separately
-          await fetchTransactions();
-        }
-
         // Sub-wallets (department-wise balances)
-        setSubWallets(walletResponse.data.sub_wallets ?? []);
+        const subWalletsData = walletResponse.data.sub_wallets ?? [];
+        setSubWallets(subWalletsData);
+        
+        // Fetch transactions from all sub-wallets
+        if (subWalletsData.length > 0) {
+          // Fetch transactions from all sub-wallets in parallel
+          const transactionPromises = subWalletsData.map(subWallet =>
+            apiClient.getSubWalletTransactions(subWallet.department_id, 100, 0)
+          );
+
+          Promise.all(transactionPromises).then(responses => {
+            // Aggregate all transactions with department info
+            const allTransactions: Transaction[] = [];
+            
+            responses.forEach((response, index) => {
+              if (response.data?.transactions) {
+                const subWallet = subWalletsData[index];
+                const transactionsWithDept = response.data.transactions.map((tx: any) => ({
+                  ...tx,
+                  department_name: subWallet.department_name,
+                  department_code: subWallet.department_code,
+                }));
+                allTransactions.push(...transactionsWithDept);
+              }
+            });
+
+            // Sort by created_at descending (most recent first)
+            allTransactions.sort((a, b) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+
+            setTransactions(allTransactions);
+          }).catch(error => {
+            console.error("Failed to fetch sub-wallet transactions:", error);
+            setTransactions([]);
+          });
+        } else {
+          setTransactions([]);
+        }
         
         // If this is a shared wallet, fetch join requests to get the approved request
         if (walletResponse.data.is_shared) {
@@ -555,11 +587,57 @@ const Wallet = () => {
   };
 
   const fetchTransactions = async () => {
-    const response = await apiClient.getWalletTransactions();
-    if (response.data?.transactions) {
-      setTransactions(response.data.transactions);
+    // Fetch transactions from all sub-wallets
+    if (subWallets.length === 0) {
+      setTransactions([]);
+      return;
+    }
+
+    try {
+      // Fetch transactions from all sub-wallets in parallel
+      const transactionPromises = subWallets.map(subWallet =>
+        apiClient.getSubWalletTransactions(subWallet.department_id, 100, 0)
+      );
+
+      const responses = await Promise.all(transactionPromises);
+      
+      // Aggregate all transactions with department info
+      const allTransactions: Transaction[] = [];
+      
+      responses.forEach((response, index) => {
+        if (response.data?.transactions) {
+          const subWallet = subWallets[index];
+          const transactionsWithDept = response.data.transactions.map((tx: any) => ({
+            ...tx,
+            department_name: subWallet.department_name,
+            department_code: subWallet.department_code,
+          }));
+          allTransactions.push(...transactionsWithDept);
+        }
+      });
+
+      // Sort by created_at descending (most recent first)
+      allTransactions.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setTransactions(allTransactions);
+    } catch (error) {
+      console.error("Failed to fetch sub-wallet transactions:", error);
+      // Fallback to empty array on error
+      setTransactions([]);
     }
   };
+
+  // Refetch transactions when sub-wallets change (e.g., after recharge)
+  useEffect(() => {
+    if (subWallets.length > 0 && !loading) {
+      fetchTransactions();
+    } else if (subWallets.length === 0) {
+      setTransactions([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subWallets.length]);
 
   // Load Razorpay script dynamically
   useEffect(() => {
@@ -1687,15 +1765,62 @@ const Wallet = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Transactions</CardTitle>
+            <CardTitle>Transaction History</CardTitle>
             <CardDescription>
               Transactions are recorded per department. View balance and activity in the Department Sub-Wallets section above; use each department’s sub-wallet for recharges and bookings.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-center text-muted-foreground py-6">
-              No main wallet transactions. All activity is in department sub-wallets.
-            </p>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : transactions.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">
+                No transactions yet. Transactions will appear here when you recharge or make bookings.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {transactions.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {transaction.transaction_type === "credit" ? (
+                          <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+                            <ArrowUp className="h-3 w-3" />
+                            Credit
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="flex items-center gap-1">
+                            <ArrowDown className="h-3 w-3" />
+                            Debit
+                          </Badge>
+                        )}
+                        <span className="font-semibold">
+                          ₹{Number(transaction.amount).toFixed(2)}
+                        </span>
+                        {transaction.department_name && (
+                          <span className="text-sm text-muted-foreground">
+                            ({transaction.department_name}{transaction.department_code ? ` - ${transaction.department_code}` : ''})
+                          </span>
+                        )}
+                      </div>
+                      {transaction.description && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {transaction.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(transaction.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

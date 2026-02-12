@@ -406,7 +406,7 @@ const EquipmentProfile = () => {
                                 ? (slotData?.status !== "AVAILABLE"
                                     ? (slotDisplayLabel || slotStatusLabel || "Unavailable")
                                     : isPast
-                                      ? "Past"
+                                      ? (slotDisplayLabel || slotStatusLabel || "Available")
                                       : "Available")
                                 : (weeklyHolidays[dateStr] || "—");
 

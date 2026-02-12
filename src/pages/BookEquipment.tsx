@@ -611,6 +611,40 @@ const BookEquipment = () => {
     return Math.max(0, calculatedCharge.total_time_minutes - getEffectiveSelectedMinutes());
   };
 
+  // Get representative slot duration (from first selected slot, or equipment default)
+  const getOneSlotDurationMinutes = (slotOrNull?: TimeSlot | null): number => {
+    if (slotOrNull?.slotData?.start_datetime && slotOrNull.slotData?.end_datetime) {
+      try {
+        const start = parseISO(slotOrNull.slotData.start_datetime);
+        const end = parseISO(slotOrNull.slotData.end_datetime);
+        return Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+      } catch {
+        // fall through to equipment
+      }
+    }
+    if (selectedSlots.length > 0) {
+      const d = getSlotDurationMinutes(selectedSlots[0]);
+      if (d > 0) return d;
+    }
+    return equipmentDetail?.slot_duration_minutes || 60;
+  };
+
+  // Check if current selection is valid for booking per business rules:
+  // a) Required <= one slot → exactly one slot allowed.
+  // b) Required > one slot → multiple slots until required covered.
+  // c) Remaining time < 10% of one slot → allow booking (partial tail).
+  const isSelectionValidForBooking = (): boolean => {
+    if (!calculatedCharge || selectedSlots.length === 0) return false;
+    const required = calculatedCharge.total_time_minutes;
+    const selected = getTotalSelectedMinutes();
+    const oneSlot = getOneSlotDurationMinutes(selectedSlots[0]);
+    const tenPercentSlot = 0.1 * oneSlot;
+    if (required <= oneSlot) {
+      return selectedSlots.length === 1;
+    }
+    return selected >= required - tenPercentSlot && selected <= required + tenPercentSlot;
+  };
+
   // Check if a slot is consecutive to selected slots
   const isConsecutiveSlot = (newSlot: TimeSlot, selectedSlots: TimeSlot[]): boolean => {
     if (selectedSlots.length === 0) return true; // First slot is always allowed
@@ -682,37 +716,38 @@ const BookEquipment = () => {
           return prev; // Return previous state without changes
         }
         
-        // STRICT VALIDATION: Check against latest state before adding
+        // Slot selection rules: (a) required <= one slot → single slot; (b) required > one slot → multiple until covered; (c) allow tail < 10% of one slot
         if (calculatedCharge) {
-          // Calculate current selected minutes from actual slot durations (most up-to-date)
-          const currentSelectedMinutes = prev.reduce((total, s) => {
-            return total + getSlotDurationMinutes(s);
-          }, 0);
-          
-          // Calculate duration of the slot being added
+          const required = calculatedCharge.total_time_minutes;
           const slotDuration = getSlotDurationMinutes(slot);
+          const currentSelectedMinutes = prev.reduce((total, s) => total + getSlotDurationMinutes(s), 0);
           const newTotalMinutes = currentSelectedMinutes + slotDuration;
-          console.log("newTotalMinutes", newTotalMinutes);
-          console.log("calculatedCharge.total_time_minutes", calculatedCharge.total_time_minutes);
-          console.log("currentSelectedMinutes", currentSelectedMinutes);
-          // STRICT CHECK: Prevent selecting if it would exceed the limit
-          if (newTotalMinutes < calculatedCharge.total_time_minutes) {
-            const remaining = calculatedCharge.total_time_minutes - currentSelectedMinutes;
-            console.log("remaining", remaining);
+          const oneSlotRef = prev.length > 0 ? getSlotDurationMinutes(prev[0]) : slotDuration;
+          const tenPercentSlot = 0.1 * oneSlotRef;
+
+          // (a) If required time <= one slot duration: allow only a single slot
+          if (required <= oneSlotRef) {
+            if (prev.length >= 1) {
+              toast.error(`Only one slot is allowed when required time (${required} min) is within a single slot.`);
+              return prev;
+            }
+            return [...prev, slot];
+          }
+
+          // (b) Required > one slot: allow multiple slots until required is covered (with up to 10% tail)
+          if (currentSelectedMinutes >= required) {
+            toast.error(`You have already covered the required time (${required} minutes).`);
+            return prev;
+          }
+          if (newTotalMinutes > required + tenPercentSlot) {
+            const remaining = Math.max(0, required - currentSelectedMinutes);
             toast.error(
-              `Cannot select more slots. Maximum ${calculatedCharge.total_time_minutes} minutes allowed. ` +
-              `You have selected ${currentSelectedMinutes} minutes. ${remaining > 0 ? `Only ${remaining} minutes remaining.` : 'Limit reached.'}`
+              `Cannot add this slot. Required time is ${required} minutes; only ${remaining} minutes remaining. ` +
+              `You may add a slot that fits within the remaining time (or up to 10% of one slot over).`
             );
-            return prev; // Return previous state without changes
+            return prev;
           }
-          
-          // Additional safety check: prevent if already at or over limit
-          if (currentSelectedMinutes >= calculatedCharge.total_time_minutes) {
-            toast.error(`You have already reached the maximum allowed time (${calculatedCharge.total_time_minutes} minutes).`);
-            return prev; // Return previous state without changes
-          }
-          
-          // Validation passed, add the slot
+
           return [...prev, slot];
         } else {
           // If charge not calculated, don't allow slot selection
@@ -788,15 +823,20 @@ const BookEquipment = () => {
       return;
     }
 
-    // Validate that selected slots don't exceed total_time_minutes
-    if (calculatedCharge) {
-      const selectedMinutes = getTotalSelectedMinutes();
-      if (selectedMinutes > calculatedCharge.total_time_minutes) {
+    // Validate selection per business rules (single slot when required <= one slot; multiple until covered; 10% tail allowed)
+    if (calculatedCharge && !isSelectionValidForBooking()) {
+      const required = calculatedCharge.total_time_minutes;
+      const selected = getTotalSelectedMinutes();
+      const oneSlot = getOneSlotDurationMinutes(selectedSlots[0]);
+      if (required <= oneSlot && selectedSlots.length !== 1) {
+        toast.error("Please select exactly one slot when required time is within a single slot.");
+      } else {
         toast.error(
-          `Selected slots exceed the allowed time. Maximum ${calculatedCharge.total_time_minutes} minutes allowed, but ${selectedMinutes} minutes selected.`
+          `Selection does not match required time (${required} minutes). ` +
+          `Selected: ${selected} minutes. Select slots that cover the required time (within 10% of one slot).`
         );
-        return;
       }
+      return;
     }
 
     try {
@@ -948,10 +988,12 @@ const BookEquipment = () => {
                   <div>
                     <CardTitle>Book {selectedEquipment.name}</CardTitle>
                     <CardDescription>
-                      ₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour
+                      {Number(selectedEquipment.internalRate) > 0 && (
+                        <>₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour</>
+                      )}
                       {equipmentDetail?.slot_duration_minutes && (
                         <>
-                          {' • '}
+                          {Number(selectedEquipment.internalRate) > 0 && ' • '}
                           {equipmentDetail.slot_duration_minutes >= 60 ? (
                             <>
                               Slot Duration: {Math.floor(equipmentDetail.slot_duration_minutes / 60)}h
@@ -1335,23 +1377,24 @@ const BookEquipment = () => {
                             : rawSlotStatusLabel;
                           const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
 
-                          // Enable slot when slot duration >= remaining time (e.g. 60 min slot is fine for 7 min total)
+                          // Slot selection rules: (a) required <= one slot → single slot; (b) required > one slot → multiple until covered; (c) 10% tail allowed
                           const totalMinutes = calculatedCharge?.total_time_minutes ?? 0;
-                          const currentSelectedMinutes = calculatedCharge ? getEffectiveSelectedMinutes() : 0;
-                          const remainingMinutes = Math.max(0, totalMinutes - currentSelectedMinutes);
-
+                          const currentSelectedMinutes = calculatedCharge
+                            ? selectedSlots.reduce((sum, s) => sum + getSlotDurationMinutes(s), 0)
+                            : 0;
                           const thisSlotDuration = slotData?.start_datetime && slotData?.end_datetime
                             ? Math.round((parseISO(slotData.end_datetime).getTime() - parseISO(slotData.start_datetime).getTime()) / (1000 * 60))
                             : (equipmentDetail?.slot_duration_minutes || 60);
-
-                          // Slot is usable if it covers remaining time (duration >= remaining). Count only min(slot, remaining) toward limit.
-                          const effectiveDurationIfSelected = Math.min(thisSlotDuration, remainingMinutes);
-                          const wouldExceedLimit = calculatedCharge && !isSelected && !isBooked && !isPast && slotExists
-                            ? (currentSelectedMinutes + effectiveDurationIfSelected) > totalMinutes
-                            : false;
+                          const oneSlotRef = selectedSlots.length > 0 ? getSlotDurationMinutes(selectedSlots[0]) : thisSlotDuration;
+                          const tenPercentSlot = 0.1 * oneSlotRef;
 
                           const limitReached = calculatedCharge
-                            ? currentSelectedMinutes >= calculatedCharge.total_time_minutes
+                            ? (totalMinutes <= oneSlotRef ? selectedSlots.length >= 1 : currentSelectedMinutes >= totalMinutes)
+                            : false;
+                          const wouldExceedLimit = calculatedCharge && !isSelected && !isBooked && !isPast && slotExists
+                            ? (totalMinutes <= oneSlotRef)
+                              ? selectedSlots.length >= 1
+                              : (currentSelectedMinutes + thisSlotDuration) > totalMinutes + tenPercentSlot
                             : false;
                           
                           // Check if slot is consecutive to selected slots
@@ -1380,7 +1423,7 @@ const BookEquipment = () => {
                               displayStatus = "Selected";
                               isDisabled = false; // Allow deselecting
                             } else if (isPast) {
-                              displayStatus = "Past";
+                              displayStatus = slotDisplayLabel || slotStatusLabel || "Available";
                               isDisabled = true;
                             } else if (chargeNotCalculated) {
                               displayStatus = slotDisplayLabel || slotStatusLabel || "—";
@@ -1463,7 +1506,9 @@ const BookEquipment = () => {
                         )}
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-muted-foreground">Total Cost</span>
-                          <span className="text-2xl font-bold">₹{calculateTotalCost().toFixed(2)}</span>
+                          <span className="text-2xl font-bold">
+                            ₹{calculatedCharge ? Number(calculatedCharge.total_charge).toFixed(2) : calculateTotalCost().toFixed(2)}
+                          </span>
                         </div>
                       </div>
                     )}
