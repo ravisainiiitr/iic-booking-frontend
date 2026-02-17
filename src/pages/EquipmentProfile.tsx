@@ -12,7 +12,9 @@ import { Info } from "lucide-react";
 import { Calendar } from "lucide-react";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
+import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EquipmentProfile {
   equipment_id: number;
@@ -80,6 +82,7 @@ interface EquipmentProfile {
 const EquipmentProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [userType, setUserType] = useState<number | string | null>(null);
@@ -311,7 +314,7 @@ const EquipmentProfile = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <DashboardHeader />
+      {isAuthenticated ? <DashboardHeader /> : <Header />}
       <main className="flex-1 container mx-auto px-4 py-8">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

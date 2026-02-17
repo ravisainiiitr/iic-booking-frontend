@@ -52,6 +52,7 @@ interface User {
   designation?: string | null;
   date_joined?: string | null;
   last_login?: string | null;
+  auto_slot_selection?: boolean;
 }
 
 interface AuthResponse {
@@ -523,6 +524,7 @@ class ApiClient {
     phone_number?: string;
     profile_picture?: string;
     department?: number | null;
+    auto_slot_selection?: boolean;
   }) {
     // Get current user ID first
     const userResponse = await this.getCurrentUser();
@@ -1093,6 +1095,21 @@ class ApiClient {
   }
 
   // Wallet join request endpoints
+  async searchFacultyByName(query: string, limit: number = 10) {
+    return this.request<{
+      results: Array<{
+        id: number;
+        name: string;
+        email: string;
+        phone?: string | null;
+        profile_picture?: string | null;
+        has_wallet: boolean;
+        department?: string | null;
+        emp_id?: string | null;
+      }>;
+    }>(`/wallet/search-faculty/?q=${encodeURIComponent(query)}&limit=${limit}`);
+  }
+
   async getFacultyByEmail(email: string) {
     return this.request<{
       faculty: {
@@ -1166,13 +1183,17 @@ class ApiClient {
   }
 
   // Wallet recharge request endpoints
-  async sendUserOtpForRecharge(amount: number, departmentId: number, projectDetails?: string) {
+  async sendUserOtpForRecharge(amount: number, departmentId: number, projectId?: number | null) {
     return this.request<{
       request_id: number;
       message: string;
     }>('/wallet/recharge-request/send-otp/', {
       method: 'POST',
-      body: JSON.stringify({ amount, department_id: departmentId, project_details: projectDetails }),
+      body: JSON.stringify({ 
+        amount, 
+        department_id: departmentId, 
+        project_id: projectId || null 
+      }),
     });
   }
 
@@ -1210,6 +1231,9 @@ class ApiClient {
         user_email: string;
         wallet: number;
         amount: string;
+        project_id?: number | null;
+        project_name?: string | null;
+        project_code?: string | null;
         project_details?: string;
         status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
         status_display: string;
@@ -1520,6 +1544,7 @@ class ApiClient {
         notice_type: string;
         is_active: boolean;
         priority?: number;
+        expiry_date?: string | null;
         created_at: string;
         updated_at: string;
         created_by?: number;
@@ -1781,6 +1806,99 @@ class ApiClient {
       }>;
       count: number;
     }>('/ticket-types/');
+  }
+
+  // Project endpoints
+  async getProjects() {
+    return this.request<{
+      projects: Array<{
+        id: number;
+        name: string;
+        project_code: string;
+        agency: string;
+        start_date: string | null;
+        end_date: string | null;
+        is_active: boolean;
+        is_expired: boolean;
+        faculty: number;
+        created_at: string;
+        updated_at: string;
+      }>;
+      count: number;
+    }>('/projects/');
+  }
+
+  async getProject(projectId: number | string) {
+    return this.request<{
+      id: number;
+      name: string;
+      project_code: string;
+      agency: string;
+      start_date: string | null;
+      end_date: string | null;
+      is_active: boolean;
+      is_expired: boolean;
+      faculty: number;
+      created_at: string;
+      updated_at: string;
+    }>(`/projects/${projectId}/`);
+  }
+
+  async createProject(data: {
+    name: string;
+    project_code: string;
+    agency: string;
+    start_date?: string | null;
+    end_date?: string | null;
+  }) {
+    return this.request<{
+      id: number;
+      name: string;
+      project_code: string;
+      agency: string;
+      start_date: string | null;
+      end_date: string | null;
+      is_active: boolean;
+      is_expired: boolean;
+      faculty: number;
+      created_at: string;
+      updated_at: string;
+    }>('/projects/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProject(projectId: number | string, data: {
+    name?: string;
+    project_code?: string;
+    agency?: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    is_active?: boolean;
+  }) {
+    return this.request<{
+      id: number;
+      name: string;
+      project_code: string;
+      agency: string;
+      start_date: string | null;
+      end_date: string | null;
+      is_active: boolean;
+      is_expired: boolean;
+      faculty: number;
+      created_at: string;
+      updated_at: string;
+    }>(`/projects/${projectId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProject(projectId: number | string) {
+    return this.request<void>(`/projects/${projectId}/delete/`, {
+      method: 'DELETE',
+    });
   }
 }
 

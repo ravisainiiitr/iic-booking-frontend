@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Bell, Calendar, AlertCircle, Loader2, Info } from "lucide-react";
+import { Bell, Calendar, AlertCircle, Loader2, Info, AlertTriangle, Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ interface Notice {
   content?: string;
   created_at: string;
   updated_at?: string;
+  expiry_date?: string | null;
   notice_type?: string;
   type?: "info" | "warning" | "urgent";
   is_active?: boolean;
@@ -45,8 +46,18 @@ const NoticeBoard = () => {
 
       if (response.data?.notices && Array.isArray(response.data.notices)) {
         // Transform API response to match component interface
+        const now = new Date();
         const transformedNotices: Notice[] = response.data.notices
-          .filter((notice: Notice) => notice.is_active !== false) // Only show active notices
+          .filter((notice: Notice) => {
+            // Only show active notices
+            if (notice.is_active === false) return false;
+            // Filter out expired notices (if expiry_date exists and is in the past)
+            if (notice.expiry_date) {
+              const expiryDate = new Date(notice.expiry_date);
+              if (expiryDate < now) return false;
+            }
+            return true;
+          })
           .map((notice: Notice) => ({
             notice_id: notice.notice_id || notice.id || 0,
             id: notice.notice_id || notice.id || 0,
@@ -55,6 +66,7 @@ const NoticeBoard = () => {
             content: notice.content || notice.description || "",
             created_at: notice.created_at,
             updated_at: notice.updated_at,
+            expiry_date: notice.expiry_date || null,
             notice_type: (notice.notice_type || notice.type || "info") as string,
             type: (notice.notice_type || notice.type || "info") as "info" | "warning" | "urgent",
             is_active: notice.is_active,
@@ -85,19 +97,36 @@ const NoticeBoard = () => {
       case "urgent":
         return "destructive";
       case "warning":
-        return "default";
+        return "outline";
       case "info":
-        return "secondary";
+        return "default";
+      default:
+        return "default";
+    }
+  };
+
+  const getTypeColorClass = (type: Notice["type"]) => {
+    switch (type) {
+      case "urgent":
+        return "bg-red-500 text-white border-red-500";
+      case "warning":
+        return "bg-orange-500 text-white border-orange-500";
+      case "info":
+        return "bg-blue-500 text-white border-blue-500";
+      default:
+        return "";
     }
   };
 
   const getTypeIcon = (type: Notice["type"]) => {
     switch (type) {
       case "urgent":
-        return <AlertCircle className="h-4 w-4" />;
+        return <AlertCircle className="h-4 w-4" />; // danger icon
       case "warning":
-        return <Bell className="h-4 w-4" />;
+        return <AlertTriangle className="h-4 w-4" />; // warning icon
       case "info":
+        return <Bell className="h-4 w-4" />; // bell icon
+      default:
         return <Bell className="h-4 w-4" />;
     }
   };
@@ -140,15 +169,23 @@ const NoticeBoard = () => {
                       {getTypeIcon(notice.type)}
                       <h4 className="font-semibold text-sm line-clamp-2">{notice.title}</h4>
                     </div>
-                    <Badge variant={getTypeColor(notice.type)} className="shrink-0 text-xs">
+                    <Badge variant={getTypeColor(notice.type)} className={`shrink-0 text-xs ${getTypeColorClass(notice.type)}`}>
                       {notice.type}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{notice.description}</p>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      <span>{new Date(notice.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{new Date(notice.created_at).toLocaleDateString()}</span>
+                      </div>
+                      {notice.expiry_date && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          <span>Expires: {new Date(notice.expiry_date).toLocaleDateString()}</span>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -180,19 +217,36 @@ const NoticeBoard = () => {
                       {getTypeIcon(selectedNotice.type)}
                       {selectedNotice.title}
                     </DialogTitle>
-                    <DialogDescription className="mt-2">
-                      <Badge variant={getTypeColor(selectedNotice.type)} className="mr-2">
+                    <DialogDescription className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge variant={getTypeColor(selectedNotice.type)} className={`${getTypeColorClass(selectedNotice.type)}`}>
                         {selectedNotice.type}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(selectedNotice.created_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          Created: {new Date(selectedNotice.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      {selectedNotice.expiry_date && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>
+                            Expires: {new Date(selectedNotice.expiry_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      )}
                     </DialogDescription>
                   </div>
                 </div>

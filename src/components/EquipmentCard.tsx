@@ -16,6 +16,8 @@ interface EquipmentCardProps {
   image: string;
   video?: string;
   available: boolean;
+  status?: string;
+  statusDisplay?: string;
   nextAvailable?: string;
   address: string;
   technicalPerson: string;
@@ -84,6 +86,8 @@ const EquipmentCard = ({
   image, 
   video, 
   available, 
+  status,
+  statusDisplay,
   nextAvailable, 
   address, 
   technicalPerson, 
@@ -201,9 +205,29 @@ const EquipmentCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
-          <Badge variant={available ? "default" : "destructive"} className={available ? "shrink-0 bg-green-600 hover:bg-green-700" : "shrink-0"}>
-            {available ? "Working" : "Not Working"}
-          </Badge>
+          {(() => {
+            // Map status display: ACTIVE -> "Working", INACTIVE -> "Not Working", others -> actual status
+            let displayStatus = statusDisplay || status || "";
+            if (status === "ACTIVE") {
+              displayStatus = "Working";
+            } else if (status === "INACTIVE") {
+              displayStatus = "Not Working";
+            }
+            
+            // Determine badge variant based on status
+            const isWorking = status === "ACTIVE";
+            const isNotWorking = status === "INACTIVE";
+            const variant = isWorking ? "default" : (isNotWorking ? "destructive" : "secondary");
+            const badgeClass = isWorking 
+              ? "shrink-0 bg-green-600 hover:bg-green-700" 
+              : (isNotWorking ? "shrink-0" : "shrink-0");
+            
+            return (
+              <Badge variant={variant} className={badgeClass}>
+                {displayStatus || (available ? "Working" : "Not Working")}
+              </Badge>
+            );
+          })()}
         </div>
         <CardDescription className="text-sm">{category}</CardDescription>
       </CardHeader>

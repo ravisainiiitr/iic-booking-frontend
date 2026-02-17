@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Moon, Sun, Monitor } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Upload, Moon, Sun, Monitor, Plus, Trash2, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -23,6 +24,31 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [projects, setProjects] = useState<Array<{
+    id: number;
+    name: string;
+    project_code: string;
+    agency: string;
+    start_date: string | null;
+    end_date: string | null;
+    is_active: boolean;
+    is_expired: boolean;
+    created_at: string;
+    updated_at: string;
+  }>>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
+  const [projectForm, setProjectForm] = useState({
+    name: "",
+    project_code: "",
+    agency: "",
+    start_date: "",
+    end_date: "",
+    is_active: true,
+  });
+  const [addingProject, setAddingProject] = useState(false);
+  const [updatingProject, setUpdatingProject] = useState(false);
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
@@ -45,11 +71,18 @@ const Profile = () => {
     date_joined: "",
     last_login: "",
     can_have_wallet: false,
+    auto_slot_selection: false,
   });
 
   useEffect(() => {
     checkAuthAndLoadProfile();
   }, [navigate]);
+
+  useEffect(() => {
+    if (isFacultyUser()) {
+      fetchProjects();
+    }
+  }, [user, profileData.user_type]);
 
   useEffect(() => {
     setMounted(true);
@@ -139,6 +172,7 @@ const Profile = () => {
         date_joined: response.data.date_joined || "",
         last_login: response.data.last_login || "",
         can_have_wallet: response.data.can_have_wallet || false,
+        auto_slot_selection: response.data.auto_slot_selection || false,
       });
     }
     setLoading(false);
@@ -182,6 +216,167 @@ const Profile = () => {
       toast.error("Error uploading avatar: " + error.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const isFacultyUser = (): boolean => {
+    const userType = profileData.user_type || user?.user_type;
+    if (userType === undefined || userType === null) return false;
+    
+    if (typeof userType === "string") {
+      return userType.toLowerCase() === "faculty";
+    } else if (typeof userType === "number") {
+      // Assuming 2 = faculty (adjust based on your mapping)
+      return userType === 2;
+    }
+    return false;
+  };
+
+  const fetchProjects = async () => {
+    if (!isFacultyUser()) return;
+    
+    setLoadingProjects(true);
+    try {
+      const response = await apiClient.getProjects();
+      if (response.error) {
+        console.error("Error fetching projects:", response.error);
+        // Don't show error toast if endpoint doesn't exist yet
+        if (!response.error.includes("404")) {
+          toast.error("Error loading projects");
+        }
+      } else if (response.data) {
+        // Map projects to ensure they have all required fields
+        const mappedProjects = (response.data.projects || []).map((project: any) => ({
+          ...project,
+          start_date: project.start_date || null,
+          end_date: project.end_date || null,
+          is_active: project.is_active !== undefined ? project.is_active : true,
+          is_expired: project.is_expired !== undefined ? project.is_expired : false,
+        }));
+        setProjects(mappedProjects);
+      }
+    } catch (error: any) {
+      console.error("Error fetching projects:", error);
+      // Silently fail if endpoint doesn't exist
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  const handleAddProject = async () => {
+    if (!projectForm.name.trim() || !projectForm.project_code.trim() || !projectForm.agency.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // Validate dates if provided
+    if (projectForm.start_date && projectForm.end_date) {
+      const startDate = new Date(projectForm.start_date);
+      const endDate = new Date(projectForm.end_date);
+      if (endDate < startDate) {
+        toast.error("End date must be after start date");
+        return;
+      }
+    }
+
+    setAddingProject(true);
+    try {
+      const response = await apiClient.createProject({
+        name: projectForm.name.trim(),
+        project_code: projectForm.project_code.trim(),
+        agency: projectForm.agency.trim(),
+        start_date: projectForm.start_date || null,
+        end_date: projectForm.end_date || null,
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      toast.success("Project added successfully");
+      setProjectForm({ name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true });
+      setShowProjectForm(false);
+      await fetchProjects();
+    } catch (error: any) {
+      toast.error("Error adding project: " + (error.message || "Unknown error"));
+    } finally {
+      setAddingProject(false);
+    }
+  };
+
+  const handleEditProject = (project: typeof projects[0]) => {
+    setEditingProjectId(project.id);
+    setProjectForm({
+      name: project.name,
+      project_code: project.project_code,
+      agency: project.agency,
+      start_date: project.start_date ? project.start_date.split('T')[0] : "",
+      end_date: project.end_date ? project.end_date.split('T')[0] : "",
+      is_active: project.is_active,
+    });
+    setShowProjectForm(true);
+  };
+
+  const handleUpdateProject = async () => {
+    if (!editingProjectId) return;
+    
+    if (!projectForm.name.trim() || !projectForm.project_code.trim() || !projectForm.agency.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // Validate dates if provided
+    if (projectForm.start_date && projectForm.end_date) {
+      const startDate = new Date(projectForm.start_date);
+      const endDate = new Date(projectForm.end_date);
+      if (endDate < startDate) {
+        toast.error("End date must be after start date");
+        return;
+      }
+    }
+
+    setUpdatingProject(true);
+    try {
+      const response = await apiClient.updateProject(editingProjectId, {
+        name: projectForm.name.trim(),
+        project_code: projectForm.project_code.trim(),
+        agency: projectForm.agency.trim(),
+        start_date: projectForm.start_date || null,
+        end_date: projectForm.end_date || null,
+        is_active: projectForm.is_active,
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      toast.success("Project updated successfully");
+      setProjectForm({ name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true });
+      setShowProjectForm(false);
+      setEditingProjectId(null);
+      await fetchProjects();
+    } catch (error: any) {
+      toast.error("Error updating project: " + (error.message || "Unknown error"));
+    } finally {
+      setUpdatingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async (projectId: number) => {
+    if (!confirm("Are you sure you want to delete this project?")) {
+      return;
+    }
+
+    try {
+      const response = await apiClient.deleteProject(projectId);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      toast.success("Project deleted successfully");
+      await fetchProjects();
+    } catch (error: any) {
+      toast.error("Error deleting project: " + (error.message || "Unknown error"));
     }
   };
 
@@ -523,6 +718,224 @@ const Profile = () => {
             </div>
 
             <Separator />
+
+            {/* Projects Section - Only for Faculty */}
+            {isFacultyUser() && (
+              <>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold">Projects</h3>
+                      <p className="text-sm text-muted-foreground">Manage your research projects</p>
+                    </div>
+                    {!showProjectForm && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowProjectForm(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Project
+                      </Button>
+                    )}
+                  </div>
+
+                  {showProjectForm && (
+                    <Card className="border-primary/50">
+                      <CardHeader>
+                        <CardTitle className="text-base">
+                          {editingProjectId ? "Edit Project" : "Add New Project"}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="project_name">Project Name *</Label>
+                          <Input
+                            id="project_name"
+                            type="text"
+                            value={projectForm.name}
+                            onChange={(e) => setProjectForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Enter project name"
+                            maxLength={255}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="project_code">Project Code *</Label>
+                          <Input
+                            id="project_code"
+                            type="text"
+                            value={projectForm.project_code}
+                            onChange={(e) => setProjectForm(prev => ({ ...prev, project_code: e.target.value }))}
+                            placeholder="Enter project code"
+                            maxLength={100}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="agency">Agency *</Label>
+                          <Input
+                            id="agency"
+                            type="text"
+                            value={projectForm.agency}
+                            onChange={(e) => setProjectForm(prev => ({ ...prev, agency: e.target.value }))}
+                            placeholder="Enter funding agency"
+                            maxLength={255}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="start_date">Start Date</Label>
+                            <Input
+                              id="start_date"
+                              type="date"
+                              value={projectForm.start_date}
+                              onChange={(e) => setProjectForm(prev => ({ ...prev, start_date: e.target.value }))}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="end_date">End Date</Label>
+                            <Input
+                              id="end_date"
+                              type="date"
+                              value={projectForm.end_date}
+                              onChange={(e) => setProjectForm(prev => ({ ...prev, end_date: e.target.value }))}
+                              min={projectForm.start_date || undefined}
+                            />
+                          </div>
+                        </div>
+
+                        {editingProjectId && (
+                          <div className="space-y-2">
+                            <Label htmlFor="is_active">Status</Label>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="is_active"
+                                checked={projectForm.is_active}
+                                onChange={(e) => setProjectForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                              <Label htmlFor="is_active" className="text-sm font-normal cursor-pointer">
+                                Active
+                              </Label>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={editingProjectId ? handleUpdateProject : handleAddProject}
+                            disabled={addingProject || updatingProject}
+                            size="sm"
+                          >
+                            {addingProject ? "Adding..." : updatingProject ? "Updating..." : editingProjectId ? "Update Project" : "Add Project"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowProjectForm(false);
+                              setEditingProjectId(null);
+                              setProjectForm({ name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true });
+                            }}
+                            size="sm"
+                            disabled={addingProject || updatingProject}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {loadingProjects ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : projects.length > 0 ? (
+                    <div className="space-y-3">
+                      {projects.map((project) => (
+                        <Card key={project.id} className={`border ${!project.is_active ? 'opacity-60' : ''}`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-semibold text-base">{project.name}</h4>
+                                      {project.is_expired && (
+                                        <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                          Expired
+                                        </span>
+                                      )}
+                                      {!project.is_active && !project.is_expired && (
+                                        <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                          Inactive
+                                        </span>
+                                      )}
+                                      {project.is_active && !project.is_expired && (
+                                        <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                          Active
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">Code: {project.project_code}</p>
+                                    <p className="text-sm text-muted-foreground">Agency: {project.agency}</p>
+                                    {project.start_date && (
+                                      <p className="text-sm text-muted-foreground">
+                                        Start Date: {new Date(project.start_date).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                    {project.end_date && (
+                                      <p className="text-sm text-muted-foreground">
+                                        End Date: {new Date(project.end_date).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Created: {new Date(project.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditProject(project)}
+                                  className="text-primary hover:text-primary"
+                                  title="Edit project"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteProject(project.id)}
+                                  className="text-destructive hover:text-destructive"
+                                  title="Delete project"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    !showProjectForm && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p>No projects added yet.</p>
+                        <p className="text-sm">Click "Add Project" to get started.</p>
+                      </div>
+                    )
+                  )}
+                </div>
+                <Separator />
+              </>
+            )}
 
             {/* Change Appearance Section */}
             <div className="space-y-4">

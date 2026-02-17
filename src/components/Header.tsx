@@ -98,7 +98,10 @@ const Header = () => {
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div 
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => navigate("/")}
+          >
             <img 
               src="/IITR_Logo.svg" 
               alt="IITR Logo" 
@@ -110,12 +113,30 @@ const Header = () => {
           </div>
           
           <nav className="hidden md:flex items-center gap-8">
-            <a href="#home" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Home
-            </a>
-            <a href="#facilities" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            <button 
+              onClick={() => {
+                const currentPath = window.location.pathname;
+                if (currentPath === "/") {
+                  // If already on home page, scroll to equipment catalog section
+                  const equipmentSection = document.getElementById("equipment");
+                  if (equipmentSection) {
+                    equipmentSection.scrollIntoView({ behavior: "smooth" });
+                  }
+                } else {
+                  // If on another page, navigate to home and then scroll
+                  navigate("/");
+                  setTimeout(() => {
+                    const equipmentSection = document.getElementById("equipment");
+                    if (equipmentSection) {
+                      equipmentSection.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }, 100);
+                }
+              }}
+              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+            >
               Facilities
-            </a>
+            </button>
             <NavigationMenu>
               <NavigationMenuList>
                 <NavigationMenuItem>
@@ -171,9 +192,6 @@ const Header = () => {
                 </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
-            <a href="#booking" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Booking
-            </a>
             <a href="#outreach" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
               Outreach
             </a>

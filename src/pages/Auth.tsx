@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff, Upload, X, FileText, User } from "lucide-react";
+import { Eye, EyeOff, Upload, X, FileText, User, Home } from "lucide-react";
 
 const authSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -454,7 +454,18 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">INSTITUTE INSTRUMENTATION CENTRE - IIC</CardTitle>
+          <div className="flex items-start justify-between mb-2">
+            <CardTitle className="text-2xl text-center flex-1">INSTITUTE INSTRUMENTATION CENTRE - IIC</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="ml-2"
+              title="Go to Home"
+            >
+              <Home className="h-4 w-4" />
+            </Button>
+          </div>
           <CardDescription className="text-center">
             Sign in with Omniport (IIT Roorkee) or create an account
           </CardDescription>
@@ -896,6 +907,18 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
+          
+          {/* Go to Home Link */}
+          <div className="mt-6 pt-6 border-t">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate("/")}
+            >
+              <Home className="h-4 w-4 mr-2" />
+              Go to Home
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

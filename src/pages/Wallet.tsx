@@ -6,9 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -66,6 +69,19 @@ const Wallet = () => {
   const [user, setUser] = useState<any | null>(null);
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [facultyEmail, setFacultyEmail] = useState("");
+  const [facultyName, setFacultyName] = useState("");
+  const [facultySearchQuery, setFacultySearchQuery] = useState("");
+  const [facultySearchResults, setFacultySearchResults] = useState<Array<{
+    id: number;
+    name: string;
+    email: string;
+    phone?: string | null;
+    profile_picture?: string | null;
+    has_wallet: boolean;
+    department?: string | null;
+    emp_id?: string | null;
+  }>>([]);
+  const [isSearchingFaculty, setIsSearchingFaculty] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [requesting, setRequesting] = useState(false);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
@@ -86,7 +102,6 @@ const Wallet = () => {
     profile_picture?: string | null;
     has_wallet?: boolean;
   } | null>(null);
-  const [loadingFacultyProfile, setLoadingFacultyProfile] = useState(false);
   const [facultyProfileError, setFacultyProfileError] = useState<string | null>(null);
   const [isOtherUser, setIsOtherUser] = useState(false);
   const [isStudent, setIsStudent] = useState(false);
@@ -95,7 +110,15 @@ const Wallet = () => {
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [recharging, setRecharging] = useState(false);
   const [rechargeType, setRechargeType] = useState<"razorpay" | "request">("razorpay");
-  const [projectDetails, setProjectDetails] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [projects, setProjects] = useState<Array<{
+    id: number;
+    name: string;
+    project_code: string;
+    agency: string;
+    is_active: boolean;
+  }>>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [requestingRecharge, setRequestingRecharge] = useState(false);
   const [otpStep, setOtpStep] = useState<"form" | "otp">("form");
   const [userOtp, setUserOtp] = useState("");
@@ -123,7 +146,48 @@ const Wallet = () => {
   useEffect(() => {
     checkAuthAndFetchWallet();
     fetchRechargeRequests();
+    
+    // Check if user returned from profile page and reopen recharge dialog
+    const returnToRecharge = sessionStorage.getItem('returnToWalletRecharge');
+    if (returnToRecharge === 'true') {
+      sessionStorage.removeItem('returnToWalletRecharge');
+      // Small delay to ensure wallet data is loaded
+      setTimeout(() => {
+        setShowRechargeDialog(true);
+      }, 500);
+    }
   }, []);
+
+  useEffect(() => {
+    // Fetch active projects if user is faculty
+    if (isFaculty) {
+      fetchActiveProjects();
+    }
+  }, [isFaculty]);
+
+  // Refresh projects when recharge dialog opens (in case user added/updated projects from profile)
+  useEffect(() => {
+    if (showRechargeDialog && isFaculty) {
+      fetchActiveProjects();
+    }
+  }, [showRechargeDialog, isFaculty]);
+
+  // Refresh projects when window regains focus (user navigated back from profile)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isFaculty && document.visibilityState === 'visible') {
+        fetchActiveProjects();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [isFaculty]);
 
   const fetchRechargeRequests = async () => {
     try {
@@ -136,6 +200,24 @@ const Wallet = () => {
       console.error("Failed to fetch recharge requests:", error);
     } finally {
       setLoadingRechargeRequests(false);
+    }
+  };
+
+  const fetchActiveProjects = async () => {
+    try {
+      setLoadingProjects(true);
+      const response = await apiClient.getProjects();
+      if (response.data) {
+        // Filter only active projects
+        const activeProjects = (response.data.projects || []).filter(
+          (project: any) => project.is_active && !project.is_expired
+        );
+        setProjects(activeProjects);
+      }
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+    } finally {
+      setLoadingProjects(false);
     }
   };
 
@@ -296,45 +378,61 @@ const Wallet = () => {
     setLoading(false);
   };
 
-  const fetchFacultyProfile = useCallback(async (email: string) => {
-    setLoadingFacultyProfile(true);
-    setFacultyProfileError(null);
-    try {
-      const response = await apiClient.getFacultyByEmail(email);
-      if (response.error) {
-        setFacultyProfileError(response.error);
-        setFacultyProfile(null);
-      } else if (response.data) {
-        setFacultyProfile({
-          name: response.data.faculty?.name,
-          email: response.data.faculty?.email,
-          phone: response.data.faculty?.phone,
-          profile_picture: response.data.faculty?.profile_picture,
-          has_wallet: response.data.has_wallet,
-        });
-        setFacultyProfileError(null);
-      }
-    } catch (error: any) {
-      setFacultyProfileError(error.message || "Failed to fetch faculty profile");
-      setFacultyProfile(null);
-    } finally {
-      setLoadingFacultyProfile(false);
-    }
-  }, []);
 
-  // Debounced function to fetch faculty profile
+  // Debounced function to search faculty by name
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (facultyEmail.trim() && facultyEmail.includes('@')) {
-        fetchFacultyProfile(facultyEmail.trim());
+      if (facultySearchQuery.trim().length >= 2) {
+        searchFacultyByName(facultySearchQuery.trim());
       } else {
-        setFacultyProfile(null);
-        setFacultyProfileError(null);
+        setFacultySearchResults([]);
+        setIsSearchingFaculty(false);
       }
-    }, 500); // 500ms debounce
+    }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [facultyEmail, fetchFacultyProfile]);
+  }, [facultySearchQuery]);
+
+  const searchFacultyByName = async (query: string) => {
+    try {
+      setIsSearchingFaculty(true);
+      const response = await apiClient.searchFacultyByName(query, 10);
+      if (response.error) {
+        setFacultySearchResults([]);
+      } else if (response.data) {
+        setFacultySearchResults(response.data.results || []);
+      }
+    } catch (error: any) {
+      console.error("Error searching faculty:", error);
+      setFacultySearchResults([]);
+    } finally {
+      setIsSearchingFaculty(false);
+    }
+  };
+
+  const handleFacultySelect = (faculty: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string | null;
+    profile_picture?: string | null;
+    has_wallet: boolean;
+    department?: string | null;
+    emp_id?: string | null;
+  }) => {
+    setFacultyEmail(faculty.email);
+    setFacultyName(faculty.name);
+    setFacultySearchQuery(faculty.name);
+    setFacultyProfile({
+      name: faculty.name,
+      email: faculty.email,
+      phone: faculty.phone,
+      profile_picture: faculty.profile_picture,
+      has_wallet: faculty.has_wallet,
+    });
+    setFacultyProfileError(null);
+    setFacultySearchResults([]);
+  };
 
   const fetchJoinRequests = async () => {
     try {
@@ -366,14 +464,12 @@ const Wallet = () => {
 
   const handleRequestWalletAccess = async () => {
     if (!facultyEmail.trim()) {
-      toast.error("Please enter a faculty email address");
+      toast.error("Please select a faculty member");
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(facultyEmail)) {
-      toast.error("Please enter a valid email address");
+    if (!facultyProfile) {
+      toast.error("Please select a faculty member");
       return;
     }
 
@@ -388,9 +484,12 @@ const Wallet = () => {
 
       toast.success(response.data?.message || "Wallet join request sent successfully!");
       setFacultyEmail("");
+      setFacultyName("");
+      setFacultySearchQuery("");
       setRequestMessage("");
       setFacultyProfile(null);
       setFacultyProfileError(null);
+      setFacultySearchResults([]);
       // Refresh the requests list
       await fetchJoinRequests();
     } catch (error: any) {
@@ -758,12 +857,16 @@ const Wallet = () => {
       toast.error("Please enter a valid amount (minimum ₹0.01)");
       return;
     }
+    if (isFaculty && !selectedProjectId) {
+      toast.error("Please select a project. Add projects from your profile if none are available.");
+      return;
+    }
     try {
       setSendingOtp(true);
       const response = await apiClient.sendUserOtpForRecharge(
         amount,
         rechargeDepartmentId,
-        projectDetails.trim() || undefined
+        isFaculty ? selectedProjectId : null
       );
 
       if (response.error) {
@@ -811,7 +914,7 @@ const Wallet = () => {
       );
       setShowRechargeDialog(false);
       setRechargeAmount("");
-      setProjectDetails("");
+      setSelectedProjectId(null);
       setRechargeType("razorpay");
       setOtpStep("form");
       setUserOtp("");
@@ -851,32 +954,108 @@ const Wallet = () => {
               <CardTitle>Request to Join Wallet</CardTitle>
               <CardDescription>
                 {isOtherUser 
-                  ? "As an 'Other' type user, you can either use your own wallet or join a faculty wallet. Enter the faculty member's email address below to send a request to join their wallet."
-                  : "As a student, you need to request a faculty member to add you to their wallet. Enter the faculty member's email address below to send a request."
+                  ? "As an 'Other' type user, you can either use your own wallet or join a faculty wallet. Search for a faculty member by name below to send a request to join their wallet."
+                  : "As a student, you need to request a faculty member to add you to their wallet. Search for a faculty member by name below to send a request."
                 }
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="faculty-email">Faculty Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="faculty-email"
-                    type="email"
-                    placeholder="faculty@iicbooking.iitr.ac.in"
-                    value={facultyEmail}
-                    onChange={(e) => setFacultyEmail(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-                {loadingFacultyProfile && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-2 mt-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    Searching for faculty...
-                  </p>
-                )}
+                <Label htmlFor="faculty-search">Search Faculty by Name</Label>
+                <Popover open={facultySearchResults.length > 0 && facultySearchQuery.length >= 2}>
+                  <PopoverTrigger asChild>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="faculty-search"
+                        type="text"
+                        placeholder="Type faculty name to search..."
+                        value={facultySearchQuery}
+                        onChange={(e) => {
+                          setFacultySearchQuery(e.target.value);
+                          if (e.target.value.trim().length < 2) {
+                            setFacultyProfile(null);
+                            setFacultyEmail("");
+                            setFacultyName("");
+                          }
+                        }}
+                        className="pl-10"
+                        required
+                      />
+                      {isSearchingFaculty && (
+                        <div className="absolute right-3 top-3">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        </div>
+                      )}
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <style>{`
+                      [cmdk-item][data-selected="true"] p,
+                      [cmdk-item][data-selected="true"] span,
+                      [cmdk-item][data-selected="true"] svg {
+                        color: white !important;
+                      }
+                      [cmdk-item][data-selected="true"] span.bg-muted {
+                        background-color: rgba(255, 255, 255, 0.2) !important;
+                      }
+                    `}</style>
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>
+                          {facultySearchQuery.length < 2 
+                            ? "Type at least 2 characters to search" 
+                            : isSearchingFaculty 
+                              ? "Searching..." 
+                              : "No faculty members found"}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {facultySearchResults.map((faculty) => (
+                            <CommandItem
+                              key={faculty.id}
+                              value={faculty.name}
+                              onSelect={() => handleFacultySelect(faculty)}
+                              className="cursor-pointer data-[selected='true']:text-white data-[selected=true]:text-white [&[data-selected='true']_p]:!text-white [&[data-selected='true']_span]:!text-white/90 [&[data-selected='true']_svg]:!text-white"
+                            >
+                              <div className="flex items-center gap-3 w-full py-1">
+                                {faculty.profile_picture ? (
+                                  <img
+                                    src={faculty.profile_picture}
+                                    alt={faculty.name}
+                                    className="h-8 w-8 rounded-full object-cover flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 [&[data-selected='true']_&]:bg-white/20">
+                                    <User className="h-4 w-4 text-foreground/70" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0 space-y-0.5">
+                                  <p className="text-sm font-medium truncate text-foreground">{faculty.name}</p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-xs truncate text-foreground/80">{faculty.email}</p>
+                                    {faculty.emp_id && (
+                                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-foreground/70">
+                                        {faculty.emp_id}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {faculty.department && (
+                                    <p className="text-xs truncate text-foreground/70">{faculty.department}</p>
+                                  )}
+                                </div>
+                                {faculty.has_wallet ? (
+                                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+                                )}
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {facultyProfileError && (
                   <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg mt-2">
                     <p className="text-sm text-red-600 dark:text-red-400">{facultyProfileError}</p>
@@ -884,7 +1063,7 @@ const Wallet = () => {
                 )}
                 {facultyProfile && !facultyProfileError && (
                   <div className="p-4 bg-muted border rounded-lg space-y-3 mt-2">
-                    <p className="text-sm font-medium">Faculty Profile:</p>
+                    <p className="text-sm font-medium">Selected Faculty:</p>
                     <UserProfile
                       name={facultyProfile.name}
                       email={facultyProfile.email}
@@ -1092,7 +1271,7 @@ const Wallet = () => {
                           setShowRechargeDialog(false);
                           setRechargeAmount("");
                           setRechargeDepartmentId(null);
-                          setProjectDetails("");
+                          setSelectedProjectId(null);
                           setRechargeType("razorpay");
                           setOtpStep("form");
                           setUserOtp("");
@@ -1139,7 +1318,7 @@ const Wallet = () => {
                         disabled={recharging || requestingRecharge}
                       >
                         <FileText className="h-4 w-4 mr-2" />
-                        Request Recharge
+                        Offline Request
                       </Button>
                     </div>
 
@@ -1223,20 +1402,60 @@ const Wallet = () => {
 
                     {rechargeType === "request" && otpStep === "form" && (
                       <>
-                        <div className="space-y-2">
-                          <Label htmlFor="project-details">Project Details (Optional)</Label>
-                          <Textarea
-                            id="project-details"
-                            placeholder="Enter project details or reason for recharge request..."
-                            value={projectDetails}
-                            onChange={(e) => setProjectDetails(e.target.value)}
-                            rows={3}
-                            disabled={sendingOtp}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Provide project details or reason for the recharge request. This will be sent to the accounts team for approval.
-                          </p>
-                        </div>
+                        {isFaculty && (
+                          <div className="space-y-2">
+                            <Label htmlFor="project-select">Project *</Label>
+                            {loadingProjects ? (
+                              <div className="text-sm text-muted-foreground">Loading projects...</div>
+                            ) : projects.length === 0 ? (
+                              <div className="p-4 border border-yellow-200 dark:border-yellow-800 rounded-lg bg-yellow-50 dark:bg-yellow-950/30">
+                                <p className="text-sm text-yellow-800 dark:text-yellow-400 mb-3">
+                                  No active projects found. You need to add at least one active project to create a recharge request.
+                                </p>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Store that we're navigating from wallet recharge
+                                    sessionStorage.setItem('returnToWalletRecharge', 'true');
+                                    setShowRechargeDialog(false);
+                                    navigate("/profile");
+                                  }}
+                                  className="w-full"
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Go to Profile to Add Projects
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <Select
+                                  value={selectedProjectId ? String(selectedProjectId) : undefined}
+                                  onValueChange={(value) => {
+                                    setSelectedProjectId(parseInt(value));
+                                  }}
+                                  disabled={sendingOtp || loadingProjects}
+                                  required
+                                >
+                                  <SelectTrigger id="project-select" className={!selectedProjectId ? "border-destructive" : ""}>
+                                    <SelectValue placeholder="Select a project *" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {projects.map((project) => (
+                                      <SelectItem key={project.id} value={String(project.id)}>
+                                        {project.name} ({project.project_code})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  Select an active project associated with this recharge request. Required for all recharge requests.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        )}
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                           <p className="text-sm text-blue-700 dark:text-blue-400">
                             ℹ️ An OTP will be sent to your email for verification before submitting the request.
@@ -1244,7 +1463,13 @@ const Wallet = () => {
                         </div>
                         <Button
                           onClick={handleSendOtp}
-                          disabled={sendingOtp || !rechargeDepartmentId || !rechargeAmount || parseFloat(rechargeAmount) < 0.01}
+                          disabled={
+                            sendingOtp || 
+                            !rechargeDepartmentId || 
+                            !rechargeAmount || 
+                            parseFloat(rechargeAmount) < 0.01 ||
+                            (isFaculty && (!selectedProjectId || projects.length === 0))
+                          }
                           className="w-full"
                           size="lg"
                         >
@@ -1716,9 +1941,9 @@ const Wallet = () => {
                             )}
                             <span className="font-semibold">₹{Number(req.amount).toFixed(2)}</span>
                           </div>
-                          {req.project_details && (
+                          {req.project_name && (
                             <p className="text-sm text-muted-foreground mt-1">
-                              Project: {req.project_details}
+                              Project: {req.project_name} {req.project_code && `(${req.project_code})`}
                             </p>
                           )}
                           {req.response_message && (

@@ -50,14 +50,19 @@ const EquipmentGrid = () => {
   const fetchEquipment = async (search?: string) => {
     try {
       setLoading(true);
-      const response = await apiClient.getEquipments(search, 'ACTIVE');
+      // Fetch all equipment without status filter
+      const response = await apiClient.getEquipments(search);
 
       if (response.error) {
         throw new Error(response.error);
       }
 
       if (response.data?.equipments && Array.isArray(response.data.equipments)) {
-        setEquipment(response.data.equipments);
+        // Filter out disposed equipment
+        const filteredEquipment = response.data.equipments.filter(
+          (eq: ApiEquipment) => eq.status_display !== "Disposed"
+        );
+        setEquipment(filteredEquipment);
       } else {
         setEquipment([]);
       }
@@ -110,6 +115,8 @@ const EquipmentGrid = () => {
       image: eq.image_url || "/placeholder.svg",
       video: eq.video_url || undefined, // Use video_url if available, otherwise undefined
       available: eq.status === "ACTIVE",
+      status: eq.status,
+      statusDisplay: eq.status_display,
       address: eq.location || "Institute Instrumentation Centre, IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",

@@ -224,7 +224,7 @@ const DashboardHeader = () => {
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/")}
         >
           <img 
             src="/IITR_Logo.svg" 

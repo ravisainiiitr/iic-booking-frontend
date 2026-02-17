@@ -52,6 +52,7 @@ interface EquipmentDetail {
   location: string;
   image_url: string;
   slot_duration_minutes?: number;
+  split_booking_enabled?: boolean;
   daily_slots?: DailySlot[];
   weekly_holidays?: Record<string, string>;
   input_fields?: Array<any>;
@@ -94,6 +95,7 @@ const BookEquipment = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
+  const [autoSlotSelection, setAutoSlotSelection] = useState<boolean>(true);
   const lastCalculatedValuesRef = useRef<string>('');
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fetchingSlotsRef = useRef<boolean>(false);
@@ -106,6 +108,8 @@ const BookEquipment = () => {
         const user = JSON.parse(storedUser);
         setUserId(String(user.id));
         setUserType(user.user_type || null);
+        // Initialize auto slot selection from user preference, default to true if not set
+        setAutoSlotSelection(user.auto_slot_selection !== undefined ? user.auto_slot_selection : true);
         
         // Set initial week based on user type
         const now = new Date();
@@ -563,6 +567,197 @@ const BookEquipment = () => {
     fetchSlotsForWeek();
   }, [showSlots, chargeCalculated, selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, fetchSlotsForWeek, userType]);
 
+  // Auto-select slots when charge is calculated and auto slot selection is enabled
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. Charge is calculated
+    // 2. Slots are shown
+    // 3. Auto slot selection is enabled (from toggle on page)
+    // 4. No slots are currently selected
+    // 5. Equipment detail and daily slots are loaded (and not empty)
+    // 6. Not currently loading slots
+    if (!chargeCalculated || !showSlots || !autoSlotSelection || selectedSlots.length > 0 || 
+        !equipmentDetail || !equipmentDetail.daily_slots || equipmentDetail.daily_slots.length === 0 || 
+        loadingSlots || !calculatedCharge) {
+      return;
+    }
+    
+
+    const requiredMinutes = calculatedCharge.total_time_minutes;
+    const slotDuration = equipmentDetail.slot_duration_minutes || 60;
+    const oneSlot = slotDuration;
+    const tenPercentSlot = 0.1 * oneSlot;
+
+    // If required time <= one slot, select only one slot
+    if (requiredMinutes <= oneSlot) {
+      // Find the first available slot
+      const availableSlot = equipmentDetail.daily_slots.find(slot => {
+        if (slot.status !== "AVAILABLE") return false;
+        const slotDate = startOfDay(parseISO(slot.date));
+        const slotTime = format(parseISO(slot.start_datetime), "HH:mm");
+        const slotDateTime = new Date(slotDate);
+        const [hours, minutes] = slotTime.split(':').map(Number);
+        slotDateTime.setHours(hours, minutes || 0, 0, 0);
+        return slotDateTime >= new Date() && !isSlotBooked(slotDate, slotTime);
+      });
+
+      if (availableSlot) {
+        const slotDate = startOfDay(parseISO(availableSlot.date));
+        const slotTime = format(parseISO(availableSlot.start_datetime), "HH:mm");
+        const slot: TimeSlot = {
+          date: slotDate,
+          time: slotTime,
+          isBooked: false,
+          slotId: availableSlot.id,
+          slotData: availableSlot,
+        };
+        setSelectedSlots([slot]);
+      }
+      return;
+    }
+
+    // For required time > one slot, find consecutive slots
+    // Calculate minimum number of slots needed to cover required time
+    const minSlotsNeeded = Math.ceil(requiredMinutes / oneSlot);
+    const minTimeNeeded = minSlotsNeeded * oneSlot;
+    
+    // Find an available slot that has enough consecutive slots following it
+    // We need to find a starting slot that can form a chain of at least minSlotsNeeded consecutive slots
+    let bestStartingSlot: TimeSlot | null = null;
+    let bestSlotChain: TimeSlot[] = [];
+    let bestTotalMinutes = 0;
+    
+    // Try each available slot as a potential starting point
+    for (const slot of equipmentDetail.daily_slots) {
+      if (slot.status !== "AVAILABLE") continue;
+      const slotDate = startOfDay(parseISO(slot.date));
+      const slotTime = format(parseISO(slot.start_datetime), "HH:mm");
+      const slotDateTime = new Date(slotDate);
+      const [hours, minutes] = slotTime.split(':').map(Number);
+      slotDateTime.setHours(hours, minutes || 0, 0, 0);
+      
+      if (slotDateTime < new Date() || isSlotBooked(slotDate, slotTime)) continue;
+      
+      // Try building consecutive slots from this starting slot
+      const testSlot: TimeSlot = {
+        date: slotDate,
+        time: slotTime,
+        isBooked: false,
+        slotId: slot.id,
+        slotData: slot,
+      };
+      
+      const chain: TimeSlot[] = [testSlot];
+      let currentSlot = testSlot;
+      let chainTotalMinutes = getSlotDurationMinutes(currentSlot);
+      
+      // Build consecutive chain from this slot
+      // Continue until we can't find more consecutive slots OR we've covered the required time
+      while (true) {
+        // If we've covered the required time, we can stop
+        if (chainTotalMinutes >= requiredMinutes - tenPercentSlot && chain.length >= minSlotsNeeded) {
+          break;
+        }
+        
+        const nextSlot = findNextConsecutiveSlot([currentSlot]);
+        if (!nextSlot) {
+          break; // No more consecutive slots
+        }
+        chain.push(nextSlot);
+        chainTotalMinutes += getSlotDurationMinutes(nextSlot);
+        currentSlot = nextSlot;
+      }
+      
+      // Check if this chain is better than what we have
+      const hasEnough = chain.length >= minSlotsNeeded || chainTotalMinutes >= requiredMinutes - tenPercentSlot;
+      
+      // Keep the best chain (prefer chains that have enough, but also keep the longest chain even if it doesn't have enough)
+      if (hasEnough) {
+        // This chain has enough slots - use it if it's better than what we have
+        if (!bestStartingSlot || chain.length > bestSlotChain.length || 
+            (chain.length === bestSlotChain.length && chainTotalMinutes > bestTotalMinutes)) {
+          bestStartingSlot = testSlot;
+          bestSlotChain = chain;
+          bestTotalMinutes = chainTotalMinutes;
+          // If we found a perfect match, use it immediately
+          if (chain.length >= minSlotsNeeded && chainTotalMinutes >= requiredMinutes - tenPercentSlot) {
+            break;
+          }
+        }
+      } else {
+        // This chain doesn't have enough, but keep it if it's the longest we've found so far
+        if (!bestStartingSlot || chain.length > bestSlotChain.length) {
+          bestStartingSlot = testSlot;
+          bestSlotChain = chain;
+          bestTotalMinutes = chainTotalMinutes;
+        }
+      }
+    }
+
+    if (!bestStartingSlot || bestSlotChain.length === 0) {
+      
+      // If split booking is enabled, try random slots
+      if (equipmentDetail.split_booking_enabled) {
+        const randomSlots = findRandomAvailableSlots(requiredMinutes, []);
+        if (randomSlots.length > 0) {
+          setSelectedSlots(randomSlots);
+          return;
+        }
+      }
+      
+      // No slots found - show message to user
+      toast.warning(
+        `Unable to auto-select slots. Required time is ${requiredMinutes} minutes (${Math.ceil(requiredMinutes / oneSlot)} slots), but no consecutive slots are available. ` +
+        `Please reduce the number of samples/inputs.`
+      );
+      return;
+    }
+
+    const autoSelectedSlots = bestSlotChain;
+    const totalMinutes = bestTotalMinutes;
+
+    // Check if we have enough consecutive slots
+    // We have enough if:
+    // 1. We have at least minSlotsNeeded slots (which should cover required time), OR
+    // 2. Total minutes covers required time (within 10% variance)
+    const hasEnoughConsecutiveSlots = autoSelectedSlots.length >= minSlotsNeeded || 
+                                      totalMinutes >= requiredMinutes - tenPercentSlot;
+
+    if (hasEnoughConsecutiveSlots && autoSelectedSlots.length > 0) {
+      // We found enough consecutive slots, use them
+      setSelectedSlots(autoSelectedSlots);
+    } else if (equipmentDetail.split_booking_enabled) {
+      // Consecutive slots not available, but split booking is enabled
+      // Try to find random available slots
+      const randomSlots = findRandomAvailableSlots(requiredMinutes, []);
+      if (randomSlots.length > 0) {
+        // Use random slots if found
+        setSelectedSlots(randomSlots);
+      } else {
+        // No random slots available either
+        toast.warning(
+          `Unable to auto-select slots. Required time is ${requiredMinutes} minutes (${Math.ceil(requiredMinutes / oneSlot)} slots), but no available slots found. ` +
+          `Please reduce the number of samples/inputs.`
+        );
+      }
+    } else {
+      // Consecutive slots not available and split booking is disabled
+      // Only consecutive slots are allowed, so don't auto-select anything
+      // Show message to user suggesting to reduce inputs
+      const foundSlots = autoSelectedSlots.length;
+      const foundMinutes = totalMinutes;
+      const slotsShort = minSlotsNeeded - foundSlots;
+      const minutesShort = requiredMinutes - foundMinutes;
+      
+      toast.warning(
+        `Unable to auto-select enough consecutive slots. ` +
+        `Required: ${requiredMinutes} minutes (${minSlotsNeeded} slots), ` +
+        `Found: ${foundMinutes} minutes (${foundSlots} slots). ` +
+        `Please reduce the number of samples/inputs to reduce the required time.`
+      );
+    }
+  }, [chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots]);
+
   const checkAuth = async () => {
     const token = apiClient.getToken();
     if (!token) {
@@ -578,6 +773,8 @@ const BookEquipment = () => {
 
     setUserId(String(userResponse.data.id));
     setUserType(userResponse.data.user_type || null);
+    // Initialize auto slot selection from user preference, default to true if not set
+    setAutoSlotSelection(userResponse.data.auto_slot_selection !== undefined ? userResponse.data.auto_slot_selection : true);
     
     // Set initial week based on user type
     const now = new Date();
@@ -687,6 +884,7 @@ const BookEquipment = () => {
   // a) Required <= one slot → exactly one slot allowed.
   // b) Required > one slot → multiple slots until required covered.
   // c) Remaining time < 10% of one slot → allow booking (partial tail).
+  // d) If remaining time > 10% of one slot, allow minimum slots needed even if exceeds by more than 10%.
   const isSelectionValidForBooking = (): boolean => {
     if (!calculatedCharge || selectedSlots.length === 0) return false;
     const required = calculatedCharge.total_time_minutes;
@@ -696,7 +894,19 @@ const BookEquipment = () => {
     if (required <= oneSlot) {
       return selectedSlots.length === 1;
     }
-    return selected >= required - tenPercentSlot && selected <= required + tenPercentSlot;
+    // Check if selection is within 10% variance (ideal case)
+    if (selected >= required - tenPercentSlot && selected <= required + tenPercentSlot) {
+      return true;
+    }
+    // If selection exceeds by more than 10%, check if it's the minimum needed to cover required time
+    // Calculate minimum number of slots needed to cover required time
+    const minSlotsNeeded = Math.ceil(required / oneSlot);
+    const minTimeNeeded = minSlotsNeeded * oneSlot;
+    // Allow if selected time is the minimum needed to cover required time
+    if (selected >= minTimeNeeded && selectedSlots.length === minSlotsNeeded) {
+      return true;
+    }
+    return false;
   };
 
   // Check if a slot is consecutive to selected slots
@@ -739,6 +949,199 @@ const BookEquipment = () => {
     return isBeforeFirst || isAfterLast;
   };
 
+  // Find the next consecutive slot after the last selected slot
+  const findNextConsecutiveSlot = (selectedSlots: TimeSlot[]): TimeSlot | null => {
+    if (selectedSlots.length === 0 || !equipmentDetail?.daily_slots) return null;
+    
+    // Sort selected slots by start time
+    const sortedSlots = [...selectedSlots].sort((a, b) => {
+      if (!a.slotData?.start_datetime || !b.slotData?.start_datetime) return 0;
+      return parseISO(a.slotData.start_datetime).getTime() - parseISO(b.slotData.start_datetime).getTime();
+    });
+    
+    const lastSlot = sortedSlots[sortedSlots.length - 1];
+    if (!lastSlot.slotData?.end_datetime) return null;
+    
+    const lastSlotEnd = parseISO(lastSlot.slotData.end_datetime);
+    
+    // Find the slot that starts exactly when the last slot ends
+    const nextSlotData = equipmentDetail.daily_slots.find(slot => {
+      if (slot.status !== "AVAILABLE") return false;
+      
+      const slotStart = parseISO(slot.start_datetime);
+      const timeDiff = Math.abs(slotStart.getTime() - lastSlotEnd.getTime());
+      
+      // Allow a small tolerance (1 second) for time matching to handle potential rounding issues
+      if (timeDiff > 1000) return false;
+      
+      // Also check if slot is not booked
+      const slotDate = startOfDay(parseISO(slot.date));
+      const slotTime = format(slotStart, "HH:mm");
+      return !isSlotBooked(slotDate, slotTime);
+    });
+    
+    if (!nextSlotData) return null;
+    
+    // Convert to TimeSlot format
+    const slotDate = startOfDay(parseISO(nextSlotData.date));
+    const slotTime = format(parseISO(nextSlotData.start_datetime), "HH:mm");
+    
+    return {
+      date: slotDate,
+      time: slotTime,
+      isBooked: false,
+      slotId: nextSlotData.id,
+      slotData: nextSlotData,
+    };
+  };
+
+  // Find all required consecutive slots starting from a given slot
+  // If consecutive slots aren't available and split booking is enabled, find random slots
+  const findAllRequiredConsecutiveSlots = (firstSlot: TimeSlot, requiredMinutes: number): TimeSlot[] => {
+    if (!equipmentDetail?.daily_slots || !calculatedCharge) return [firstSlot];
+    
+    const slotDuration = getSlotDurationMinutes(firstSlot);
+    const oneSlot = slotDuration;
+    const tenPercentSlot = 0.1 * oneSlot;
+    
+    // If required time <= one slot, return only the first slot
+    if (requiredMinutes <= oneSlot) {
+      return [firstSlot];
+    }
+    
+    // Calculate minimum number of slots needed
+    const minSlotsNeeded = Math.ceil(requiredMinutes / oneSlot);
+    
+    // Build consecutive slots starting from the first slot
+    const allSlots: TimeSlot[] = [firstSlot];
+    let currentSlot = firstSlot;
+    let totalMinutes = getSlotDurationMinutes(currentSlot);
+    
+    // Continue selecting consecutive slots until we've covered the minimum required time
+    while (allSlots.length < minSlotsNeeded) {
+      const nextSlot = findNextConsecutiveSlot([currentSlot]);
+      if (!nextSlot || isSlotBooked(nextSlot.date, nextSlot.time)) {
+        // No more consecutive slots available
+        break;
+      }
+      allSlots.push(nextSlot);
+      totalMinutes += getSlotDurationMinutes(nextSlot);
+      currentSlot = nextSlot;
+      
+      // If we've covered the required time (within 10% variance), we can stop
+      if (totalMinutes >= requiredMinutes - tenPercentSlot) {
+        break;
+      }
+    }
+    
+    // Check if we have enough consecutive slots
+    const hasEnoughConsecutiveSlots = allSlots.length >= minSlotsNeeded && 
+                                      totalMinutes >= requiredMinutes - tenPercentSlot;
+    
+    if (hasEnoughConsecutiveSlots) {
+      // We found enough consecutive slots, return them
+      return allSlots;
+    } else if (equipmentDetail.split_booking_enabled) {
+      // Consecutive slots not available, but split booking is enabled
+      // Try to find random available slots (including the first slot)
+      const randomSlots = findRandomAvailableSlots(requiredMinutes, []);
+      if (randomSlots.length > 0) {
+        // Use random slots if found
+        return randomSlots;
+      }
+      // If random slots also not available, return what we have (partial consecutive slots)
+      return allSlots;
+    } else {
+      // Consecutive slots not available and split booking is disabled
+      // Only consecutive slots are allowed, return what we have (partial consecutive slots)
+      // User will need to manually adjust if not enough
+      return allSlots;
+    }
+  };
+
+  // Check if continuous slots are available for the required time starting from a given slot
+  const checkContinuousSlotsAvailable = (startSlot: TimeSlot, requiredMinutes: number): boolean => {
+    if (!equipmentDetail?.daily_slots || !startSlot.slotData) return false;
+    
+    let currentSlot = startSlot;
+    let totalMinutes = getSlotDurationMinutes(currentSlot);
+    
+    while (totalMinutes < requiredMinutes) {
+      const nextSlot = findNextConsecutiveSlot([currentSlot]);
+      if (!nextSlot || isSlotBooked(nextSlot.date, nextSlot.time)) {
+        return false; // No more consecutive slots available
+      }
+      totalMinutes += getSlotDurationMinutes(nextSlot);
+      currentSlot = nextSlot;
+    }
+    
+    return true; // Continuous slots are available
+  };
+
+  // Find random available slots (non-consecutive) when consecutive slots aren't available
+  const findRandomAvailableSlots = (requiredMinutes: number, excludeSlots: TimeSlot[] = []): TimeSlot[] => {
+    if (!equipmentDetail?.daily_slots) return [];
+    
+    const slotDuration = equipmentDetail.slot_duration_minutes || 60;
+    const oneSlot = slotDuration;
+    const minSlotsNeeded = Math.ceil(requiredMinutes / oneSlot);
+    const tenPercentSlot = 0.1 * oneSlot;
+    
+    // Get all available slots, excluding already selected ones
+    const availableSlots: TimeSlot[] = [];
+    const excludeSlotIds = new Set(excludeSlots.map(s => s.slotId));
+    
+    equipmentDetail.daily_slots.forEach(slot => {
+      if (slot.status !== "AVAILABLE") return;
+      if (excludeSlotIds.has(slot.id)) return;
+      
+      const slotDate = startOfDay(parseISO(slot.date));
+      const slotTime = format(parseISO(slot.start_datetime), "HH:mm");
+      const slotDateTime = new Date(slotDate);
+      const [hours, minutes] = slotTime.split(':').map(Number);
+      slotDateTime.setHours(hours, minutes || 0, 0, 0);
+      
+      if (slotDateTime >= new Date() && !isSlotBooked(slotDate, slotTime)) {
+        availableSlots.push({
+          date: slotDate,
+          time: slotTime,
+          isBooked: false,
+          slotId: slot.id,
+          slotData: slot,
+        });
+      }
+    });
+    
+    // Sort by datetime to get a consistent order
+    availableSlots.sort((a, b) => {
+      if (!a.slotData?.start_datetime || !b.slotData?.start_datetime) return 0;
+      return parseISO(a.slotData.start_datetime).getTime() - parseISO(b.slotData.start_datetime).getTime();
+    });
+    
+    // Select slots until we have enough to cover required time
+    const selectedSlots: TimeSlot[] = [];
+    let totalMinutes = 0;
+    
+    for (const slot of availableSlots) {
+      if (selectedSlots.length >= minSlotsNeeded) break;
+      
+      selectedSlots.push(slot);
+      totalMinutes += getSlotDurationMinutes(slot);
+      
+      // If we've covered the required time (within 10% variance), we can stop
+      if (totalMinutes >= requiredMinutes - tenPercentSlot) {
+        break;
+      }
+    }
+    
+    // Only return if we have enough slots to cover the required time
+    if (selectedSlots.length > 0 && totalMinutes >= requiredMinutes - tenPercentSlot) {
+      return selectedSlots;
+    }
+    
+    return [];
+  };
+
   const toggleSlot = (date: Date, time: string) => {
     if (isSlotBooked(date, time)) return;
 
@@ -766,8 +1169,28 @@ const BookEquipment = () => {
       } else {
         // Check if slot is consecutive to already selected slots
         if (prev.length > 0 && !isConsecutiveSlot(slot, prev)) {
-          toast.error("Please select consecutive slots only. You can select slots that are immediately before or after your current selection.");
-          return prev; // Return previous state without changes
+          // If split booking is NOT enabled, strictly enforce consecutive-only selection
+          if (!equipmentDetail?.split_booking_enabled) {
+            toast.error("Please select consecutive slots only. You can select slots that are immediately before or after your current selection.");
+            return prev; // Return previous state without changes
+          }
+          
+          // Split booking is enabled - allow non-consecutive slots only if continuous slots aren't available
+          if (equipmentDetail?.split_booking_enabled && calculatedCharge) {
+            const required = calculatedCharge.total_time_minutes;
+            const currentSelectedMinutes = prev.reduce((total, s) => total + getSlotDurationMinutes(s), 0);
+            const remaining = required - currentSelectedMinutes;
+            
+            // Check if continuous slots are available from the last selected slot
+            const lastSlot = prev[prev.length - 1];
+            const continuousAvailable = checkContinuousSlotsAvailable(lastSlot, remaining);
+            
+            if (continuousAvailable) {
+              toast.error("Please select consecutive slots only. Continuous slots are available for your booking.");
+              return prev;
+            }
+            // If continuous slots aren't available, allow non-consecutive selection
+          }
         }
         
         // Slot selection rules: (a) required <= one slot → single slot; (b) required > one slot → multiple until covered; (c) allow tail < 10% of one slot
@@ -785,6 +1208,7 @@ const BookEquipment = () => {
               toast.error(`Only one slot is allowed when required time (${required} min) is within a single slot.`);
               return prev;
             }
+            // For single slot requirement, just return the selected slot
             return [...prev, slot];
           }
 
@@ -793,15 +1217,24 @@ const BookEquipment = () => {
             toast.error(`You have already covered the required time (${required} minutes).`);
             return prev;
           }
-          if (newTotalMinutes > required + tenPercentSlot) {
-            const remaining = Math.max(0, required - currentSelectedMinutes);
+          // Calculate remaining time
+          const remaining = Math.max(0, required - currentSelectedMinutes);
+          // Allow selecting another slot if remaining time exceeds 10% of one slot
+          // If remaining time is within 10% variance, don't allow selecting another slot
+          if (remaining <= tenPercentSlot) {
             toast.error(
-              `Cannot add this slot. Required time is ${required} minutes; only ${remaining} minutes remaining. ` +
-              `You may add a slot that fits within the remaining time (or up to 10% of one slot over).`
+              `Cannot add this slot. Required time is ${required} minutes; only ${remaining} minutes remaining (within 10% variance).`
             );
             return prev;
           }
-
+          
+          // If this is the first slot selection, auto-select ALL required consecutive slots
+          if (prev.length === 0) {
+            const allRequiredSlots = findAllRequiredConsecutiveSlots(slot, required);
+            return allRequiredSlots;
+          }
+          
+          // For subsequent slot selections, just add the selected slot
           return [...prev, slot];
         } else {
           // If charge not calculated, don't allow slot selection
@@ -820,7 +1253,6 @@ const BookEquipment = () => {
   // Get unique time slots from daily_slots
   const getTimeSlotsFromDailySlots = (): string[] => {
     if (!equipmentDetail?.daily_slots || equipmentDetail.daily_slots.length === 0) {
-      console.log("No daily_slots found, using default TIME_SLOTS");
       return []; // Return empty array if no daily_slots
     }
     
@@ -1429,7 +1861,33 @@ const BookEquipment = () => {
                 {showSlots && chargeCalculated && (
                   <>
                     <div className="mb-4">
-                      <h3 className="text-lg font-semibold mb-4">Step 3: Select Time Slots</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">Step 3: Select Time Slots</h3>
+                        <div className="flex items-center gap-3">
+                          <Label htmlFor="auto-slot-selection" className="text-sm font-normal cursor-pointer">
+                            Auto-select all required slots
+                          </Label>
+                          <Switch
+                            id="auto-slot-selection"
+                            checked={autoSlotSelection}
+                            onCheckedChange={(checked) => {
+                              setAutoSlotSelection(checked);
+                              // If enabling auto selection and no slots are selected, trigger auto-selection
+                              if (checked && selectedSlots.length === 0 && calculatedCharge && equipmentDetail?.daily_slots) {
+                                // This will be handled by the useEffect that watches autoSlotSelection
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {autoSlotSelection && (
+                        <p className="text-sm text-muted-foreground mb-2">
+                          When enabled, the system will automatically select all required consecutive slots. 
+                          {equipmentDetail?.split_booking_enabled 
+                            ? " If consecutive slots aren't available, random slots will be selected."
+                            : " Only consecutive slots will be selected (non-consecutive selection is not allowed)."}
+                        </p>
+                      )}
                     </div>
 
                 {/* Show loading while slots are being fetched (avoids grid full of disabled cells) */}
@@ -1594,10 +2052,18 @@ const BookEquipment = () => {
                           const limitReached = calculatedCharge
                             ? (totalMinutes <= oneSlotRef ? selectedSlots.length >= 1 : currentSelectedMinutes >= totalMinutes)
                             : false;
+                          // Calculate remaining time to determine if we should allow another slot
+                          const remainingMinutes = calculatedCharge 
+                            ? Math.max(0, totalMinutes - currentSelectedMinutes)
+                            : 0;
+                          // Allow selecting another slot if remaining time exceeds 10% of one slot
+                          const shouldAllowSlot = calculatedCharge && totalMinutes > oneSlotRef
+                            ? remainingMinutes > tenPercentSlot
+                            : false;
                           const wouldExceedLimit = calculatedCharge && !isSelected && !isBooked && !isPast && slotExists
                             ? (totalMinutes <= oneSlotRef)
                               ? selectedSlots.length >= 1
-                              : (currentSelectedMinutes + thisSlotDuration) > totalMinutes + tenPercentSlot
+                              : !shouldAllowSlot // Disable if remaining time is within 10% variance
                             : false;
                           
                           // Check if slot is consecutive to selected slots
