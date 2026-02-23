@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import BookingEventHistory from "@/components/BookingEventHistory";
+import BookingUserInputs from "@/components/BookingUserInputs";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { CheckCircle2, XCircle, Clock, RotateCcw, Calendar, History } from "lucide-react";
@@ -36,6 +37,7 @@ interface Booking {
   user_email: string;
   user_name: string;
   user_phone?: string | null;
+  user_department?: string | null;
   user_profile_picture?: string | null;
   equipment: number;
   equipment_code: string;
@@ -45,7 +47,14 @@ interface Booking {
   total_time_minutes: number;
   total_hours: number;
   total_charge: string;
-  input_values: Record<string, string | boolean | string[]>;
+  input_values: Record<string, string | boolean | string[] | number>;
+  input_fields?: Array<{
+    field_key: string;
+    field_label: string;
+    field_type: string;
+    editing_required?: boolean;
+    options?: (string | { value?: string; label?: string })[];
+  }>;
   selected_parameters: any;
   charge_breakdown: Array<{
     amount: number;
@@ -89,6 +98,9 @@ const BookingManagement = () => {
   });
   const [actionNotes, setActionNotes] = useState("");
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
+  const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
+  const [completeLoading, setCompleteLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("BOOKED");
   const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
 
@@ -165,28 +177,40 @@ const BookingManagement = () => {
   const openActionDialog = (type: ActionType, booking: Booking) => {
     setActionDialog({ open: true, type, booking });
     setActionNotes("");
+    setCompleteResultFiles([]);
+    setCompleteUploadedFiles([]);
   };
 
   const closeActionDialog = () => {
     setActionDialog({ open: false, type: null, booking: null });
     setActionNotes("");
     setRescheduleLoading(false);
+    setCompleteResultFiles([]);
+    setCompleteUploadedFiles([]);
   };
 
   const handleComplete = async () => {
     if (!actionDialog.booking) return;
 
+    setCompleteLoading(true);
     try {
-      const response = await apiClient.completeBooking(actionDialog.booking.booking_id);
+      const filesToSend = completeResultFiles.length > 0 ? completeResultFiles : undefined;
+      const response = await apiClient.completeBooking(actionDialog.booking.booking_id, filesToSend);
       if (response.error) {
         toast.error(response.error);
         return;
       }
+      const uploaded = (response.data as { uploaded_files?: string[] })?.uploaded_files ?? [];
+      setCompleteUploadedFiles(uploaded);
       toast.success(response.data?.message || "Booking marked as completed");
-      closeActionDialog();
       fetchBookings();
+      if (uploaded.length === 0) {
+        closeActionDialog();
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to complete booking");
+    } finally {
+      setCompleteLoading(false);
     }
   };
 
@@ -346,6 +370,7 @@ const BookingManagement = () => {
                           name={booking.user_name}
                           email={booking.user_email}
                           phone={booking.user_phone}
+                          department={booking.user_department}
                           profilePicture={booking.user_profile_picture}
                           size="sm"
                         />
@@ -431,6 +456,20 @@ const BookingManagement = () => {
                     </div>
                   </div>
 
+                  {/* User Inputs – Step 1 data; fields with Editing Required are editable until Complete */}
+                  {booking.input_values && Object.keys(booking.input_values).length > 0 && (
+                    <BookingUserInputs
+                      inputValues={booking.input_values}
+                      inputFields={booking.input_fields ?? undefined}
+                      status={booking.status}
+                      onUpdate={async (newInputValues) => {
+                        const res = await apiClient.updateBookingInputValues(booking.booking_id, newInputValues as Record<string, string | number | boolean | string[]>);
+                        if (res.error) throw new Error(res.error);
+                        fetchBookings();
+                      }}
+                    />
+                  )}
+
                   {booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
                     <div className="mt-4 pt-4 border-t">
                       <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
@@ -438,10 +477,49 @@ const BookingManagement = () => {
                         {booking.charge_breakdown.map((charge, index) => (
                           <li key={index} className="text-sm text-muted-foreground flex justify-between">
                             <span>{charge.description}</span>
-                            <span>₹{charge.amount.toFixed(2)}</span>
+                            <span>{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
                           </li>
                         ))}
                       </ul>
+                      {(() => {
+                        const totalCharge = Number(booking.total_charge);
+                        const chargeLines = booking.charge_breakdown.filter(
+                          (c) => String(c.description || "").trim().toLowerCase() !== "total"
+                        );
+                        const explicitDiscount = Math.abs(
+                          booking.charge_breakdown
+                            .map((c) => Number(c.amount))
+                            .filter((a) => a < 0)
+                            .reduce((s, a) => s + a, 0)
+                        );
+                        const totalBeforeDiscount = chargeLines
+                          .map((c) => Number(c.amount))
+                          .filter((a) => a > 0)
+                          .reduce((s, a) => s + a, 0);
+                        const inferredDiscount = totalBeforeDiscount > totalCharge ? totalBeforeDiscount - totalCharge : 0;
+                        const discountAmount = explicitDiscount > 0 ? explicitDiscount : inferredDiscount;
+                        const hasDiscount = discountAmount > 0;
+                        return (
+                          <div className="mt-3 pt-3 border-t space-y-1 text-sm">
+                            {hasDiscount && (
+                              <>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Total amount</span>
+                                  <span>₹{totalBeforeDiscount.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Discount</span>
+                                  <span>-₹{discountAmount.toFixed(2)}</span>
+                                </div>
+                              </>
+                            )}
+                            <div className="flex justify-between font-medium">
+                              <span>{hasDiscount ? "Final amount after discount" : "Total"}</span>
+                              <span className="text-primary">₹{totalCharge.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   {booking.notes && (
@@ -495,25 +573,26 @@ const BookingManagement = () => {
                 {actionDialog.type === 'absent' && 'Mark Booking as Absent'}
                 {actionDialog.type === 'reschedule' && 'Reschedule Booking'}
               </DialogTitle>
-              <DialogDescription>
-                {actionDialog.booking && (
-                  <>
+              {actionDialog.booking && (
+                <>
+                  <DialogDescription>
                     Booking #{actionDialog.booking.booking_id} - {actionDialog.booking.equipment_name}
-                    <br />
-                    <div className="mt-2">
-                      <UserProfile
-                        name={actionDialog.booking.user_name}
-                        email={actionDialog.booking.user_email}
-                        phone={actionDialog.booking.user_phone}
-                        profilePicture={actionDialog.booking.user_profile_picture}
-                        size="sm"
-                      />
-                    </div>
-                    <br />
-                    Amount: ₹{Number(actionDialog.booking.total_charge).toFixed(2)}
-                  </>
-                )}
-              </DialogDescription>
+                  </DialogDescription>
+                  <div className="mt-2 space-y-1">
+                    <UserProfile
+                      name={actionDialog.booking.user_name}
+                      email={actionDialog.booking.user_email}
+                      phone={actionDialog.booking.user_phone}
+                      department={actionDialog.booking.user_department}
+                      profilePicture={actionDialog.booking.user_profile_picture}
+                      size="sm"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Amount: ₹{Number(actionDialog.booking.total_charge).toFixed(2)}
+                    </p>
+                  </div>
+                </>
+              )}
             </DialogHeader>
 
             {actionDialog.type === 'reschedule' && actionDialog.booking && (
@@ -537,6 +616,67 @@ const BookingManagement = () => {
               />
             )}
 
+            {actionDialog.type === 'complete' && (
+              <div className="space-y-3">
+                <div>
+                  <Label>Upload results (optional)</Label>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Attach result files to send to the user&apos;s email with the booking complete message.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      id="complete-results-input"
+                      onChange={(e) => {
+                        const chosen = e.target.files;
+                        if (chosen?.length) setCompleteResultFiles((prev) => [...prev, ...Array.from(chosen)]);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('complete-results-input')?.click()}
+                    >
+                      Browse
+                    </Button>
+                    {completeResultFiles.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCompleteResultFiles([])}
+                      >
+                        Clear files
+                      </Button>
+                    )}
+                  </div>
+                  {completeResultFiles.length > 0 && (
+                    <ul className="mt-2 text-sm text-muted-foreground list-disc list-inside">
+                      {completeResultFiles.map((f, i) => (
+                        <li key={`${f.name}-${i}`}>{f.name}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {completeUploadedFiles.length > 0 && (
+                  <div className="rounded-md bg-muted p-3">
+                    <p className="text-sm font-medium mb-1">
+                      {completeUploadedFiles.length} file(s) sent to user email:
+                    </p>
+                    <ul className="text-sm text-muted-foreground list-disc list-inside">
+                      {completeUploadedFiles.map((name, i) => (
+                        <li key={`${name}-${i}`}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             {(actionDialog.type === 'refund' || actionDialog.type === 'absent') && (
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes (Optional)</Label>
@@ -556,16 +696,23 @@ const BookingManagement = () => {
             {actionDialog.type !== 'reschedule' && (
               <DialogFooter>
                 <Button variant="outline" onClick={closeActionDialog}>
-                  Cancel
+                  {actionDialog.type === 'complete' && completeUploadedFiles.length > 0 ? 'Close' : 'Cancel'}
                 </Button>
                 <Button
                   onClick={() => {
-                    if (actionDialog.type === 'complete') handleComplete();
-                    else if (actionDialog.type === 'refund') handleRefund();
+                    if (actionDialog.type === 'complete') {
+                      if (completeUploadedFiles.length > 0) closeActionDialog();
+                      else handleComplete();
+                    } else if (actionDialog.type === 'refund') handleRefund();
                     else if (actionDialog.type === 'absent') handleAbsent();
                   }}
+                  disabled={actionDialog.type === 'complete' && completeLoading}
                 >
-                  Confirm
+                  {actionDialog.type === 'complete' && completeUploadedFiles.length > 0
+                    ? 'Done'
+                    : actionDialog.type === 'complete' && completeLoading
+                      ? 'Completing...'
+                      : 'Confirm'}
                 </Button>
               </DialogFooter>
             )}

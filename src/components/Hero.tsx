@@ -5,22 +5,63 @@ import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carouse
 import { useEffect, useState } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/lib/api";
 import instrument1 from "@/assets/instrument-1.jpeg";
 import instrument2 from "@/assets/instrument-2.jpeg";
 import instrument3 from "@/assets/instrument-3.jpg";
 import instrument4 from "@/assets/instrument-4.jpg";
 
+const DEFAULT_HOME = {
+  hero_title_line1: "Advanced Scientific Equipment",
+  hero_title_line2: "At Your Fingertips",
+  hero_subtitle: "Book state-of-the-art laboratory instruments online. Seamless scheduling for researchers and institutions.",
+  cta_book_text: "Book Equipment",
+  cta_book_route: "/equipments",
+  cta_browse_text: "Browse Catalog",
+  cta_browse_anchor: "#equipment",
+  stat1_value: "50+",
+  stat1_label: "Equipment Types",
+  stat2_value: "24/7",
+  stat2_label: "Online Booking",
+  stat3_value: "1000+",
+  stat3_label: "Active Users",
+};
+
 const Hero = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
-  
-  const instrumentImages = [
-    { src: instrument1, alt: "Advanced scientific instrument - Laboratory equipment" },
-    { src: instrument2, alt: "Rigaku MiniFlex analytical instrument" },
-    { src: instrument3, alt: "Laboratory mass spectrometer system" },
-    { src: instrument4, alt: "High-tech laboratory instrumentation" },
-  ];
+  const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
+
+  const [heroSlides, setHeroSlides] = useState<Array<{ src: string; alt: string }>>([]);
+
+  useEffect(() => {
+    apiClient.getCmsHome().then((res) => {
+      if (res.data && typeof res.data === "object" && Object.keys(res.data).length > 0) {
+        setHome((prev) => ({ ...DEFAULT_HOME, ...prev, ...res.data }));
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    apiClient.getCmsHeroSlides().then((res) => {
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setHeroSlides(
+          res.data.map((s) => ({ src: s.image_url, alt: s.alt_text || "Hero background" }))
+        );
+      }
+    }).catch(() => {});
+  }, []);
+
+  const instrumentImages: Array<{ src: string; alt: string }> =
+    heroSlides.length > 0
+      ? heroSlides
+      : [
+          { src: instrument1, alt: "Advanced scientific instrument - Laboratory equipment" },
+          { src: instrument2, alt: "Rigaku MiniFlex analytical instrument" },
+          { src: instrument3, alt: "Laboratory mass spectrometer system" },
+          { src: instrument4, alt: "High-tech laboratory instrumentation" },
+        ];
   
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
@@ -53,13 +94,13 @@ const Hero = () => {
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="space-y-4 animate-fade-in">
             <h1 className="text-5xl md:text-7xl font-bold text-primary-foreground leading-tight">
-              Advanced Scientific Equipment
+              {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
               <span className="block mt-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
-                At Your Fingertips
+                {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-primary-foreground/90 max-w-2xl mx-auto">
-              Book state-of-the-art laboratory instruments online. Seamless scheduling for researchers and institutions.
+              {home.hero_subtitle || DEFAULT_HOME.hero_subtitle}
             </p>
           </div>
 
@@ -78,39 +119,42 @@ const Hero = () => {
               size="lg" 
               variant="secondary" 
               className="gap-2 text-lg px-8 py-6 h-auto"
-              onClick={() => navigate("/equipments")}
+              onClick={() => navigate(home.cta_book_route || "/equipments")}
             >
               <Calendar className="h-5 w-5" />
-              Book Equipment
+              {home.cta_book_text || "Book Equipment"}
             </Button>
             <Button 
               size="lg" 
               variant="secondary" 
               className="gap-2 text-lg px-8 py-6 h-auto"
               onClick={() => {
-                navigate("/");
-                setTimeout(() => {
-                  document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth" });
-                }, 100);
+                const anchor = home.cta_browse_anchor || "#equipment";
+                if (window.location.pathname === "/") {
+                  document.querySelector(anchor)?.scrollIntoView({ behavior: "smooth" });
+                } else {
+                  navigate("/");
+                  setTimeout(() => document.querySelector(anchor)?.scrollIntoView({ behavior: "smooth" }), 100);
+                }
               }}
             >
               <Search className="h-5 w-5" />
-              Browse Catalog
+              {home.cta_browse_text || "Browse Catalog"}
             </Button>
           </div>
 
           <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto pt-12">
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground">50+</div>
-              <div className="text-primary-foreground/80 text-sm mt-1">Equipment Types</div>
+              <div className="text-4xl font-bold text-primary-foreground">{home.stat1_value ?? "50+"}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1">{home.stat1_label ?? "Equipment Types"}</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground">24/7</div>
-              <div className="text-primary-foreground/80 text-sm mt-1">Online Booking</div>
+              <div className="text-4xl font-bold text-primary-foreground">{home.stat2_value ?? "24/7"}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1">{home.stat2_label ?? "Online Booking"}</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground">1000+</div>
-              <div className="text-primary-foreground/80 text-sm mt-1">Active Users</div>
+              <div className="text-4xl font-bold text-primary-foreground">{home.stat3_value ?? "1000+"}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1">{home.stat3_label ?? "Active Users"}</div>
             </div>
           </div>
         </div>

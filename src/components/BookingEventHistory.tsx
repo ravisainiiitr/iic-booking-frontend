@@ -185,7 +185,7 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {format(new Date(event.created_at), "MMM d, yyyy 'at' h:mm a")}
+                    {format(new Date(event.created_at), "MMM d, yyyy 'at' HH:mm:ss")}
                   </div>
                 </div>
               </CardHeader>
@@ -220,11 +220,25 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                   )}
                 </div>
                 {event.metadata && Object.keys(event.metadata).length > 0 && (
-                  <div className="mt-2 pt-2 border-t text-xs">
-                    {event.metadata.refund_amount && (
+                  <div className="mt-2 pt-2 border-t text-xs space-y-1">
+                    {event.metadata.refund_amount != null && event.metadata.refund_amount !== undefined && (
                       <p className="text-muted-foreground">
                         Refund Amount: ₹{event.metadata.refund_amount}
                       </p>
+                    )}
+                    {event.metadata.uploaded_files_count != null && event.metadata.uploaded_files_count !== undefined && event.metadata.uploaded_files_count > 0 && (
+                      <div className="text-muted-foreground">
+                        <p className="font-medium text-foreground">
+                          {event.metadata.uploaded_files_count} result file(s) sent to user email:
+                        </p>
+                        {Array.isArray(event.metadata.uploaded_files) && event.metadata.uploaded_files.length > 0 && (
+                          <ul className="list-disc list-inside mt-1 ml-1">
+                            {event.metadata.uploaded_files.map((name: string, i: number) => (
+                              <li key={`${name}-${i}`}>{name}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

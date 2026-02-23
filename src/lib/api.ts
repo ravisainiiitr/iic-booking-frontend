@@ -16,6 +16,42 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+/** Base URL for Django Admin (same origin as API, path /admin/). Used for admin dashboard links. */
+export const getAdminBaseUrl = (): string => {
+  const base = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
+    ? (window as any).__RUNTIME_CONFIG__.VITE_API_URL
+    : import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+  const origin = base.replace(/\/api\/?$/, '');
+  return `${origin}/admin/`;
+};
+
+/** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
+export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
+  // Equipment
+  bookings: 'admin/bookings',
+  dailySlots: 'admin/daily-slots',
+  equipment: 'admin/equipment',
+  equipmentCategories: 'admin/equipment-categories',
+  equipmentGroups: 'admin/equipment-groups',
+  holidays: 'admin/holidays',
+  // Users
+  departments: 'admin/departments',
+  projects: 'admin/projects',
+  subWalletTransactions: 'admin/sub-wallet-transactions',
+  subWallets: 'admin/sub-wallets',
+  userDocuments: 'admin/user-documents',
+  userGroupMembers: 'admin/user-group-members',
+  userGroups: 'admin/user-groups',
+  users: 'admin/users',
+  walletRazorpayOrders: 'admin/wallet-razorpay-orders',
+  walletRechargeRequests: 'admin/wallet-recharge-requests',
+  wallets: 'admin/wallets',
+  // CMS
+  cmsMenu: 'admin/cms-menu',
+  cmsHome: 'admin/cms-home',
+  cmsPages: 'admin/cms-pages',
+};
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -58,6 +94,106 @@ interface User {
 interface AuthResponse {
   token: string;
   user: User;
+}
+
+/** CMS menu item (tree from public API). */
+export interface CmsMenuItem {
+  id: number;
+  label: string;
+  link_type: string;
+  url: string;
+  /** Set when link_type is "document" and a PDF/file is uploaded. */
+  document_url?: string | null;
+  /** Set when link_type is "page" – use for href /page/{page_slug}. */
+  page_slug?: string | null;
+  priority: number;
+  open_in_new_tab: boolean;
+  children: CmsMenuItem[];
+}
+
+/** Block types for CMS page content (WordPress-style blocks). */
+export type CmsPageBlockType =
+  | 'heading'
+  | 'paragraph'
+  | 'image'
+  | 'list'
+  | 'quote'
+  | 'divider'
+  | 'button'
+  | 'spacer'
+  | 'embed'
+  | 'html'
+  | 'callout'
+  | 'columns'
+  | 'id_card';
+
+/** Single block (no columns). */
+export interface CmsPageBlockBase {
+  type: Exclude<CmsPageBlockType, 'columns'>;
+  id?: string;
+  /** heading: level 1-4, text */
+  level?: number;
+  text?: string;
+  /** image: url, alt, caption */
+  url?: string;
+  alt?: string;
+  caption?: string;
+  /** list: ordered, items */
+  ordered?: boolean;
+  items?: string[];
+  /** paragraph: optional HTML content */
+  content?: string;
+  /** button */
+  buttonText?: string;
+  openInNewTab?: boolean;
+  /** spacer: height in px */
+  height?: number;
+  /** embed: url, embedType youtube | iframe */
+  embedType?: 'youtube' | 'iframe';
+  /** html: raw HTML (use with care) */
+  html?: string;
+  /** callout: variant */
+  variant?: 'info' | 'warning' | 'success' | 'default';
+  /** id_card */
+  name?: string;
+  designation?: string;
+  email?: string;
+  location?: string;
+  contactNumber?: string;
+  role?: string;
+  /** Resume: URL (from upload or hyperlink). Clicking image or name opens this. */
+  resumeUrl?: string;
+  /** Card width for alignment (e.g. "320px", "20rem"). Container matches this width. */
+  cardWidth?: string;
+  /** Card height (e.g. "200px", "16rem"). Container matches this height. */
+  cardHeight?: string;
+}
+
+/** Columns block: nested blocks per column. */
+export interface ColumnsBlock {
+  type: 'columns';
+  columnCount: 2 | 3;
+  columns: CmsPageBlock[][];
+}
+
+/** Recursive: columns contain nested blocks. */
+export type CmsPageBlock = CmsPageBlockBase | ColumnsBlock;
+
+export interface CmsPagePublic {
+  id: number;
+  title: string;
+  slug: string;
+  content: CmsPageBlock[];
+}
+
+export interface CmsPageAdmin {
+  id: number;
+  title: string;
+  slug: string;
+  content: CmsPageBlock[];
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UserGroupSummary {
@@ -578,6 +714,25 @@ class ApiClient {
     }>(endpoint);
   }
 
+  // CMS (public read-only for main page and menu)
+  async getCmsMenu() {
+    return this.request<CmsMenuItem[]>('/cms/menu/');
+  }
+
+  async getCmsHome() {
+    return this.request<Record<string, string>>('/cms/home/');
+  }
+
+  /** Hero carousel background images (multiple, with autoscroll on frontend). */
+  async getCmsHeroSlides() {
+    return this.request<Array<{ id: number; order: number; image_url: string; alt_text: string }>>('/cms/hero-slides/');
+  }
+
+  /** Public: get published CMS page by slug. */
+  async getCmsPageBySlug(slug: string) {
+    return this.request<CmsPagePublic>(`/cms/pages/${encodeURIComponent(slug)}/`);
+  }
+
   async getEquipmentById(id: string) {
     return this.request<any>(`/equipment/${id}/`);
   }
@@ -672,7 +827,11 @@ class ApiClient {
     });
   }
 
-  async calculateEquipmentCharge(equipmentId: number | string, fieldValues: Record<string, string | boolean | string[]>) {
+  async calculateEquipmentCharge(
+    equipmentId: number | string,
+    fieldValues: Record<string, string | boolean | string[]>,
+    options?: { user_id?: number | string }
+  ) {
     // Convert field values to query parameters
     const params = new URLSearchParams();
     Object.entries(fieldValues).forEach(([key, value]) => {
@@ -683,9 +842,11 @@ class ApiClient {
         params.append(key, String(value));
       }
     });
-    
+    if (options?.user_id != null) {
+      params.append('user_id', String(options.user_id));
+    }
     const queryString = params.toString();
-    const endpoint = queryString 
+    const endpoint = queryString
       ? `/equipments/${equipmentId}/calculate/?${queryString}`
       : `/equipments/${equipmentId}/calculate/`;
     
@@ -751,6 +912,13 @@ class ApiClient {
       count: number;
       total_time_minutes?: number;
       holidays?: Record<string, string>;
+      /** User-defined slot window start (HH:mm or HH:mm:ss). Used for calendar time axis. */
+      slot_start_time?: string | null;
+      /** User-defined slot window end (HH:mm or HH:mm:ss). Used for calendar time axis. */
+      slot_end_time?: string | null;
+      slot_duration_minutes?: number;
+      /** Actual Slot Master open_time values (HH:mm:ss) - use these for calendar time axis to match user-defined timings. */
+      slot_master_times?: string[];
     }>(endpoint);
   }
 
@@ -1291,10 +1459,25 @@ class ApiClient {
 
   // Booking endpoints
   // Booking action endpoints (operator/manager only)
-  async completeBooking(bookingId: number) {
+  async completeBooking(bookingId: number, resultFiles?: File[]) {
+    if (resultFiles && resultFiles.length > 0) {
+      const form = new FormData();
+      resultFiles.forEach((file) => form.append('results', file));
+      const url = `${this.baseURL}/bookings/${bookingId}/complete/`;
+      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+      const res = await fetch(url, { method: 'POST', headers, body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+      }
+      return {
+        data: data as { message: string; booking: any; uploaded_files?: string[] },
+      };
+    }
     return this.request<{
       message: string;
       booking: any;
+      uploaded_files?: string[];
     }>(`/bookings/${bookingId}/complete/`, {
       method: 'POST',
     });
@@ -1489,12 +1672,20 @@ class ApiClient {
   }
 
   async bookEquipment(equipmentId: string | number, data: {
-    start_time: string;
-    end_time: string;
-    total_hours: number;
-    total_cost: number;
+    start_time?: string;
+    end_time?: string;
+    total_hours?: number;
+    total_cost?: number;
     status?: string;
     input_values?: Record<string, string | boolean | string[]>;
+    /** Admin only: book on behalf of this user id */
+    user_id?: number | string;
+    /** When provided, create one booking for exactly these slot IDs (faster, single entry in My Bookings) */
+    slot_ids?: number[];
+    /** Admin only: discount amount in ₹ to subtract from calculated charge */
+    discount_amount?: number;
+    /** Admin only: reason for giving the discount (stored in booking notes) */
+    discount_reason?: string;
   }) {
     return this.request<{
       id: number;
@@ -1523,6 +1714,17 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  /** Update user input values for a booking (only fields marked editing_required, until status is Complete). */
+  async updateBookingInputValues(
+    bookingId: number,
+    inputValues: Record<string, string | number | boolean | string[]>
+  ) {
+    return this.request<{ message: string; booking: any }>(
+      `/bookings/${bookingId}/input-values/`,
+      { method: 'PATCH', body: JSON.stringify({ input_values: inputValues }) }
+    );
   }
 
   // Notice Board endpoints (public)
@@ -1899,6 +2101,179 @@ class ApiClient {
     return this.request<void>(`/projects/${projectId}/delete/`, {
       method: 'DELETE',
     });
+  }
+
+  // Admin dashboard CRUD (admin-only API; no Django Admin login required)
+  getAdminEndpoint(section: string): string {
+    const path = ADMIN_SECTION_ENDPOINTS[section];
+    if (!path) throw new Error(`Unknown admin section: ${section}`);
+    return `/${path}/`;
+  }
+
+  async adminList<T = unknown>(section: string) {
+    const endpoint = this.getAdminEndpoint(section);
+    return this.request<T[]>(endpoint, { method: 'GET' });
+  }
+
+  async adminGet<T = unknown>(section: string, id: number | string) {
+    const endpoint = this.getAdminEndpoint(section);
+    return this.request<T>(`${endpoint}${id}/`, { method: 'GET' });
+  }
+
+  /** Admin: get user booking info (email, department, wallet owner, balance) for "Book slots for user". */
+  async getAdminUserBookingInfo(userId: number | string) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{
+      email: string;
+      department_name: string;
+      wallet_faculty_owner: { name: string; email: string } | null;
+      wallet_balance: string;
+    }>(`${endpoint}${userId}/booking-info/`, { method: 'GET' });
+  }
+
+  async adminCreate<T = unknown>(section: string, data: Record<string, unknown>) {
+    const endpoint = this.getAdminEndpoint(section);
+    return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminUpdate<T = unknown>(section: string, id: number | string, data: Record<string, unknown>) {
+    const endpoint = this.getAdminEndpoint(section);
+    return this.request<T>(`${endpoint}${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async adminDelete(section: string, id: number | string) {
+    const endpoint = this.getAdminEndpoint(section);
+    return this.request<void>(`${endpoint}${id}/`, { method: 'DELETE' });
+  }
+
+  /** Create CMS menu item, optionally with document (PDF) upload via multipart. */
+  async adminCmsMenuCreate(data: Record<string, unknown>, documentFile?: File | null) {
+    const endpoint = this.getAdminEndpoint('cmsMenu');
+    if (documentFile) {
+      const form = new FormData();
+      form.append('label', String(data.label ?? ''));
+      form.append('link_type', String(data.link_type ?? 'internal_anchor'));
+      form.append('url', String(data.url ?? ''));
+      if (data.parent !== undefined && data.parent !== null && data.parent !== '') form.append('parent', String(data.parent));
+      form.append('priority', String(data.priority ?? 0));
+      form.append('is_active', data.is_active === true || data.is_active === 'true' ? 'true' : 'false');
+      form.append('open_in_new_tab', data.open_in_new_tab === true || data.open_in_new_tab === 'true' ? 'true' : 'false');
+      form.append('document', documentFile);
+      const url = `${this.baseURL}${endpoint}`;
+      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+      const res = await fetch(url, { method: 'POST', headers, body: form });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: (resData as { detail?: string; document?: string[] }).detail || (Array.isArray((resData as { document?: string[] }).document) ? (resData as { document: string[] }).document.join(', ') : undefined) || `HTTP ${res.status}` };
+      return { data: resData };
+    }
+    return this.adminCreate('cmsMenu', data);
+  }
+
+  /** Update CMS menu item, optionally with document (PDF) upload via multipart. */
+  async adminCmsMenuUpdate(id: number | string, data: Record<string, unknown>, documentFile?: File | null) {
+    const endpoint = this.getAdminEndpoint('cmsMenu');
+    const url = `${this.baseURL}${endpoint}${id}/`;
+    if (documentFile) {
+      const form = new FormData();
+      if (data.label !== undefined) form.append('label', String(data.label));
+      if (data.link_type !== undefined) form.append('link_type', String(data.link_type));
+      if (data.url !== undefined) form.append('url', String(data.url));
+      if (data.parent !== undefined) form.append('parent', data.parent === null || data.parent === '' ? '' : String(data.parent));
+      if (data.priority !== undefined) form.append('priority', String(data.priority));
+      if (data.is_active !== undefined) form.append('is_active', data.is_active === true || data.is_active === 'true' ? 'true' : 'false');
+      if (data.open_in_new_tab !== undefined) form.append('open_in_new_tab', data.open_in_new_tab === true || data.open_in_new_tab === 'true' ? 'true' : 'false');
+      form.append('document', documentFile);
+      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+      const res = await fetch(url, { method: 'PATCH', headers, body: form });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: (resData as { detail?: string }).detail || `HTTP ${res.status}` };
+      return { data: resData };
+    }
+    return this.adminUpdate('cmsMenu', id, data);
+  }
+
+  /** Options for admin equipment add/edit form (categories, departments, user groups, etc.). */
+  async getEquipmentFormChoices() {
+    return this.request<{
+      categories: Array<{ id: number; name: string; code?: string | null }>;
+      equipment_groups: Array<{ equipment_group_id: number; name: string; code: string }>;
+      internal_departments: Array<{ id: number; name: string; code: string }>;
+      user_groups: Array<{ id: number; name: string; code: string }>;
+      managers: Array<{ id: number; name: string; email: string }>;
+      operators: Array<{ id: number; name: string; email: string }>;
+      profile_type_choices: Array<{ value: string; label: string }>;
+      status_choices: Array<{ value: string; label: string }>;
+      dynamic_input_field_type_choices: Array<{ value: string; label: string }>;
+      user_type_choices: Array<{ value: string; label: string }>;
+    }>('/admin/equipment-form-choices/', { method: 'GET' });
+  }
+
+  /** Admin: get unique email recipients for given booked slot IDs (for bulk email). */
+  async getBulkEmailRecipients(slotIds: number[]) {
+    return this.request<{ recipients: Array<{ email: string; name: string }> }>('/admin/bulk-email-recipients/', {
+      method: 'POST',
+      body: JSON.stringify({ slot_ids: slotIds }),
+    });
+  }
+
+  /** Admin: send the same email to multiple recipients. */
+  async sendBulkEmail(recipientEmails: string[], subject: string, body: string) {
+    return this.request<{ message: string; sent_count: number; failed_count: number; failed?: Array<{ email: string; error: string }> }>(
+      '/admin/send-bulk-email/',
+      { method: 'POST', body: JSON.stringify({ recipient_emails: recipientEmails, subject, body }) }
+    );
+  }
+
+  /** Upload equipment image (admin). */
+  async uploadEquipmentImage(equipmentId: number, file: File) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    const formData = new FormData();
+    formData.append('image', file);
+    const url = `${this.baseURL}/${endpoint}/${equipmentId}/upload-image/`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    return { data };
+  }
+
+  /** Upload equipment video (admin). */
+  async uploadEquipmentVideo(equipmentId: number, file: File) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    const formData = new FormData();
+    formData.append('video', file);
+    const url = `${this.baseURL}/${endpoint}/${equipmentId}/upload-video/`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    return { data };
+  }
+
+  /** Upload image for CMS page block (admin). Returns { url } for use in image block. */
+  async uploadCmsPageImage(file: File) {
+    const endpoint = this.getAdminEndpoint('cmsPages');
+    const formData = new FormData();
+    formData.append('image', file);
+    const url = `${this.baseURL}${endpoint}upload-image/`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    return { data: data as { url: string } };
+  }
+
+  /** Upload document (e.g. resume PDF) for CMS page block (admin). Returns { url }. */
+  async uploadCmsPageDocument(file: File) {
+    const endpoint = this.getAdminEndpoint('cmsPages');
+    const formData = new FormData();
+    formData.append('document', file);
+    const url = `${this.baseURL}${endpoint}upload-document/`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    return { data: data as { url: string } };
   }
 }
 

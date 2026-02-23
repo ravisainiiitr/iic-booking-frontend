@@ -71,6 +71,7 @@ interface EquipmentDetail {
     manager_phone?: string | null;
     manager_profile_picture?: string | null;
   }>;
+  profile_type?: string;
   base_charges_by_user_type?: Array<{
     user_type: string;
     user_type_display: string;
@@ -229,7 +230,7 @@ const EquipmentCard = ({
             );
           })()}
         </div>
-        <CardDescription className="text-sm">{category}</CardDescription>
+        {category ? <CardDescription className="text-sm">{category}</CardDescription> : null}
       </CardHeader>
 
       <CardContent className="space-y-3">
@@ -258,7 +259,7 @@ const EquipmentCard = ({
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl">{equipmentDetail?.name || name}</DialogTitle>
-              <DialogDescription>{category}</DialogDescription>
+              {category ? <DialogDescription>{category}</DialogDescription> : null}
             </DialogHeader>
             {loadingDetail ? (
               <div className="flex items-center justify-center py-12">
@@ -291,53 +292,63 @@ const EquipmentCard = ({
                   </div>
                 )}
 
-                {/* Base charges by user type */}
-                {equipmentDetail?.base_charges_by_user_type && equipmentDetail.base_charges_by_user_type.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                      <IndianRupee className="h-4 w-4" />
-                      Base charges (user type wise)
-                    </h4>
-                    <div className="rounded-md border overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-muted/50 border-b">
-                            <th className="text-left font-semibold p-3">User type</th>
-                            <th className="text-left font-semibold p-3">Profile</th>
-                            <th className="text-right font-semibold p-3">Charge (₹)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {equipmentDetail.base_charges_by_user_type.map((row) => (
-                            <tr key={row.user_type} className="border-b last:border-0">
-                              <td className="p-3 font-medium text-foreground">{row.user_type_display}</td>
-                              <td className="p-3 text-muted-foreground">{row.profile_type_display || "—"}</td>
-                              <td className="p-3 text-right">₹{row.primary_unit_charge}</td>
+                {/* Charges by user type (exclude student and faculty) */}
+                {(() => {
+                  const chargeRows = equipmentDetail?.base_charges_by_user_type?.filter(
+                    (row) =>
+                      String(row.user_type || "").toLowerCase() !== "student" &&
+                      String(row.user_type || "").toLowerCase() !== "faculty"
+                  ) ?? [];
+                  const profileType = (equipmentDetail?.profile_type || "").toUpperCase();
+                  const chargeBasis =
+                    profileType === "HOUR"
+                      ? "Charges are per hour."
+                      : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
+                        ? "Charges are per sample."
+                        : "Charges are as per the equipment profile.";
+                  return chargeRows.length > 0 ? (
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                        <IndianRupee className="h-4 w-4" />
+                        Charges
+                      </h4>
+                      <div className="rounded-md border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/50 border-b">
+                              <th className="text-left font-semibold p-3">User type</th>
+                              <th className="text-right font-semibold p-3">Charge (₹)</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {chargeRows.map((row) => (
+                              <tr key={row.user_type} className="border-b last:border-0">
+                                <td className="p-3 font-medium text-foreground">{row.user_type_display}</td>
+                                <td className="p-3 text-right">₹{row.primary_unit_charge}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">{chargeBasis}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Charges are inclusive of GST @ 18%.</p>
                     </div>
-                  </div>
-                )}
+                  ) : null;
+                })()}
 
-                {/* Specifications */}
-                {equipmentDetail?.specifications && equipmentDetail.specifications.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                      <Info className="h-4 w-4" />
-                      Specifications
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {equipmentDetail.specifications.map((spec) => (
-                        <div key={spec.equipment_specification_id} className="bg-muted/50 rounded-md p-3">
-                          <p className="text-xs font-semibold text-foreground">{spec.spec_key}</p>
-                          <p className="text-sm text-muted-foreground">{spec.spec_value}</p>
-                        </div>
-                      ))}
+                {/* Equipment specifications: one section per spec_key */}
+                {equipmentDetail?.specifications && equipmentDetail.specifications.length > 0 &&
+                  equipmentDetail.specifications.map((spec) => (
+                    <div key={spec.equipment_specification_id} className="border-t pt-4">
+                      <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        {spec.spec_key}
+                      </h4>
+                      <div className="bg-muted/50 rounded-md p-3">
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">{spec.spec_value}</p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ))}
 
                 {/* Accessories */}
                 {equipmentDetail?.accessories && equipmentDetail.accessories.length > 0 && (

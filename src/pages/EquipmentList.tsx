@@ -20,6 +20,7 @@ interface ApiEquipment {
   status_display: string;
   location: string;
   image_url: string;
+  category_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,8 +74,8 @@ const EquipmentList = () => {
         .map((eq: ApiEquipment) => ({
           id: eq.equipment_id,
           name: eq.name,
-          category: eq.profile_type_display || eq.profile_type || "Uncategorized",
-          description: `${eq.name} - ${eq.profile_type_display || ""}`,
+          category: eq.category_name || "",
+          description: eq.name,
           image: eq.image_url || "/placeholder.svg",
           video: "", // API doesn't provide video_url
           available: eq.status === "ACTIVE",

@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import BookingEventHistory from "@/components/BookingEventHistory";
+import BookingUserInputs from "@/components/BookingUserInputs";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import TicketForm, { TICKET_TYPE } from "@/components/TicketForm";
 import { X, Calendar as CalendarIcon, History, HelpCircle } from "lucide-react";
@@ -46,7 +47,14 @@ interface Booking {
   total_time_minutes: number;
   total_hours: number;
   total_charge: string;
-  input_values: Record<string, string | boolean | string[]>;
+  input_values: Record<string, string | boolean | string[] | number>;
+  input_fields?: Array<{
+    field_key: string;
+    field_label: string;
+    field_type: string;
+    editing_required?: boolean;
+    options?: (string | { value?: string; label?: string })[];
+  }>;
   selected_parameters: any;
   charge_breakdown: Array<{
     amount: number;
@@ -385,6 +393,19 @@ const MyBookings = () => {
                       </p>
                     </div>
                   </div>
+                  {/* User Inputs – Step 1 data; fields with Editing Required are editable until Complete */}
+                  {booking.input_values && Object.keys(booking.input_values).length > 0 && (
+                    <BookingUserInputs
+                      inputValues={booking.input_values}
+                      inputFields={booking.input_fields ?? undefined}
+                      status={booking.status}
+                      onUpdate={async (newInputValues) => {
+                        const res = await apiClient.updateBookingInputValues(booking.booking_id, newInputValues as Record<string, string | number | boolean | string[]>);
+                        if (res.error) throw new Error(res.error);
+                        fetchBookings();
+                      }}
+                    />
+                  )}
                   {booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
                     <div className="mt-4 pt-4 border-t">
                       <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
@@ -392,10 +413,51 @@ const MyBookings = () => {
                         {booking.charge_breakdown.map((charge, index) => (
                           <li key={index} className="text-sm text-muted-foreground flex justify-between">
                             <span>{charge.description}</span>
-                            <span>₹{charge.amount.toFixed(2)}</span>
+                            <span>{Number(charge.amount) >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
                           </li>
                         ))}
                       </ul>
+                      {(() => {
+                        const totalCharge = Number(booking.total_charge);
+                        // Exclude "Total" line so we don't count final amount as part of subtotal
+                        const chargeLines = booking.charge_breakdown.filter(
+                          (c) => String(c.description || "").trim().toLowerCase() !== "total"
+                        );
+                        const explicitDiscount = Math.abs(
+                          booking.charge_breakdown
+                            .map((c) => Number(c.amount))
+                            .filter((a) => a < 0)
+                            .reduce((s, a) => s + a, 0)
+                        );
+                        const totalBeforeDiscount = chargeLines
+                          .map((c) => Number(c.amount))
+                          .filter((a) => a > 0)
+                          .reduce((s, a) => s + a, 0);
+                        // Show discount if we have an explicit Discount line or inferred (subtotal > final)
+                        const inferredDiscount = totalBeforeDiscount > totalCharge ? totalBeforeDiscount - totalCharge : 0;
+                        const discountAmount = explicitDiscount > 0 ? explicitDiscount : inferredDiscount;
+                        const hasDiscount = discountAmount > 0;
+                        return (
+                          <div className="mt-3 pt-3 border-t space-y-1 text-sm">
+                            {hasDiscount && (
+                              <>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Total amount</span>
+                                  <span>₹{totalBeforeDiscount.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Discount</span>
+                                  <span>-₹{discountAmount.toFixed(2)}</span>
+                                </div>
+                              </>
+                            )}
+                            <div className="flex justify-between font-medium">
+                              <span>{hasDiscount ? "Final amount after discount" : "Total"}</span>
+                              <span className="text-primary">₹{totalCharge.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   {booking.daily_slots && booking.daily_slots.length > 0 && (

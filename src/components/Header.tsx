@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import { apiClient } from "@/lib/api";
+import { apiClient, type CmsMenuItem } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,8 +29,17 @@ const Header = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [menuItems, setMenuItems] = useState<CmsMenuItem[] | null>(null);
   const checkingRef = useRef(false);
   const hasCheckedRef = useRef(false);
+
+  useEffect(() => {
+    apiClient.getCmsMenu().then((res) => {
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setMenuItems(res.data);
+      }
+    }).catch(() => {});
+  }, []);
   
   useEffect(() => {
     // Only check admin status once if authenticated
@@ -113,98 +122,169 @@ const Header = () => {
           </div>
           
           <nav className="hidden md:flex items-center gap-8">
-            <button 
-              onClick={() => {
-                const currentPath = window.location.pathname;
-                if (currentPath === "/") {
-                  // If already on home page, scroll to equipment catalog section
-                  const equipmentSection = document.getElementById("equipment");
-                  if (equipmentSection) {
-                    equipmentSection.scrollIntoView({ behavior: "smooth" });
+            {menuItems && menuItems.length > 0 ? (
+              <>
+                {menuItems.map((item) => {
+                  const isTrigger = item.link_type === "trigger" || item.label.toLowerCase() === "contact us";
+                  const docUrl = item.document_url;
+                  const pageSlug = item.page_slug;
+                  const href = docUrl
+                    ? docUrl
+                    : pageSlug
+                      ? `/page/${pageSlug}`
+                      : item.link_type === "internal_route"
+                        ? item.url
+                        : item.url
+                          ? (item.link_type === "external_url" ? item.url : `${window.location.pathname === "/" ? "" : "/"}${item.url}`)
+                          : "#";
+                  if (item.children && item.children.length > 0) {
+                    return (
+                      <NavigationMenu key={item.id}>
+                        <NavigationMenuList>
+                          <NavigationMenuItem>
+                            <NavigationMenuTrigger className="text-sm font-medium">
+                              {item.label}
+                            </NavigationMenuTrigger>
+                            <NavigationMenuContent>
+                              <ul className="grid w-[200px] gap-1 p-2">
+                                {item.children.map((child) => {
+                                  const childDocUrl = child.document_url;
+                                  const childPageSlug = child.page_slug;
+                                  const childHref = childDocUrl
+                                    ? childDocUrl
+                                    : childPageSlug
+                                      ? `/page/${childPageSlug}`
+                                      : child.link_type === "internal_route"
+                                        ? child.url
+                                        : child.url || "#";
+                                  const isChildInternalRoute = child.link_type === "internal_route" && !childDocUrl && !childPageSlug;
+                                  return (
+                                    <li key={child.id}>
+                                      <NavigationMenuLink asChild>
+                                        {isChildInternalRoute ? (
+                                          <a
+                                            href={child.url}
+                                            onClick={(e) => { e.preventDefault(); navigate(child.url); }}
+                                            className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                                          >
+                                            {child.label}
+                                          </a>
+                                        ) : (
+                                          <a
+                                            href={childHref}
+                                            onClick={childPageSlug ? (e) => { e.preventDefault(); navigate(childHref); } : undefined}
+                                            className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                                            {...(child.open_in_new_tab || childDocUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                                          >
+                                            {child.label}
+                                          </a>
+                                        )}
+                                      </NavigationMenuLink>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </NavigationMenuContent>
+                          </NavigationMenuItem>
+                        </NavigationMenuList>
+                      </NavigationMenu>
+                    );
                   }
-                } else {
-                  // If on another page, navigate to home and then scroll
-                  navigate("/");
-                  setTimeout(() => {
-                    const equipmentSection = document.getElementById("equipment");
-                    if (equipmentSection) {
-                      equipmentSection.scrollIntoView({ behavior: "smooth" });
+                  if (isTrigger) {
+                    return (
+                      <TicketForm
+                        key={item.id}
+                        trigger={
+                          <button className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1">
+                            {item.label}
+                          </button>
+                        }
+                      />
+                    );
+                  }
+                  if ((item.link_type === "internal_route" && !docUrl) || pageSlug) {
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => navigate(pageSlug ? `/page/${pageSlug}` : (item.url || "/"))}
+                        className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  }
+                  const isAnchor = item.link_type === "internal_anchor" && href.startsWith("#") && !docUrl && !pageSlug;
+                  if (isAnchor && window.location.pathname !== "/") {
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => { navigate("/"); setTimeout(() => document.querySelector(href)?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                        className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  }
+                  return (
+                    <a
+                      key={item.id}
+                      href={href}
+                      onClick={pageSlug ? (e) => { e.preventDefault(); navigate(href); } : undefined}
+                      className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                      {...(item.open_in_new_tab || docUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                    >
+                      {item.label}
+                    </a>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    if (window.location.pathname === "/") {
+                      document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth" });
+                    } else {
+                      navigate("/");
+                      setTimeout(() => document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth" }), 100);
                     }
-                  }, 100);
-                }
-              }}
-              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              Facilities
-            </button>
-            <NavigationMenu>
-              <NavigationMenuList>
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger className="text-sm font-medium">
-                    Our Team
-                  </NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[200px] gap-1 p-2">
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <a href="#team-head" className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                            Head
-                          </a>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <a href="#team-faculty" className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                            Faculty
-                          </a>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <a href="#team-cac" className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                            CAC
-                          </a>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <a href="#team-officers" className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                            Officers
-                          </a>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <a href="#team-staff" className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                            Other Staff
-                          </a>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <a href="#team-students" className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                            Students
-                          </a>
-                        </NavigationMenuLink>
-                      </li>
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
-            <a href="#outreach" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Outreach
-            </a>
-            <a href="#important-links" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Important Links
-            </a>
-            <TicketForm
-              trigger={
-                <button className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1">
-                  Contact Us
+                  }}
+                  className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  Facilities
                 </button>
-              }
-            />
+                <NavigationMenu>
+                  <NavigationMenuList>
+                    <NavigationMenuItem>
+                      <NavigationMenuTrigger className="text-sm font-medium">Our Team</NavigationMenuTrigger>
+                      <NavigationMenuContent>
+                        <ul className="grid w-[200px] gap-1 p-2">
+                          {[
+                            { label: "Head", anchor: "#team-head" },
+                            { label: "Faculty", anchor: "#team-faculty" },
+                            { label: "CAC", anchor: "#team-cac" },
+                            { label: "Officers", anchor: "#team-officers" },
+                            { label: "Other Staff", anchor: "#team-staff" },
+                            { label: "Students", anchor: "#team-students" },
+                          ].map(({ label, anchor }) => (
+                            <li key={anchor}>
+                              <NavigationMenuLink asChild>
+                                <a href={anchor} className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
+                                  {label}
+                                </a>
+                              </NavigationMenuLink>
+                            </li>
+                          ))}
+                        </ul>
+                      </NavigationMenuContent>
+                    </NavigationMenuItem>
+                  </NavigationMenuList>
+                </NavigationMenu>
+                <a href="#outreach" className="text-sm font-medium text-foreground hover:text-primary transition-colors">Outreach</a>
+                <a href="#important-links" className="text-sm font-medium text-foreground hover:text-primary transition-colors">Important Links</a>
+                <TicketForm trigger={<button className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1">Contact Us</button>} />
+              </>
+            )}
           </nav>
 
           <div className="flex items-center gap-3">

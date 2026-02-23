@@ -110,7 +110,7 @@ const EquipmentGrid = () => {
     return eqList.map((eq) => ({
       id: eq.equipment_id,
       name: eq.name,
-      category: eq.profile_type_display || eq.profile_type || "Uncategorized",
+      category: eq.category_name || "",
       description: `${eq.name}`,
       image: eq.image_url || "/placeholder.svg",
       video: eq.video_url || undefined, // Use video_url if available, otherwise undefined

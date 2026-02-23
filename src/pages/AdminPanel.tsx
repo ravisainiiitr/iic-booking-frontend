@@ -2,35 +2,54 @@ import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, X, Wrench } from "lucide-react";
+import {
+  Loader2,
+  Wrench,
+  Users,
+  Calendar,
+  CalendarDays,
+  Package,
+  FolderTree,
+  Layers,
+  Banknote,
+  FileText,
+  UserCog,
+  Wallet,
+  CreditCard,
+  Receipt,
+  ArrowLeft,
+  ChevronRight,
+} from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 
-interface Equipment {
-  id: string;
-  name: string;
-  category: string | null;
-  description: string | null;
-  image_url: string | null;
-  video_url: string | null;
-  available: boolean;
-  internal_rate: number | null;
-  external_rate: number | null;
-  location: string | null;
-  technical_contact: string | null;
-  full_details_url: string | null;
-}
+type SectionItem = { key: string; label: string; icon: React.ReactNode };
+
+const EQUIPMENT_SECTIONS: SectionItem[] = [
+  { key: "bookings", label: "Bookings", icon: <Calendar className="h-5 w-5" /> },
+  { key: "dailySlots", label: "Daily Slots", icon: <CalendarDays className="h-5 w-5" /> },
+  { key: "equipment", label: "Equipment", icon: <Package className="h-5 w-5" /> },
+  { key: "equipmentCategories", label: "Equipment Categories", icon: <FolderTree className="h-5 w-5" /> },
+  { key: "equipmentGroups", label: "Equipment Groups", icon: <Layers className="h-5 w-5" /> },
+  { key: "holidays", label: "Holidays", icon: <Calendar className="h-5 w-5" /> },
+];
+
+const USERS_SECTIONS: SectionItem[] = [
+  { key: "departments", label: "Departments", icon: <FolderTree className="h-5 w-5" /> },
+  { key: "projects", label: "Projects", icon: <FileText className="h-5 w-5" /> },
+  { key: "subWalletTransactions", label: "Sub-Wallet Transactions", icon: <Receipt className="h-5 w-5" /> },
+  { key: "subWallets", label: "Sub-Wallets", icon: <Wallet className="h-5 w-5" /> },
+  { key: "userDocuments", label: "User Documents", icon: <FileText className="h-5 w-5" /> },
+  { key: "userGroupMembers", label: "User Group Members", icon: <UserCog className="h-5 w-5" /> },
+  { key: "userGroups", label: "User Groups", icon: <Users className="h-5 w-5" /> },
+  { key: "users", label: "Users", icon: <Users className="h-5 w-5" /> },
+  { key: "walletRazorpayOrders", label: "Wallet Razorpay Orders", icon: <CreditCard className="h-5 w-5" /> },
+  { key: "walletRechargeRequests", label: "Wallet Recharge Requests", icon: <Banknote className="h-5 w-5" /> },
+  { key: "wallets", label: "Wallets", icon: <Wallet className="h-5 w-5" /> },
+];
 
 const AdminPanel = () => {
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<Equipment>>({});
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const navigate = useNavigate();
@@ -56,8 +75,8 @@ const AdminPanel = () => {
 
       const isAdminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
       const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
-      const isAdmin = isAdminByType || adminCheck.data?.is_admin === true;
-      if (!isAdmin) {
+      const isAdminValue = isAdminByType || adminCheck.data?.is_admin === true;
+      if (!isAdminValue) {
         toast({
           title: "Access Denied",
           description: "You don't have admin permissions",
@@ -68,87 +87,11 @@ const AdminPanel = () => {
       }
 
       setIsAdmin(true);
-      loadEquipment();
     } catch (error) {
       console.error("Error checking admin access:", error);
       navigate("/");
     } finally {
       setCheckingAuth(false);
-    }
-  };
-
-  const loadEquipment = async () => {
-    try {
-      const response = await apiClient.getEquipments(undefined, undefined);
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      const list = response.data?.equipments || [];
-      setEquipment(
-        list.map((e: { equipment_id: number; name: string; profile_type_display?: string; profile_type?: string; description?: string | null; image_url?: string | null; video_url?: string | null; status?: string; location?: string | null }) => ({
-          id: String(e.equipment_id),
-          name: e.name ?? "",
-          category: e.profile_type_display ?? e.profile_type ?? null,
-          description: e.description ?? null,
-          image_url: e.image_url ?? null,
-          video_url: e.video_url ?? null,
-          available: e.status === "ACTIVE",
-          internal_rate: null,
-          external_rate: null,
-          location: e.location ?? null,
-          technical_contact: null,
-          full_details_url: null,
-        }))
-      );
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load equipment",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startEditing = (item: Equipment) => {
-    setEditingId(item.id);
-    setFormData(item);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setFormData({});
-  };
-
-  const saveEquipment = async () => {
-    if (!editingId) return;
-
-    try {
-      const response = await apiClient.updateEquipment(editingId, {
-        name: formData.name,
-        description: formData.description ?? undefined,
-        status: formData.available ? "ACTIVE" : "INACTIVE",
-        location: formData.location ?? undefined,
-      });
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      toast({
-        title: "Success",
-        description: "Equipment updated successfully",
-      });
-
-      await loadEquipment();
-      cancelEditing();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update equipment",
-        variant: "destructive",
-      });
     }
   };
 
@@ -163,170 +106,78 @@ const AdminPanel = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
       <DashboardHeader />
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <h1 className="text-4xl font-bold flex items-center gap-2">
-            <Wrench className="h-10 w-10" />
-            Equipment Management
-          </h1>
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
+        <div className="flex flex-wrap items-center gap-4 mb-8">
           <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {equipment.map((item) => (
-              <Card key={item.id}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>{item.name}</span>
-                    {editingId === item.id ? (
-                      <div className="flex gap-2">
-                        <Button onClick={saveEquipment} size="sm">
-                          <Save className="h-4 w-4 mr-2" />
-                          Save
-                        </Button>
-                        <Button onClick={cancelEditing} variant="outline" size="sm">
-                          <X className="h-4 w-4 mr-2" />
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button onClick={() => startEditing(item)} size="sm">
-                        Edit
-                      </Button>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {editingId === item.id ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Equipment Name</Label>
-                        <Input
-                          id="name"
-                          value={formData.name || ""}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        />
-                      </div>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage equipment and users from the frontend. No Django Admin login required.
+          </p>
+        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
-                        <Input
-                          id="category"
-                          value={formData.category || ""}
-                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        />
-                      </div>
+        <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Wrench className="h-6 w-6" />
+                Equipment
+              </CardTitle>
+              <CardDescription>
+                Bookings, slots, equipment, categories, groups, and holidays
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {EQUIPMENT_SECTIONS.map((section) => (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => navigate(`/admin/section/${section.key}`)}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                >
+                  <span className="flex items-center gap-3">
+                    {section.icon}
+                    <span className="font-medium">{section.label}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </CardContent>
+          </Card>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="video_url">Video URL</Label>
-                        <Input
-                          id="video_url"
-                          value={formData.video_url || ""}
-                          onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-                          placeholder="https://youtube.com/..."
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="location">Location</Label>
-                        <Input
-                          id="location"
-                          value={formData.location || ""}
-                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="internal_rate">Internal Rate (₹/hour)</Label>
-                        <Input
-                          id="internal_rate"
-                          type="number"
-                          value={formData.internal_rate || ""}
-                          onChange={(e) => setFormData({ ...formData, internal_rate: parseFloat(e.target.value) })}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="external_rate">External Rate (₹/hour)</Label>
-                        <Input
-                          id="external_rate"
-                          type="number"
-                          value={formData.external_rate || ""}
-                          onChange={(e) => setFormData({ ...formData, external_rate: parseFloat(e.target.value) })}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="technical_contact">Technical Contact</Label>
-                        <Input
-                          id="technical_contact"
-                          value={formData.technical_contact || ""}
-                          onChange={(e) => setFormData({ ...formData, technical_contact: e.target.value })}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="full_details_url">Full Details URL</Label>
-                        <Input
-                          id="full_details_url"
-                          value={formData.full_details_url || ""}
-                          onChange={(e) => setFormData({ ...formData, full_details_url: e.target.value })}
-                        />
-                      </div>
-
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="description">Description / More Info</Label>
-                        <Textarea
-                          id="description"
-                          value={formData.description || ""}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          rows={4}
-                        />
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="available"
-                          checked={formData.available || false}
-                          onCheckedChange={(checked) => setFormData({ ...formData, available: checked })}
-                        />
-                        <Label htmlFor="available">Available / Working Status</Label>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4 md:grid-cols-2 text-sm">
-                      <div>
-                        <span className="font-semibold">Category:</span> {item.category || "N/A"}
-                      </div>
-                      <div>
-                        <span className="font-semibold">Status:</span>{" "}
-                        <span className={item.available ? "text-green-600" : "text-red-600"}>
-                          {item.available ? "Available" : "Unavailable"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Internal Rate:</span> ₹{item.internal_rate || 0}/hour
-                      </div>
-                      <div>
-                        <span className="font-semibold">External Rate:</span> ₹{item.external_rate || 0}/hour
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className="font-semibold">Description:</span> {item.description || "N/A"}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Users className="h-6 w-6" />
+                Users
+              </CardTitle>
+              <CardDescription>
+                Departments, projects, wallets, user groups, and user management
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {USERS_SECTIONS.map((section) => (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => navigate(`/admin/section/${section.key}`)}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                >
+                  <span className="flex items-center gap-3">
+                    {section.icon}
+                    <span className="font-medium">{section.label}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
   );

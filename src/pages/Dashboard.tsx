@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, User as UserIcon, Users, Wallet, Settings, Clock, ArrowRight, BarChart3, TrendingUp } from "lucide-react";
+import { Calendar, FileText, Package, User as UserIcon, Users, Wallet, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, Menu, Home, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -431,235 +431,282 @@ const Dashboard = () => {
 
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && (
-          <section className="mt-12">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section className="mt-12 space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Upcoming Bookings Section */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold">Upcoming Bookings</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate("/my-bookings")}
-                    className="flex items-center gap-2"
-                  >
-                    View All
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {loadingBookings ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <Card className="overflow-hidden border-0 shadow-lg shadow-primary/5 bg-card">
+                <CardHeader className="pb-4 border-b bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Calendar className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Upcoming Bookings</CardTitle>
+                        <CardDescription className="text-sm">Your scheduled equipment sessions</CardDescription>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate("/my-bookings")}
+                      className="text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                    >
+                      View All
+                      <ArrowRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                ) : upcomingBookings.length > 0 ? (
-                  <div className="space-y-4">
-                    {upcomingBookings.map((booking) => (
-                      <Card
-                        key={booking.booking_id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => navigate("/my-bookings")}
-                      >
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <CardTitle className="text-base mb-1">
-                                {booking.equipment_name}
-                              </CardTitle>
-                              <CardDescription className="text-xs">
-                                {booking.equipment_code}
-                              </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {loadingBookings ? (
+                    <div className="flex items-center justify-center py-16">
+                      <div className="animate-spin rounded-full h-9 w-9 border-2 border-primary border-t-transparent" />
+                    </div>
+                  ) : upcomingBookings.length > 0 ? (
+                    <ul className="divide-y divide-border/60">
+                      {upcomingBookings.map((booking) => (
+                        <li
+                          key={booking.booking_id}
+                          className="group flex cursor-pointer transition-colors hover:bg-muted/40"
+                          onClick={() => navigate("/my-bookings")}
+                        >
+                          <div className={`w-1 shrink-0 self-stretch ${getStatusColor(booking.status)} opacity-80`} />
+                          <div className="flex-1 min-w-0 py-4 px-5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-foreground truncate">
+                                  {booking.equipment_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{booking.equipment_code}</p>
+                              </div>
+                              <Badge className={`${getStatusColor(booking.status)} text-white text-xs shrink-0`}>
+                                {booking.status_display}
+                              </Badge>
                             </div>
-                            <Badge
-                              className={`${getStatusColor(booking.status)} text-white text-xs`}
-                            >
-                              {booking.status_display}
-                            </Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            <span>{formatDateTime(booking.start_time)}</span>
-                          </div>
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Duration: </span>
-                            <span className="font-medium">{booking.total_hours} hour{booking.total_hours !== 1 ? 's' : ''}</span>
-                          </div>
-                          {booking.total_charge && (
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Charge: </span>
-                              <span className="font-medium">₹{parseFloat(booking.total_charge).toFixed(2)}</span>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="h-3.5 w-3.5" />
+                                {formatDateTime(booking.start_time)}
+                              </span>
+                              <span>{booking.total_hours} hr{booking.total_hours !== 1 ? 's' : ''}</span>
+                              {booking.total_charge && (
+                                <span className="font-medium text-foreground">₹{parseFloat(booking.total_charge).toFixed(2)}</span>
+                              )}
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="py-8 text-center">
-                      <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">No upcoming bookings</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+                        <Calendar className="h-7 w-7" />
+                      </div>
+                      <p className="font-medium text-foreground">No upcoming bookings</p>
+                      <p className="text-sm text-muted-foreground mt-1">Book equipment to see your sessions here</p>
                       <Button
                         variant="outline"
-                        className="mt-4"
+                        className="mt-5"
                         onClick={() => navigate("/equipments")}
                       >
                         Browse Equipment
                       </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Equipment Statistics Section */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold">Equipment Statistics</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate("/reports")}
-                    className="flex items-center gap-2"
-                  >
-                    View Full Report
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {loadingStats ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <Card className="overflow-hidden border-0 shadow-lg shadow-primary/5 bg-card">
+                <CardHeader className="pb-4 border-b bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <BarChart3 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Equipment Statistics</CardTitle>
+                        <CardDescription className="text-sm">Your usage and spending by equipment</CardDescription>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate("/reports")}
+                      className="text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                    >
+                      View Report
+                      <ArrowRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                ) : equipmentStats.length > 0 ? (
-                  <div className="space-y-4">
-                    {equipmentStats.map((stat, index) => (
-                      <Card key={stat.equipment_id} className="hover:shadow-lg transition-shadow">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs">
-                                  #{index + 1}
-                                </Badge>
-                                <CardTitle className="text-base">
-                                  {stat.equipment_name}
-                                </CardTitle>
-                              </div>
-                              <CardDescription className="text-xs">
-                                {stat.equipment_code}
-                              </CardDescription>
-                            </div>
-                            <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">Total Bookings</p>
-                              <p className="text-lg font-semibold">{stat.bookingCount}</p>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">Total Hours</p>
-                              <p className="text-lg font-semibold">{stat.totalHours.toFixed(1)}</p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {loadingStats ? (
+                    <div className="flex items-center justify-center py-16">
+                      <div className="animate-spin rounded-full h-9 w-9 border-2 border-primary border-t-transparent" />
+                    </div>
+                  ) : equipmentStats.length > 0 ? (
+                    <ul className="divide-y divide-border/60">
+                      {equipmentStats.map((stat, index) => (
+                        <li key={stat.equipment_id} className="px-5 py-4 hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-foreground truncate">{stat.equipment_name}</p>
+                              <p className="text-xs text-muted-foreground">{stat.equipment_code}</p>
                             </div>
                           </div>
-                          <div className="pt-2 border-t">
-                            <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-                            <p className="text-xl font-bold text-primary">
-                              ₹{stat.totalSpent.toFixed(2)}
-                            </p>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Bookings</p>
+                              <p className="text-lg font-bold text-foreground tabular-nums">{stat.bookingCount}</p>
+                            </div>
+                            <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Hours</p>
+                              <p className="text-lg font-bold text-foreground tabular-nums">{stat.totalHours.toFixed(1)}</p>
+                            </div>
+                            <div className="rounded-lg bg-primary/10 px-3 py-2 text-center">
+                              <p className="text-[10px] uppercase tracking-wider text-primary/90 font-medium">Spent</p>
+                              <p className="text-lg font-bold text-primary tabular-nums">₹{stat.totalSpent.toFixed(0)}</p>
+                            </div>
                           </div>
                           {stat.bookingCount > 0 && (
-                            <div className="pt-2 border-t">
-                              <p className="text-xs text-muted-foreground mb-1">Average per Booking</p>
-                              <p className="text-sm font-medium">
-                                ₹{(stat.totalSpent / stat.bookingCount).toFixed(2)} / {(stat.totalHours / stat.bookingCount).toFixed(1)}h
-                              </p>
-                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              ~₹{(stat.totalSpent / stat.bookingCount).toFixed(0)} per booking · {(stat.totalHours / stat.bookingCount).toFixed(1)}h avg
+                            </p>
                           )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="py-8 text-center">
-                      <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">No booking statistics available</p>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Start booking equipment to see your usage statistics
-                      </p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+                        <TrendingUp className="h-7 w-7" />
+                      </div>
+                      <p className="font-medium text-foreground">No statistics yet</p>
+                      <p className="text-sm text-muted-foreground mt-1">Your usage and spending will appear here after bookings</p>
                       <Button
                         variant="outline"
-                        className="mt-4"
+                        className="mt-5"
                         onClick={() => navigate("/equipments")}
                       >
                         Browse Equipment
                       </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </section>
         )}
 
         {isAdmin && (
-          <section className="mt-12">
-            <h3 className="text-xl font-semibold mb-4">Admin Settings</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate("/admin")}
-              >
+          <>
+            <section className="mt-12">
+              <h3 className="text-xl font-semibold mb-4">Content Management (CMS)</h3>
+              <Card>
                 <CardHeader>
-                  <Settings className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle className="text-base">Equipment Management</CardTitle>
-                  <CardDescription className="text-sm">
-                    Manage equipment, rates & availability
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Layout className="h-6 w-6" />
+                    Content Management (CMS)
+                  </CardTitle>
+                  <CardDescription>
+                    Main page and navigation: menu items (with priority) and home page hero, CTAs, and stats
                   </CardDescription>
                 </CardHeader>
+                <CardContent className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/admin/section/cmsMenu")}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Menu className="h-5 w-5" />
+                      <span className="font-medium">Menu & Submenu</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/admin/section/cmsPages")}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Layout className="h-5 w-5" />
+                      <span className="font-medium">Pages</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/admin/section/cmsHome")}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Home className="h-5 w-5" />
+                      <span className="font-medium">Home Page Content</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </CardContent>
               </Card>
-              <Card
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate("/user-management")}
-              >
-                <CardHeader>
-                  <UserIcon className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle className="text-base">User Management</CardTitle>
-                  <CardDescription className="text-sm">
-                    Users, roles & permissions
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-              <Card
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate("/user-groups")}
-              >
-                <CardHeader>
-                  <Users className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle className="text-base">Group Management</CardTitle>
-                  <CardDescription className="text-sm">
-                    User groups & equipment access
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-              <Card
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate("/wallet")}
-              >
-                <CardHeader>
-                  <Wallet className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle className="text-base">Wallet Management</CardTitle>
-                  <CardDescription className="text-sm">
-                    Wallet, join & recharge requests
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
-          </section>
+            </section>
+            <section className="mt-12">
+              <h3 className="text-xl font-semibold mb-4">Admin Settings</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card
+                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => navigate("/admin")}
+                >
+                  <CardHeader>
+                    <Settings className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle className="text-base">Equipment Management</CardTitle>
+                    <CardDescription className="text-sm">
+                      Manage equipment, rates & availability
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+                <Card
+                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => navigate("/user-management")}
+                >
+                  <CardHeader>
+                    <UserIcon className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle className="text-base">User Management</CardTitle>
+                    <CardDescription className="text-sm">
+                      Users, roles & permissions
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+                <Card
+                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => navigate("/user-groups")}
+                >
+                  <CardHeader>
+                    <Users className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle className="text-base">Group Management</CardTitle>
+                    <CardDescription className="text-sm">
+                      User groups & equipment access
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+                <Card
+                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => navigate("/wallet")}
+                >
+                  <CardHeader>
+                    <Wallet className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle className="text-base">Wallet Management</CardTitle>
+                    <CardDescription className="text-sm">
+                      Wallet, join & recharge requests
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            </section>
+          </>
         )}
       </main>
     </div>

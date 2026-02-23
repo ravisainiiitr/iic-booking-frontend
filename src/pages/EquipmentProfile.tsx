@@ -26,6 +26,7 @@ interface EquipmentProfile {
   status: string;
   status_display: string;
   location: string;
+  important_instruction?: string | null;
   image_url: string;
   specifications: Array<{
     equipment_specification_id: number;
@@ -106,6 +107,12 @@ const EquipmentProfile = () => {
     updated_at: string;
   }> | null>(null);
   const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string>>({});
+  const [slotWindow, setSlotWindow] = useState<{
+    slot_start_time: string | null;
+    slot_end_time: string | null;
+    slot_duration_minutes: number;
+  }>({ slot_start_time: null, slot_end_time: null, slot_duration_minutes: 60 });
+  const [slotMasterTimes, setSlotMasterTimes] = useState<string[]>([]);
 
   const fetchSlotsForWeek = useCallback(async (isAuto = false) => {
     if (!equipment || !id) return;
@@ -120,6 +127,18 @@ const EquipmentProfile = () => {
       if (slotsResponse.data) {
         setApiSlots(slotsResponse.data.slots || []);
         setWeeklyHolidays(slotsResponse.data.holidays ?? {});
+        const d = slotsResponse.data;
+        if (d.slot_start_time != null || d.slot_end_time != null || d.slot_duration_minutes != null) {
+          setSlotWindow({
+            slot_start_time: d.slot_start_time ?? null,
+            slot_end_time: d.slot_end_time ?? null,
+            slot_duration_minutes: d.slot_duration_minutes ?? 60,
+          });
+        }
+        // Store Slot Master times (user-defined open_time values) for calendar time axis
+        if (d.slot_master_times && Array.isArray(d.slot_master_times)) {
+          setSlotMasterTimes(d.slot_master_times);
+        }
       }
     } catch (error: any) {
       console.error("Error calling slots API:", error);
@@ -157,10 +176,17 @@ const EquipmentProfile = () => {
     }
   };
 
+  // Admin-only: true when user_type is admin (for "Manage this Equipment" label and visibility)
+  const isAdminUser = (): boolean => {
+    if (!userType) return false;
+    return String(userType).toLowerCase() === 'admin';
+  };
+
   // Check if user type is allowed to book equipment
-  // Allowed types: Student, Faculty, External, RND, Institute
+  // Allowed types: Student, Faculty, External, RND, Institute (admin sees "Manage this Equipment" instead)
   const canBookEquipment = (): boolean => {
     if (!userType) return false;
+    if (isAdminUser()) return true; // Admin can see the button (labeled "Manage this Equipment")
 
     const allowedStringTypes = ['student', 'faculty', 'external', 'rnd', 'industry'];
     
@@ -210,6 +236,30 @@ const EquipmentProfile = () => {
     }
   };
 
+  /** Parse "HH:mm" or "HH:mm:ss" to total minutes from midnight. */
+  const parseTimeToMinutes = (timeStr: string): number => {
+    const parts = timeStr.trim().split(":");
+    const h = parseInt(parts[0] || "0", 10);
+    const m = parseInt(parts[1] || "0", 10);
+    return h * 60 + m;
+  };
+
+  /** Build time slot labels from equipment window (user-defined slot_start_time, slot_end_time, slot_duration_minutes). */
+  const getTimeSlotsFromEquipmentWindow = (): string[] => {
+    const { slot_start_time, slot_end_time, slot_duration_minutes } = slotWindow;
+    if (!slot_start_time || !slot_end_time || slot_duration_minutes <= 0) return [];
+    const startM = parseTimeToMinutes(slot_start_time);
+    const endM = parseTimeToMinutes(slot_end_time);
+    if (endM <= startM) return [];
+    const slots: string[] = [];
+    for (let m = startM; m < endM; m += slot_duration_minutes) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+    }
+    return slots;
+  };
+
   const getTimeSlotsFromDailySlots = (): string[] => {
     const slotsToUse = apiSlots;
     
@@ -228,6 +278,24 @@ const EquipmentProfile = () => {
     });
     
     return Array.from(uniqueTimes).sort();
+  };
+
+  /** Convert HH:mm:ss to HH:mm for display. */
+  const formatTimeForDisplay = (timeStr: string): string => {
+    return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
+  };
+
+  /** Time axis for the weekly grid: use Slot Master open_time values (user-defined), else derive from slots. */
+  const getTimeSlotsForGrid = (): string[] => {
+    // First priority: use Slot Master open_time values directly from API (exact user-defined times)
+    if (slotMasterTimes.length > 0) {
+      return slotMasterTimes.map(formatTimeForDisplay).sort();
+    }
+    // Second priority: actual slot start times from DailySlots (derived from Slot Masters)
+    const fromSlots = getTimeSlotsFromDailySlots();
+    if (fromSlots.length > 0) return fromSlots;
+    // Fallback: window-based grid only if no Slot Master times available
+    return getTimeSlotsFromEquipmentWindow();
   };
 
   const getSlotData = (date: Date, time: string): {
@@ -258,9 +326,9 @@ const EquipmentProfile = () => {
     });
   };
 
-  // Calculate slot duration from slot data if not provided
+  // Calculate slot duration: prefer user-defined from API, else from first slot
   const getSlotDuration = (): number => {
-    // If not available, calculate from the first available slot
+    if (slotWindow.slot_duration_minutes > 0) return slotWindow.slot_duration_minutes;
     if (apiSlots && apiSlots.length > 0) {
       const firstSlot = apiSlots[0];
       try {
@@ -273,7 +341,6 @@ const EquipmentProfile = () => {
         console.error("Error calculating slot duration:", error);
       }
     }
-    
     return 0;
   };
 
@@ -341,9 +408,6 @@ const EquipmentProfile = () => {
                         <MapPin className="h-4 w-4" />
                         <span>{equipment.location}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-mono">{equipment.code}</span>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -403,9 +467,9 @@ const EquipmentProfile = () => {
                         })}
                       </div>
 
-                      {/* Time slots */}
-                      {getTimeSlotsFromDailySlots().length > 0 &&
-                        getTimeSlotsFromDailySlots().map((time) => (
+                      {/* Time slots - use user-defined equipment window when available */}
+                      {getTimeSlotsForGrid().length > 0 &&
+                        getTimeSlotsForGrid().map((time) => (
                           <div key={time} className="grid grid-cols-8 gap-2 mb-2">
                             <div className="text-sm p-2 font-medium flex items-center">
                               {time}
@@ -487,7 +551,7 @@ const EquipmentProfile = () => {
           {/* Right Section - Equipment Details */}
           <div className="lg:col-span-1 space-y-6">
             <div className="sticky top-6 space-y-6">
-              {/* Book Equipment Button */}
+              {/* Book / Manage Equipment Button */}
               {canBookEquipment() && (
                 <Card>
                   <CardContent className="pt-6">
@@ -498,34 +562,43 @@ const EquipmentProfile = () => {
                         navigate(`/book-equipment?equipment_id=${equipment.equipment_id}`);
                       }}
                     >
-                      Book This Equipment
+                      {isAdminUser() ? "Manage this Equipment" : "Book This Equipment"}
                     </Button>
                   </CardContent>
                 </Card>
               )}
 
-              {/* Specifications */}
-              {equipment.specifications && equipment.specifications.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      Specifications
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {equipment.specifications.map((spec) => (
-                        <div key={spec.equipment_specification_id} className="flex flex-col">
-                          <span className="font-semibold text-sm text-muted-foreground">
-                            {spec.spec_key}
-                          </span>
-                          <span className="text-base">{spec.spec_value}</span>
-                        </div>
-                      ))}
+              {/* Important Instruction - highlighted above specifications */}
+              {equipment.important_instruction && (
+                <div className="rounded-lg border-2 border-amber-500/80 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/60 p-4 shadow-sm">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-amber-800 dark:text-amber-200 mb-1">Important Instruction</p>
+                      <p className="text-sm text-amber-900/90 dark:text-amber-100/90 whitespace-pre-line">
+                        {equipment.important_instruction}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
+
+              {/* Equipment specifications: one section per spec_key */}
+              {equipment.specifications && equipment.specifications.length > 0 &&
+                equipment.specifications.map((spec) => (
+                  <Card key={spec.equipment_specification_id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        {spec.spec_key}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-base text-muted-foreground whitespace-pre-line">
+                        {spec.spec_value}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
 
               {/* Accessories */}
               {equipment.accessories && equipment.accessories.length > 0 && (

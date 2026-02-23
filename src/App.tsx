@@ -18,7 +18,9 @@ import MyBookings from "./pages/MyBookings";
 import BookingManagement from "./pages/BookingManagement";
 import Wallet from "./pages/Wallet";
 import Reports from "./pages/Reports";
+import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
+import AdminSection from "./pages/AdminSection";
 import UserManagement from "./pages/UserManagement";
 import UserGroups from "./pages/UserGroups";
 import SetupTestUsers from "./pages/SetupTestUsers";
@@ -27,6 +29,7 @@ import PeriodicTable from "./pages/PeriodicTable";
 import EquipmentProfile from "./pages/EquipmentProfile";
 import Tickets from "./pages/Tickets";
 import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
+import CmsPageView from "./pages/CmsPageView";
 
 const queryClient = new QueryClient();
 
@@ -57,13 +60,16 @@ const App = () => (
                 <Route path="/booking-management" element={<BookingManagement />} />
                 <Route path="/wallet" element={<Wallet />} />
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/reports/bookings" element={<ReportBookingsList />} />
                 <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/admin/section/:section" element={<AdminSection />} />
                 <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/user-groups" element={<UserGroups />} />
                 <Route path="/setup-test-users" element={<SetupTestUsers />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/periodic-table" element={<PeriodicTable />} />
                 <Route path="/tickets" element={<Tickets />} />
+                <Route path="/page/:slug" element={<CmsPageView />} />
                 {/* Wallet recharge request action pages - redirect to Django backend */}
                 <Route path="/wallet/recharge-requests/:requestId" element={<WalletRechargeRequestAction />} />
                 <Route path="/wallet/recharge-requests/:requestId/approve" element={<WalletRechargeRequestAction />} />
