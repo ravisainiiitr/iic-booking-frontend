@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { MessageSquare, Clock, User, CheckCircle, XCircle, Calendar, RefreshCw, DollarSign } from "lucide-react";
+import { MessageSquare, Clock, User, CheckCircle, XCircle, Calendar, RefreshCw, DollarSign, CopyPlus, BadgeCheck } from "lucide-react";
 import { format } from "date-fns";
 
 interface BookingEventHistoryProps {
@@ -100,6 +100,10 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
         return <XCircle className="h-4 w-4 text-yellow-500" />;
       case "COMMENT":
         return <MessageSquare className="h-4 w-4" />;
+      case "REPEAT_SAMPLE_OFFERED":
+        return <BadgeCheck className="h-4 w-4 text-blue-500" />;
+      case "REPEAT_SAMPLE_CREATED":
+        return <CopyPlus className="h-4 w-4 text-green-500" />;
       default:
         return <Clock className="h-4 w-4" />;
     }
@@ -123,6 +127,10 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
         return "bg-yellow-100 text-yellow-800";
       case "COMMENT":
         return "bg-gray-100 text-gray-800";
+      case "REPEAT_SAMPLE_OFFERED":
+        return "bg-blue-100 text-blue-800";
+      case "REPEAT_SAMPLE_CREATED":
+        return "bg-green-100 text-green-800";
       default:
         return "bg-gray-100 text-gray-800";
     }

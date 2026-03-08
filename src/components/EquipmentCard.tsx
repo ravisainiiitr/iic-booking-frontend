@@ -2,12 +2,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, Heart, IndianRupee } from "lucide-react";
+import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, IndianRupee } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import TicketForm from "@/components/TicketForm";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface EquipmentCardProps {
   name: string;
@@ -33,6 +35,12 @@ interface EquipmentCardProps {
   sampleRequirements?: string;
   detailsUrl?: string;
   id?: string | number;
+  /** When true, show Active/Inactive toggle (admin/OIC only). */
+  showStatusToggle?: boolean;
+  /** Callback when status is toggled (opens confirmation; parent should show dialog and then call API on confirm). */
+  onStatusChange?: (equipmentId: number, equipmentName: string, newStatus: "ACTIVE" | "INACTIVE") => void | Promise<void>;
+  /** Equipment id that is currently updating (disables its switch). */
+  statusUpdatingId?: number;
 }
 
 interface EquipmentDetail {
@@ -59,6 +67,7 @@ interface EquipmentDetail {
   }>;
   operators?: Array<{
     equipment_operator_id: number;
+    operator?: number;
     operator_name: string;
     operator_email?: string | null;
     operator_phone?: string | null;
@@ -66,6 +75,7 @@ interface EquipmentDetail {
   }>;
   managers?: Array<{
     equipment_manager_id: number;
+    manager?: number;
     manager_name: string;
     manager_email?: string | null;
     manager_phone?: string | null;
@@ -103,7 +113,10 @@ const EquipmentCard = ({
   specifications,
   sampleRequirements,
   detailsUrl,
-  id
+  id,
+  showStatusToggle,
+  onStatusChange,
+  statusUpdatingId,
 }: EquipmentCardProps) => {
   const [isPlaying, setIsPlaying] = useState(true); // Start as playing if video exists
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -206,29 +219,44 @@ const EquipmentCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
-          {(() => {
-            // Map status display: ACTIVE -> "Working", INACTIVE -> "Not Working", others -> actual status
-            let displayStatus = statusDisplay || status || "";
-            if (status === "ACTIVE") {
-              displayStatus = "Working";
-            } else if (status === "INACTIVE") {
-              displayStatus = "Not Working";
-            }
-            
-            // Determine badge variant based on status
-            const isWorking = status === "ACTIVE";
-            const isNotWorking = status === "INACTIVE";
-            const variant = isWorking ? "default" : (isNotWorking ? "destructive" : "secondary");
-            const badgeClass = isWorking 
-              ? "shrink-0 bg-green-600 hover:bg-green-700" 
-              : (isNotWorking ? "shrink-0" : "shrink-0");
-            
-            return (
-              <Badge variant={variant} className={badgeClass}>
-                {displayStatus || (available ? "Working" : "Not Working")}
-              </Badge>
-            );
-          })()}
+          <div className="flex items-center gap-2 shrink-0">
+            {showStatusToggle && onStatusChange && id != null ? (
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <Label htmlFor={`card-status-${id}`} className="text-xs font-medium text-muted-foreground cursor-pointer whitespace-nowrap">
+                  {status === "ACTIVE" ? "Active" : "Inactive"}
+                </Label>
+                <Switch
+                  id={`card-status-${id}`}
+                  checked={status === "ACTIVE"}
+                  disabled={statusUpdatingId === Number(id)}
+                  onCheckedChange={(checked) => onStatusChange(Number(id), name, checked ? "ACTIVE" : "INACTIVE")}
+                />
+              </div>
+            ) : (
+              (() => {
+                // Map status display: ACTIVE -> "Working", INACTIVE -> "Not Working", others -> actual status
+                let displayStatus = statusDisplay || status || "";
+                if (status === "ACTIVE") {
+                  displayStatus = "Working";
+                } else if (status === "INACTIVE") {
+                  displayStatus = "Not Working";
+                }
+
+                const isWorking = status === "ACTIVE";
+                const isNotWorking = status === "INACTIVE";
+                const variant = isWorking ? "default" : (isNotWorking ? "destructive" : "secondary");
+                const badgeClass = isWorking
+                  ? "shrink-0 bg-green-600 hover:bg-green-700"
+                  : (isNotWorking ? "shrink-0" : "shrink-0");
+
+                return (
+                  <Badge variant={variant} className={badgeClass}>
+                    {displayStatus || (available ? "Working" : "Not Working")}
+                  </Badge>
+                );
+              })()
+            )}
+          </div>
         </div>
         {category ? <CardDescription className="text-sm">{category}</CardDescription> : null}
       </CardHeader>
@@ -418,7 +446,7 @@ const EquipmentCard = ({
                       {equipmentDetail.operators.map((operator) => (
                         <div key={operator.equipment_operator_id} className="flex items-center gap-3 bg-muted/50 rounded-md p-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={operator.operator_profile_picture || undefined} />
+                            <AvatarImage src={operator.operator_profile_picture && operator.operator != null ? apiClient.getProfilePictureUrl(operator.operator) : undefined} />
                             <AvatarFallback>
                               {operator.operator_name?.charAt(0).toUpperCase() || "O"}
                             </AvatarFallback>
@@ -452,7 +480,7 @@ const EquipmentCard = ({
                       {equipmentDetail.managers.map((manager) => (
                         <div key={manager.equipment_manager_id} className="flex items-center gap-3 bg-muted/50 rounded-md p-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={manager.manager_profile_picture || undefined} />
+                            <AvatarImage src={manager.manager_profile_picture && manager.manager != null ? apiClient.getProfilePictureUrl(manager.manager) : undefined} />
                             <AvatarFallback>
                               {manager.manager_name?.charAt(0).toUpperCase() || "M"}
                             </AvatarFallback>
@@ -475,13 +503,12 @@ const EquipmentCard = ({
                   </div>
                 )}
 
-                {/* Show Interest Button */}
+                {/* Raise Support Ticket Button */}
                 <div className="border-t pt-4">
                   <TicketForm
                     trigger={
                       <Button className="w-full" variant="outline">
-                        <Heart className="h-4 w-4 mr-2" />
-                        Show Interest
+                        Raise support ticket
                       </Button>
                     }
                     initialValues={{

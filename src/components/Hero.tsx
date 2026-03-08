@@ -32,19 +32,27 @@ const Hero = () => {
   const { isAuthenticated } = useAuth();
   const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
+  const [fontSizes, setFontSizes] = useState<Record<string, string>>({});
 
   const [heroSlides, setHeroSlides] = useState<Array<{ src: string; alt: string }>>([]);
 
   useEffect(() => {
     apiClient.getCmsHome().then((res) => {
-      if (res.data && typeof res.data === "object" && Object.keys(res.data).length > 0) {
-        setHome((prev) => ({ ...DEFAULT_HOME, ...prev, ...res.data }));
+      if (res.data && typeof res.data === "object") {
+        const data = res.data as { content?: Record<string, string>; font_sizes?: Record<string, string> };
+        if (data.content && Object.keys(data.content).length > 0) {
+          setHome((prev) => ({ ...DEFAULT_HOME, ...prev, ...data.content }));
+        }
+        if (data.font_sizes && Object.keys(data.font_sizes).length > 0) {
+          setFontSizes(data.font_sizes);
+        }
       }
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
     apiClient.getCmsHeroSlides().then((res) => {
+      if (res.error) return;
       if (res.data && Array.isArray(res.data) && res.data.length > 0) {
         setHeroSlides(
           res.data.map((s) => ({ src: s.image_url, alt: s.alt_text || "Hero background" }))
@@ -53,16 +61,16 @@ const Hero = () => {
     }).catch(() => {});
   }, []);
 
+  const fallbackImages: Array<{ src: string; alt: string }> = [
+    { src: instrument1, alt: "Advanced scientific instrument - Laboratory equipment" },
+    { src: instrument2, alt: "Rigaku MiniFlex analytical instrument" },
+    { src: instrument3, alt: "Laboratory mass spectrometer system" },
+    { src: instrument4, alt: "High-tech laboratory instrumentation" },
+  ];
+
   const instrumentImages: Array<{ src: string; alt: string }> =
-    heroSlides.length > 0
-      ? heroSlides
-      : [
-          { src: instrument1, alt: "Advanced scientific instrument - Laboratory equipment" },
-          { src: instrument2, alt: "Rigaku MiniFlex analytical instrument" },
-          { src: instrument3, alt: "Laboratory mass spectrometer system" },
-          { src: instrument4, alt: "High-tech laboratory instrumentation" },
-        ];
-  
+    heroSlides.length > 0 ? heroSlides : fallbackImages;
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
       {/* Background Carousel with Overlay */}
@@ -77,10 +85,19 @@ const Hero = () => {
           <CarouselContent className="h-screen">
             {instrumentImages.map((image, index) => (
               <CarouselItem key={index} className="h-screen">
-                <img 
-                  src={image.src} 
+                <img
+                  src={image.src}
                   alt={image.alt}
                   className="w-full h-full object-cover brightness-75 contrast-110"
+                  loading="eager"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    if (el.dataset.fallbackUsed) return;
+                    el.dataset.fallbackUsed = "1";
+                    const fallback = fallbackImages[index % fallbackImages.length];
+                    if (fallback) el.src = fallback.src;
+                    else el.style.display = "none";
+                  }}
                 />
               </CarouselItem>
             ))}
@@ -91,15 +108,15 @@ const Hero = () => {
 
       {/* Content */}
       <div className="container mx-auto px-4 z-10 text-center">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <div className="space-y-4 animate-fade-in">
-            <h1 className="text-5xl md:text-7xl font-bold text-primary-foreground leading-tight">
-              {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
-              <span className="block mt-2 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+        <div className="max-w-4xl mx-auto space-y-10 md:space-y-12">
+          <div className="space-y-6 animate-fade-in">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-primary-foreground tracking-tight overflow-visible">
+              <span className="block leading-[1.1]" style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}>{home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}</span>
+              <span className="block mt-3 leading-normal pb-[0.2em] bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent" style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}>
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </span>
             </h1>
-            <p className="text-xl md:text-2xl text-primary-foreground/90 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-primary-foreground/90 max-w-3xl mx-auto leading-relaxed pb-[0.15em]" style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}>
               {home.hero_subtitle || DEFAULT_HOME.hero_subtitle}
             </p>
           </div>
@@ -108,7 +125,7 @@ const Hero = () => {
             {!isAuthenticated && (
               <Button 
                 size="lg" 
-                className="gap-2 text-lg px-8 py-6 h-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                className="gap-2 text-base sm:text-lg px-7 sm:px-8 py-5 sm:py-6 h-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                 onClick={() => navigate("/auth")}
               >
                 <LogIn className="h-5 w-5" />
@@ -118,7 +135,8 @@ const Hero = () => {
             <Button 
               size="lg" 
               variant="secondary" 
-              className="gap-2 text-lg px-8 py-6 h-auto"
+              className="gap-2 text-base sm:text-lg px-7 sm:px-8 py-5 sm:py-6 h-auto"
+              style={fontSizes.cta_book_text ? { fontSize: fontSizes.cta_book_text } : undefined}
               onClick={() => navigate(home.cta_book_route || "/equipments")}
             >
               <Calendar className="h-5 w-5" />
@@ -127,7 +145,8 @@ const Hero = () => {
             <Button 
               size="lg" 
               variant="secondary" 
-              className="gap-2 text-lg px-8 py-6 h-auto"
+              className="gap-2 text-base sm:text-lg px-7 sm:px-8 py-5 sm:py-6 h-auto"
+              style={fontSizes.cta_browse_text ? { fontSize: fontSizes.cta_browse_text } : undefined}
               onClick={() => {
                 const anchor = home.cta_browse_anchor || "#equipment";
                 if (window.location.pathname === "/") {
@@ -143,29 +162,23 @@ const Hero = () => {
             </Button>
           </div>
 
-          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto pt-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8 max-w-2xl mx-auto pt-8 md:pt-12">
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground">{home.stat1_value ?? "50+"}</div>
-              <div className="text-primary-foreground/80 text-sm mt-1">{home.stat1_label ?? "Equipment Types"}</div>
+              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat1_value ? { fontSize: fontSizes.stat1_value } : undefined}>{home.stat1_value ?? "50+"}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat1_label ? { fontSize: fontSizes.stat1_label } : undefined}>{home.stat1_label ?? "Equipment Types"}</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground">{home.stat2_value ?? "24/7"}</div>
-              <div className="text-primary-foreground/80 text-sm mt-1">{home.stat2_label ?? "Online Booking"}</div>
+              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat2_value ? { fontSize: fontSizes.stat2_value } : undefined}>{home.stat2_value ?? "24/7"}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat2_label ? { fontSize: fontSizes.stat2_label } : undefined}>{home.stat2_label ?? "Online Booking"}</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground">{home.stat3_value ?? "1000+"}</div>
-              <div className="text-primary-foreground/80 text-sm mt-1">{home.stat3_label ?? "Active Users"}</div>
+              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat3_value ? { fontSize: fontSizes.stat3_value } : undefined}>{home.stat3_value ?? "1000+"}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat3_label ? { fontSize: fontSizes.stat3_label } : undefined}>{home.stat3_label ?? "Active Users"}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Scroll Indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce">
-        <div className="w-6 h-10 border-2 border-primary-foreground/50 rounded-full flex items-start justify-center p-2">
-          <div className="w-1.5 h-3 bg-primary-foreground/50 rounded-full" />
-        </div>
-      </div>
     </section>
   );
 };

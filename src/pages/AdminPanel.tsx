@@ -28,11 +28,13 @@ type SectionItem = { key: string; label: string; icon: React.ReactNode };
 
 const EQUIPMENT_SECTIONS: SectionItem[] = [
   { key: "bookings", label: "Bookings", icon: <Calendar className="h-5 w-5" /> },
+  { key: "bookingAttemptLogs", label: "Booking requests log", icon: <FileText className="h-5 w-5" /> },
   { key: "dailySlots", label: "Daily Slots", icon: <CalendarDays className="h-5 w-5" /> },
   { key: "equipment", label: "Equipment", icon: <Package className="h-5 w-5" /> },
   { key: "equipmentCategories", label: "Equipment Categories", icon: <FolderTree className="h-5 w-5" /> },
   { key: "equipmentGroups", label: "Equipment Groups", icon: <Layers className="h-5 w-5" /> },
   { key: "holidays", label: "Holidays", icon: <Calendar className="h-5 w-5" /> },
+  { key: "equipmentReports", label: "Equipment Reports", icon: <FileText className="h-5 w-5" /> },
 ];
 
 const USERS_SECTIONS: SectionItem[] = [
@@ -137,7 +139,13 @@ const AdminPanel = () => {
                 <button
                   key={section.key}
                   type="button"
-                  onClick={() => navigate(`/admin/section/${section.key}`)}
+                  onClick={() =>
+                    section.key === "bookingAttemptLogs"
+                      ? navigate("/booking-attempt-logs")
+                      : section.key === "equipmentReports"
+                        ? navigate("/reports")
+                        : navigate(`/admin/section/${section.key}`)
+                  }
                   className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
                 >
                   <span className="flex items-center gap-3">

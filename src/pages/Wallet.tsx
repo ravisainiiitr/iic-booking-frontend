@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,18 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Transaction {
   id: number;
@@ -24,6 +32,8 @@ interface Transaction {
   created_at: string;
   department_name?: string;
   department_code?: string | null;
+  balance_after?: string | null;
+  equipment_name?: string | null;
 }
 
 interface RazorpayOptions {
@@ -90,12 +100,14 @@ const Wallet = () => {
   const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [walletOwner, setWalletOwner] = useState<{
+    id?: number | null;
     name?: string | null;
     email?: string | null;
     phone?: string | null;
     profile_picture?: string | null;
   } | null>(null);
   const [facultyProfile, setFacultyProfile] = useState<{
+    id?: number | null;
     name?: string | null;
     email?: string | null;
     phone?: string | null;
@@ -142,6 +154,14 @@ const Wallet = () => {
   const [internalDepartments, setInternalDepartments] = useState<Array<{ id: number; name: string; code: string | null }>>([]);
   const [rechargeDepartmentId, setRechargeDepartmentId] = useState<number | null>(null);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
+
+  // Transaction history filters
+  const [txTypeFilter, setTxTypeFilter] = useState<"all" | "credit" | "debit">("all");
+  const [txDateFrom, setTxDateFrom] = useState("");
+  const [txDateTo, setTxDateTo] = useState("");
+  const [txDepartmentFilter, setTxDepartmentFilter] = useState("");
+  const [txSearchText, setTxSearchText] = useState("");
+  const [txEquipmentFilter, setTxEquipmentFilter] = useState("");
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -739,6 +759,58 @@ const Wallet = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subWallets.length]);
 
+  // Filtered transaction list for Transaction History table
+  const filteredTransactions = useMemo(() => {
+    let list = [...transactions];
+    if (txTypeFilter !== "all") {
+      list = list.filter((t) => t.transaction_type === txTypeFilter);
+    }
+    if (txDateFrom) {
+      const from = new Date(txDateFrom);
+      from.setHours(0, 0, 0, 0);
+      list = list.filter((t) => new Date(t.created_at) >= from);
+    }
+    if (txDateTo) {
+      const to = new Date(txDateTo);
+      to.setHours(23, 59, 59, 999);
+      list = list.filter((t) => new Date(t.created_at) <= to);
+    }
+    if (txDepartmentFilter) {
+      list = list.filter(
+        (t) => (t.department_name || "").trim() === txDepartmentFilter || (t.department_code || "").trim() === txDepartmentFilter
+      );
+    }
+    if (txEquipmentFilter) {
+      list = list.filter((t) => (t.equipment_name || "").trim() === txEquipmentFilter);
+    }
+    if (txSearchText.trim()) {
+      const q = txSearchText.trim().toLowerCase();
+      list = list.filter(
+        (t) =>
+          (t.description || "").toLowerCase().includes(q) ||
+          (t.equipment_name || "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [transactions, txTypeFilter, txDateFrom, txDateTo, txDepartmentFilter, txEquipmentFilter, txSearchText]);
+
+  const uniqueDepartmentsForFilter = useMemo(() => {
+    const names = new Set<string>();
+    transactions.forEach((t) => {
+      if (t.department_name) names.add(t.department_name);
+    });
+    return Array.from(names).sort();
+  }, [transactions]);
+
+  const uniqueEquipmentNamesForFilter = useMemo(() => {
+    const names = new Set<string>();
+    transactions.forEach((t) => {
+      const name = (t.equipment_name || "").trim();
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort();
+  }, [transactions]);
+
   // Load Razorpay script dynamically
   useEffect(() => {
     const script = document.createElement('script');
@@ -1020,7 +1092,7 @@ const Wallet = () => {
                               <div className="flex items-center gap-3 w-full py-1">
                                 {faculty.profile_picture ? (
                                   <img
-                                    src={faculty.profile_picture}
+                                    src={apiClient.getProfilePictureUrl(faculty.id)}
                                     alt={faculty.name}
                                     className="h-8 w-8 rounded-full object-cover flex-shrink-0"
                                   />
@@ -1068,7 +1140,7 @@ const Wallet = () => {
                       name={facultyProfile.name}
                       email={facultyProfile.email}
                       phone={facultyProfile.phone}
-                      profilePicture={facultyProfile.profile_picture}
+                      profilePicture={facultyProfile.profile_picture ? apiClient.getProfilePictureUrl(facultyProfile.id) : undefined}
                       size="md"
                     />
                     {!facultyProfile.has_wallet && (
@@ -1150,7 +1222,7 @@ const Wallet = () => {
                           name={request.faculty_name}
                           email={request.faculty_email}
                           phone={request.faculty_phone}
-                          profilePicture={request.faculty_profile_picture}
+                          profilePicture={request.faculty_profile_picture ? apiClient.getProfilePictureUrl(request.faculty) : undefined}
                           size="sm"
                           className="mb-2"
                         />
@@ -1553,15 +1625,15 @@ const Wallet = () => {
               </div>
             )}
             
-            {/* Wallet Owner Profile for Students and Other Users */}
+            {/* Supervisor Profile for Students and Other Users */}
             {isShared && walletOwner && (
               <div className="mt-6 pt-6 border-t">
-                <p className="text-sm font-medium mb-3">Wallet Owner:</p>
+                <p className="text-sm font-medium mb-3">Supervisor:</p>
                 <UserProfile
                   name={walletOwner.name}
                   email={walletOwner.email}
                   phone={walletOwner.phone}
-                  profilePicture={walletOwner.profile_picture}
+                  profilePicture={walletOwner.profile_picture && walletOwner.id != null ? apiClient.getProfilePictureUrl(walletOwner.id) : undefined}
                   size="md"
                 />
                 <div className="mt-4">
@@ -1711,7 +1783,7 @@ const Wallet = () => {
                             name={request.faculty_name}
                             email={request.faculty_email}
                             phone={request.faculty_phone}
-                            profilePicture={request.faculty_profile_picture}
+                            profilePicture={request.faculty_profile_picture ? apiClient.getProfilePictureUrl(request.faculty) : undefined}
                             size="sm"
                           />
                         </div>
@@ -1802,7 +1874,7 @@ const Wallet = () => {
                           name={request.student_name}
                           email={request.student_email}
                           phone={request.student_phone}
-                          profilePicture={request.student_profile_picture}
+                          profilePicture={request.student_profile_picture ? apiClient.getProfilePictureUrl(request.student) : undefined}
                           size="sm"
                           className="mb-2"
                         />
@@ -2028,59 +2100,197 @@ const Wallet = () => {
           <CardHeader>
             <CardTitle>Transaction History</CardTitle>
             <CardDescription>
-              Transactions are recorded per department. View balance and activity in the Department Sub-Wallets section above; use each department’s sub-wallet for recharges and bookings.
+              All credit and debit transactions across department sub-wallets. Net balance after each transaction is shown.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
               </div>
             ) : transactions.length === 0 ? (
-              <p className="text-center text-muted-foreground py-6">
-                No transactions yet. Transactions will appear here when you recharge or make bookings.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {transactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {transaction.transaction_type === "credit" ? (
-                          <Badge variant="default" className="flex items-center gap-1 bg-green-600">
-                            <ArrowUp className="h-3 w-3" />
-                            Credit
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <ArrowDown className="h-3 w-3" />
-                            Debit
-                          </Badge>
-                        )}
-                        <span className="font-semibold">
-                          ₹{Number(transaction.amount).toFixed(2)}
-                        </span>
-                        {transaction.department_name && (
-                          <span className="text-sm text-muted-foreground">
-                            ({transaction.department_name}{transaction.department_code ? ` - ${transaction.department_code}` : ''})
-                          </span>
-                        )}
-                      </div>
-                      {transaction.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {transaction.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(transaction.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="font-medium">No transactions yet</p>
+                <p className="text-sm mt-1">Transactions will appear here when you recharge or make bookings.</p>
               </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg bg-muted/40 border border-border/60">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
+                    <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as "all" | "credit" | "debit")}>
+                      <SelectTrigger className="w-[120px] h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="credit">Credit</SelectItem>
+                        <SelectItem value="debit">Debit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                    <Input
+                      type="date"
+                      className="w-[140px] h-9"
+                      value={txDateFrom}
+                      onChange={(e) => setTxDateFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+                    <Input
+                      type="date"
+                      className="w-[140px] h-9"
+                      value={txDateTo}
+                      onChange={(e) => setTxDateTo(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Department</Label>
+                    <Select value={txDepartmentFilter || "__all__"} onValueChange={(v) => setTxDepartmentFilter(v === "__all__" ? "" : v)}>
+                      <SelectTrigger className="w-[160px] h-9">
+                        <SelectValue placeholder="All departments" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All departments</SelectItem>
+                        {uniqueDepartmentsForFilter.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Equipment</Label>
+                    <Select value={txEquipmentFilter || "__all__"} onValueChange={(v) => setTxEquipmentFilter(v === "__all__" ? "" : v)}>
+                      <SelectTrigger className="w-[180px] h-9">
+                        <SelectValue placeholder="All equipment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All equipment</SelectItem>
+                        {uniqueEquipmentNamesForFilter.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+                    <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input
+                      placeholder="Search description or equipment..."
+                      className="h-9"
+                      value={txSearchText}
+                      onChange={(e) => setTxSearchText(e.target.value)}
+                    />
+                  </div>
+                  {(txTypeFilter !== "all" || txDateFrom || txDateTo || txDepartmentFilter || txEquipmentFilter || txSearchText.trim()) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => {
+                        setTxTypeFilter("all");
+                        setTxDateFrom("");
+                        setTxDateTo("");
+                        setTxDepartmentFilter("");
+                        setTxEquipmentFilter("");
+                        setTxSearchText("");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/80 overflow-hidden shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
+                      <TableHead className="font-semibold text-foreground min-w-[180px]">Equipment Name</TableHead>
+                      <TableHead className="font-semibold text-foreground w-[160px]">Date &amp; Time</TableHead>
+                      <TableHead className="font-semibold text-foreground w-[100px]">Type</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[200px]">Description</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right w-[120px]">Amount</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right w-[130px]">Balance Remaining</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No transactions match the current filters.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredTransactions.map((transaction) => (
+                      <TableRow
+                        key={transaction.id}
+                        className="group hover:bg-muted/30 transition-colors border-b border-border/60 last:border-b-0"
+                      >
+                        <TableCell className="text-sm text-muted-foreground align-middle min-w-[180px]">
+                          {transaction.equipment_name ? (
+                            <span className="font-medium text-foreground" title={transaction.equipment_name}>
+                              {transaction.equipment_name}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/70">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground align-middle whitespace-nowrap">
+                          {new Date(transaction.created_at).toLocaleString(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </TableCell>
+                        <TableCell className="align-middle">
+                          {transaction.transaction_type === "credit" ? (
+                            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-1">
+                              <Plus className="h-3 w-3" />
+                              Credit
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="font-medium gap-1">
+                              <Minus className="h-3 w-3" />
+                              Debit
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-foreground/90 align-middle max-w-[320px]">
+                          <span className="line-clamp-2" title={transaction.description || ""}>
+                            {transaction.description || "—"}
+                          </span>
+                          {transaction.department_name && (
+                            <span className="text-xs text-muted-foreground block mt-0.5">
+                              {transaction.department_name}
+                              {transaction.department_code ? ` (${transaction.department_code})` : ""}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium align-middle">
+                          {transaction.transaction_type === "credit" ? (
+                            <span className="text-emerald-600 dark:text-emerald-400">+₹{Number(transaction.amount).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-red-600 dark:text-red-400">−₹{Number(transaction.amount).toFixed(2)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-foreground align-middle">
+                          {transaction.balance_after != null && transaction.balance_after !== "" ? (
+                            <span>₹{Number(transaction.balance_after).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              </>
             )}
           </CardContent>
         </Card>

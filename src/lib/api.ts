@@ -34,6 +34,7 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   equipmentCategories: 'admin/equipment-categories',
   equipmentGroups: 'admin/equipment-groups',
   holidays: 'admin/holidays',
+  repeatSampleRequests: 'admin/repeat-sample-requests',
   // Users
   departments: 'admin/departments',
   projects: 'admin/projects',
@@ -50,6 +51,13 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   cmsMenu: 'admin/cms-menu',
   cmsHome: 'admin/cms-home',
   cmsPages: 'admin/cms-pages',
+  cmsHeroSlides: 'admin/cms-hero-slides',
+  communicationTemplates: 'admin/communication-templates',
+  communicationLogs: 'admin/communication-logs',
+  notices: 'admin/notices',
+  calendarColors: 'admin/calendar-colors',
+  internalSlotWindow: 'admin/internal-slot-window',
+  equipmentReports: 'admin/equipment-reports',
 };
 
 interface ApiResponse<T> {
@@ -89,6 +97,7 @@ interface User {
   date_joined?: string | null;
   last_login?: string | null;
   auto_slot_selection?: boolean;
+  is_staff?: boolean;
 }
 
 interface AuthResponse {
@@ -250,6 +259,53 @@ interface BookingEvent {
   created_at: string;
 }
 
+export type SampleTraceStatus =
+  | 'SAMPLE_SENT'
+  | 'HELD_AT_OFFICE'
+  | 'FORWARDED_TO_LAB'
+  | 'SAMPLE_ACCEPTED'
+  | 'SAMPLE_REJECTED'
+  | 'PROCESSING'
+  | 'COMPLETED';
+
+export interface SampleTraceReplyAttachment {
+  id: number;
+  file_url: string;
+  name: string;
+}
+
+export interface SampleTraceEvent {
+  id: number;
+  status: string;
+  status_display: string;
+  sample_identifiers: string;
+  tracking_id?: string;
+  reason?: string;
+  user_reply?: string;
+  reply_attachments?: SampleTraceReplyAttachment[];
+  created_at: string;
+  created_by: number | null;
+  created_by_name: string | null;
+}
+
+/** One row from wallet recharge file parse API (date, receipt_no, amount, matched user, processed). */
+export interface WalletRechargeParseRow {
+  date: string | null;
+  receipt_no: string;
+  name: string;
+  emp_no: string;
+  department: string;
+  amount: string;
+  payment: string;
+  processed?: boolean;
+  matched_user: {
+    id: number;
+    email: string;
+    name: string;
+    emp_id: string;
+  } | null;
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -259,6 +315,9 @@ class ApiClient {
     // Load token from localStorage on initialization
     this.token = localStorage.getItem('auth_token');
   }
+
+  /** Called when the API returns 401 (e.g. session expired or invalidated). Set by AuthProvider to logout and redirect. */
+  onUnauthorized: (() => void) | null = null;
 
   private async request<T>(
     endpoint: string,
@@ -283,6 +342,14 @@ class ApiClient {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        // 401: session expired or invalidated (e.g. single session login elsewhere, or inactivity)
+        if (response.status === 401) {
+          this.setToken(null);
+          localStorage.removeItem('user');
+          if (this.onUnauthorized) {
+            this.onUnauthorized();
+          }
+        }
         // Handle field-specific errors (e.g., {"email": ["A user with this email already exists."]})
         const fieldErrors: Record<string, string[] | string> = {};
         let hasFieldErrors = false;
@@ -469,13 +536,18 @@ class ApiClient {
     password: string,
     password_confirm: string,
     name: string,
-    user_type: "external" | "RND" | "Industry" | "other",
+    user_type: string,
     emp_id: string,
     phone_number: string | undefined,
     department: number,
     documents?: File[],
     document_types?: string[],
-    profile_picture?: File | null
+    profile_picture?: File | null,
+    user_type_alias?: string | null,
+    supervisor?: number | null,
+    program_end_date?: string,
+    program_start_date?: string | null,
+    gender?: string | null
   ) {
     const url = `${this.baseURL}/auth/register/`;
     const formData = new FormData();
@@ -486,6 +558,21 @@ class ApiClient {
     formData.append('name', name);
     formData.append('user_type', user_type);
     formData.append('emp_id', emp_id);
+    if (gender && gender.trim()) {
+      formData.append('gender', gender.trim());
+    }
+    if (program_end_date && program_end_date.trim()) {
+      formData.append('program_end_date', program_end_date.trim());
+    }
+    if (program_start_date && program_start_date.trim()) {
+      formData.append('program_start_date', program_start_date.trim());
+    }
+    if (user_type_alias && user_type_alias.trim()) {
+      formData.append('user_type_alias', user_type_alias.trim());
+    }
+    if (supervisor != null && supervisor !== undefined) {
+      formData.append('supervisor', supervisor.toString());
+    }
     if (phone_number) {
       formData.append('phone_number', phone_number);
     }
@@ -609,6 +696,55 @@ class ApiClient {
     return response;
   }
 
+  /** Request OTP for login (sent to user's email). Active, verified, approved users only. */
+  async requestLoginOtp(email: string) {
+    return this.request<{ message: string }>('/auth/login/request-otp/', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+  }
+
+  /** Verify login OTP and get token + user. */
+  async verifyLoginOtp(email: string, otp: string) {
+    const response = await this.request<AuthResponse>('/auth/login/verify-otp/', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.replace(/\s/g, '') }),
+    });
+    if (response.data?.token) {
+      this.setToken(response.data.token);
+      if (response.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+    }
+    return response;
+  }
+
+  /** Request OTP for forgot password (sent to user's email). */
+  async requestForgotPasswordOtp(email: string) {
+    return this.request<{ message: string }>('/auth/forgot-password/request-otp/', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+  }
+
+  /** Verify forgot-password OTP and set new password. */
+  async verifyForgotPasswordOtpAndSetPassword(
+    email: string,
+    otp: string,
+    newPassword: string,
+    newPasswordConfirm: string
+  ) {
+    return this.request<{ message: string }>('/auth/forgot-password/verify-otp-and-set-password/', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        otp: otp.replace(/\s/g, ''),
+        new_password: newPassword,
+        new_password_confirm: newPasswordConfirm,
+      }),
+    });
+  }
+
   async signOut() {
     try {
       // Call the logout API endpoint
@@ -637,9 +773,66 @@ class ApiClient {
     return this.request<User>('/auth/user/');
   }
 
+  /** Admin only: get auth settings (global + per user type timeout in seconds). */
+  async getAuthSettings() {
+    return this.request<{
+      global_inactivity_timeout_seconds: number;
+      by_user_type: Record<string, number>;
+      user_type_choices: Array<{ code: string; name: string }>;
+    }>('/auth/settings/');
+  }
+
+  /** Admin only: update auth settings (global and/or by_user_type). */
+  async updateAuthSettings(data: {
+    global_inactivity_timeout_seconds?: number;
+    by_user_type?: Record<string, number | null>;
+  }) {
+    return this.request<{
+      global_inactivity_timeout_seconds: number;
+      by_user_type: Record<string, number>;
+    }>('/auth/settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Profile endpoints
   async getProfileMe() {
     return this.request<User>('/profiles/me/');
+  }
+
+  /** Upload profile picture (multipart form key: avatar). Returns profile_picture and avatar_url. */
+  async uploadProfileAvatar(file: File) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const url = `${this.baseURL.replace(/\/$/, '')}/profiles/me/avatar/`;
+    const headers: HeadersInit = { ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as any).error || 'Failed to upload avatar', data: null };
+    }
+    return { data: data as { profile_picture: string | null; avatar_url?: string | null }, error: undefined };
+  }
+
+  /**
+   * Returns stable proxy URL for a user's profile picture (redirects to fresh S3 signed URL).
+   * Use as img src so avatars do not expire when API responses are cached.
+   * Prefer this over using profile_picture from API when you have the user id.
+   */
+  getProfilePictureUrl(userId: number | string | null | undefined): string {
+    if (userId == null || userId === '') return '';
+    const base = this.baseURL.replace(/\/$/, '');
+    return `${base}/users/${userId}/profile-picture/`;
+  }
+
+  /**
+   * Proxy URL for the current user's profile picture (redirects to fresh S3 signed URL).
+   * Use when displaying the logged-in user's avatar and you have their id.
+   */
+  getCurrentUserProfilePictureUrl(): string {
+    const base = this.baseURL.replace(/\/$/, '');
+    return `${base}/profiles/me/avatar/`;
   }
 
   // Note: getProfile is deprecated, use getCurrentUser() or getProfileMe() instead
@@ -655,12 +848,15 @@ class ApiClient {
 
   async updateProfile(data: {
     name?: string;
+    gender?: string | null;
     user_type?: number | string;
     emp_id?: string;
     phone_number?: string;
     profile_picture?: string;
     department?: number | null;
     auto_slot_selection?: boolean;
+    wallet_low_balance_alert_enabled?: boolean;
+    wallet_low_balance_alert_threshold?: number | null;
   }) {
     // Get current user ID first
     const userResponse = await this.getCurrentUser();
@@ -681,13 +877,16 @@ class ApiClient {
     return this.request<any[]>('/equipment/');
   }
 
-  async getEquipments(search?: string, status?: string) {
+  async getEquipments(search?: string, status?: string, scope?: string) {
     const params = new URLSearchParams();
     if (search) {
       params.append('search', search);
     }
     if (status) {
       params.append('status', status);
+    }
+    if (scope) {
+      params.append('scope', scope);
     }
     const queryString = params.toString();
     const endpoint = queryString ? `/equipments/?${queryString}` : '/equipments/';
@@ -720,7 +919,7 @@ class ApiClient {
   }
 
   async getCmsHome() {
-    return this.request<Record<string, string>>('/cms/home/');
+    return this.request<{ content: Record<string, string>; font_sizes: Record<string, string> }>('/cms/home/');
   }
 
   /** Hero carousel background images (multiple, with autoscroll on frontend). */
@@ -802,6 +1001,8 @@ class ApiClient {
         created_at: string;
         updated_at: string;
       }>;
+      /** When 'SLOT_ID', weekly grid shows slot number/name on vertical axis; when 'TIME', shows time. */
+      weekly_view_display?: 'TIME' | 'SLOT_ID';
       daily_slots?: Array<{
         id: number;
         slot_master: number;
@@ -825,6 +1026,11 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  /** Update equipment status (ACTIVE / INACTIVE). Admin/OIC only. */
+  async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'INACTIVE') {
+    return this.updateEquipment(String(equipmentId), { status });
   }
 
   async calculateEquipmentCharge(
@@ -919,6 +1125,26 @@ class ApiClient {
       slot_duration_minutes?: number;
       /** Actual Slot Master open_time values (HH:mm:ss) - use these for calendar time axis to match user-defined timings. */
       slot_master_times?: string[];
+      /** Admin-configurable colors for weekly calendar: slot statuses + holiday default. */
+      calendar_colors?: {
+        slot_colors: Record<string, string>;
+        holiday_default: string;
+        saturday_color?: string;
+        sunday_color?: string;
+      };
+      /** Weekly view time filter (from equipment settings). Only slots within this window are returned. */
+      weekly_view_time_from?: string | null;
+      weekly_view_time_to?: string | null;
+      weekly_view_max_rows?: number | null;
+      weekly_view_default_days?: number | null;
+      /** First date (YYYY-MM-DD) of visible window for internal users; null = no restriction. */
+      slot_window_min_date?: string | null;
+      /** Last date (YYYY-MM-DD) of visible window for internal users; null = no restriction. */
+      slot_window_max_date?: string | null;
+      /** Weekday (0=Mon … 6=Sun) when next week opens; only when slot window is set. */
+      slot_window_reference_weekday?: number | null;
+      /** Time (HH:mm) when next week opens; only when slot window is set. */
+      slot_window_reference_time?: string | null;
     }>(endpoint);
   }
 
@@ -1154,13 +1380,28 @@ class ApiClient {
   }
 
   // Department endpoints
-  async getDepartments(type?: string, groupByType: boolean = false) {
+  async getDepartments(
+    type?: string,
+    groupByType: boolean = false,
+    externalSubcategory?: string,
+    state?: string,
+    internalSubcategory?: string
+  ) {
     const params = new URLSearchParams();
     if (type) {
       params.append('type', type);
     }
     if (groupByType) {
       params.append('group_by_type', 'true');
+    }
+    if (externalSubcategory) {
+      params.append('external_subcategory', externalSubcategory);
+    }
+    if (state) {
+      params.append('state', state);
+    }
+    if (internalSubcategory) {
+      params.append('internal_subcategory', internalSubcategory);
     }
     const queryString = params.toString();
     const url = queryString ? `/departments/?${queryString}` : '/departments/';
@@ -1183,6 +1424,23 @@ class ApiClient {
   // User type endpoints
   async getUserTypes() {
     return this.request<{ user_types: Array<{ code: string; name: string; description: string }> }>('/auth/register/user-types/');
+  }
+
+  /** Search IITR Internal Faculty (faculty with internal department) for supervisor selection during signup (public, no auth). Returns name, email, department for verification. */
+  async searchFacultyForSignup(query: string, limit: number = 20) {
+    return this.request<{
+      results: Array<{
+        id: number;
+        name: string;
+        email: string;
+        department: string | null;
+      }>;
+    }>(`/auth/register/search-faculty/?q=${encodeURIComponent(query)}&limit=${limit}`);
+  }
+
+  /** Get Indian states and union territories for signup State/UT dropdown (public, no auth). */
+  async getIndianStates() {
+    return this.request<{ states: Array<{ value: string; label: string }> }>('/auth/register/indian-states/');
   }
 
   async createUser(data: {
@@ -1260,6 +1518,301 @@ class ApiClient {
     return this.request<any>(`/notifications/${id}/`, {
       method: 'DELETE',
     });
+  }
+
+  /** List IMAP folders with message counts (staff only). */
+  async listInboxFolders() {
+    return this.request<{ folders: Array<{ name: string; count: number }> }>('/inbox-folders/');
+  }
+
+  /** Fetch inbox emails via IMAP (staff only). Optional: mailbox, max_count, since. */
+  async fetchInboxEmails(params?: { mailbox?: string; max_count?: number; since?: string }) {
+    const p: Record<string, string> = {};
+    if (params?.mailbox) p.mailbox = params.mailbox;
+    if (params?.max_count != null) p.max_count = String(params.max_count);
+    if (params?.since) p.since = params.since;
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
+    return this.request<{
+      emails: Array<{
+        uid: string;
+        subject: string;
+        from: string;
+        date: string | null;
+        date_raw: string;
+        body_plain: string;
+        body_html: string;
+      }>;
+      count: number;
+      mailbox_total?: number;
+    }>(`/inbox-emails/${q}`);
+  }
+
+  /** Parse wallet recharge file (admin users only). POST multipart with key 'file'. Returns { rows, count } with matched user per row. */
+  async parseWalletRechargeFile(file: File): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number; message?: string };
+    error?: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/parse-recharge-file/`;
+    const headers: HeadersInit = { ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as any).error || 'Failed to parse file', data: undefined };
+    }
+    return { data: data as { rows: WalletRechargeParseRow[]; count: number; message?: string }, error: undefined };
+  }
+
+  /** Process (credit) selected parsed recharge rows. Admin only. Credits wallet, sends email to owner, marks processed. */
+  async processWalletRechargeRows(rows: WalletRechargeParseRow[], defaultDepartmentId?: number | null): Promise<{
+    data?: { credited: number; skipped: number; errors: string[]; processed_receipts: string[] };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/process-recharge-rows/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      rows: rows.map((r) => ({
+        date: r.date,
+        receipt_no: r.receipt_no,
+        name: r.name,
+        emp_no: r.emp_no,
+        department: r.department,
+        amount: r.amount,
+        payment: r.payment,
+      })),
+      default_department_id: defaultDepartmentId ?? null,
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as any).error || 'Failed to process rows', data: undefined };
+    }
+    return {
+      data: data as { credited: number; skipped: number; errors: string[]; processed_receipts: string[] },
+      error: undefined,
+    };
+  }
+
+  /** Get stored recharge parse entries (shared across devices). Admin only. */
+  async getWalletRechargeParseEntries(): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entries/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'GET', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to load parse entries', data: undefined };
+    }
+    return { data: data as { rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** Merge rows into stored parse entries (upsert by date, receipt_no, emp_no). Admin only. Returns full list. */
+  async saveWalletRechargeParseEntries(rows: WalletRechargeParseRow[]): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entries/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      rows: rows.map((r) => ({
+        date: r.date,
+        receipt_no: r.receipt_no,
+        name: r.name,
+        emp_no: r.emp_no,
+        department: r.department,
+        amount: r.amount,
+        payment: r.payment,
+      })),
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to save parse entries', data: undefined };
+    }
+    return { data: data as { rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** Clear all stored parse entries. Admin only. */
+  async clearWalletRechargeParseEntries(): Promise<{
+    data?: { deleted: number; rows: WalletRechargeParseRow[]; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entries/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'DELETE', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to clear parse entries', data: undefined };
+    }
+    return { data: data as { deleted: number; rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** IMAP: List last 50 emails (or filtered by sender/subject). Admin only. */
+  async walletImapListEmails(params: {
+    email: string;
+    password: string;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+    sender_filter?: string;
+    subject_filter?: string;
+  }): Promise<{
+    data?: { emails: Array<{ uid: string; subject: string; from_addr: string; date: string }>; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-list-emails/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+      sender_filter: params.sender_filter || undefined,
+      subject_filter: params.subject_filter || undefined,
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to list emails', data: undefined };
+    }
+    return { data: data as { emails: Array<{ uid: string; subject: string; from_addr: string; date: string }>; count: number }, error: undefined };
+  }
+
+  /** IMAP: Fetch email by UID, parse first or specified attachment, return rows. Admin only. */
+  async walletImapFetchAndParse(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    attachment_index?: number;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number; attachment_name?: string; message?: string };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-fetch-and-parse/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      attachment_index: params.attachment_index,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to fetch and parse', data: undefined };
+    }
+    return {
+      data: data as { rows: WalletRechargeParseRow[]; count: number; attachment_name?: string; message?: string },
+      error: undefined,
+    };
+  }
+
+  /** IMAP: List attachments for one email by UID. Admin only. */
+  async walletImapEmailAttachments(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{
+    data?: { attachments: Array<{ index: number; filename: string; size?: number }>; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-email-attachments/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to list attachments', data: undefined };
+    }
+    return {
+      data: data as { attachments: Array<{ index: number; filename: string; size?: number }>; count: number },
+      error: undefined,
+    };
+  }
+
+  /** IMAP: Download one attachment by UID and index. Returns base64 content and filename. Admin only. */
+  async walletImapDownloadAttachment(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    attachment_index: number;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{
+    data?: { content_base64: string; filename: string };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-download-attachment/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      attachment_index: params.attachment_index,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to download', data: undefined };
+    }
+    return {
+      data: data as { content_base64: string; filename: string },
+      error: undefined,
+    };
   }
 
   // Wallet join request endpoints
@@ -1495,6 +2048,16 @@ class ApiClient {
     });
   }
 
+  async markBookingNotUtilized(bookingId: number, sendEmailToWalletOwner: boolean = true) {
+    return this.request<{
+      message: string;
+      booking: any;
+    }>(`/bookings/${bookingId}/mark-not-utilized/`, {
+      method: 'POST',
+      body: JSON.stringify({ send_email_to_wallet_owner: sendEmailToWalletOwner }),
+    });
+  }
+
   async absentBooking(bookingId: number, notes?: string) {
     return this.request<{
       message: string;
@@ -1555,6 +2118,41 @@ class ApiClient {
     }>(`/bookings/${bookingId}/events/`);
   }
 
+  /** List result files for a booking from S3 Results/{virtual_booking_id}/. Returns exists and presigned download URLs. */
+  async getBookingResults(bookingId: number) {
+    return this.request<{
+      exists: boolean;
+      virtual_booking_id: string | null;
+      files: Array<{ key: string; name: string; download_url: string }>;
+    }>(`/bookings/${bookingId}/results/`);
+  }
+
+  /** Download all result files for a booking as a single ZIP (folder named with booking ID). Triggers browser download. */
+  async downloadBookingResultsZip(bookingId: number, filename?: string): Promise<{ error?: string }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    const url = `${base}/bookings/${bookingId}/results/download/`;
+    const res = await fetch(url, { headers: { Authorization: `Token ${token}` } });
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        return { error: j.error || res.statusText };
+      } catch {
+        return { error: text || res.statusText };
+      }
+    }
+    const blob = await res.blob();
+    const name = filename || res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `Results_${bookingId}.zip`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
   async createBookingEventComment(bookingId: number, comment: string, sendNotification: boolean = true) {
     return this.request<{
       message: string;
@@ -1565,13 +2163,61 @@ class ApiClient {
     });
   }
 
+  /** Get sample/slot tracing timeline for a booking. */
+  async getBookingSampleTrace(bookingId: number) {
+    return this.request<{ sample_trace: SampleTraceEvent[] }>(`/bookings/${bookingId}/sample-trace/`);
+  }
+
+  /** Set sample-trace status. Sample Sent: student/faculty/external (booking user); others: admin/OIC/lab only. */
+  async setBookingSampleStatus(bookingId: number, status: SampleTraceStatus, sampleIdentifiers?: string, trackingId?: string, reason?: string) {
+    const body: Record<string, string> = { status, sample_identifiers: sampleIdentifiers ?? '' };
+    if (trackingId !== undefined) body.tracking_id = trackingId;
+    if (reason !== undefined) body.reason = reason;
+    return this.request<{ message: string; sample_trace: SampleTraceEvent[] }>(
+      `/bookings/${bookingId}/sample-trace/set/`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  /** Set booking user reply (text and optional files) to a Sample Rejected or Held at Office event. Only the booking user can set. */
+  async setSampleTraceEventReply(bookingId: number, eventId: number, reply: string, files?: File[]): Promise<ApiResponse<{ message: string; sample_trace: SampleTraceEvent[] }>> {
+    const endpoint = `/bookings/${bookingId}/sample-trace/${eventId}/reply/`;
+    if (files?.length) {
+      const form = new FormData();
+      form.append('reply', reply);
+      files.forEach((f) => form.append('files', f));
+      const url = `${this.baseURL.replace(/\/$/, '')}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+      const headers: HeadersInit = { ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}) };
+      const res = await fetch(url, { method: 'POST', headers, body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: (data as { error?: string }).error || 'Failed to save reply.', data: null };
+      return { error: null, data: data as { message: string; sample_trace: SampleTraceEvent[] } };
+    }
+    return this.request<{ message: string; sample_trace: SampleTraceEvent[] }>(
+      endpoint,
+      { method: 'PATCH', body: JSON.stringify({ reply }) }
+    );
+  }
+
   async getBookings(params?: {
     user_id?: string | number;
     equipment_id?: string | number;
+    booking_id?: number;
     status?: string;
     start_date?: string;
     end_date?: string;
+    search?: string;
+    user_name?: string;
+    supervisor_name?: string;
+    /** "internal" (students/faculty) or "external" */
+    user_type_filter?: string;
+    /** Filter by rating: "unrated", "2_and_below", "3_and_below", "4_and_below", or "5" (admin/OIC/lab only) */
+    rating?: string;
     ordering?: string;
+    limit?: number;
+    offset?: number;
+    /** Request lightweight list response (table view); omit for full detail */
+    list_view?: boolean;
   }) {
     const queryParams = new URLSearchParams();
     
@@ -1580,6 +2226,9 @@ class ApiClient {
     }
     if (params?.equipment_id) {
       queryParams.append('equipment_id', String(params.equipment_id));
+    }
+    if (params?.booking_id != null) {
+      queryParams.append('booking_id', String(params.booking_id));
     }
     if (params?.status) {
       queryParams.append('status', params.status);
@@ -1590,8 +2239,32 @@ class ApiClient {
     if (params?.end_date) {
       queryParams.append('end_date', params.end_date);
     }
+    if (params?.search && params.search.trim()) {
+      queryParams.append('search', params.search.trim());
+    }
+    if (params?.user_name && params.user_name.trim()) {
+      queryParams.append('user_name', params.user_name.trim());
+    }
+    if (params?.supervisor_name && params.supervisor_name.trim()) {
+      queryParams.append('supervisor_name', params.supervisor_name.trim());
+    }
+    if (params?.user_type_filter && ['internal', 'external'].includes(params.user_type_filter)) {
+      queryParams.append('user_type_filter', params.user_type_filter);
+    }
+    if (params?.rating && (params.rating === 'unrated' || ['2_and_below', '3_and_below', '4_and_below', '5'].includes(params.rating))) {
+      queryParams.append('rating', params.rating);
+    }
     if (params?.ordering) {
       queryParams.append('ordering', params.ordering);
+    }
+    if (params?.limit != null) {
+      queryParams.append('limit', String(params.limit));
+    }
+    if (params?.offset != null) {
+      queryParams.append('offset', String(params.offset));
+    }
+    if (params?.list_view === true) {
+      queryParams.append('list_view', '1');
     }
     
     const queryString = queryParams.toString();
@@ -1608,6 +2281,7 @@ class ApiClient {
         equipment_name: string;
         charge_profile: number;
         user_type_snapshot: string;
+        user_type_snapshot_display?: string | null;
         total_time_minutes: number;
         total_hours: number;
         total_charge: string;
@@ -1637,10 +2311,14 @@ class ApiClient {
           created_at: string;
           updated_at: string;
         }>;
+        sample_trace?: SampleTraceEvent[];
         created_at: string;
         updated_at: string;
       }>;
       count: number;
+      total_count?: number;
+      limit?: number;
+      offset?: number;
     }>(endpoint);
   }
 
@@ -1686,6 +2364,8 @@ class ApiClient {
     discount_amount?: number;
     /** Admin only: reason for giving the discount (stored in booking notes) */
     discount_reason?: string;
+    /** When true, create booking in HOLD status (no wallet debit); used for urgent request "Select Slot" flow */
+    create_as_hold?: boolean;
   }) {
     return this.request<{
       id: number;
@@ -1721,10 +2401,527 @@ class ApiClient {
     bookingId: number,
     inputValues: Record<string, string | number | boolean | string[]>
   ) {
-    return this.request<{ message: string; booking: any }>(
+    return this.request<{
+      message: string;
+      booking: any;
+      charge_recalculation_summary?: {
+        previous_charge: string;
+        new_charge: string;
+        refund_amount: string | null;
+        extra_amount: string | null;
+      };
+    }>(
       `/bookings/${bookingId}/input-values/`,
       { method: 'PATCH', body: JSON.stringify({ input_values: inputValues }) }
     );
+  }
+
+  /** Process pending refund after charge recalculation (credit wallet). */
+  async processChargeRecalculationRefund(bookingId: number) {
+    return this.request<{ message: string; booking: any }>(
+      `/bookings/${bookingId}/process-charge-recalculation-refund/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Process extra amount to pay after charge recalculation (debit wallet). */
+  async processChargeRecalculationPayNow(bookingId: number) {
+    return this.request<{ message: string; booking: any }>(
+      `/bookings/${bookingId}/process-charge-recalculation-pay-now/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Submit rating (1-5 stars) and optional feedback for a booking. Only the booking user can rate. */
+  async rateBooking(bookingId: number, rating: number, feedback?: string) {
+    return this.request<{ message: string; booking: any }>(`/bookings/${bookingId}/rate/`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, feedback: feedback ?? '' }),
+    });
+  }
+
+  /** Get repeat sample eligibility (new flow): can_create_repeat, reason. */
+  async getRepeatSampleEligibility(bookingId: number) {
+    return this.request<{ can_create_repeat: boolean; reason: string | null }>(
+      `/bookings/${bookingId}/repeat-sample-eligibility/`
+    );
+  }
+
+  /** Create repeat booking (replica of completed booking). Only when enabled by admin/OIC. Pass slot_ids to use chosen slots; omit to use first-available (legacy). */
+  async createRepeatBooking(bookingId: number, slotIds?: number[]) {
+    const body: { slot_ids?: number[] } = {};
+    if (slotIds != null && slotIds.length > 0) body.slot_ids = slotIds;
+    return this.request<{ message: string; booking: any; virtual_booking_id: string }>(
+      `/bookings/${bookingId}/create-repeat-booking/`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  /** Enable repeat sample for a completed booking. Admin/OIC only. */
+  async enableRepeatSample(bookingId: number) {
+    return this.request<{ message: string; repeat_sample_enabled: boolean }>(
+      `/bookings/${bookingId}/enable-repeat-sample/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Get repeat sample info for a completed booking: can_request, disclaimer, days_left. (Legacy.) */
+  async getRepeatSampleInfo(bookingId: number) {
+    return this.request<{
+      can_request: boolean;
+      disclaimer: string;
+      days_left: number | null;
+      reason: string | null;
+    }>(`/bookings/${bookingId}/repeat-sample-info/`);
+  }
+
+  /** Request a repeat sample for a completed booking. Only the booking user. Show disclaimer in UI first. */
+  async requestRepeatSample(bookingId: number, userNotes?: string) {
+    return this.request<{ message: string; repeat_sample_request: any }>(
+      `/bookings/${bookingId}/request-repeat-sample/`,
+      { method: 'POST', body: JSON.stringify({ user_notes: userNotes ?? '' }) }
+    );
+  }
+
+  /** List repeat sample requests (admin/OIC only). */
+  async listRepeatSampleRequests(params?: { status?: string }) {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.append('status', params.status);
+    const q = sp.toString();
+    return this.request<{ repeat_sample_requests: any[] }>(
+      q ? `/repeat-sample-requests/?${q}` : '/repeat-sample-requests/'
+    );
+  }
+
+  /** Approve repeat sample request – creates free booking and notifies user (admin/OIC only). */
+  async approveRepeatSampleRequest(requestId: number) {
+    return this.request<{ message: string; repeat_sample_request: any; new_booking: any }>(
+      `/repeat-sample-requests/${requestId}/approve/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Reject repeat sample request (admin/OIC only). */
+  async rejectRepeatSampleRequest(requestId: number, adminNotes?: string) {
+    return this.request<{ message: string; repeat_sample_request: any }>(
+      `/repeat-sample-requests/${requestId}/reject/`,
+      { method: 'POST', body: JSON.stringify({ admin_notes: adminNotes ?? '' }) }
+    );
+  }
+
+  /** Log that the user attempted to book but no slot was allocated (internal users). Used for urgent request eligibility. */
+  async logNoSlotAllocation(data: {
+    equipment_id: number;
+    number_of_samples?: number;
+    slots_requested?: number;
+    duration_minutes?: number;
+  }) {
+    return this.request<{ message: string }>('/no-slot-allocation/log/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Log every booking submit attempt (success or failure). Comprehensive log for admin/OIC. */
+  async logBookingAttempt(data: {
+    equipment_id: number;
+    outcome: 'SUCCESS' | 'FAILED';
+    failure_reason?: string;
+    booking_id?: number;
+    number_of_samples?: number;
+    slots_requested?: number;
+    duration_minutes?: number;
+  }) {
+    return this.request<{ message: string }>('/booking-attempt-logs/log/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** List booking attempt logs (admin/OIC only). OIC sees only their equipments. */
+  async listBookingAttemptLogs(params?: {
+    equipment_id?: number;
+    user_id?: number;
+    department_id?: number;
+    outcome?: 'SUCCESS' | 'FAILED';
+    date_from?: string;
+    date_to?: string;
+    failure_reason_contains?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const sp = new URLSearchParams();
+    if (params?.equipment_id != null) sp.append('equipment_id', String(params.equipment_id));
+    if (params?.user_id != null) sp.append('user_id', String(params.user_id));
+    if (params?.department_id != null) sp.append('department_id', String(params.department_id));
+    if (params?.outcome) sp.append('outcome', params.outcome);
+    if (params?.date_from) sp.append('date_from', params.date_from);
+    if (params?.date_to) sp.append('date_to', params.date_to);
+    if (params?.failure_reason_contains) sp.append('failure_reason_contains', params.failure_reason_contains);
+    if (params?.limit != null) sp.append('limit', String(params.limit));
+    if (params?.offset != null) sp.append('offset', String(params.offset));
+    const q = sp.toString();
+    const path = q ? `/booking-attempt-logs/?${q}` : '/booking-attempt-logs/';
+    return this.request<{
+      results: Array<{
+        id: number;
+        user_id: number;
+        user_name: string;
+        user_email: string;
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        requested_at: string | null;
+        outcome: string;
+        failure_reason: string;
+        number_of_samples: number;
+        slots_requested: number;
+        duration_minutes: number | null;
+        booking_id: number | null;
+        display_booking_id?: string | null;
+      }>;
+      total_count: number;
+      limit: number;
+      offset: number;
+    }>(path, { method: 'GET' });
+  }
+
+  /** Delete a booking attempt log entry (admin/OIC only). */
+  async deleteBookingAttemptLog(logId: number) {
+    return this.request<void>(`/booking-attempt-logs/${logId}/`, { method: 'DELETE' });
+  }
+
+  /** Get quota calculation breakdown for a failed log (quota check failed). Admin/OIC only. */
+  async getBookingAttemptLogQuotaBreakdown(logId: number) {
+    return this.request<{
+      period_start: string;
+      period_end: string;
+      quota_type: string;
+      quota_scope: string;
+      limit_minutes: number;
+      total_minutes: number;
+      summary_message: string;
+      events: Array<{
+        date: string;
+        booking_id: number;
+        equipment_name: string;
+        equipment_code: string;
+        display_booking_id?: string;
+        total_time_minutes: number;
+        user_name: string;
+      }>;
+    }>(`/booking-attempt-logs/${logId}/quota-breakdown/`, { method: 'GET' });
+  }
+
+  /** Current user's unsuccessful (FAILED) booking attempts for an equipment in the past 2 weeks (for Request urgent booking popup). */
+  async getMyUnsuccessfulBookingAttempts(equipmentId: number) {
+    return this.request<{
+      entries: Array<{
+        id: number;
+        requested_at: string | null;
+        outcome: string;
+        failure_reason: string;
+        number_of_samples: number;
+        slots_requested: number;
+        duration_minutes: number | null;
+      }>;
+      equipment_id: number;
+    }>(`/booking-attempt-logs/my-unsuccessful/?equipment_id=${encodeURIComponent(equipmentId)}`);
+  }
+
+  /** Create an urgent booking request (internal users). request_type: NO_SLOT | REVIEWER_URGENT. For REVIEWER_URGENT pass evidence_file. Optional hold_booking_id from "Select Slot" flow. */
+  async createUrgentBookingRequest(data: {
+    equipment_id: number;
+    request_type: 'NO_SLOT' | 'REVIEWER_URGENT';
+    disclaimer_accepted: boolean;
+    number_of_samples?: number;
+    slots_requested?: number;
+    duration_minutes?: number;
+    evidence_file?: File;
+    evidence_original_name?: string;
+    /** When user selected a slot via "Select Slot", pass the hold booking id returned by the hold booking API. */
+    hold_booking_id?: number;
+  }) {
+    const isReviewerUrgent = data.request_type === 'REVIEWER_URGENT' && data.evidence_file;
+    if (isReviewerUrgent) {
+      const form = new FormData();
+      form.append('equipment_id', String(data.equipment_id));
+      form.append('request_type', data.request_type);
+      form.append('disclaimer_accepted', 'true');
+      form.append('number_of_samples', String(data.number_of_samples ?? 1));
+      form.append('slots_requested', String(data.slots_requested ?? 1));
+      if (data.duration_minutes != null) form.append('duration_minutes', String(data.duration_minutes));
+      form.append('evidence_file', data.evidence_file);
+      if (data.evidence_original_name) form.append('evidence_original_name', data.evidence_original_name);
+      if (data.hold_booking_id != null) form.append('hold_booking_id', String(data.hold_booking_id));
+      const url = `${this.baseURL}/urgent-booking-requests/create/`;
+      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+      const res = await fetch(url, { method: 'POST', headers, body: form });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: (json as { error?: string }).error || `HTTP ${res.status}` };
+      return { data: json as { message: string; id: number } };
+    }
+    return this.request<{ message: string; id: number }>('/urgent-booking-requests/create/', {
+      method: 'POST',
+      body: JSON.stringify({
+        equipment_id: data.equipment_id,
+        request_type: data.request_type,
+        disclaimer_accepted: data.disclaimer_accepted,
+        number_of_samples: data.number_of_samples ?? 1,
+        slots_requested: data.slots_requested ?? 1,
+        duration_minutes: data.duration_minutes,
+        hold_booking_id: data.hold_booking_id,
+      }),
+    });
+  }
+
+  /** List urgent booking requests (admin/OIC only). */
+  async listUrgentBookingRequests(params?: { status?: string; limit?: number; offset?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.append('status', params.status);
+    if (params?.limit != null) sp.append('limit', String(params.limit));
+    if (params?.offset != null) sp.append('offset', String(params.offset));
+    const q = sp.toString();
+    return this.request<{
+      urgent_requests: Array<{
+        id: number;
+        request_type: string;
+        user_id: number;
+        user_name: string;
+        user_email: string;
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        requested_at: string;
+        disclaimer_accepted: boolean;
+        number_of_samples: number;
+        slots_requested: number;
+        duration_minutes: number | null;
+        evidence_file_url: string | null;
+        evidence_original_name: string;
+        wallet_approved_at: string | null;
+        wallet_approved_by_name: string | null;
+        wallet_notes: string;
+        pending_wallet_approval: boolean;
+        status: string;
+        admin_notes: string;
+        decided_at: string | null;
+        decided_by_name: string | null;
+        expiry_at?: string | null;
+        requester_approved_urgent_last_6_months?: Array<{ id: number; requested_at: string | null; decided_at: string | null }>;
+        no_slot_log_count: number;
+        no_slot_log_entries: Array<{ requested_at: string; number_of_samples: number; slots_requested: number; duration_minutes: number | null }>;
+        hold_booking_id: number | null;
+        hold_booking_summary: {
+          booking_id: number;
+          total_charge: string | null;
+          total_time_minutes: number;
+          slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
+          input_values: Record<string, unknown>;
+          charge_breakdown?: Array<{ description: string; amount: number }> | null;
+        } | null;
+      }>;
+      total_count: number;
+      limit: number;
+      offset: number;
+    }>(q ? `/urgent-booking-requests/?${q}` : '/urgent-booking-requests/');
+  }
+
+  /** Current user's approved urgent requests for an equipment in the past 6 months (for raising/approving decisions). */
+  async getApprovedUrgentHistory(equipmentId: number) {
+    return this.request<{
+      approved_requests: Array<{ id: number; requested_at: string | null; decided_at: string | null }>;
+      count: number;
+    }>(`/urgent-booking-requests/approved-history/?equipment_id=${encodeURIComponent(equipmentId)}`);
+  }
+
+  /** Get single urgent request detail (admin/OIC or supervisor). Same shape as one item from listUrgentBookingRequests. */
+  async getUrgentRequestDetail(requestId: number) {
+    return this.request<{
+      id: number;
+      request_type: string;
+      user_id: number;
+      user_name: string;
+      user_email: string;
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      requested_at: string;
+      disclaimer_accepted: boolean;
+      number_of_samples: number;
+      slots_requested: number;
+      duration_minutes: number | null;
+      evidence_file_url: string | null;
+      evidence_original_name: string;
+      wallet_approved_at: string | null;
+      wallet_approved_by_name: string | null;
+      wallet_notes: string;
+      pending_wallet_approval: boolean;
+      status: string;
+      admin_notes: string;
+      decided_at: string | null;
+      decided_by_name: string | null;
+      expiry_at?: string | null;
+      requester_approved_urgent_last_6_months?: Array<{ id: number; requested_at: string | null; decided_at: string | null }>;
+      no_slot_log_count: number;
+      no_slot_log_entries: Array<{ requested_at: string; number_of_samples: number; slots_requested: number; duration_minutes: number | null }>;
+      hold_booking_id: number | null;
+      hold_booking_summary: {
+        booking_id: number;
+        total_charge: string | null;
+        total_time_minutes: number;
+        slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
+        input_values: Record<string, unknown>;
+        charge_breakdown?: Array<{ description: string; amount: number }> | null;
+      } | null;
+    }>(`/urgent-booking-requests/${requestId}/detail/`);
+  }
+
+  /** List current user's own urgent booking requests (IIT Students / internal users). For dashboard and status view. */
+  async listMyUrgentBookingRequests(params?: { status?: string; limit?: number; offset?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.status != null && params.status !== '') sp.append('status', params.status);
+    if (params?.limit != null) sp.append('limit', String(params.limit));
+    if (params?.offset != null) sp.append('offset', String(params.offset));
+    const q = sp.toString();
+    return this.request<{
+      urgent_requests: Array<{
+        id: number;
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        request_type: string;
+        status: string;
+        requested_at: string | null;
+        decided_at: string | null;
+        expiry_at: string | null;
+        pending_wallet_approval: boolean;
+      }>;
+      total_count: number;
+      limit: number;
+      offset: number;
+    }>(q ? `/urgent-booking-requests/my/?${q}` : '/urgent-booking-requests/my/');
+  }
+
+  /** List urgent requests pending supervisor approval (supervisor only). */
+  async listUrgentRequestsWalletPending(params?: { limit?: number; offset?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.limit != null) sp.append('limit', String(params.limit));
+    if (params?.offset != null) sp.append('offset', String(params.offset));
+    const q = sp.toString();
+    return this.request<{
+      urgent_requests: Array<{
+        id: number;
+        user_name: string;
+        user_email: string;
+        equipment_name: string;
+        equipment_code: string;
+        requested_at: string;
+        evidence_file_url: string | null;
+        evidence_original_name: string;
+      }>;
+      total_count: number;
+      limit: number;
+      offset: number;
+    }>(q ? `/urgent-booking-requests/wallet-pending/?${q}` : '/urgent-booking-requests/wallet-pending/');
+  }
+
+  /** Supervisor: list all urgent requests (pending, approved, rejected). status: pending | approved | rejected | all */
+  async listUrgentRequestsWallet(params?: { status?: 'pending' | 'approved' | 'rejected' | 'all'; limit?: number; offset?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.status != null && params.status !== 'all') sp.append('status', params.status);
+    if (params?.limit != null) sp.append('limit', String(params.limit));
+    if (params?.offset != null) sp.append('offset', String(params.offset));
+    const q = sp.toString();
+    return this.request<{
+      urgent_requests: Array<{
+        id: number;
+        user_name: string;
+        user_email: string;
+        equipment_name: string;
+        equipment_code: string;
+        requested_at: string;
+        status: string;
+        wallet_status: 'pending' | 'approved' | 'rejected';
+        wallet_approved_at: string | null;
+        wallet_approved_by_name: string | null;
+        wallet_notes: string;
+        evidence_file_url: string | null;
+        evidence_original_name: string;
+      }>;
+      total_count: number;
+      limit: number;
+      offset: number;
+    }>(q ? `/urgent-booking-requests/wallet/?${q}` : '/urgent-booking-requests/wallet/');
+  }
+
+  /** Supervisor: approve or reject an urgent request (REVIEWER_URGENT). */
+  async walletApproveUrgentBookingRequest(requestId: number, data: { action: 'APPROVE' | 'REJECT'; wallet_notes?: string }) {
+    return this.request<{ message: string; id: number; status: string }>(
+      `/urgent-booking-requests/${requestId}/wallet-approve/`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+  }
+
+  /** URL to view/download evidence file (admin/OIC or Supervisor). */
+  getUrgentRequestEvidenceUrl(requestId: number): string {
+    const base = this.baseURL.replace(/\/$/, '');
+    return `${base}/urgent-booking-requests/${requestId}/evidence/`;
+  }
+
+  /** Fetch urgent request evidence with auth and return a blob URL for viewing (admin/OIC or Supervisor). */
+  async fetchUrgentRequestEvidenceBlobUrl(requestId: number): Promise<string> {
+    const url = this.getUrgentRequestEvidenceUrl(requestId);
+    const token = this.getToken();
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: token ? { Authorization: `Token ${token}` } : {},
+      credentials: 'same-origin',
+    });
+    if (!res.ok) {
+      let message = `Failed to load evidence: ${res.status}`;
+      try {
+        const body = await res.json();
+        if (body && typeof body.error === 'string') message = body.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  /** Get no-slot allocation log for a user (admin/OIC only). */
+  async getNoSlotLogForUser(userId: number, equipmentId?: number) {
+    const endpoint = equipmentId != null ? `/users/${userId}/no-slot-log/?equipment_id=${equipmentId}` : `/users/${userId}/no-slot-log/`;
+    return this.request<{ user_id: number; user_name: string; entries: Array<{ id: number; requested_at: string; equipment_id: number; number_of_samples: number; slots_requested: number; duration_minutes: number | null }> }>(endpoint);
+  }
+
+  /** Update urgent booking request status/notes (admin/OIC only). */
+  async updateUrgentBookingRequest(requestId: number, data: { status?: 'APPROVED' | 'REJECTED'; admin_notes?: string }) {
+    return this.request<{ message: string; id: number; status: string }>(
+      `/urgent-booking-requests/${requestId}/`,
+      { method: 'PATCH', body: JSON.stringify(data) }
+    );
+  }
+
+  /** Admin/OIC: delete an urgent booking request (releases hold if still PENDING with hold). */
+  async deleteUrgentBookingRequest(requestId: number) {
+    return this.request<void>(`/urgent-booking-requests/${requestId}/`, { method: 'DELETE' });
+  }
+
+  /** Admin/OIC: get urgent booking validity config (days). Single setting: request valid for this many days. */
+  async getUrgentHoldExpiryConfig() {
+    return this.request<{ urgent_booking_validity_days: number }>('/urgent-booking-requests/hold-expiry-config/');
+  }
+
+  /** Admin/OIC: update urgent booking validity (days). Min 1. */
+  async updateUrgentHoldExpiryConfig(data: { urgent_booking_validity_days: number }) {
+    return this.request<{ urgent_booking_validity_days: number }>('/urgent-booking-requests/hold-expiry-config/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   // Notice Board endpoints (public)
@@ -1878,12 +3075,31 @@ class ApiClient {
     public_name?: string;
     public_email?: string;
     public_phone?: string;
-    ticket_type: number;
+    ticket_type: string;
     subject: string;
     description: string;
     related_equipment?: number | null;
     related_booking?: number | null;
-  }) {
+  }, attachment?: File | null) {
+    if (attachment) {
+      const form = new FormData();
+      Object.entries(data).forEach(([k, v]) => {
+        if (v === undefined || v === null) return;
+        form.append(k, String(v));
+      });
+      form.append('attachment', attachment);
+
+      const url = `${this.baseURL}/tickets/`;
+      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+      const res = await fetch(url, { method: 'POST', headers, body: form });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Best-effort surface error messages
+        const err = (resData as any).error || (resData as any).detail;
+        return { error: err || `HTTP ${res.status}` };
+      }
+      return { data: resData as any };
+    }
     return this.request<{
       ticket_id: number;
       user: number | null;
@@ -1892,7 +3108,7 @@ class ApiClient {
       public_name: string | null;
       public_email: string | null;
       public_phone: string | null;
-      ticket_type: number;
+      ticket_type: string;
       ticket_type_display: string;
       subject: string;
       description: string;
@@ -1900,6 +3116,7 @@ class ApiClient {
       status_display: string;
       priority: string;
       priority_display: string;
+      attachment_url?: string | null;
       created_at: string;
     }>('/tickets/', {
       method: 'POST',
@@ -2010,6 +3227,22 @@ class ApiClient {
     }>('/ticket-types/');
   }
 
+  /** Virtual chat agent: send message, get reply; complex queries create a support ticket. */
+  async chatAgent(params: {
+    message: string;
+    public_name?: string;
+    public_email?: string;
+  }) {
+    return this.request<{ reply: string; ticket_id: number | null }>('/chat-agent/', {
+      method: 'POST',
+      body: JSON.stringify({
+        message: params.message,
+        ...(params.public_name != null && { public_name: params.public_name }),
+        ...(params.public_email != null && { public_email: params.public_email }),
+      }),
+    });
+  }
+
   // Project endpoints
   async getProjects() {
     return this.request<{
@@ -2110,9 +3343,21 @@ class ApiClient {
     return `/${path}/`;
   }
 
-  async adminList<T = unknown>(section: string) {
+  async adminList<T = unknown>(section: string, params?: Record<string, string>) {
     const endpoint = this.getAdminEndpoint(section);
-    return this.request<T[]>(endpoint, { method: 'GET' });
+    const q = params && Object.keys(params).length ? `?${new URLSearchParams(params).toString()}` : '';
+    return this.request<T[]>(`${endpoint}${q}`, { method: 'GET' });
+  }
+
+  /** Admin: list equipment with optional search and filters (mirrors Django admin list filters). */
+  async adminEquipmentList(params?: { search?: string; status?: string; profile_type?: string; category?: string; equipment_group?: string }) {
+    const p: Record<string, string> = {};
+    if (params?.search) p.search = params.search;
+    if (params?.status) p.status = params.status;
+    if (params?.profile_type) p.profile_type = params.profile_type;
+    if (params?.category) p.category = params.category;
+    if (params?.equipment_group) p.equipment_group = params.equipment_group;
+    return this.adminList<Record<string, unknown>>('equipment', p);
   }
 
   async adminGet<T = unknown>(section: string, id: number | string) {
@@ -2120,7 +3365,170 @@ class ApiClient {
     return this.request<T>(`${endpoint}${id}/`, { method: 'GET' });
   }
 
-  /** Admin: get user booking info (email, department, wallet owner, balance) for "Book slots for user". */
+  /** Admin: get calendar colors for weekly window (slot states + holiday + weekend). */
+  async getAdminCalendarColors() {
+    const endpoint = this.getAdminEndpoint('calendarColors');
+    return this.request<{
+      slot_colors: Record<string, string>;
+      holiday_default: string;
+      saturday_color?: string;
+      sunday_color?: string;
+    }>(endpoint, { method: 'GET' });
+  }
+
+  /** Admin: update calendar colors for weekly window. */
+  async updateAdminCalendarColors(payload: {
+    slot_colors?: Record<string, string>;
+    holiday_default?: string;
+    saturday_color?: string;
+    sunday_color?: string;
+  }) {
+    const endpoint = this.getAdminEndpoint('calendarColors');
+    return this.request<{
+      slot_colors: Record<string, string>;
+      holiday_default: string;
+      saturday_color?: string;
+      sunday_color?: string;
+    }>(`${endpoint}update/`, { method: 'PATCH', body: JSON.stringify(payload) });
+  }
+
+  /** Admin: get internal user slot window setting (common for all equipment). */
+  async getInternalSlotWindow() {
+    const endpoint = this.getAdminEndpoint('internalSlotWindow');
+    return this.request<{ reference_weekday: number | null; reference_time: string | null }>(endpoint, { method: 'GET' });
+  }
+
+  /** Admin: update internal user slot window setting. */
+  async updateInternalSlotWindow(payload: { reference_weekday?: number | null; reference_time?: string | null }) {
+    const endpoint = this.getAdminEndpoint('internalSlotWindow');
+    return this.request<{ reference_weekday: number | null; reference_time: string | null }>(`${endpoint}update/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Admin: equipment utilization report data (date range + optional equipment filter). */
+  async getEquipmentReportData(params?: { date_from?: string; date_to?: string; equipment_id?: number[] }) {
+    const q = new URLSearchParams();
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.equipment_id?.length) params.equipment_id.forEach((id) => q.append('equipment_id', String(id)));
+    const endpoint = this.getAdminEndpoint('equipmentReports');
+    return this.request<{
+      date_from: string;
+      date_to: string;
+      equipment: Array<{
+        equipment_id: number;
+        name: string;
+        code: string;
+        total_bookings_in_period: number;
+        completed_in_period: number;
+        overall_bookings: number;
+        overall_current_bookings: number;
+        under_maintenance_slots: number;
+        under_maintenance_hours: number;
+        operator_absent_slots: number;
+        operator_absent_hours: number;
+        booking_not_utilized_slots: number;
+        booking_not_utilized_hours: number;
+        no_booking_slots: number;
+        no_booking_hours: number;
+        booked_slots: number;
+        booked_hours: number;
+      }>;
+      utilization_pie: Array<{ name: string; value: number; hours: number }>;
+      summary: { total_equipment: number };
+    }>(`${endpoint}${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
+  }
+
+  /** Admin: download equipment report as PDF. Triggers browser download. */
+  async downloadEquipmentReportPdf(params?: { date_from?: string; date_to?: string; equipment_id?: number[] }): Promise<{ error?: string }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const q = new URLSearchParams();
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.equipment_id?.length) params.equipment_id.forEach((id) => q.append('equipment_id', String(id)));
+    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    const url = `${base}/admin/equipment-reports/download-pdf/${q.toString() ? `?${q.toString()}` : ''}`;
+    const res = await fetch(url, { headers: { Authorization: `Token ${token}` } });
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        return { error: (j as { error?: string }).error || res.statusText };
+      } catch {
+        return { error: text || res.statusText };
+      }
+    }
+    const blob = await res.blob();
+    const name = res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || 'equipment-report.pdf';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
+  /** Admin: download equipment report as Excel. Triggers browser download. */
+  async downloadEquipmentReportExcel(params?: { date_from?: string; date_to?: string; equipment_id?: number[] }): Promise<{ error?: string }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const q = new URLSearchParams();
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.equipment_id?.length) params.equipment_id.forEach((id) => q.append('equipment_id', String(id)));
+    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    const url = `${base}/admin/equipment-reports/download-excel/${q.toString() ? `?${q.toString()}` : ''}`;
+    const res = await fetch(url, { headers: { Authorization: `Token ${token}` } });
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        return { error: (j as { error?: string }).error || res.statusText };
+      } catch {
+        return { error: text || res.statusText };
+      }
+    }
+    const blob = await res.blob();
+    const name = res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || 'equipment-report.xlsx';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
+  /** Admin: set user password (mirrors Django admin /admin/users/user/[id]/password/). */
+  async adminUserSetPassword(userId: number | string, data: { password: string; password_confirm: string }) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{ detail: string }>(`${endpoint}${userId}/set-password/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Admin: credit sub-wallet (mirrors Django admin /admin/users/subwallet/<id>/credit/). */
+  async adminSubWalletCredit(subWalletId: number | string, data: { amount: string | number; description?: string }) {
+    const endpoint = this.getAdminEndpoint('subWallets');
+    return this.request<{ detail: string; transaction: Record<string, unknown>; sub_wallet: Record<string, unknown> }>(
+      `${endpoint}${subWalletId}/credit/`,
+      { method: 'POST', body: JSON.stringify({ amount: String(data.amount), description: data.description ?? '' }) }
+    );
+  }
+
+  /** Admin: debit sub-wallet (mirrors Django admin /admin/users/subwallet/<id>/debit/). */
+  async adminSubWalletDebit(subWalletId: number | string, data: { amount: string | number; description?: string }) {
+    const endpoint = this.getAdminEndpoint('subWallets');
+    return this.request<{ detail: string; transaction: Record<string, unknown>; sub_wallet: Record<string, unknown> }>(
+      `${endpoint}${subWalletId}/debit/`,
+      { method: 'POST', body: JSON.stringify({ amount: String(data.amount), description: data.description ?? '' }) }
+    );
+  }
+
+  /** Admin: get user booking info (email, department, Supervisor, balance) for "Book slots for user". */
   async getAdminUserBookingInfo(userId: number | string) {
     const endpoint = this.getAdminEndpoint('users');
     return this.request<{
@@ -2129,6 +3537,30 @@ class ApiClient {
       wallet_faculty_owner: { name: string; email: string } | null;
       wallet_balance: string;
     }>(`${endpoint}${userId}/booking-info/`, { method: 'GET' });
+  }
+
+  /** Admin/OIC: get transaction history for a user (e.g. to verify debit after booking for user). */
+  async getAdminUserTransactionHistory(userId: number | string, limit = 50, offset = 0) {
+    const endpoint = this.getAdminEndpoint('users');
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    return this.request<{
+      user_id: number;
+      user_email: string;
+      transactions: Array<{
+        id: number;
+        transaction_type: 'credit' | 'debit';
+        amount: string;
+        description: string;
+        created_at: string;
+        balance_after: string | null;
+        equipment_name: string | null;
+        department_name: string | null;
+        department_code: string | null;
+      }>;
+      count: number;
+      limit: number;
+      offset: number;
+    }>(`${endpoint}${userId}/transaction-history/?${params}`, { method: 'GET' });
   }
 
   async adminCreate<T = unknown>(section: string, data: Record<string, unknown>) {
@@ -2144,6 +3576,128 @@ class ApiClient {
   async adminDelete(section: string, id: number | string) {
     const endpoint = this.getAdminEndpoint(section);
     return this.request<void>(`${endpoint}${id}/`, { method: 'DELETE' });
+  }
+
+  /** Admin: approve repeat sample request (creates free re-book). */
+  async adminRepeatSampleRequestApprove(id: number | string) {
+    const endpoint = this.getAdminEndpoint('repeatSampleRequests');
+    return this.request<{ message: string; repeat_sample_request: unknown; new_booking?: unknown }>(
+      `${endpoint}${id}/approve/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Admin: reject repeat sample request with optional admin notes. */
+  async adminRepeatSampleRequestReject(id: number | string, adminNotes?: string) {
+    const endpoint = this.getAdminEndpoint('repeatSampleRequests');
+    return this.request<{ message: string; repeat_sample_request: unknown }>(
+      `${endpoint}${id}/reject/`,
+      { method: 'POST', body: JSON.stringify({ admin_notes: adminNotes ?? '' }) }
+    );
+  }
+
+  /** Admin: fetch Indian central government gazetted holidays and add new ones. */
+  async adminHolidaysFetchGazetted(options?: { year?: number; years?: number[] }) {
+    const endpoint = `${this.getAdminEndpoint('holidays')}fetch-gazetted/`;
+    const body: Record<string, unknown> = {};
+    if (options?.years?.length) body.years = options.years;
+    else if (options?.year != null) body.year = options.year;
+    return this.request<{ added: number; skipped: number; years: number[]; holidays: Record<string, unknown>[] }>(
+      endpoint,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  /** Admin: fetch holidays from a user-defined URL (HTML table with Holidays and Date columns). */
+  async adminHolidaysFetchFromUrl(url: string) {
+    const endpoint = `${this.getAdminEndpoint('holidays')}fetch-from-url/`;
+    return this.request<{
+      added: number;
+      skipped: number;
+      errors?: string[];
+      holidays: Record<string, unknown>[];
+    }>(endpoint, { method: 'POST', body: JSON.stringify({ url }) });
+  }
+
+  /** Admin: list communication templates with optional filters (admin user only). */
+  async adminCommunicationTemplatesList(params?: { search?: string; communication_type?: string; is_active?: string }) {
+    const p: Record<string, string> = {};
+    if (params?.search) p.search = params.search;
+    if (params?.communication_type) p.communication_type = params.communication_type;
+    if (params?.is_active !== undefined && params?.is_active !== '') p.is_active = params.is_active;
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
+    return this.request<Array<Record<string, unknown>>>(`${this.getAdminEndpoint('communicationTemplates')}${q}`, { method: 'GET' });
+  }
+
+  /** Admin: get/create/update/delete communication template (admin user only). */
+  async adminCommunicationTemplateGet(id: number | string) {
+    return this.request<Record<string, unknown>>(`${this.getAdminEndpoint('communicationTemplates')}${id}/`, { method: 'GET' });
+  }
+
+  async adminCommunicationTemplateCreate(data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(this.getAdminEndpoint('communicationTemplates'), {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminCommunicationTemplateUpdate(id: number | string, data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`${this.getAdminEndpoint('communicationTemplates')}${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminCommunicationTemplateDelete(id: number | string) {
+    return this.request<void>(`${this.getAdminEndpoint('communicationTemplates')}${id}/`, { method: 'DELETE' });
+  }
+
+  /** Admin: list communication logs with optional filters (admin user only). */
+  async adminCommunicationLogsList(params?: { search?: string; communication_type?: string; status?: string; date_from?: string; date_to?: string }) {
+    const p: Record<string, string> = {};
+    if (params?.search) p.search = params.search;
+    if (params?.communication_type) p.communication_type = params.communication_type;
+    if (params?.status) p.status = params.status;
+    if (params?.date_from) p.date_from = params.date_from;
+    if (params?.date_to) p.date_to = params.date_to;
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
+    return this.request<Array<Record<string, unknown>>>(`${this.getAdminEndpoint('communicationLogs')}${q}`, { method: 'GET' });
+  }
+
+  async adminCommunicationLogGet(id: number | string) {
+    return this.request<Record<string, unknown>>(`${this.getAdminEndpoint('communicationLogs')}${id}/`, { method: 'GET' });
+  }
+
+  /** Admin: list notices with optional filters (admin user only). */
+  async adminNoticesList(params?: { search?: string; notice_type?: string; is_active?: string }) {
+    const p: Record<string, string> = {};
+    if (params?.search) p.search = params.search;
+    if (params?.notice_type) p.notice_type = params.notice_type;
+    if (params?.is_active !== undefined && params?.is_active !== '') p.is_active = params.is_active;
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
+    return this.request<Array<Record<string, unknown>>>(`${this.getAdminEndpoint('notices')}${q}`, { method: 'GET' });
+  }
+
+  async adminNoticeGet(id: number | string) {
+    return this.request<Record<string, unknown>>(`${this.getAdminEndpoint('notices')}${id}/`, { method: 'GET' });
+  }
+
+  async adminNoticeCreate(data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(this.getAdminEndpoint('notices'), {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminNoticeUpdate(id: number | string, data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`${this.getAdminEndpoint('notices')}${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminNoticeDelete(id: number | string) {
+    return this.request<void>(`${this.getAdminEndpoint('notices')}${id}/`, { method: 'DELETE' });
   }
 
   /** Create CMS menu item, optionally with document (PDF) upload via multipart. */
@@ -2192,6 +3746,41 @@ class ApiClient {
     return this.adminUpdate('cmsMenu', id, data);
   }
 
+  /** Admin: create hero slide (multipart; image required). */
+  async adminCmsHeroSlideCreate(data: { order: number; alt_text: string; is_active: boolean }, imageFile: File) {
+    const endpoint = this.getAdminEndpoint('cmsHeroSlides');
+    const form = new FormData();
+    form.append('order', String(data.order));
+    form.append('alt_text', data.alt_text);
+    form.append('is_active', data.is_active ? 'true' : 'false');
+    form.append('image', imageFile);
+    const url = `${this.baseURL}${endpoint}`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: form });
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (resData as { detail?: string; image?: string[] }).detail || (Array.isArray((resData as { image?: string[] }).image) ? (resData as { image: string[] }).image.join(', ') : undefined) || `HTTP ${res.status}` };
+    return { data: resData };
+  }
+
+  /** Admin: update hero slide (multipart; image optional). */
+  async adminCmsHeroSlideUpdate(id: number | string, data: { order?: number; alt_text?: string; is_active?: boolean }, imageFile?: File | null) {
+    const endpoint = this.getAdminEndpoint('cmsHeroSlides');
+    const url = `${this.baseURL}${endpoint}${id}/`;
+    if (imageFile) {
+      const form = new FormData();
+      if (data.order !== undefined) form.append('order', String(data.order));
+      if (data.alt_text !== undefined) form.append('alt_text', data.alt_text);
+      if (data.is_active !== undefined) form.append('is_active', data.is_active ? 'true' : 'false');
+      form.append('image', imageFile);
+      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+      const res = await fetch(url, { method: 'PATCH', headers, body: form });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: (resData as { detail?: string }).detail || `HTTP ${res.status}` };
+      return { data: resData };
+    }
+    return this.adminUpdate('cmsHeroSlides', id, data as Record<string, unknown>);
+  }
+
   /** Options for admin equipment add/edit form (categories, departments, user groups, etc.). */
   async getEquipmentFormChoices() {
     return this.request<{
@@ -2224,6 +3813,12 @@ class ApiClient {
     );
   }
 
+  /** Returns stable proxy URL for equipment image (redirects to fresh S3 signed URL). Use as img src to avoid expired URLs. */
+  getEquipmentImageUrl(equipmentId: number): string {
+    const base = this.baseURL.replace(/\/$/, '');
+    return `${base}/equipments/${equipmentId}/image/`;
+  }
+
   /** Upload equipment image (admin). */
   async uploadEquipmentImage(equipmentId: number, file: File) {
     const endpoint = this.getAdminEndpoint('equipment');
@@ -2248,6 +3843,126 @@ class ApiClient {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
     return { data };
+  }
+
+  /** Admin: bulk set slot status for an equipment by dates or by slot_ids. */
+  async adminEquipmentBulkSlotStatus(
+    equipmentId: number | string,
+    payload: {
+      dates?: string[];
+      start_date?: string;
+      end_date?: string;
+      slot_ids?: number[];
+      status: string;
+      blocked_label?: string | null;
+      send_email_to_wallet_owner?: boolean;
+    }
+  ) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{ updated: number; message: string }>(
+      `${endpoint}${equipmentId}/bulk-slot-status/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  /** Admin/OIC: get waitlist for an equipment. */
+  async getEquipmentWaitlist(equipmentId: number) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      waitlist_queue_depth: number;
+      entries: Array<{ id: number; position: number; user_id: number; user_email: string; user_name: string; created_at: string | null }>;
+      count: number;
+    }>(`${endpoint}${equipmentId}/waitlist/`, { method: 'GET' });
+  }
+
+  /** Admin/OIC: clear waitlist for an equipment. */
+  async clearEquipmentWaitlist(equipmentId: number) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{ message: string; deleted: number }>(
+      `${endpoint}${equipmentId}/waitlist-clear/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** OIC: list other OIC users for temporary OIC dropdown (excludes current user). Optional search by name/email. */
+  async getTemporaryOicOicUsers(search?: string) {
+    const params = new URLSearchParams();
+    if (search != null && search.trim() !== "") params.set("search", search.trim());
+    const q = params.toString();
+    return this.request<{ oic_users: Array<{ id: number; name: string; email: string }> }>(
+      q ? `/equipments/temporary-oic/oic-users/?${q}` : '/equipments/temporary-oic/oic-users/',
+      { method: 'GET' }
+    );
+  }
+
+  /** OIC: list equipments for which current user is primary OIC. */
+  async getTemporaryOicMyEquipments() {
+    return this.request<{ equipments: Array<{ id: number; code: string; name: string }> }>(
+      '/equipments/temporary-oic/my-equipments/',
+      { method: 'GET' }
+    );
+  }
+
+  /** OIC: create temporary OIC delegation. */
+  async createTemporaryOic(equipmentId: number, temporaryOicId: number, resumeAt: string) {
+    return this.request<{
+      id: number;
+      equipment_id: number;
+      equipment_code: string;
+      temporary_oic_id: number;
+      temporary_oic_name: string;
+      resume_at: string;
+      message: string;
+    }>('/equipments/temporary-oic/', {
+      method: 'POST',
+      body: JSON.stringify({
+        equipment_id: equipmentId,
+        temporary_oic_id: temporaryOicId,
+        resume_at: resumeAt,
+      }),
+    });
+  }
+
+  /** OIC: list my active temporary OIC delegations. */
+  async getTemporaryOicMine() {
+    return this.request<{
+      delegations: Array<{
+        id: number;
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        temporary_oic_id: number;
+        temporary_oic_name: string;
+        temporary_oic_email: string;
+        resume_at: string;
+        created_at: string;
+      }>;
+    }>('/equipments/temporary-oic/mine/', { method: 'GET' });
+  }
+
+  /** OIC: update a temporary OIC delegation's resume date/time (only primary OIC). */
+  async updateTemporaryOic(delegationId: number, resumeAt: string) {
+    return this.request<{
+      message: string;
+      id: number;
+      resume_at: string;
+      equipment_code: string;
+      temporary_oic_name: string;
+    }>(`/equipments/temporary-oic/${delegationId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resume_at: resumeAt }),
+    });
+  }
+
+  /** OIC: cancel a temporary OIC delegation (only primary OIC). */
+  async cancelTemporaryOic(delegationId: number) {
+    return this.request<{ message: string }>(
+      `/equipments/temporary-oic/${delegationId}/cancel/`,
+      { method: 'DELETE' }
+    );
   }
 
   /** Upload image for CMS page block (admin). Returns { url } for use in image block. */

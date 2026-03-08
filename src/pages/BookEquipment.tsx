@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Minus, Trash2, Mail, Receipt, ExternalLink } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import {
   Dialog,
   DialogContent,
@@ -24,10 +27,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { periodicTableElements, getCategoryColor, type Element } from "@/data/periodicTableData";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { periodicTableElements, getCategoryColor, parseDisabledElementsFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay } from "date-fns";
+import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
 
 interface Equipment extends EquipmentData {}
@@ -69,9 +81,31 @@ interface EquipmentDetail {
   slot_end_time?: string | null;
   /** Actual Slot Master open_time values (HH:mm:ss) - use these for calendar time axis to match user-defined timings. */
   slot_master_times?: string[];
+  /** When 'SLOT_ID', weekly grid shows slot number/name on vertical axis; when 'TIME', shows time. */
+  weekly_view_display?: 'TIME' | 'SLOT_ID';
+  /** Slot masters (for SLOT_ID row labels). */
+  slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time?: string; close_time?: string; is_active?: boolean }>;
   split_booking_enabled?: boolean;
   daily_slots?: DailySlot[];
-  weekly_holidays?: Record<string, string>;
+  /** Date string (YYYY-MM-DD) -> label string (legacy) or { label, color? } for calendar display */
+  weekly_holidays?: Record<string, string | { label: string; color?: string }>;
+  /** Admin-configured colors for weekly calendar (from slots API). */
+  calendar_colors?: {
+    slot_colors: Record<string, string>;
+    holiday_default: string;
+    saturday_color?: string;
+    sunday_color?: string;
+  };
+  /** First date (YYYY-MM-DD) of visible slot window; null = no restriction. From slots API. */
+  slot_window_min_date?: string | null;
+  /** Last date (YYYY-MM-DD) of visible slot window; null = no restriction. From slots API. */
+  slot_window_max_date?: string | null;
+  /** Weekday (0=Mon … 6=Sun) when next week opens; for empty-state message. */
+  slot_window_reference_weekday?: number | null;
+  /** Time (HH:mm) when next week opens; for empty-state message. */
+  slot_window_reference_time?: string | null;
+  /** Peak window in minutes after slot window time for urgent log; configurable by Admin/OIC. */
+  urgent_peak_window_minutes?: number | null;
   input_fields?: Array<any>;
   charge_profiles?: Array<any>;
   [key: string]: any;
@@ -98,7 +132,7 @@ const USER_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "individual_student", label: "Individual Student" },
   { value: "faculty", label: "Faculty" },
   { value: "external", label: "Educational Institute" },
-  { value: "RND", label: "Govt R&D Center" },
+  { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
   { value: "admin", label: "Admin" },
   { value: "manager", label: "Officer In Charge" },
@@ -120,6 +154,33 @@ function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
 }
 
+/** Format slot-window reference: weekday 0-6 + time HH:mm -> "Wednesday at 21:00" */
+function formatSlotWindowReference(weekday: number, timeStr: string): string {
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const day = days[Math.max(0, Math.min(6, weekday))] ?? "";
+  const time = (timeStr || "").trim().substring(0, 5) || "";
+  return `${day} at ${time}`;
+}
+
+/**
+ * True if "Request urgent booking" button should be shown.
+ * When current weekday equals slot window (internal users) reference weekday, show only after 30 minutes past that time.
+ */
+function canShowRequestUrgentBookingButton(
+  refWeekday: number | null | undefined,
+  refTimeStr: string | null | undefined
+): boolean {
+  if (refWeekday == null || refTimeStr == null || refTimeStr.trim() === "") return true;
+  const now = new Date();
+  // JS getDay(): 0=Sun, 1=Mon, ... 6=Sat. Backend: 0=Mon, 1=Tue, ... 6=Sun.
+  const jsDay = now.getDay();
+  const backendWeekday = jsDay === 0 ? 6 : jsDay - 1;
+  if (backendWeekday !== refWeekday) return true;
+  const refMinutes = parseTimeToMinutes(refTimeStr);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return nowMinutes >= refMinutes + 30;
+}
+
 /** Extract date (yyyy-MM-dd) and time (HH:mm) from an ISO datetime string without timezone conversion. */
 function parseIsoDateAndTime(isoStr: string): { dateStr: string; timeStr: string } {
   if (!isoStr || typeof isoStr !== "string") return { dateStr: "", timeStr: "" };
@@ -137,6 +198,8 @@ const DEFAULT_SLOT_STATUS_COLORS: Record<string, string> = {
   BLOCKED: "#e5e7eb",
   UNDER_MAINTENANCE: "#fed7aa",
   OPERATOR_ABSENT: "#fde68a",
+  BOOKING_NOT_UTILIZED: "#e9d5ff",
+  HOLD: "#fef3c7",
 };
 
 const SLOT_STATUS_LABELS: Record<string, string> = {
@@ -145,6 +208,8 @@ const SLOT_STATUS_LABELS: Record<string, string> = {
   BLOCKED: "Blocked",
   UNDER_MAINTENANCE: "Under Maintenance",
   OPERATOR_ABSENT: "Operator Absent",
+  BOOKING_NOT_UTILIZED: "Booking Not Utilized",
+  HOLD: "Hold",
 };
 
 /** Return black or white for readable text on the given hex background. */
@@ -176,13 +241,13 @@ function getTimeSlotsFromEquipmentWindow(
 
 const BookEquipment = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loadingEquipmentDetail, setLoadingEquipmentDetail] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userType, setUserType] = useState<string | number | null>(null);
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [inputFieldValues, setInputFieldValues] = useState<Record<string, string | boolean | string[] | number>>({});
   const [periodicTableFieldKey, setPeriodicTableFieldKey] = useState<string | null>(null);
@@ -208,6 +273,7 @@ const BookEquipment = () => {
   const [adminBookForUserInfo, setAdminBookForUserInfo] = useState<{
     email: string;
     department_name: string;
+    phone_number?: string;
     wallet_faculty_owner: { name: string; email: string } | null;
     wallet_balance: string;
   } | null>(null);
@@ -215,21 +281,63 @@ const BookEquipment = () => {
   const [adminUserTypeFilter, setAdminUserTypeFilter] = useState<string>(USER_TYPE_FILTER_ALL);
   const [userComboboxOpen, setUserComboboxOpen] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [statusChangeWeekStart, setStatusChangeWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [statusChangeMonthStart, setStatusChangeMonthStart] = useState<Date>(() => startOfMonth(new Date()));
+  const [statusChangeSelectedMonths, setStatusChangeSelectedMonths] = useState<string[]>([]); // "yyyy-MM" for year-level selection
+  const [selectedDatesForStatus, setSelectedDatesForStatus] = useState<string[]>([]);
+  const [statusChangePopupWeekStart, setStatusChangePopupWeekStart] = useState<Date | null>(null);
   const [statusChangeSlots, setStatusChangeSlots] = useState<DailySlot[] | null>(null);
   const [statusChangeSlotMasterTimes, setStatusChangeSlotMasterTimes] = useState<string[]>([]);
-  const [statusChangeHolidays, setStatusChangeHolidays] = useState<Record<string, string>>({});
+  const [statusChangeHolidays, setStatusChangeHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
   const [loadingStatusSlots, setLoadingStatusSlots] = useState(false);
   const [selectedSlotIdsForStatus, setSelectedSlotIdsForStatus] = useState<number[]>([]);
   const [newSlotStatus, setNewSlotStatus] = useState<string>('BLOCKED');
   const [blockedLabelForStatus, setBlockedLabelForStatus] = useState<string>('');
+  const [sendEmailToWalletOwnerForNotUtilized, setSendEmailToWalletOwnerForNotUtilized] = useState(true);
+  const BULK_EMAIL_OPERATION_VALUE = "__bulk_email__";
   const [updatingSlotStatus, setUpdatingSlotStatus] = useState(false);
+  const [applyProgressPercent, setApplyProgressPercent] = useState(0);
+  const applyProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
   const [bulkEmailRecipients, setBulkEmailRecipients] = useState<Array<{ email: string; name: string }>>([]);
   const [bulkEmailSubject, setBulkEmailSubject] = useState("");
   const [bulkEmailBody, setBulkEmailBody] = useState("");
+  const [bulkEmailTemplatesLoading, setBulkEmailTemplatesLoading] = useState(false);
   const [sendingBulkEmail, setSendingBulkEmail] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [bookingResultDialog, setBookingResultDialog] = useState<{ open: boolean; success: boolean; message: string }>({ open: false, success: false, message: "" });
+  const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
+  const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
+  const [expandedSlotBooking, setExpandedSlotBooking] = useState<BookingDetailCardBooking | null>(null);
+  const [expandedSlotBookingLoading, setExpandedSlotBookingLoading] = useState(false);
+  const [urgentDialogOpen, setUrgentDialogOpen] = useState(false);
+  const [urgentHoldBookingId, setUrgentHoldBookingId] = useState<number | null>(null);
+  /** Slots chosen in urgent flow but not yet submitted: hold is created only when user clicks Submit request in the dialog. */
+  const [pendingHoldSelection, setPendingHoldSelection] = useState<{
+    slotIds: number[];
+    inputValues: Record<string, string | boolean | string[] | number>;
+    totalCharge: number;
+    totalTimeMinutes: number;
+  } | null>(null);
+  const [urgentRequestType, setUrgentRequestType] = useState<'NO_SLOT' | 'REVIEWER_URGENT'>('NO_SLOT');
+  const [urgentDisclaimerAccepted, setUrgentDisclaimerAccepted] = useState(false);
+  const urgentDisclaimerAcceptedRef = useRef(false);
+  const [urgentEvidenceFile, setUrgentEvidenceFile] = useState<File | null>(null);
+  const [urgentNumberSamples, setUrgentNumberSamples] = useState(1);
+  const [urgentSlotsRequested, setUrgentSlotsRequested] = useState(1);
+  const [urgentSubmitting, setUrgentSubmitting] = useState(false);
+  /** Unsuccessful booking attempts for current equipment (past 2 weeks), shown when reason is "Unable to get slot despite repeated trials". */
+  const [myUnsuccessfulAttempts, setMyUnsuccessfulAttempts] = useState<Array<{
+    id: number;
+    requested_at: string | null;
+    outcome: string;
+    failure_reason: string;
+    number_of_samples: number;
+    slots_requested: number;
+    duration_minutes: number | null;
+  }>>([]);
+  const [myUnsuccessfulAttemptsLoading, setMyUnsuccessfulAttemptsLoading] = useState(false);
+  /** True when user came from "Select Slot" in urgent dialog: show "Submit Request" and create hold booking (no debit). */
+  const isUrgentHoldMode = searchParams.get('urgent') === '1';
   const [statusChangeSlotColors, setStatusChangeSlotColors] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem("slotStatusColors");
@@ -243,9 +351,58 @@ const BookEquipment = () => {
     return { ...DEFAULT_SLOT_STATUS_COLORS };
   });
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const statusChangeDateClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchingSlotsRef = useRef<boolean>(false);
   const hasCheckedEmptyCurrentWeekRef = useRef<boolean>(false);
   const lastEquipmentIdRef = useRef<number | null>(null);
+  const prevShowSlotsRef = useRef<boolean>(false);
+  const appliedModeForEquipmentIdRef = useRef<number | null>(null);
+
+  /** When Request urgent booking popup is open with reason "Unable to get slot...", load user's unsuccessful attempts for this equipment (past 2 weeks). */
+  useEffect(() => {
+    if (!urgentDialogOpen || urgentRequestType !== 'NO_SLOT' || !selectedEquipment?.id) {
+      setMyUnsuccessfulAttempts([]);
+      return;
+    }
+    let cancelled = false;
+    setMyUnsuccessfulAttemptsLoading(true);
+    apiClient.getMyUnsuccessfulBookingAttempts(Number(selectedEquipment.id)).then((res) => {
+      if (cancelled) return;
+      setMyUnsuccessfulAttemptsLoading(false);
+      if (res.data?.entries) setMyUnsuccessfulAttempts(res.data.entries);
+      else setMyUnsuccessfulAttempts([]);
+    }).catch(() => {
+      if (!cancelled) {
+        setMyUnsuccessfulAttemptsLoading(false);
+        setMyUnsuccessfulAttempts([]);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [urgentDialogOpen, urgentRequestType, selectedEquipment?.id]);
+
+  /** When "Unable to get slot despite repeated trials" is selected and no unsuccessful attempts in past 2 weeks, disable Select Slot, I confirm, and Submit. */
+  const noSlotWithNoUnsuccessfulAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length === 0;
+
+  /** When repeatOf is in URL, this holds the source booking for repeat-sample flow (params prefilled, no change allowed, user picks slots). */
+  const [repeatSourceBooking, setRepeatSourceBooking] = useState<{
+    booking_id: number;
+    equipment: number;
+    virtual_booking_id?: string | null;
+    input_values: Record<string, string | boolean | string[] | number>;
+    total_charge: string | number;
+    total_time_minutes: number;
+    charge_breakdown: Array<{ description: string; amount: number }>;
+  } | null>(null);
+  const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (applyProgressIntervalRef.current) {
+        clearInterval(applyProgressIntervalRef.current);
+        applyProgressIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Get user ID and type from localStorage (set by DashboardHeader) to avoid duplicate API calls
@@ -260,7 +417,7 @@ const BookEquipment = () => {
         
         // Set initial week based on user type
         const now = new Date();
-        const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+        const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
         const userTypeValue: any = user.user_type;
         let normalizedType: string | null = null;
         if (typeof userTypeValue === 'string') {
@@ -275,7 +432,7 @@ const BookEquipment = () => {
         } else {
           // Other users: Start with week beginning 15 days from current date
           const fifteenDaysFromNow = addDays(now, 15);
-          setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+          setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
         }
       } catch (e) {
         // If localStorage fails, check auth
@@ -300,7 +457,7 @@ const BookEquipment = () => {
     return () => { cancelled = true; };
   }, [adminManageMode]);
 
-  // Admin: fetch selected user's booking info (email, department, wallet owner, balance)
+  // Admin: fetch selected user's booking info (email, department, Supervisor, balance)
   useEffect(() => {
     if (!isAdminUser() || !adminBookForUserId) {
       setAdminBookForUserInfo(null);
@@ -316,12 +473,112 @@ const BookEquipment = () => {
     return () => { cancelled = true; };
   }, [adminBookForUserId]);
 
-  // Admin: fetch slots for status-change mode (calendar view)
+  // Admin status-change: toggle a single date in selection (month calendar)
+  const toggleDateForStatus = (dateStr: string) => {
+    setSelectedDatesForStatus((prev) =>
+      prev.includes(dateStr) ? prev.filter((d) => d !== dateStr) : [...prev, dateStr].sort()
+    );
+  };
+
+  const openWeekSlotPopup = (day: Date) => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    setSelectedDatesForStatus([dateStr]);
+    setSelectedSlotIdsForStatus([]);
+    setStatusChangePopupWeekStart(startOfWeek(day, { weekStartsOn: 1 }));
+  };
+
+  // Admin status-change: select the week (Mon–Sun) that contains the given date (for date-based apply)
+  const selectWeekForStatus = (date: Date) => {
+    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      weekDates.push(format(addDays(weekStart, i), "yyyy-MM-dd"));
+    }
+    setSelectedDatesForStatus((prev) => {
+      const set = new Set([...prev, ...weekDates]);
+      return Array.from(set).sort();
+    });
+  };
+
+  // Admin status-change: select all days in the displayed month
+  const selectMonthForStatus = () => {
+    const start = startOfMonth(statusChangeMonthStart);
+    const end = endOfMonth(statusChangeMonthStart);
+    const days = eachDayOfInterval({ start, end });
+    const monthDates = days.map((d) => format(d, "yyyy-MM-dd"));
+    setSelectedDatesForStatus((prev) => {
+      const set = new Set([...prev, ...monthDates]);
+      return Array.from(set).sort();
+    });
+  };
+
+  // Year view: toggle a single month in year-level selection ("yyyy-MM")
+  const toggleMonthInYearView = (monthKey: string) => {
+    setStatusChangeSelectedMonths((prev) =>
+      prev.includes(monthKey) ? prev.filter((m) => m !== monthKey) : [...prev, monthKey].sort()
+    );
+  };
+
+  // Year view: select entire year (all 12 months)
+  const selectYearForStatus = () => {
+    const y = statusChangeMonthStart.getFullYear();
+    const allMonths = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(y, i, 1);
+      return format(d, "yyyy-MM");
+    });
+    setStatusChangeSelectedMonths(allMonths);
+  };
+
+  // Year view: clear year-level selection
+  const clearYearSelection = () => {
+    setStatusChangeSelectedMonths([]);
+  };
+
+  // Expand selected months to date strings for API
+  const getEffectiveDatesForStatus = useCallback(() => {
+    const dateSet = new Set<string>(selectedDatesForStatus);
+    statusChangeSelectedMonths.forEach((monthKey) => {
+      const [y, m] = monthKey.split("-").map(Number);
+      const start = new Date(y, m - 1, 1);
+      const end = endOfMonth(start);
+      eachDayOfInterval({ start, end }).forEach((d) => dateSet.add(format(d, "yyyy-MM-dd")));
+    });
+    return Array.from(dateSet).sort();
+  }, [selectedDatesForStatus, statusChangeSelectedMonths]);
+
+  // Admin: fetch slots for status-change mode (optional; month calendar uses bulk API by dates)
   const fetchStatusChangeSlots = useCallback(async () => {
     if (!selectedEquipment?.id || adminManageMode !== 'status') return;
     setLoadingStatusSlots(true);
     try {
-      const weekStart = startOfWeek(statusChangeWeekStart, { weekStartsOn: 0 });
+      const monthStart = startOfMonth(statusChangeMonthStart);
+      const monthEnd = endOfMonth(statusChangeMonthStart);
+      const res = await apiClient.getEquipmentSlots(selectedEquipment.id, format(monthStart, 'yyyy-MM-dd'), format(monthEnd, 'yyyy-MM-dd'));
+      const data = (res as { data?: { slots?: DailySlot[]; slot_master_times?: string[]; holidays?: Record<string, string> } }).data;
+      if (data?.slots) setStatusChangeSlots(data.slots);
+      else setStatusChangeSlots([]);
+      const times = data?.slot_master_times && data.slot_master_times.length > 0
+        ? data.slot_master_times.map(formatTimeForDisplay).sort()
+        : [];
+      setStatusChangeSlotMasterTimes(times);
+      setStatusChangeHolidays(data?.holidays ?? {});
+    } catch {
+      setStatusChangeSlots([]);
+      setStatusChangeSlotMasterTimes([]);
+      setStatusChangeHolidays({});
+    } finally {
+      setLoadingStatusSlots(false);
+    }
+  }, [selectedEquipment?.id, adminManageMode, statusChangeMonthStart]);
+  useEffect(() => {
+    // Month calendar does not require pre-fetching slots; bulk API uses dates only.
+  }, [adminManageMode, selectedEquipment?.id]);
+
+  // When week slot popup opens, fetch slots for that week
+  const fetchStatusChangeSlotsForWeek = useCallback(async (weekStart: Date) => {
+    if (!selectedEquipment?.id) return;
+    setLoadingStatusSlots(true);
+    try {
       const weekEnd = addDays(weekStart, 7);
       const res = await apiClient.getEquipmentSlots(selectedEquipment.id, format(weekStart, 'yyyy-MM-dd'), format(weekEnd, 'yyyy-MM-dd'));
       const data = (res as { data?: { slots?: DailySlot[]; slot_master_times?: string[]; holidays?: Record<string, string> } }).data;
@@ -339,10 +596,12 @@ const BookEquipment = () => {
     } finally {
       setLoadingStatusSlots(false);
     }
-  }, [selectedEquipment?.id, adminManageMode, statusChangeWeekStart]);
+  }, [selectedEquipment?.id]);
   useEffect(() => {
-    if (adminManageMode === 'status' && selectedEquipment?.id) fetchStatusChangeSlots();
-  }, [adminManageMode, selectedEquipment?.id, statusChangeWeekStart, fetchStatusChangeSlots]);
+    if (statusChangePopupWeekStart && selectedEquipment?.id) {
+      fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+    }
+  }, [statusChangePopupWeekStart, selectedEquipment?.id, fetchStatusChangeSlotsForWeek]);
 
   // Admin status-change: get slot at (day, time) for calendar grid
   const getStatusChangeSlotAt = (day: Date, time: string): DailySlot | undefined => {
@@ -362,6 +621,240 @@ const BookEquipment = () => {
       prev.includes(slotId) ? prev.filter((id) => id !== slotId) : [...prev, slotId]
     );
   };
+
+  // Select all slots in a time row for the current popup week
+  const selectTimeRowForWeek = (time: string) => {
+    if (!statusChangeSlots || !statusChangePopupWeekStart) return;
+    const weekStartStr = format(statusChangePopupWeekStart, "yyyy-MM-dd");
+    const ids: number[] = [];
+    const dateStrs: string[] = [];
+    statusChangeSlots.forEach((s) => {
+      const slotDateStr = typeof s.date === "string"
+        ? (s.date.includes("T") ? format(parseISO(s.date), "yyyy-MM-dd") : s.date.slice(0, 10))
+        : "";
+      const slotTime = s.start_datetime ? format(parseISO(s.start_datetime), "HH:mm") : "";
+      if (slotDateStr >= weekStartStr && slotDateStr < format(addDays(statusChangePopupWeekStart!, 7), "yyyy-MM-dd") && slotTime === time) {
+        ids.push(s.id);
+        if (slotDateStr) dateStrs.push(slotDateStr);
+      }
+    });
+    setSelectedSlotIdsForStatus((prev) => {
+      const set = new Set([...prev, ...ids]);
+      return Array.from(set);
+    });
+    setSelectedDatesForStatus((prev) => {
+      const set = new Set([...prev, ...dateStrs]);
+      return Array.from(set).sort();
+    });
+  };
+
+  // Week popup: select all slots in this week that are AVAILABLE
+  const selectAllAvailableSlotsInPopup = () => {
+    if (!statusChangeSlots || statusChangeSlots.length === 0) return;
+    const ids = statusChangeSlots.filter((s) => s.status === "AVAILABLE").map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => {
+      const set = new Set([...prev, ...ids]);
+      return Array.from(set);
+    });
+  };
+
+  // Week popup: select all slots in this week except BOOKED+COMPLETED
+  const selectAllNonCompletedSlotsInPopup = () => {
+    if (!statusChangeSlots || statusChangeSlots.length === 0) return;
+    const ids = statusChangeSlots
+      .filter((s) => {
+        if (s.status === "BOOKED" && (String(s.booking_status || "").toUpperCase() === "COMPLETED")) return false;
+        return true;
+      })
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => {
+      const set = new Set([...prev, ...ids]);
+      return Array.from(set);
+    });
+  };
+
+  // Week popup: select all BOOKED slots in this window (excluding completed)
+  const selectAllBookedSlotsInPopup = () => {
+    if (!statusChangeSlots || statusChangeSlots.length === 0) return;
+    const ids = statusChangeSlots
+      .filter((s) => s.status === "BOOKED" && String(s.booking_status || "").toUpperCase() !== "COMPLETED")
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => {
+      const set = new Set([...prev, ...ids]);
+      return Array.from(set);
+    });
+  };
+
+  // Week popup: clear selection for slots that belong to this popup week only
+  const clearPopupWeekSelection = () => {
+    if (!statusChangeSlots || statusChangeSlots.length === 0) return;
+    const weekIds = new Set(statusChangeSlots.map((s) => s.id));
+    setSelectedSlotIdsForStatus((prev) => prev.filter((id) => !weekIds.has(id)));
+  };
+
+  // Week popup: navigate to previous/next week
+  const goToPrevWeekInPopup = () => {
+    if (statusChangePopupWeekStart) setStatusChangePopupWeekStart(subWeeks(statusChangePopupWeekStart, 1));
+  };
+  const goToNextWeekInPopup = () => {
+    if (statusChangePopupWeekStart) setStatusChangePopupWeekStart(addWeeks(statusChangePopupWeekStart, 1));
+  };
+
+  // Change slot status card: open bulk email dialog for selected slots (or slots on selected dates)
+  const openBulkEmailFromStatusCard = useCallback(async () => {
+    if (!selectedEquipment?.id) return;
+    let slotIds: number[] = [];
+    if (selectedSlotIdsForStatus.length > 0) {
+      slotIds = selectedSlotIdsForStatus;
+    } else {
+      const effectiveDates = selectedDatesForStatus.length > 0 || statusChangeSelectedMonths.length > 0
+        ? (() => {
+            const dateSet = new Set<string>(selectedDatesForStatus);
+            statusChangeSelectedMonths.forEach((monthKey) => {
+              const [y, m] = monthKey.split("-").map(Number);
+              const start = new Date(y, m - 1, 1);
+              const end = endOfMonth(start);
+              eachDayOfInterval({ start, end }).forEach((d) => dateSet.add(format(d, "yyyy-MM-dd")));
+            });
+            return Array.from(dateSet).sort();
+          })()
+        : [];
+      if (effectiveDates.length > 0) {
+        try {
+          const start = effectiveDates[0];
+          const end = effectiveDates[effectiveDates.length - 1];
+          const res = await apiClient.getEquipmentSlots(selectedEquipment.id, start, end);
+          const data = (res as { data?: { slots?: DailySlot[] } }).data;
+          const slots = data?.slots ?? [];
+          const dateSet = new Set(effectiveDates);
+          slotIds = slots.filter((s) => s.date && dateSet.has(s.date.slice(0, 10))).map((s) => s.id);
+        } catch (e) {
+          toast.error("Failed to load slots for selected dates.");
+          return;
+        }
+      }
+    }
+    if (slotIds.length === 0) {
+      toast.info("Select slots (Week view) or dates/months first, then click Bulk email.");
+      return;
+    }
+    setBulkEmailTemplatesLoading(true);
+    setBulkEmailOpen(true);
+    setBulkEmailRecipients([]);
+    setBulkEmailSubject("");
+    setBulkEmailBody("");
+    try {
+      const res = await apiClient.getBulkEmailRecipients(slotIds);
+      const data = (res as { data?: { recipients?: Array<{ email: string; name: string }> } }).data;
+      const recipients = data?.recipients ?? [];
+      setBulkEmailRecipients(recipients);
+      if (recipients.length === 0) {
+        toast.info("No booked slots in selection (recipients are from booked, non-completed slots).");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load recipients or templates");
+    } finally {
+      setBulkEmailTemplatesLoading(false);
+    }
+  }, [selectedEquipment?.id, selectedSlotIdsForStatus, selectedDatesForStatus, statusChangeSelectedMonths]);
+
+  const sendBulkEmailFromDialog = async () => {
+    const emails = bulkEmailRecipients.map((r) => r.email).filter(Boolean);
+    if (!emails.length) {
+      toast.error("No recipients.");
+      return;
+    }
+    if (!bulkEmailSubject.trim()) {
+      toast.error("Subject is required.");
+      return;
+    }
+    if (!bulkEmailBody.trim()) {
+      toast.error("Body is required.");
+      return;
+    }
+    setSendingBulkEmail(true);
+    try {
+      const res = await apiClient.sendBulkEmail(emails, bulkEmailSubject.trim(), bulkEmailBody.trim());
+      const data = res.data as { message?: string; sent_count?: number; failed_count?: number; failed?: Array<{ email: string; error: string }> } | undefined;
+      toast.success(data?.message ?? "Emails sent.");
+      if (data?.failed_count && data.failed?.length) {
+        data.failed.slice(0, 3).forEach((f) => toast.error(`${f.email}: ${f.error}`));
+      }
+      setBulkEmailOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send emails");
+    } finally {
+      setSendingBulkEmail(false);
+    }
+  };
+
+  // Select all slots at this time for the entire displayed month (fetch month slots then filter by time)
+  const selectTimeRowForMonth = useCallback(async (time: string) => {
+    if (!selectedEquipment?.id) return;
+    const monthStart = startOfMonth(statusChangeMonthStart);
+    const monthEnd = endOfMonth(statusChangeMonthStart);
+    try {
+      const res = await apiClient.getEquipmentSlots(selectedEquipment.id, format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"));
+      const data = (res as { data?: { slots?: DailySlot[] } }).data;
+      const monthSlots = data?.slots ?? [];
+      const matchingSlots = monthSlots.filter((s) => s.start_datetime && format(parseISO(s.start_datetime), "HH:mm") === time);
+      const ids = matchingSlots.map((s) => s.id);
+      const datesToAdd = [...new Set(matchingSlots.map((s) => {
+        if (!s.date) return "";
+        return s.date.includes("T") ? format(parseISO(s.date), "yyyy-MM-dd") : s.date.slice(0, 10);
+      }).filter(Boolean))].sort();
+      setSelectedSlotIdsForStatus((prev) => {
+        const set = new Set([...prev, ...ids]);
+        return Array.from(set);
+      });
+      setSelectedDatesForStatus((prev) => {
+        const set = new Set([...prev, ...datesToAdd]);
+        return Array.from(set).sort();
+      });
+      toast.success(`Added ${ids.length} slot(s) at ${time} for the month.`);
+    } catch {
+      toast.error("Failed to load month slots.");
+    }
+  }, [selectedEquipment?.id, statusChangeMonthStart]);
+
+  // Select all slots at this time for the entire displayed year (fetch year slots then filter by time)
+  const selectTimeRowForYear = useCallback(async (time: string) => {
+    if (!selectedEquipment?.id) return;
+    const y = statusChangeMonthStart.getFullYear();
+    const yearStart = startOfYear(statusChangeMonthStart);
+    const yearEnd = endOfYear(statusChangeMonthStart);
+    try {
+      const res = await apiClient.getEquipmentSlots(selectedEquipment.id, format(yearStart, "yyyy-MM-dd"), format(yearEnd, "yyyy-MM-dd"));
+      const data = (res as { data?: { slots?: DailySlot[] } }).data;
+      const yearSlots = data?.slots ?? [];
+      const matchingSlots = yearSlots.filter((s) => s.start_datetime && format(parseISO(s.start_datetime), "HH:mm") === time);
+      const ids = matchingSlots.map((s) => s.id);
+      const datesToAdd = [...new Set(matchingSlots.map((s) => {
+        if (!s.date) return "";
+        return s.date.includes("T") ? format(parseISO(s.date), "yyyy-MM-dd") : s.date.slice(0, 10);
+      }).filter(Boolean))].sort();
+      setSelectedSlotIdsForStatus((prev) => {
+        const set = new Set([...prev, ...ids]);
+        return Array.from(set);
+      });
+      setSelectedDatesForStatus((prev) => {
+        const set = new Set([...prev, ...datesToAdd]);
+        return Array.from(set).sort();
+      });
+      // Also add those months to year-level selection so the year calendar highlights
+      const monthsToAdd = [...new Set(datesToAdd.map((d) => d.slice(0, 7)))].sort();
+      setStatusChangeSelectedMonths((prev) => {
+        const set = new Set([...prev, ...monthsToAdd]);
+        return Array.from(set).sort();
+      });
+      toast.success(`Added ${ids.length} slot(s) at ${time} for ${y}.`);
+    } catch {
+      toast.error("Failed to load year slots.");
+    }
+  }, [selectedEquipment?.id, statusChangeMonthStart]);
 
   const setStatusChangeSlotColor = (status: string, hex: string) => {
     setStatusChangeSlotColors((prev) => {
@@ -405,8 +898,17 @@ const BookEquipment = () => {
       setSelectedSlots([]);
       setLastFetchedWeek(null);
       setChargeCalculationFailed(false);
-      lastCalculatedValuesRef.current = ''; // Reset the hash
-      fetchingSlotsRef.current = false; // Reset fetching flag
+      lastCalculatedValuesRef.current = '';
+      fetchingSlotsRef.current = false;
+
+      // Internal users: default to current week when switching equipment (before ref = last+current, after ref = current+next)
+      const uVal: any = userType;
+      let nType: string | null = null;
+      if (typeof uVal === 'string') nType = uVal.toLowerCase();
+      else if (typeof uVal === 'number') nType = uVal === 1 ? 'student' : uVal === 2 ? 'faculty' : null;
+      if (nType === 'student' || nType === 'faculty') {
+        setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+      }
       
       // Initialize input field values with default values
       if (eq.input_fields && eq.input_fields.length > 0) {
@@ -446,7 +948,7 @@ const BookEquipment = () => {
         name: eq.name,
         category: eq.category_name || "",
         description: eq.description || eq.name,
-        image: eq.image_url || "/placeholder.svg",
+        image: (eq.image_url || eq.s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
         video: "", // API doesn't provide video_url in detail response
         available: eq.status === "ACTIVE",
         address: eq.location || "",
@@ -471,18 +973,91 @@ const BookEquipment = () => {
   // Handle equipment_id from URL query parameters
   useEffect(() => {
     const equipmentId = searchParams.get('equipment_id');
-    
+
     // If no equipment_id, redirect to equipment listing
     if (!equipmentId && !selectedEquipment) {
       navigate('/equipments');
       return;
     }
-    
+
     // Auto-select equipment if equipment_id is provided in URL
     if (equipmentId && !selectedEquipment && !loadingEquipmentDetail) {
       handleEquipmentSelect(equipmentId);
     }
   }, [searchParams, selectedEquipment, loadingEquipmentDetail, handleEquipmentSelect, navigate]);
+
+  // Repeat-sample flow: when repeatOf is in URL, load that booking and prefill form (read-only params, zero charge, user picks slots)
+  useEffect(() => {
+    const repeatOf = searchParams.get("repeatOf");
+    if (!repeatOf || !selectedEquipment) {
+      setRepeatSourceBooking(null);
+      return;
+    }
+    const bid = parseInt(repeatOf, 10);
+    if (Number.isNaN(bid)) {
+      setRepeatSourceBooking(null);
+      return;
+    }
+    let cancelled = false;
+    setRepeatSourceLoading(true);
+    setRepeatSourceBooking(null);
+    (async () => {
+      const [bookingsRes, eligibilityRes] = await Promise.all([
+        apiClient.getBookings({ booking_id: bid, limit: 1 }),
+        apiClient.getRepeatSampleEligibility(bid),
+      ]);
+      if (cancelled) return;
+      setRepeatSourceLoading(false);
+      if (bookingsRes.error || !bookingsRes.data?.bookings?.length) {
+        toast.error("Repeat source booking not found.");
+        return;
+      }
+      const b = bookingsRes.data.bookings[0];
+      if (Number(b.equipment) !== Number(selectedEquipment.id)) {
+        toast.error("Repeat booking must be for the same equipment.");
+        return;
+      }
+      if (!eligibilityRes.data?.can_create_repeat) {
+        toast.error(eligibilityRes.data?.reason || "You cannot create a repeat for this booking.");
+        return;
+      }
+      const origCharge = Number(b.total_charge) || 0;
+      const origVid = b.virtual_booking_id || String(b.booking_id);
+      const equipCode = selectedEquipment.code || String(selectedEquipment.id);
+      const discountRemark = `Repeat of ${origVid} for ${equipCode}`;
+      const breakdown = Array.isArray(b.charge_breakdown) ? [...b.charge_breakdown] : [];
+      breakdown.push({ description: discountRemark, amount: -origCharge });
+      setRepeatSourceBooking({
+        booking_id: b.booking_id,
+        equipment: b.equipment,
+        virtual_booking_id: b.virtual_booking_id,
+        input_values: b.input_values || {},
+        total_charge: b.total_charge,
+        total_time_minutes: b.total_time_minutes || 0,
+        charge_breakdown: breakdown,
+      });
+      setInputFieldValues(b.input_values || {});
+      setChargeCalculated(true);
+      setCalculatedCharge({
+        total_charge: "0",
+        total_time_minutes: b.total_time_minutes || 0,
+        charge_breakdown: breakdown,
+      });
+      setShowSlots(true);
+      setChargeCalculationFailed(false);
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams, selectedEquipment?.id]);
+
+  // When landing with mode=status or mode=book, open that manage mode for admin/OIC/operator (once per equipment)
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (!mode || !selectedEquipment || !canAccessManageEquipmentModes()) return;
+    if (appliedModeForEquipmentIdRef.current === selectedEquipment.id) return;
+    appliedModeForEquipmentIdRef.current = selectedEquipment.id;
+    if (mode === 'status') setAdminManageMode('status');
+    else if (mode === 'book') setAdminManageMode('book');
+  }, [searchParams, selectedEquipment]);
 
   // Reset input field values when equipment changes
   useEffect(() => {
@@ -594,6 +1169,11 @@ const BookEquipment = () => {
       return;
     }
 
+    // Repeat-sample: charge is already set to 0 with discount; do not recalculate
+    if (repeatSourceBooking) {
+      return;
+    }
+
     // Skip if already loading
     if (loadingCharge) {
       return;
@@ -653,27 +1233,20 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId]);
+  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking]);
 
-  // Fetch slots for the current week
-  const fetchSlotsForWeek = useCallback(async () => {
+  // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status)
+  const fetchSlotsForWeek = useCallback(async (forceRefetch?: boolean) => {
     if (!selectedEquipment) return;
-    
-    // Prevent concurrent calls using ref
-    if (fetchingSlotsRef.current || loadingSlots) {
-      return;
-    }
 
-    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 0 });
+    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 7);
     const startDateStr = format(weekStart, "yyyy-MM-dd");
     const endDateStr = format(weekEnd, "yyyy-MM-dd");
-    
-    // Check if we already fetched slots for this week
     const weekKey = `${startDateStr}_${endDateStr}`;
-    if (lastFetchedWeek === weekKey) {
-      return;
-    }
+
+    if (!forceRefetch && (fetchingSlotsRef.current || loadingSlots)) return;
+    if (!forceRefetch && lastFetchedWeek === weekKey) return;
 
     try {
       fetchingSlotsRef.current = true;
@@ -685,7 +1258,6 @@ const BookEquipment = () => {
       );
 
       if (slotsResponse.data && slotsResponse.data.slots) {
-        // Update equipmentDetail with fetched slots, holidays, and slot window (for calendar time axis)
         const data = slotsResponse.data;
         setEquipmentDetail(prev => {
           if (!prev) return prev;
@@ -697,8 +1269,48 @@ const BookEquipment = () => {
             ...(data.slot_end_time != null && { slot_end_time: data.slot_end_time }),
             ...(data.slot_duration_minutes != null && { slot_duration_minutes: data.slot_duration_minutes }),
             ...(data.slot_master_times && Array.isArray(data.slot_master_times) && { slot_master_times: data.slot_master_times }),
+            ...(data.weekly_view_time_from != null && { weekly_view_time_from: data.weekly_view_time_from }),
+            ...(data.weekly_view_time_to != null && { weekly_view_time_to: data.weekly_view_time_to }),
+            ...(data.weekly_view_max_rows != null && { weekly_view_max_rows: data.weekly_view_max_rows }),
+            ...(data.weekly_view_default_days != null && { weekly_view_default_days: data.weekly_view_default_days }),
+            ...(data.slot_window_min_date != null && { slot_window_min_date: data.slot_window_min_date }),
+            ...(data.slot_window_max_date != null && { slot_window_max_date: data.slot_window_max_date }),
+            ...(data.slot_window_reference_weekday != null && { slot_window_reference_weekday: data.slot_window_reference_weekday }),
+            ...(data.slot_window_reference_time != null && { slot_window_reference_time: data.slot_window_reference_time }),
+            ...(data.calendar_colors && typeof data.calendar_colors === 'object'
+              ? {
+                  calendar_colors: {
+                    slot_colors: {
+                      AVAILABLE: "#22c55e",
+                      BOOKED: "#ef4444",
+                      BLOCKED: "#64748b",
+                      UNDER_MAINTENANCE: "#f97316",
+                      OPERATOR_ABSENT: "#eab308",
+                      BOOKING_NOT_UTILIZED: "#a855f7",
+                      ...(data.calendar_colors.slot_colors || {}),
+                    },
+                    holiday_default: data.calendar_colors.holiday_default || '#f59e0b',
+                    saturday_color: data.calendar_colors.saturday_color || '#c7d2fe',
+                    sunday_color: data.calendar_colors.sunday_color || '#fbcfe8',
+                  },
+                }
+              : {
+                  calendar_colors: {
+                    slot_colors: {
+                      AVAILABLE: "#22c55e",
+                      BOOKED: "#ef4444",
+                      BLOCKED: "#64748b",
+                      UNDER_MAINTENANCE: "#f97316",
+                      OPERATOR_ABSENT: "#eab308",
+                      BOOKING_NOT_UTILIZED: "#a855f7",
+                    },
+                    holiday_default: '#f59e0b',
+                    saturday_color: '#c7d2fe',
+                    sunday_color: '#fbcfe8',
+                  },
+                }),
           };
-          if (JSON.stringify(currentSlots) === JSON.stringify(newSlots) && JSON.stringify(prev.weekly_holidays ?? {}) === JSON.stringify(newHolidays)) {
+          if (!forceRefetch && JSON.stringify(currentSlots) === JSON.stringify(newSlots) && JSON.stringify(prev.weekly_holidays ?? {}) === JSON.stringify(newHolidays)) {
             return { ...prev, ...slotWindow };
           }
           return {
@@ -799,6 +1411,17 @@ const BookEquipment = () => {
     }
   }, [selectedSlots, calculatedCharge]);
 
+  // When Step 3 (Select Time Slots) is shown, default to current week for internal users
+  useEffect(() => {
+    const justEnteredStep3 = showSlots && !prevShowSlotsRef.current;
+    prevShowSlotsRef.current = !!showSlots;
+    if (!justEnteredStep3 || !selectedEquipment) return;
+    const nType = userType != null ? normalizeUserType(userType) : null;
+    if (nType === 'student' || nType === 'faculty') {
+      setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    }
+  }, [showSlots, selectedEquipment, userType]);
+
   // Fetch slots when charge is calculated and slots should be shown, or when week changes
   useEffect(() => {
     // Only fetch if slots should be shown and charge is calculated
@@ -812,7 +1435,7 @@ const BookEquipment = () => {
     }
 
     // Get the current week key
-    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 0 });
+    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 7);
     const startDateStr = format(weekStart, "yyyy-MM-dd");
     const endDateStr = format(weekEnd, "yyyy-MM-dd");
@@ -827,15 +1450,30 @@ const BookEquipment = () => {
     fetchSlotsForWeek();
   }, [showSlots, chargeCalculated, selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, fetchSlotsForWeek, userType]);
 
+  // When Step 3 slot grid is visible, refetch on window focus so status changes (e.g. from another tab) are reflected
+  useEffect(() => {
+    if (!showSlots || !chargeCalculated || !selectedEquipment) return;
+    const onFocus = () => {
+      fetchSlotsForWeek(true);
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [showSlots, chargeCalculated, selectedEquipment, fetchSlotsForWeek]);
+
   // When current week has no available slots, switch to next week by default (once per flow)
   useEffect(() => {
     if (hasCheckedEmptyCurrentWeekRef.current || !userType || !equipmentDetail?.daily_slots || !lastFetchedWeek) {
       return;
     }
+    // Internal users: always show current week first; do not auto-switch to next week
+    const nType = normalizeUserType(userType);
+    if (nType === 'student' || nType === 'faculty') {
+      return;
+    }
     const allowedWeeks = getAllowedWeeks();
     if (allowedWeeks.length < 2) return;
 
-    const firstWeekStart = startOfWeek(allowedWeeks[0], { weekStartsOn: 0 });
+    const firstWeekStart = startOfWeek(allowedWeeks[0], { weekStartsOn: 1 });
     const firstWeekEnd = addDays(firstWeekStart, 7);
     const firstWeekKey = `${format(firstWeekStart, "yyyy-MM-dd")}_${format(firstWeekEnd, "yyyy-MM-dd")}`;
     if (lastFetchedWeek !== firstWeekKey) return;
@@ -1087,7 +1725,7 @@ const BookEquipment = () => {
     
     // Set initial week based on user type
     const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const userTypeValue: any = userResponse.data.user_type;
     let normalizedType: string | null = null;
     if (typeof userTypeValue === 'string') {
@@ -1102,7 +1740,7 @@ const BookEquipment = () => {
     } else {
       // Other users: Start with week beginning 15 days from current date
       const fifteenDaysFromNow = addDays(now, 15);
-      setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+      setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
     }
   };
 
@@ -1121,11 +1759,12 @@ const BookEquipment = () => {
     );
   };
 
-  const getSlotData = (date: Date, time: string): DailySlot | undefined => {
+  const getSlotData = (date: Date, timeOrSlotKey: string): DailySlot | undefined => {
     if (!equipmentDetail?.daily_slots) return undefined;
     
     const normalizedDate = startOfDay(date);
     const expectedDateStr = format(normalizedDate, "yyyy-MM-dd");
+    const timeKey = timeOrSlotKey;
     
     return equipmentDetail.daily_slots.find(slot => {
       const slotDateStr = typeof slot.date === "string"
@@ -1134,7 +1773,7 @@ const BookEquipment = () => {
       const slotTime = slot.start_datetime
         ? format(parseISO(slot.start_datetime), "HH:mm")
         : "";
-      return slotDateStr === expectedDateStr && slotTime === time;
+      return slotDateStr === expectedDateStr && slotTime === timeKey;
     });
   };
 
@@ -1605,7 +2244,7 @@ const BookEquipment = () => {
     return equipmentDetail?.daily_slots !== undefined && equipmentDetail.daily_slots.length > 0;
   };
 
-  // Get unique time slots from daily_slots
+  // Get unique time slots from daily_slots (TIME mode)
   const getTimeSlotsFromDailySlots = (): string[] => {
     if (!equipmentDetail?.daily_slots || equipmentDetail.daily_slots.length === 0) {
       return []; // Return empty array if no daily_slots
@@ -1625,6 +2264,31 @@ const BookEquipment = () => {
     const sortedTimes = Array.from(uniqueTimes).sort();
     // If we have slots, return them; otherwise fallback to default
     return sortedTimes.length > 0 ? sortedTimes : [];
+  };
+
+  // Row keys and labels for weekly grid. TIME = show time on vertical axis; SLOT_ID = hide time and show slot position (1, 2, 3...). Admin/OIC always see TIME.
+  const getWeeklyRowKeysAndLabels = (): { key: string; label: string }[] => {
+    const hideTime = getEffectiveWeeklyViewDisplay() === "SLOT_ID";
+    const fromSlotMasters = equipmentDetail?.slot_master_times && equipmentDetail.slot_master_times.length > 0
+      ? equipmentDetail.slot_master_times.map(formatTimeForDisplay).sort()
+      : [];
+    const fromSlots = getTimeSlotsFromDailySlots();
+    const fromWindow = getTimeSlotsFromEquipmentWindow(
+      equipmentDetail?.slot_start_time,
+      equipmentDetail?.slot_end_time,
+      equipmentDetail?.slot_duration_minutes || 60
+    );
+    const timeSlots = fromSlotMasters.length > 0
+      ? fromSlotMasters
+      : fromSlots.length > 0
+        ? fromSlots
+        : fromWindow.length > 0
+          ? fromWindow
+          : DEFAULT_TIME_SLOTS;
+    return timeSlots.map((t, index) => ({
+      key: t,
+      label: hideTime ? `Slot ${index + 1}` : t,
+    }));
   };
 
   const calculateTotalCost = (): number => {
@@ -1662,6 +2326,30 @@ const BookEquipment = () => {
     return String(userType).toLowerCase() === 'admin';
   };
 
+  const isAdminOrOIC = (): boolean => {
+    if (!userType) return false;
+    const t = String(userType).toLowerCase();
+    return t === 'admin' || t === 'manager';
+  };
+
+  /** For Admin and OIC the weekly view display setting has no effect: they always see time on the vertical axis. */
+  const getEffectiveWeeklyViewDisplay = (): 'TIME' | 'SLOT_ID' => {
+    if (isAdminOrOIC()) return 'TIME';
+    return equipmentDetail?.weekly_view_display ?? 'TIME';
+  };
+
+  const canAccessManageEquipmentModes = (): boolean => {
+    if (!userType) return false;
+    const t = String(userType).toLowerCase();
+    return t === 'admin' || t === 'manager' || t === 'operator';
+  };
+
+  const isInternalUser = (): boolean => {
+    if (!userType) return false;
+    const t = String(userType).toLowerCase();
+    return t === 'student' || t === 'faculty' || t === 'individual_student';
+  };
+
   // Check if a week is allowed for the current user (admin can pick any week when booking for someone)
   const isWeekAllowed = (weekStart: Date): boolean => {
     if (isAdminUser()) return true;
@@ -1671,18 +2359,18 @@ const BookEquipment = () => {
     if (!normalizedType) return false;
     
     const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
     
     // For other users: 15 days from current date, then one week window
     const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
     
     // Normalize week starts for comparison
-    const weekStartNormalized = startOfWeek(weekStart, { weekStartsOn: 0 });
-    const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 0 });
-    const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 0 });
-    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 0 });
+    const weekStartNormalized = startOfWeek(weekStart, { weekStartsOn: 1 });
+    const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 1 });
+    const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 1 });
+    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 1 });
     
     if (normalizedType === 'student' || normalizedType === 'faculty') {
       // Students/Faculty: Can select current week OR next week only
@@ -1696,12 +2384,21 @@ const BookEquipment = () => {
     }
   };
 
-  // Get allowed weeks for navigation (admin: any week, no restriction)
+  // Get allowed weeks for navigation (admin or repeat-sample: any week; others restricted)
   const getAllowedWeeks = (): Date[] => {
     if (!userType) return [];
+    if (repeatSourceBooking) {
+      const now = new Date();
+      const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
+      const weeks: Date[] = [];
+      for (let i = -4; i <= 52; i++) {
+        weeks.push(i === 0 ? currentWeek : i < 0 ? subWeeks(currentWeek, -i) : addWeeks(currentWeek, i));
+      }
+      return weeks;
+    }
     if (isAdminUser()) {
       const now = new Date();
-      const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+      const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
       const weeks: Date[] = [];
       for (let i = -52; i <= 52; i++) {
         weeks.push(i === 0 ? currentWeek : i < 0 ? subWeeks(currentWeek, -i) : addWeeks(currentWeek, i));
@@ -1711,12 +2408,32 @@ const BookEquipment = () => {
     const normalizedType = normalizeUserType(userType);
     if (!normalizedType) return [];
     const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
     const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
     if (normalizedType === 'student' || normalizedType === 'faculty') {
-      return [currentWeek, nextWeek];
+      const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
+      const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
+      if (!minDateStr || !maxDateStr) {
+        return [currentWeek, nextWeek];
+      }
+      const minDate = parseISO(minDateStr);
+      const maxDate = parseISO(maxDateStr);
+      const previousWeek = subWeeks(currentWeek, 1);
+      const nextWeekSunday = addDays(nextWeek, 6);
+      const nextWeekAvailable = nextWeekSunday <= maxDate;
+      if (!nextWeekAvailable) {
+        return [currentWeek];
+      }
+      const weeks: Date[] = [];
+      for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
+        const weekSunday = addDays(weekStart, 6);
+        if (weekSunday >= minDate && weekStart <= maxDate) {
+          weeks.push(weekStart);
+        }
+      }
+      return weeks;
     }
     return [allowedWeekStart];
   };
@@ -1724,7 +2441,7 @@ const BookEquipment = () => {
   const goToPreviousWeek = () => {
     const allowedWeeks = getAllowedWeeks();
     const currentIndex = allowedWeeks.findIndex(week => 
-      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+      startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime()
     );
     
     if (currentIndex > 0) {
@@ -1736,7 +2453,7 @@ const BookEquipment = () => {
   const goToNextWeek = () => {
     const allowedWeeks = getAllowedWeeks();
     const currentIndex = allowedWeeks.findIndex(week => 
-      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+      startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime()
     );
     
     if (currentIndex < allowedWeeks.length - 1) {
@@ -1748,7 +2465,7 @@ const BookEquipment = () => {
   const canGoToPreviousWeek = (): boolean => {
     const allowedWeeks = getAllowedWeeks();
     const currentIndex = allowedWeeks.findIndex(week => 
-      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+      startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime()
     );
     return currentIndex > 0;
   };
@@ -1756,10 +2473,44 @@ const BookEquipment = () => {
   const canGoToNextWeek = (): boolean => {
     const allowedWeeks = getAllowedWeeks();
     const currentIndex = allowedWeeks.findIndex(week => 
-      startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 0 }).getTime()
+      startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime()
     );
     return currentIndex < allowedWeeks.length - 1;
   };
+
+  // Internal users with slot window: default to current week when selected week is not allowed (snap to current week)
+  useEffect(() => {
+    const nType = userType != null ? normalizeUserType(userType) : null;
+    if (nType !== 'student' && nType !== 'faculty') return;
+    const minStr = equipmentDetail?.slot_window_min_date;
+    const maxStr = equipmentDetail?.slot_window_max_date;
+    if (!minStr || !maxStr) return;
+    const minDate = parseISO(minStr);
+    const maxDate = parseISO(maxStr);
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
+    const previousWeek = subWeeks(currentWeek, 1);
+    const nextWeek = addWeeks(currentWeek, 1);
+    const allowed: Date[] = [];
+    for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
+      const weekSunday = addDays(weekStart, 6);
+      if (weekSunday >= minDate && weekStart <= maxDate) allowed.push(weekStart);
+    }
+    const selected = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+    const isAllowed = allowed.some(w => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime());
+    if (!isAllowed) {
+      setCurrentWeekStart(currentWeek);
+    }
+  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart]);
+
+  // Default to current week whenever an equipment is selected for booking (internal users)
+  useEffect(() => {
+    if (!selectedEquipment) return;
+    const nType = userType != null ? normalizeUserType(userType) : null;
+    if (nType === 'student' || nType === 'faculty') {
+      setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    }
+  }, [selectedEquipment?.id, userType]);
 
   // When current week has no available slots, switch to next week by default (once per flow per equipment)
   useEffect(() => {
@@ -1775,7 +2526,7 @@ const BookEquipment = () => {
     const allowedWeeks = getAllowedWeeks();
     if (allowedWeeks.length < 2) return;
 
-    const firstWeekStart = startOfWeek(allowedWeeks[0], { weekStartsOn: 0 });
+    const firstWeekStart = startOfWeek(allowedWeeks[0], { weekStartsOn: 1 });
     const firstWeekEnd = addDays(firstWeekStart, 7);
     const firstWeekKey = `${format(firstWeekStart, "yyyy-MM-dd")}_${format(firstWeekEnd, "yyyy-MM-dd")}`;
     if (lastFetchedWeek !== firstWeekKey) return;
@@ -1816,6 +2567,39 @@ const BookEquipment = () => {
       return;
     }
 
+    // Repeat-sample flow: create repeat booking with user-selected slots (no charge, excluded from quota)
+    if (repeatSourceBooking) {
+      const slotIds = selectedSlots
+        .map((s) => s.slotData?.id)
+        .filter((id): id is number => typeof id === "number");
+      if (slotIds.length !== selectedSlots.length || slotIds.length === 0) {
+        toast.error("Please select valid time slots");
+        return;
+      }
+      setIsSubmittingBooking(true);
+      try {
+        const res = await apiClient.createRepeatBooking(repeatSourceBooking.booking_id, slotIds);
+        if (res.error) {
+          toast.error(res.error);
+          return;
+        }
+        toast.success((res.data as { message?: string })?.message || "Repeat booking created successfully.");
+        setBookingResultDialog({ open: true, success: true, message: "Repeat booking created. This booking does not count toward your weekly or monthly limit." });
+        setRepeatSourceBooking(null);
+        setSelectedSlots([]);
+        setShowSlots(false);
+        setChargeCalculated(false);
+        setCalculatedCharge(null);
+        navigate("/my-bookings");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to create repeat booking");
+        setBookingResultDialog({ open: true, success: false, message: e instanceof Error ? e.message : "Failed to create repeat booking" });
+      } finally {
+        setIsSubmittingBooking(false);
+      }
+      return;
+    }
+
     // Validate selection per business rules (single slot when required <= one slot; multiple until covered; 10% tail allowed)
     if (calculatedCharge && !isSelectionValidForBooking()) {
       const required = calculatedCharge.total_time_minutes;
@@ -1850,15 +2634,37 @@ const BookEquipment = () => {
 
       setIsSubmittingBooking(true);
 
-      // Single booking via slot_ids (one API call, one entry in My Bookings)
       const slotIds = selectedSlots
         .map((s) => s.slotData?.id)
         .filter((id): id is number => typeof id === "number");
       const canUseSlotIds = slotIds.length === selectedSlots.length && slotIds.length > 0;
 
+      if (isUrgentHoldMode && !canUseSlotIds) {
+        toast.error("Please select one or more slots from the grid for your urgent request.");
+        return;
+      }
+
       if (canUseSlotIds) {
         const totalHours = calculatedCharge ? calculatedCharge.total_time_minutes / 60 : 0;
         const totalCost = calculatedCharge ? Number(calculatedCharge.total_charge) : 0;
+        if (isUrgentHoldMode) {
+          // Don't create hold yet: store selection and open urgent dialog. Hold is created only when user clicks Submit request there.
+          setPendingHoldSelection({
+            slotIds: slotIds,
+            inputValues: { ...inputFieldValues },
+            totalCharge: totalCost,
+            totalTimeMinutes: calculatedCharge?.total_time_minutes ?? 0,
+          });
+          setSearchParams((prev) => {
+            const p = new URLSearchParams(prev);
+            p.delete('urgent');
+            return p;
+          });
+          setSelectedSlots([]);
+          setUrgentDialogOpen(true);
+          toast.success("Slot selection saved. Complete and submit your urgent request below to hold the slots. If you close without submitting, slots stay available.");
+          return;
+        }
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           slot_ids: slotIds,
           total_hours: totalHours,
@@ -1869,9 +2675,19 @@ const BookEquipment = () => {
           ...(isAdminUser() && adminDiscountAmount > 0 ? { discount_amount: adminDiscountAmount } : {}),
           ...(isAdminUser() && adminDiscountAmount > 0 && adminDiscountReason.trim() ? { discount_reason: adminDiscountReason.trim() } : {}),
         });
-        if (res.error) throw new Error(res.error);
-        // Real-time update: merge returned slots into equipment detail so grid shows booked state immediately
-        const updatedSlots = (res as { daily_slots?: DailySlot[] }).daily_slots;
+        if (res.error) {
+          const errRes = res as { error: string; waitlist_position?: number };
+          const msg = errRes.waitlist_position != null
+            ? `${errRes.error} You have been added to the waitlist at position ${errRes.waitlist_position}. You will be notified by email when slots become available so you can book on a first-come, first-served basis.`
+            : errRes.error;
+          toast.error(msg);
+          setBookingResultDialog({ open: true, success: false, message: msg });
+          return;
+        }
+        // Success: API returns { data: { booking_id, daily_slots, ... } }
+        const resData = (res as { data?: { booking_id?: number; id?: number; daily_slots?: DailySlot[] } }).data;
+        // Merge returned slots into equipment detail so grid shows booked state immediately
+        const updatedSlots = resData?.daily_slots;
         if (equipmentDetail && updatedSlots && Array.isArray(updatedSlots) && updatedSlots.length > 0) {
           const byId = new Map((equipmentDetail.daily_slots || []).map((s) => [s.id, s]));
           updatedSlots.forEach((s) => byId.set(s.id, s));
@@ -1881,8 +2697,7 @@ const BookEquipment = () => {
           });
         }
         setSelectedSlots([]);
-        toast.success("Booking created successfully!");
-        navigate("/my-bookings");
+        setBookingResultDialog({ open: true, success: true, message: "Booking created successfully!" });
         return;
       }
 
@@ -1974,10 +2789,26 @@ const BookEquipment = () => {
         throw new Error(message);
       }
 
-      toast.success(`${bookings.length} booking(s) created successfully!`);
-      navigate("/my-bookings");
+      const firstRes = results[0] as { booking_id?: number; id?: number };
+      const firstBookingId = firstRes?.booking_id ?? firstRes?.id;
+      // Success is logged server-side per booking; no need to call logBookingAttempt here
+      setBookingResultDialog({ open: true, success: true, message: `${bookings.length} booking(s) created successfully!` });
     } catch (error: any) {
-      toast.error(error.message || "Failed to create booking");
+      const errMsg = error.message || "Failed to create booking";
+      toast.error(errMsg);
+      setBookingResultDialog({ open: true, success: false, message: errMsg });
+      // Failure is already logged server-side in submit_booking / book_equipment; do not call logBookingAttempt here to avoid duplicate entries.
+      // No-slot log for internal users (urgent request eligibility)
+      if (selectedEquipment && isInternalUser() && !isAdminUser()) {
+        const slotCount = selectedSlots.length || 0;
+        const duration = calculatedCharge?.total_time_minutes ?? undefined;
+        apiClient.logNoSlotAllocation({
+          equipment_id: selectedEquipment.id,
+          number_of_samples: 1,
+          slots_requested: slotCount || 1,
+          duration_minutes: duration,
+        }).catch(() => {});
+      }
     } finally {
       setIsSubmittingBooking(false);
     }
@@ -2003,22 +2834,29 @@ const BookEquipment = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20 relative">
-      {loadingEquipmentDetail && (
+      {(loadingEquipmentDetail || repeatSourceLoading) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-lg flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <p className="text-sm text-muted-foreground">Loading equipment details...</p>
+            <p className="text-sm text-muted-foreground">{repeatSourceLoading ? "Loading repeat booking..." : "Loading equipment details..."}</p>
           </div>
         </div>
       )}
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">
-          {isAdminUser() ? "Manage" : "Book"} {selectedEquipment.name}
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+          <h1 className="text-3xl font-bold">
+            {canAccessManageEquipmentModes() ? "Manage" : "Book"} {selectedEquipment.name}
+          </h1>
+          {!isAdminUser() && isInternalUser() && !isUrgentHoldMode && canShowRequestUrgentBookingButton(equipmentDetail?.slot_window_reference_weekday ?? null, equipmentDetail?.slot_window_reference_time ?? null) && (
+            <Button variant="outline" size="sm" onClick={() => setUrgentDialogOpen(true)}>
+              Request urgent booking
+            </Button>
+          )}
+        </div>
 
         {/* Admin: mode selector (Manage this Equipment) */}
-        {isAdminUser() && adminManageMode === null && (
+        {canAccessManageEquipmentModes() && adminManageMode === null && (
           <div className="max-w-2xl mx-auto mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card
               className="cursor-pointer hover:shadow-lg transition-shadow"
@@ -2045,392 +2883,678 @@ const BookEquipment = () => {
           </div>
         )}
 
-        {/* Admin: slot status change UI */}
-        {isAdminUser() && adminManageMode === 'status' && selectedEquipment && (
-          <Card className="max-w-6xl mx-auto mb-8">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Change slot status</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => { setAdminManageMode(null); setSelectedSlotIdsForStatus([]); }}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+        {/* Admin: slot status change UI – month calendar with day/week/month selection */}
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && (
+          <Card className="max-w-6xl mx-auto mb-8 overflow-hidden border-2 border-primary/20 shadow-xl bg-gradient-to-b from-card to-card/95">
+            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 py-5 text-white">
+              <div className="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Change slot status</h2>
+                  <p className="text-white/90 mt-1 text-base md:text-lg max-w-3xl">
+                    Select one or more dates in the month calendar (click individual days, or use &quot;Select week&quot; / &quot;Select entire month&quot;), then choose the desired status and click Apply. For &quot;Booking Not Utilized&quot; use Week view to select only booked slots; no refund is issued and emails are sent to the user and Supervisor. Blocked, Under Maintenance, or Operator Absent will cancel any bookings on those slots and refund users.
+                  </p>
+                </div>
+                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate('/equipments')}>
+                  <ArrowLeft className="h-5 w-5 mr-2" />
                   Back
                 </Button>
               </div>
-              <CardDescription>
-                Select slots in the calendar below, then choose the new status and click Update. For Blocked, Under Maintenance, or Operator Absent you may also select booked slots; those bookings will be cancelled, users notified, and refunds issued automatically.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Week navigation and Select All */}
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setStatusChangeWeekStart(prev => addWeeks(prev, -1))}>
-                    <ChevronLeft className="h-4 w-4 mr-2" />
-                    Previous Week
-                  </Button>
-                  <span className="font-semibold min-w-[200px] text-center">
-                    {format(statusChangeWeekStart, "MMM dd")} – {format(addDays(statusChangeWeekStart, 6), "MMM dd, yyyy")}
-                  </span>
-                  <Button variant="outline" size="sm" onClick={() => setStatusChangeWeekStart(prev => addWeeks(prev, 1))}>
-                    Next Week
-                    <ChevronRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </div>
-                {statusChangeSlots && statusChangeSlots.length > 0 && (() => {
-                  const canSelectBooked =
-                    newSlotStatus === "BLOCKED" ||
-                    newSlotStatus === "UNDER_MAINTENANCE" ||
-                    newSlotStatus === "OPERATOR_ABSENT";
-                  const availableSlotIds = statusChangeSlots.filter((s) => s.status === "AVAILABLE").map((s) => s.id);
-                  const bookableSlotIds = canSelectBooked
-                    ? statusChangeSlots
-                        .filter(
-                          (s) =>
-                            s.status === "AVAILABLE" ||
-                            (s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED")
-                        )
-                        .map((s) => s.id)
-                    : availableSlotIds;
-                  const bookedOnlySlotIds = statusChangeSlots
-                    .filter(
-                      (s) =>
-                        s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED"
-                    )
-                    .map((s) => s.id);
-                  return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedSlotIdsForStatus(bookableSlotIds)}
-                        disabled={bookableSlotIds.length === 0}
-                      >
-                        {canSelectBooked ? `Select All Available & Booked (${bookableSlotIds.length})` : `Select All Available (${availableSlotIds.length})`}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedSlotIdsForStatus(bookedOnlySlotIds)}
-                        disabled={bookedOnlySlotIds.length === 0}
-                      >
-                        Select All Booked ({bookedOnlySlotIds.length})
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedSlotIdsForStatus([])}
-                        disabled={selectedSlotIdsForStatus.length === 0}
-                      >
-                        Deselect All
-                      </Button>
+            </div>
+            <CardContent className="space-y-6 p-6 md:p-8">
+              {/* Year calendar */}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))}>
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <span className="font-bold text-xl md:text-2xl min-w-[120px] text-center text-foreground">
+                      {statusChangeMonthStart.getFullYear()}
+                    </span>
+                    <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))}>
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="outline" size="default" className="h-11 px-4 text-base font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
+                      Select entire year
+                    </Button>
+                    <div className="text-sm md:text-base text-muted-foreground font-medium px-2">
+                      Double-click a month to open Month view below
                     </div>
-                  );
-                })()}
+                    <Button variant="outline" size="default" className="h-11 px-4 text-base font-medium" onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
+                      Clear selection
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2">
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const d = new Date(statusChangeMonthStart.getFullYear(), i, 1);
+                    const monthKey = format(d, "yyyy-MM");
+                    const isSelected = statusChangeSelectedMonths.includes(monthKey);
+                    const isCurrentMonth = isSameMonth(d, statusChangeMonthStart);
+                    return (
+                      <button
+                        key={monthKey}
+                        type="button"
+                        onClick={() => toggleMonthInYearView(monthKey)}
+                        onDoubleClick={(e) => {
+                          e.preventDefault();
+                          setStatusChangeMonthStart(startOfMonth(d));
+                        }}
+                        className={cn(
+                          "min-h-[52px] md:min-h-[60px] p-2 md:p-3 text-base md:text-lg font-semibold rounded-xl border-2 transition-all duration-200",
+                          "bg-background hover:bg-primary/10 hover:border-primary/30 border-muted/50",
+                          isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary ring-offset-2 shadow-lg border-primary",
+                          isCurrentMonth && !isSelected && "border-primary/50 bg-primary/5"
+                        )}
+                      >
+                        {format(d, "MMM")}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Slot status colors - color picker per status */}
-              <div className="mb-4 p-3 rounded-lg border bg-muted/30">
-                <p className="text-sm font-medium mb-2">Slot status colors</p>
-                <div className="flex flex-wrap items-center gap-4">
-                  {(Object.keys(DEFAULT_SLOT_STATUS_COLORS) as (keyof typeof DEFAULT_SLOT_STATUS_COLORS)[]).map((status) => (
-                    <div key={status} className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground w-32">{SLOT_STATUS_LABELS[status] ?? status}</label>
-                      <input
-                        type="color"
-                        value={statusChangeSlotColors[status] ?? DEFAULT_SLOT_STATUS_COLORS[status]}
-                        onChange={(e) => setStatusChangeSlotColor(status, e.target.value)}
-                        className="h-8 w-12 cursor-pointer rounded border border-input bg-background"
-                        title={`Color for ${SLOT_STATUS_LABELS[status] ?? status}`}
-                      />
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {statusChangeSlotColors[status] ?? DEFAULT_SLOT_STATUS_COLORS[status]}
-                      </span>
+              {/* Month navigation */}
+              <div className="flex flex-wrap items-center justify-between gap-6">
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))}>
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <span className="font-bold text-xl md:text-2xl min-w-[200px] text-center text-foreground">
+                    {format(statusChangeMonthStart, "MMMM yyyy")}
+                  </span>
+                  <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))}>
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="default"
+                    className="h-11 px-4 text-base font-medium"
+                    disabled={selectedDatesForStatus.length === 0}
+                    onClick={() => {
+                      if (selectedDatesForStatus.length > 0) {
+                        const day = parseISO(selectedDatesForStatus[0]);
+                        selectWeekForStatus(day);
+                      }
+                    }}
+                  >
+                    Select selected week
+                  </Button>
+                  <Button variant="outline" size="default" className="h-11 px-4 text-base font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectMonthForStatus}>
+                    Select entire month
+                  </Button>
+                  <div className="text-sm md:text-base text-muted-foreground font-medium px-2">
+                    Tip: double-click a date to open Week view
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="default"
+                    className="h-11 px-4 text-base font-medium"
+                    onClick={() => { setSelectedDatesForStatus([]); setStatusChangePopupWeekStart(null); setStatusChangeSelectedMonths([]); }}
+                    disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
+                  >
+                    Clear selection
+                  </Button>
+                </div>
+              </div>
+
+              {/* Month calendar grid: Mon–Sun, 6 rows */}
+              <div className="rounded-xl border-2 border-primary/10 overflow-hidden shadow-inner bg-muted/20">
+                <div className="grid grid-cols-7 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                    <div key={d} className="p-3 text-center text-base md:text-lg font-bold text-slate-700 dark:text-slate-200">
+                      {d}
                     </div>
                   ))}
                 </div>
+                <div className="grid grid-cols-7 bg-card">
+                  {(() => {
+                    const monthStart = startOfMonth(statusChangeMonthStart);
+                    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+                    const days: Date[] = [];
+                    for (let i = 0; i < 42; i++) days.push(addDays(calendarStart, i));
+                    const effectiveDates = getEffectiveDatesForStatus();
+                    return days.map((day) => {
+                      const dateStr = format(day, "yyyy-MM-dd");
+                      const inMonth = isSameMonth(day, statusChangeMonthStart);
+                      const isSelected = effectiveDates.includes(dateStr);
+                      return (
+                        <button
+                          key={dateStr}
+                          type="button"
+                          onClick={() => {
+                            if (!inMonth) return;
+                            if (statusChangeDateClickTimerRef.current) {
+                              clearTimeout(statusChangeDateClickTimerRef.current);
+                            }
+                            const wasSelected = selectedDatesForStatus.includes(dateStr);
+                            statusChangeDateClickTimerRef.current = setTimeout(() => {
+                              toggleDateForStatus(dateStr);
+                              if (wasSelected) setStatusChangePopupWeekStart(null);
+                            }, 220);
+                          }}
+                          onDoubleClick={() => {
+                            if (!inMonth) return;
+                            if (statusChangeDateClickTimerRef.current) {
+                              clearTimeout(statusChangeDateClickTimerRef.current);
+                              statusChangeDateClickTimerRef.current = null;
+                            }
+                            openWeekSlotPopup(day);
+                          }}
+                          className={cn(
+                            "min-h-[52px] md:min-h-[60px] p-2 md:p-3 text-base md:text-lg font-semibold border-b border-r border-muted/50 transition-all duration-200",
+                            inMonth ? "bg-background hover:bg-primary/10 hover:border-primary/30" : "bg-muted/30 text-muted-foreground",
+                            isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary ring-offset-2 shadow-lg"
+                          )}
+                        >
+                          {format(day, "d")}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
 
+              {/* Selection summary */}
+              {(selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
+                <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4 md:p-5">
+                  <h4 className="text-base md:text-lg font-bold text-foreground mb-2">Selection summary</h4>
+                  <ul className="space-y-1 text-sm md:text-base text-foreground/90">
+                    {statusChangeSelectedMonths.length > 0 && (
+                      <li>
+                        <strong>{statusChangeSelectedMonths.length}</strong> month(s) selected at year level
+                        <span className="ml-1 text-muted-foreground">
+                          ({statusChangeSelectedMonths.map((m) => format(parseISO(m + "-01"), "MMM yyyy")).join(", ")})
+                        </span>
+                      </li>
+                    )}
+                    {selectedSlotIdsForStatus.length > 0 && (
+                      <li>
+                        <strong>{selectedSlotIdsForStatus.length}</strong> slot(s) selected
+                      </li>
+                    )}
+                    {(selectedDatesForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
+                      <li>
+                        <strong>{getEffectiveDatesForStatus().length}</strong> date(s) total
+                        {getEffectiveDatesForStatus().length <= 10 ? (
+                          <span className="ml-1 text-muted-foreground">
+                            ({getEffectiveDatesForStatus().map((d) => format(parseISO(d), "MMM d")).join(", ")})
+                          </span>
+                        ) : (
+                          <span className="ml-1 text-muted-foreground">
+                            ({format(parseISO(getEffectiveDatesForStatus()[0]), "MMM d")} – {format(parseISO(getEffectiveDatesForStatus()[getEffectiveDatesForStatus().length - 1]), "MMM d")})
+                          </span>
+                        )}
+                      </li>
+                    )}
+                  </ul>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Choose operation below and click Apply to confirm changes.
+                  </p>
+                </div>
+              )}
+
+              {/* Apply status */}
+              <div className="flex flex-wrap items-center gap-4 pt-6 border-t-2 border-primary/10">
+                {updatingSlotStatus && (
+                  <div className="w-full space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Applying changes…</p>
+                    <Progress value={applyProgressPercent} className="h-2.5 w-full" />
+                  </div>
+                )}
+                <Label className="shrink-0 font-bold text-lg text-foreground">Select Operation</Label>
+                <Select
+                  value={newSlotStatus}
+                  onValueChange={(v) => {
+                    if (v === BULK_EMAIL_OPERATION_VALUE) {
+                      openBulkEmailFromStatusCard();
+                      return;
+                    }
+                    setNewSlotStatus(v);
+                  }}
+                >
+                  <SelectTrigger className="w-[260px] md:w-[280px] h-12 text-base font-medium">
+                    <SelectValue placeholder="Select operation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BLOCKED" className="text-base">Blocked</SelectItem>
+                    <SelectItem value="UNDER_MAINTENANCE" className="text-base">Under Maintenance</SelectItem>
+                    <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
+                    <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
+                    <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
+                    <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
+                      <span className="flex items-center gap-2">
+                        <Mail className="h-5 w-5" />
+                        Bulk email
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {newSlotStatus === "BLOCKED" && (
+                  <Input
+                    placeholder="Blocked label (optional)"
+                    value={blockedLabelForStatus}
+                    onChange={(e) => setBlockedLabelForStatus(e.target.value)}
+                    className="max-w-[240px] h-12 text-base"
+                  />
+                )}
+                {newSlotStatus === "BOOKING_NOT_UTILIZED" && isAdminOrOIC() && (
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      id="send-email-wallet-owner-not-utilized"
+                      checked={sendEmailToWalletOwnerForNotUtilized}
+                      onCheckedChange={(c) => setSendEmailToWalletOwnerForNotUtilized(c === true)}
+                      className="h-5 w-5"
+                    />
+                    <Label htmlFor="send-email-wallet-owner-not-utilized" className="text-base font-medium cursor-pointer">
+                      Send email to Supervisor
+                    </Label>
+                  </div>
+                )}
+                {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
+                <Button
+                  size="default"
+                  className="h-12 px-6 text-base font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md"
+                  disabled={
+                    (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
+                    updatingSlotStatus ||
+                    (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0)
+                  }
+                  onClick={async () => {
+                    const bySlots = selectedSlotIdsForStatus.length > 0;
+                    const effectiveDates = getEffectiveDatesForStatus();
+                    if (!bySlots && effectiveDates.length === 0) return;
+                    if (newSlotStatus === "BOOKING_NOT_UTILIZED" && !bySlots) {
+                      toast.error("For 'Booking Not Utilized' please use Week view to select booked slots only.");
+                      return;
+                    }
+                    if (applyProgressIntervalRef.current) {
+                      clearInterval(applyProgressIntervalRef.current);
+                      applyProgressIntervalRef.current = null;
+                    }
+                    setApplyProgressPercent(0);
+                    setUpdatingSlotStatus(true);
+                    applyProgressIntervalRef.current = setInterval(() => {
+                      setApplyProgressPercent((p) => (p >= 90 ? 90 : p + Math.random() * 8 + 4));
+                    }, 200);
+                    try {
+                      const payload: { status: string; blocked_label?: string | null; dates?: string[]; slot_ids?: number[]; send_email_to_wallet_owner?: boolean } = {
+                        status: newSlotStatus,
+                      };
+                      if (newSlotStatus === "BLOCKED") payload.blocked_label = blockedLabelForStatus.trim() || null;
+                      if (newSlotStatus === "BOOKING_NOT_UTILIZED") payload.send_email_to_wallet_owner = sendEmailToWalletOwnerForNotUtilized;
+                      if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
+                      else payload.dates = effectiveDates;
+                      const res = await apiClient.adminEquipmentBulkSlotStatus(selectedEquipment.id, payload);
+                      if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
+                      const payloadData = (res as { data?: { updated?: number; message?: string } }).data;
+                      toast.success(payloadData?.message ?? `Updated ${payloadData?.updated ?? (bySlots ? selectedSlotIdsForStatus.length : effectiveDates.length)} slot(s).`);
+                      setSelectedDatesForStatus([]);
+                      setSelectedSlotIdsForStatus([]);
+                      setStatusChangeSelectedMonths([]);
+                      setLastFetchedWeek(null);
+                      await fetchSlotsForWeek(true);
+                      // Refetch inline week view so the grid shows updated slot statuses
+                      if (statusChangePopupWeekStart) {
+                        await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                      }
+                    } catch (e: unknown) {
+                      toast.error(e instanceof Error ? e.message : "Failed to update slots");
+                    } finally {
+                      if (applyProgressIntervalRef.current) {
+                        clearInterval(applyProgressIntervalRef.current);
+                        applyProgressIntervalRef.current = null;
+                      }
+                      setApplyProgressPercent(100);
+                      setTimeout(() => {
+                        setUpdatingSlotStatus(false);
+                        setApplyProgressPercent(0);
+                      }, 400);
+                    }
+                  }}
+                >
+                  {updatingSlotStatus
+                    ? "Applying…"
+                    : selectedSlotIdsForStatus.length > 0
+                      ? `Apply to ${selectedSlotIdsForStatus.length} slot(s)`
+                      : `Apply to ${getEffectiveDatesForStatus().length} date(s)`}
+                </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="h-12 px-5 text-base font-medium"
+                  onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); setStatusChangePopupWeekStart(null); }}
+                  disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
+                >
+                  Clear all selection
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Inline week view (pick by time) */}
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
+          <div className="max-w-6xl mx-auto mb-10 rounded-2xl overflow-hidden border-2 border-primary/15 shadow-xl">
+            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 py-5 text-white">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4">
+                  <Button variant="secondary" size="icon" className="h-12 w-12 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
+                    <ChevronLeft className="h-6 w-6" />
+                  </Button>
+                  <div className="text-center min-w-[280px]">
+                    <h3 className="text-xl md:text-2xl font-bold">
+                      Week of {format(statusChangePopupWeekStart, "MMM d")} – {format(addDays(statusChangePopupWeekStart, 6), "MMM d, yyyy")}
+                    </h3>
+                    <p className="text-white/90 text-base mt-1">Week view (pick by time)</p>
+                  </div>
+                  <Button variant="secondary" size="icon" className="h-12 w-12 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToNextWeekInPopup} aria-label="Next week">
+                    <ChevronRight className="h-6 w-6" />
+                  </Button>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="default"
+                  className="bg-white/20 hover:bg-white/30 border-0 text-white h-11 px-5 text-base font-medium"
+                  onClick={() => { setStatusChangePopupWeekStart(null); }}
+                >
+                  Hide week view
+                </Button>
+              </div>
+              <p className="text-white/90 text-base mt-3">
+                Click a slot to select it for status update. Use row actions to select a time for the whole week or month.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-4">
+                <span className="text-sm font-bold uppercase tracking-wider text-white/90 mr-2">Selection</span>
+                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={selectAllAvailableSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
+                  Select all available
+                </Button>
+                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={selectAllBookedSlotsInPopup} disabled={!statusChangeSlots?.length}>
+                  Select all booked
+                </Button>
+                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={selectAllNonCompletedSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
+                  Select all (excl. completed)
+                </Button>
+                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={clearPopupWeekSelection} disabled={selectedSlotIdsForStatus.length === 0}>
+                  Clear selection
+                </Button>
+              </div>
+            </div>
+
+            <div className="overflow-auto p-4 md:p-6 bg-gradient-to-b from-background to-muted/10">
               {loadingStatusSlots ? (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  <span className="animate-pulse">Loading slots for this week…</span>
+                <div className="flex items-center justify-center py-16 text-muted-foreground text-lg">
+                  <span className="animate-pulse">Loading slots…</span>
                 </div>
               ) : (
-                <>
-                  {/* Calendar grid - same layout as Step 3 */}
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[800px]">
-                      <div className="grid grid-cols-8 gap-2 mb-2">
-                        <div className="font-semibold text-sm p-2">Time</div>
+                <div className="min-w-[900px] rounded-xl border-2 border-primary/10 bg-card overflow-hidden shadow-lg">
+                  <div className="grid gap-0 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700" style={{ gridTemplateColumns: "120px 1fr 1fr 1fr 1fr 1fr 1fr 1fr" }}>
+                    <div className="font-bold text-base p-4 border-b border-r">Time</div>
+                    {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                      const day = addDays(statusChangePopupWeekStart, dayOffset);
+                      const dateStr = format(day, "yyyy-MM-dd");
+                      const rawH = statusChangeHolidays[dateStr];
+                      const holidayLabel = typeof rawH === "string" ? rawH : (rawH && typeof rawH === "object" && "label" in rawH ? (rawH as { label: string }).label : undefined);
+                      const holidayColor = typeof rawH === "object" && rawH !== null && "color" in rawH ? (rawH as { color?: string }).color : undefined;
+                      return (
+                        <div key={dayOffset} className="font-bold text-base p-4 text-center border-b border-r last:border-r-0 text-slate-700 dark:text-slate-200">
+                          <div>{format(day, "EEE")}</div>
+                          <div className="text-slate-600 dark:text-slate-400">{format(day, "MMM d")}</div>
+                          {holidayLabel && (
+                            <div className="text-sm truncate mt-1" style={holidayColor ? { backgroundColor: holidayColor, color: getContrastTextColor(holidayColor), padding: "4px 8px", borderRadius: 6 } : undefined}>
+                              {holidayLabel}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const timeSlots = statusChangeSlotMasterTimes.length > 0
+                      ? statusChangeSlotMasterTimes
+                      : (() => {
+                          const fromSlots = new Set<string>();
+                          statusChangeSlots?.forEach((s) => {
+                            if (s.start_datetime) fromSlots.add(format(parseISO(s.start_datetime), "HH:mm"));
+                          });
+                          return Array.from(fromSlots).sort();
+                        })();
+                    const statusLabel = (slot: DailySlot) => {
+                      if (slot.status === "BOOKED") return slot.booking_status_display || "Booked";
+                      if (slot.status === "BLOCKED") return slot.blocked_label || "Blocked";
+                      if (slot.status === "BOOKING_NOT_UTILIZED") return "Booking Not Utilized";
+                      return slot.status_display || slot.status || "—";
+                    };
+                    const canSelectSlot = (s: DailySlot | null | undefined) => {
+                      if (!s) return false;
+                      if (newSlotStatus === "BOOKING_NOT_UTILIZED")
+                        return s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED";
+                      if (s.status === "BOOKED" && (s.booking_status || "").toUpperCase() === "COMPLETED") return false;
+                      return true;
+                    };
+                    if (timeSlots.length === 0) {
+                      return (
+                        <div className="p-10 text-center text-muted-foreground text-lg">
+                          No slots for this week.
+                        </div>
+                      );
+                    }
+                    return timeSlots.map((time) => (
+                      <div key={time} className="grid gap-0 border-b last:border-b-0" style={{ gridTemplateColumns: "120px 1fr 1fr 1fr 1fr 1fr 1fr 1fr" }}>
+                        <div className="flex flex-col gap-2 items-stretch justify-center p-3 border-r bg-muted/30">
+                          <span className="font-bold text-base">{time}</span>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="ghost" size="sm" className="text-sm h-8" onClick={() => selectTimeRowForWeek(time)}>
+                              Row (week)
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-sm h-8" onClick={() => selectTimeRowForMonth(time)}>
+                              Month
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-sm h-8" onClick={() => selectTimeRowForYear(time)}>
+                              Year
+                            </Button>
+                          </div>
+                        </div>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                          const day = addDays(statusChangeWeekStart, dayOffset);
+                          const day = addDays(statusChangePopupWeekStart, dayOffset);
+                          const slot = getStatusChangeSlotAt(day, time);
+                          const slotSelectable = canSelectSlot(slot);
+                          const isSelected = slot ? selectedSlotIdsForStatus.includes(slot.id) : false;
                           const dateStr = format(day, "yyyy-MM-dd");
-                          const holidayLabel = statusChangeHolidays[dateStr];
+                          const rawHoliday = statusChangeHolidays[dateStr];
+                          const holidayName = typeof rawHoliday === "string" ? rawHoliday : (rawHoliday && typeof rawHoliday === "object" && "label" in rawHoliday ? (rawHoliday as { label: string }).label : undefined);
+                          const holidayColorCell = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday ? (rawHoliday as { color?: string }).color : undefined;
+                          // Use calendar-colors (from equipment detail / admin settings) first, then localStorage overrides, then defaults
+                          const calendarSlotColors = equipmentDetail?.calendar_colors?.slot_colors;
+                          const statusForColor = slot?.booking_status ?? slot?.status ?? "";
+                          const slotBg = holidayColorCell
+                            ?? (calendarSlotColors?.[statusForColor] ?? statusChangeSlotColors[statusForColor] ?? DEFAULT_SLOT_STATUS_COLORS[statusForColor] ?? "#e5e7eb");
+                          const emptyCellBg = holidayColorCell ?? (day.getDay() === 6 ? (equipmentDetail?.calendar_colors?.saturday_color ?? "#c7d2fe") : day.getDay() === 0 ? (equipmentDetail?.calendar_colors?.sunday_color ?? "#fbcfe8") : undefined);
+                          const cell3dStyle: CSSProperties = {
+                            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.14), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 1px 0 0 rgba(255,255,255,0.28)",
+                            border: "2px solid rgba(255,255,255,0.45)",
+                            borderRadius: "12px",
+                          };
                           return (
-                            <div key={dayOffset} className="font-semibold text-sm p-2 text-center">
-                              <div>{format(day, "EEE")}</div>
-                              <div className="text-muted-foreground">{format(day, "MMM dd")}</div>
-                              {holidayLabel && <div className="text-xs text-muted-foreground">{holidayLabel}</div>}
+                            <div key={dayOffset} className="min-h-[64px] p-2 border-r last:border-r-0">
+                              {slot ? (
+                                <div className="w-full h-full min-h-[60px] relative flex items-stretch">
+                                  <button
+                                    type="button"
+                                    onClick={() => { if (slotSelectable) toggleStatusChangeSlotSelection(slot.id); }}
+                                    disabled={!slotSelectable}
+                                    className={cn(
+                                      "flex-1 min-h-[60px] p-2 text-sm font-semibold text-left transition-all flex items-center justify-center",
+                                      !slotSelectable && "cursor-not-allowed opacity-75",
+                                      isSelected && "ring-2 ring-primary ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
+                                    )}
+                                    style={
+                                      !isSelected && slot
+                                        ? {
+                                            ...cell3dStyle,
+                                            backgroundColor: slotBg,
+                                            color: getContrastTextColor(slotBg),
+                                          }
+                                        : isSelected ? cell3dStyle : undefined
+                                    }
+                                  >
+                                    {isSelected ? "✓" : (holidayName && !slot.booking_id ? holidayName : statusLabel(slot))}
+                                  </button>
+                                  {slot.status === "BOOKED" && slot.booking_id && (
+                                    <button
+                                      type="button"
+                                      aria-label="View booking details"
+                                      className="absolute top-1 right-1 p-1 rounded-md opacity-90 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+                                      style={{ color: getContrastTextColor(slotBg) }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setExpandedSlotBooking(null);
+                                        setExpandedSlotBookingLoading(true);
+                                        apiClient
+                                          .getBookings({ booking_id: slot.booking_id!, limit: 1 })
+                                          .then((res) => {
+                                            const b = res.data?.bookings?.[0];
+                                            if (b) setExpandedSlotBooking(b as BookingDetailCardBooking);
+                                          })
+                                          .catch(() => toast.error("Failed to load booking details"))
+                                          .finally(() => setExpandedSlotBookingLoading(false));
+                                      }}
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div
+                                  className="w-full min-h-[60px] p-2 rounded-xl text-sm font-semibold flex items-center justify-center border-2 border-white/40"
+                                  style={
+                                    emptyCellBg
+                                      ? {
+                                          ...cell3dStyle,
+                                          backgroundColor: emptyCellBg,
+                                          color: getContrastTextColor(emptyCellBg),
+                                        }
+                                      : { ...cell3dStyle, color: "var(--muted-foreground)" }
+                                  }
+                                >
+                                  {holidayName ?? "—"}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
                       </div>
+                    ));
+                  })()}
+                </div>
+              )}
 
-                      {(() => {
-                        const timeSlots = statusChangeSlotMasterTimes.length > 0
-                          ? statusChangeSlotMasterTimes
-                          : (() => {
-                              const fromSlots = new Set<string>();
-                              statusChangeSlots?.forEach((s) => {
-                                if (s.start_datetime) fromSlots.add(format(parseISO(s.start_datetime), "HH:mm"));
-                              });
-                              return Array.from(fromSlots).sort();
-                            })();
-                        if (timeSlots.length === 0) {
-                          return (
-                            <div className="p-4 text-center text-muted-foreground col-span-8">
-                              No slots for this week.
-                            </div>
-                          );
-                        }
+              {/* Inline booking details – shown when user clicks ExternalLink on a booked slot */}
+              {expandedSlotBookingLoading && (
+                <div className="flex items-center justify-center py-12 border-t">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {!expandedSlotBookingLoading && expandedSlotBooking && (
+                <div className="border-t pt-6 mt-4">
+                  <BookingDetailCard
+                    booking={expandedSlotBooking}
+                    onClose={() => setExpandedSlotBooking(null)}
+                    onUpdated={() => {
+                      if (statusChangePopupWeekStart) fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                    }}
+                    isOperator={String(userType).toLowerCase() === "operator"}
+                    currentUserId={userId ? parseInt(userId, 10) : null}
+                    backLabel="Close booking details"
+                    showPrintButton={false}
+                  />
+                </div>
+              )}
+            </div>
 
-                        const statusLabel = (slot: DailySlot) => {
-                          if (slot.status === "BOOKED") return slot.booking_status_display || "Booked";
-                          if (slot.status === "BLOCKED") return slot.blocked_label || "Blocked";
-                          return slot.status_display || slot.status || "—";
-                        };
+            <div className="border-t-2 border-primary/10 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center gap-4 flex-wrap">
+              <p className="text-base font-semibold text-foreground mr-auto">
+                {selectedSlotIdsForStatus.length} slot(s) selected in week view.
+              </p>
+              <Button variant="outline" size="default" className="h-11 px-5 text-base font-medium" onClick={() => setSelectedSlotIdsForStatus([])} disabled={selectedSlotIdsForStatus.length === 0}>
+                Clear selected slots
+              </Button>
+            </div>
+          </div>
+        )}
 
-                        const canSelectBookedSlots =
-                          newSlotStatus === "BLOCKED" ||
-                          newSlotStatus === "UNDER_MAINTENANCE" ||
-                          newSlotStatus === "OPERATOR_ABSENT";
-                        // Only AVAILABLE and non-completed BOOKED slots are selectable (exclude BLOCKED, UNDER_MAINTENANCE, OPERATOR_ABSENT, and COMPLETED bookings)
-                        const isSlotSelectable = (s: typeof statusChangeSlots[0] | null | undefined) => {
-                          if (!s) return false;
-                          if (canSelectBookedSlots) {
-                            if (s.status === "AVAILABLE") return true;
-                            if (s.status === "BOOKED") return (s.booking_status || "").toUpperCase() !== "COMPLETED";
-                            return false;
-                          }
-                          return s.status === "AVAILABLE";
-                        };
-                        return timeSlots.map((time) => (
-                          <div key={time} className="grid grid-cols-8 gap-2 mb-2">
-                            <div className="font-medium text-sm p-2 flex items-center">{time}</div>
-                            {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                              const day = addDays(statusChangeWeekStart, dayOffset);
-                              const slot = getStatusChangeSlotAt(day, time);
-                              const slotSelectable = isSlotSelectable(slot);
-                              const isSelected = slot ? selectedSlotIdsForStatus.includes(slot.id) : false;
-                              const dateStr = format(day, "yyyy-MM-dd");
-                              const holidayName = statusChangeHolidays[dateStr];
-
-                              return (
-                                <div key={dayOffset} className="min-h-[48px]">
-                                  {slot ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (!slotSelectable) return;
-                                        toggleStatusChangeSlotSelection(slot.id);
-                                      }}
-                                      disabled={!slotSelectable}
-                                      className={`
-                                        w-full p-3 rounded-md text-sm text-left transition-all min-h-[48px] flex items-center justify-center
-                                        ${!slotSelectable ? "cursor-not-allowed" : ""}
-                                        ${slotSelectable && isSelected ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2" : ""}
-                                        ${slotSelectable && !isSelected ? "hover:opacity-90 border cursor-pointer" : ""}
-                                      `}
-                                      style={
-                                        !isSelected && slot
-                                          ? (() => {
-                                              const bg = statusChangeSlotColors[slot.status] ?? DEFAULT_SLOT_STATUS_COLORS[slot.status] ?? "#e5e7eb";
-                                              return {
-                                                backgroundColor: bg,
-                                                color: getContrastTextColor(bg),
-                                              };
-                                            })()
-                                          : undefined
-                                      }
-                                    >
-                                      {isSelected ? "Selected" : (holidayName && !slot.booking_id ? holidayName : statusLabel(slot))}
-                                    </button>
-                                  ) : (
-                                    <div className="w-full p-3 rounded-md text-sm min-h-[48px] flex items-center justify-center bg-gray-100 text-gray-400">
-                                      —
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+        {/* Bulk email popup: selected user emails + write subject and text */}
+        <Dialog open={bulkEmailOpen} onOpenChange={setBulkEmailOpen}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Bulk Email</DialogTitle>
+              <DialogDescription>
+                Enter the subject and message below. The email will be sent to all selected user emails listed above.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2 overflow-auto min-h-0 flex-1">
+              {bulkEmailTemplatesLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading recipients…
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label className="text-sm font-medium">Selected user emails</Label>
+                    <div className="rounded-md border bg-muted/30 p-3 mt-2 max-h-[160px] overflow-y-auto text-sm space-y-1.5">
+                      {bulkEmailRecipients.length === 0 ? (
+                        <p className="text-muted-foreground">No recipients. Select booked slots or dates first, then click Bulk email.</p>
+                      ) : (
+                        bulkEmailRecipients.map((r, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-muted-foreground tabular-nums">{i + 1}.</span>
+                            <span>{r.email}</span>
+                            {r.name && r.name !== r.email && <span className="text-muted-foreground text-xs">({r.name})</span>}
                           </div>
-                        ));
-                      })()}
+                        ))
+                      )}
                     </div>
                   </div>
-
-                  {/* Actions: new status + update */}
-                  <div className="flex flex-wrap items-center gap-4 pt-4 border-t">
-                    <Select value={newSlotStatus} onValueChange={setNewSlotStatus}>
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="New status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BLOCKED">Blocked</SelectItem>
-                        <SelectItem value="UNDER_MAINTENANCE">Under Maintenance</SelectItem>
-                        <SelectItem value="OPERATOR_ABSENT">Operator Absent</SelectItem>
-                        <SelectItem value="AVAILABLE">Available</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {newSlotStatus === "BLOCKED" && (
-                      <Input
-                        placeholder="Blocked label (optional)"
-                        value={blockedLabelForStatus}
-                        onChange={(e) => setBlockedLabelForStatus(e.target.value)}
-                        className="max-w-[200px]"
-                      />
-                    )}
-                    <Button
-                      disabled={selectedSlotIdsForStatus.length === 0 || updatingSlotStatus}
-                      onClick={async () => {
-                        if (selectedSlotIdsForStatus.length === 0) return;
-                        setUpdatingSlotStatus(true);
-                        try {
-                          const payload: { status: string; blocked_label?: string | null } = { status: newSlotStatus };
-                          if (newSlotStatus === "BLOCKED") payload.blocked_label = blockedLabelForStatus.trim() || null;
-                          for (const slotId of selectedSlotIdsForStatus) {
-                            const res = await apiClient.adminUpdate("dailySlots", slotId, payload);
-                            if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
-                          }
-                          toast.success(`Updated ${selectedSlotIdsForStatus.length} slot(s).`);
-                          setSelectedSlotIdsForStatus([]);
-                          fetchStatusChangeSlots();
-                        } catch (e: unknown) {
-                          toast.error(e instanceof Error ? e.message : "Failed to update slots");
-                        } finally {
-                          setUpdatingSlotStatus(false);
-                        }
-                      }}
-                    >
-                      {updatingSlotStatus ? "Updating…" : `Update selected slots (${selectedSlotIdsForStatus.length})`}
-                    </Button>
-                    {(() => {
-                      const selectedBookedSlotIds =
-                        statusChangeSlots?.filter(
-                          (s) =>
-                            selectedSlotIdsForStatus.includes(s.id) &&
-                            s.status === "BOOKED" &&
-                            (s.booking_status || "").toUpperCase() !== "COMPLETED"
-                        ).map((s) => s.id) ?? [];
-                      return (
-                        <Button
-                          variant="outline"
-                          disabled={selectedBookedSlotIds.length === 0}
-                          onClick={async () => {
-                            if (selectedBookedSlotIds.length === 0) return;
-                            const res = await apiClient.getBulkEmailRecipients(selectedBookedSlotIds);
-                            if (res.error || !res.data?.recipients?.length) {
-                              toast.error(res.error || "No recipients found for selected booked slots.");
-                              return;
-                            }
-                            setBulkEmailRecipients(res.data.recipients);
-                            setBulkEmailSubject("");
-                            setBulkEmailBody("");
-                            setBulkEmailOpen(true);
-                          }}
-                        >
-                          Send Bulk Email ({selectedBookedSlotIds.length} booked)
-                        </Button>
-                      );
-                    })()}
+                  <div>
+                    <Label htmlFor="bulk-email-subject">Subject</Label>
+                    <Input
+                      id="bulk-email-subject"
+                      value={bulkEmailSubject}
+                      onChange={(e) => setBulkEmailSubject(e.target.value)}
+                      placeholder="Email subject"
+                      className="mt-2"
+                    />
                   </div>
-
-                  {/* Bulk email compose dialog */}
-                  <Dialog open={bulkEmailOpen} onOpenChange={setBulkEmailOpen}>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Compose bulk email</DialogTitle>
-                        <DialogDescription>
-                          The same email will be sent to each recipient. Recipients are users of the selected booked slots.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">To</label>
-                          <div className="rounded-md border bg-muted/40 p-3 text-sm">
-                            {bulkEmailRecipients.length === 0
-                              ? "No recipients"
-                              : bulkEmailRecipients.map((r) => r.email).join(", ")}
-                          </div>
-                          {bulkEmailRecipients.length > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              {bulkEmailRecipients.length} recipient(s)
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium" htmlFor="bulk-email-subject">Subject</label>
-                          <Input
-                            id="bulk-email-subject"
-                            value={bulkEmailSubject}
-                            onChange={(e) => setBulkEmailSubject(e.target.value)}
-                            placeholder="Email subject"
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium" htmlFor="bulk-email-body">Body</label>
-                          <textarea
-                            id="bulk-email-body"
-                            value={bulkEmailBody}
-                            onChange={(e) => setBulkEmailBody(e.target.value)}
-                            placeholder="Write your message..."
-                            rows={12}
-                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y min-h-[200px]"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setBulkEmailOpen(false)} disabled={sendingBulkEmail}>
-                          Cancel
-                        </Button>
-                        <Button
-                          disabled={sendingBulkEmail || !bulkEmailSubject.trim() || !bulkEmailBody.trim() || bulkEmailRecipients.length === 0}
-                          onClick={async () => {
-                            setSendingBulkEmail(true);
-                            try {
-                              const emails = bulkEmailRecipients.map((r) => r.email);
-                              const res = await apiClient.sendBulkEmail(emails, bulkEmailSubject.trim(), bulkEmailBody.trim());
-                              if (res.error) {
-                                toast.error(res.error);
-                                return;
-                              }
-                              const data = res.data as { sent_count: number; failed_count: number; failed?: Array<{ email: string; error: string }> };
-                              if (data.failed_count > 0 && data.failed?.length) {
-                                toast.warning(`Sent to ${data.sent_count}; failed for ${data.failed_count}: ${data.failed.map((f) => f.email).join(", ")}`);
-                              } else {
-                                toast.success(`Email sent to ${data.sent_count} recipient(s).`);
-                              }
-                              setBulkEmailOpen(false);
-                              setBulkEmailRecipients([]);
-                              setBulkEmailSubject("");
-                              setBulkEmailBody("");
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : "Failed to send email");
-                            } finally {
-                              setSendingBulkEmail(false);
-                            }
-                          }}
-                        >
-                          {sendingBulkEmail ? "Sending…" : "Send"}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                  <div>
+                    <Label htmlFor="bulk-email-body">Message / Email text</Label>
+                    <Textarea
+                      id="bulk-email-body"
+                      value={bulkEmailBody}
+                      onChange={(e) => setBulkEmailBody(e.target.value)}
+                      placeholder="Write your email message here…"
+                      rows={6}
+                      className="mt-2 resize-y"
+                    />
+                  </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkEmailOpen(false)}>Cancel</Button>
+              <Button onClick={sendBulkEmailFromDialog} disabled={sendingBulkEmail || bulkEmailRecipients.length === 0 || !bulkEmailSubject.trim() || !bulkEmailBody.trim()}>
+                {sendingBulkEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
+                Send email
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Booking flow: hide when admin and mode not yet chosen or when in status mode */}
         {(!isAdminUser() || adminManageMode === 'book') && (
@@ -2463,8 +3587,11 @@ const BookEquipment = () => {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      // Navigate back to equipment detail page
-                      navigate(`/equipment/${selectedEquipment.id}`);
+                      if (canAccessManageEquipmentModes()) {
+                        navigate("/equipments");
+                      } else {
+                        navigate(`/equipment/${selectedEquipment.id}`);
+                      }
                     }}
                   >
                     <ArrowLeft className="h-4 w-4 mr-2" />
@@ -2474,7 +3601,7 @@ const BookEquipment = () => {
               </CardHeader>
               <CardContent>
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
-                {isAdminUser() && adminManageMode === 'book' && (
+                {canAccessManageEquipmentModes() && adminManageMode === 'book' && (
                   <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -2560,27 +3687,81 @@ const BookEquipment = () => {
                           </PopoverContent>
                         </Popover>
                         <p className="text-xs text-muted-foreground mt-2">Charge will be calculated for the selected user.</p>
-                        {adminBookForUserInfo && (
-                          <div className="mt-3 p-3 rounded-lg border bg-muted/40 text-sm space-y-1.5">
-                            <div><span className="font-medium text-muted-foreground">Email:</span> {adminBookForUserInfo.email || "—"}</div>
-                            <div><span className="font-medium text-muted-foreground">Department:</span> {adminBookForUserInfo.department_name || "—"}</div>
-                            <div>
-                              <span className="font-medium text-muted-foreground">Associated Wallet Faculty Owner:</span>{" "}
+                      </div>
+                    </div>
+                    {adminBookForUserInfo && (
+                      <div className="w-full mt-4 p-5 rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/10 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-primary/20">
+                          <h4 className="text-sm font-semibold uppercase tracking-wider text-primary">
+                            Selected user details
+                          </h4>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={async () => {
+                              if (!adminBookForUserId) return;
+                              const displayName =
+                                usersList.find((u) => String(u.id) === adminBookForUserId)?.name ||
+                                usersList.find((u) => String(u.id) === adminBookForUserId)?.email ||
+                                `User #${adminBookForUserId}`;
+                              setUserTransactionHistoryDialog({ open: true, userId: adminBookForUserId, userDisplayName: displayName });
+                              setUserTransactionHistory({ loading: true, transactions: [], error: null });
+                              try {
+                                const res = await apiClient.getAdminUserTransactionHistory(adminBookForUserId, 100, 0);
+                                setUserTransactionHistory({ loading: false, transactions: res.data?.transactions ?? [], error: null });
+                              } catch (e: unknown) {
+                                setUserTransactionHistory({
+                                  loading: false,
+                                  transactions: [],
+                                  error: e instanceof Error ? e.message : "Failed to load transactions",
+                                });
+                              }
+                            }}
+                          >
+                            <Receipt className="h-4 w-4" />
+                            View Transaction History
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-base">
+                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80">
+                            <span className="text-xs font-semibold uppercase text-muted-foreground">Email</span>
+                            <span className="font-medium text-foreground">{adminBookForUserInfo.email || "—"}</span>
+                          </div>
+                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80">
+                            <span className="text-xs font-semibold uppercase text-muted-foreground">Department</span>
+                            <span className="font-medium text-foreground">{adminBookForUserInfo.department_name || "—"}</span>
+                          </div>
+                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80 sm:col-span-2 lg:col-span-1">
+                            <span className="text-xs font-semibold uppercase text-muted-foreground">Phone number</span>
+                            <span className="font-medium text-foreground">{adminBookForUserInfo.phone_number || "—"}</span>
+                          </div>
+                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80 sm:col-span-2 lg:col-span-1">
+                            <span className="text-xs font-semibold uppercase text-muted-foreground">Supervisor</span>
+                            <span className="font-medium text-foreground">
                               {adminBookForUserInfo.wallet_faculty_owner
                                 ? `${adminBookForUserInfo.wallet_faculty_owner.name}${adminBookForUserInfo.wallet_faculty_owner.email ? ` (${adminBookForUserInfo.wallet_faculty_owner.email})` : ""}`
                                 : "—"}
-                            </div>
-                            <div><span className="font-medium text-muted-foreground">Wallet Balance:</span> ₹{adminBookForUserInfo.wallet_balance}</div>
+                            </span>
                           </div>
-                        )}
+                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 sm:col-span-2 lg:col-span-4">
+                            <span className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400">Wallet balance</span>
+                            <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400">₹{adminBookForUserInfo.wallet_balance}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
                 {/* Step 1: Input Fields Section */}
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold mb-4">Step 1: Provide Additional Information</h3>
+                  {repeatSourceBooking && (
+                    <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
+                      Repeat sample: parameters are fixed from the original booking. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
+                    </div>
+                  )}
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
                     <div className="mb-4 p-4 rounded-lg">
                       <div className="grid grid-cols-1 gap-4">
@@ -2600,7 +3781,7 @@ const BookEquipment = () => {
                                     onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
                                     required={field.is_required}
                                     placeholder={field.default_value || ''}
-                                    disabled={false}
+                                    disabled={!!repeatSourceBooking}
                                   />
                                 );
                               
@@ -2622,6 +3803,7 @@ const BookEquipment = () => {
                                     max={field.options?.max || undefined}
                                     step={field.options?.step || '1'}
                                     placeholder={field.default_value || '0'}
+                                    disabled={!!repeatSourceBooking}
                                   />
                                 );
                               
@@ -2631,6 +3813,7 @@ const BookEquipment = () => {
                                     value={inputFieldValues[field.field_key] as string || field.default_value || ''}
                                     onValueChange={(value) => handleInputFieldChange(field.field_key, value)}
                                     required={field.is_required}
+                                    disabled={!!repeatSourceBooking}
                                   >
                                     {field.options && field.options.length > 0 ? (
                                       field.options.map((option: any) => {
@@ -2660,10 +3843,10 @@ const BookEquipment = () => {
                                     value={inputFieldValues[field.field_key] as string || field.default_value || ''}
                                     onValueChange={(value) => handleInputFieldChange(field.field_key, value)}
                                     required={field.is_required}
-                                    disabled={false}
+                                    disabled={!!repeatSourceBooking}
                                   >
                                     <SelectTrigger id={field.field_key} className="w-full">
-                                      <SelectValue placeholder={field.help_text || "Select an option"} />
+                                      <SelectValue placeholder="Select an option" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {field.options && field.options.length > 0 ? (
@@ -2710,6 +3893,7 @@ const BookEquipment = () => {
                                                   handleInputFieldChange(field.field_key, currentValues.filter(v => v !== optionValue));
                                                 }
                                               }}
+                                              disabled={!!repeatSourceBooking}
                                             />
                                             <Label
                                               htmlFor={`${field.field_key}-${optionValue}`}
@@ -2730,21 +3914,24 @@ const BookEquipment = () => {
                                 return (
                                   <div className="flex items-center justify-between">
                                     <Label htmlFor={field.field_key} className="font-normal cursor-pointer">
-                                      {field.help_text || field.field_label}
+                                      {field.field_label}
                                     </Label>
                                     <Switch
                                       id={field.field_key}
                                       checked={inputFieldValues[field.field_key] === true || inputFieldValues[field.field_key] === 'true'}
                                       onCheckedChange={(checked) => handleInputFieldChange(field.field_key, checked)}
                                       required={field.is_required}
+                                      disabled={!!repeatSourceBooking}
                                     />
                                   </div>
                                 );
 
-                              case 'PERIODIC_TABLE':
+                              case 'PERIODIC_TABLE': {
                                 const count = Number(inputFieldValues[field.field_key]) || 0;
                                 const elementsStr = (inputFieldValues[field.field_key + '_elements'] as string) || '';
                                 const elementsList = elementsStr ? elementsStr.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+                                const disabledSet = parseDisabledElementsFromHelpText(field.help_text);
+                                const allowedList = elementsList.filter((s) => !disabledSet.has(s));
                                 return (
                                   <div className="space-y-2">
                                     <Button
@@ -2753,20 +3940,19 @@ const BookEquipment = () => {
                                       size="sm"
                                       onClick={() => {
                                         setPeriodicTableFieldKey(field.field_key);
-                                        setSelectedPeriodicSymbols(
-                                          new Set(elementsStr.split(',').map((s: string) => s.trim()).filter(Boolean))
-                                        );
+                                        setSelectedPeriodicSymbols(new Set(allowedList));
                                       }}
                                     >
                                       Select elements
                                     </Button>
                                     {count > 0 && (
                                       <p className="text-sm text-muted-foreground">
-                                        {count} element(s) selected{elementsList.length ? `: ${elementsList.join(', ')}` : ''}
+                                        {allowedList.length} element(s) selected{allowedList.length ? `: ${allowedList.join(', ')}` : ''}
                                       </p>
                                     )}
                                   </div>
                                 );
+                              }
 
                               case 'TABLE': {
                                 const columns = Array.isArray(field.options) ? field.options.map((h: any) => String(h?.value ?? h ?? '')) : [];
@@ -2872,9 +4058,6 @@ const BookEquipment = () => {
                                 {field.field_label}
                                 {field.is_required && <span className="text-destructive ml-1">*</span>}
                               </Label>
-                              {field.help_text && (
-                                <p className="text-xs text-muted-foreground">{field.help_text}</p>
-                              )}
                               {renderInputField()}
                             </div>
                           );
@@ -2892,104 +4075,100 @@ const BookEquipment = () => {
                         <DialogTitle>Select elements</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          {selectedPeriodicSymbols.size} element(s) selected. Count is stored for charge calculation.
-                        </p>
-                        <div className="overflow-x-auto">
-                          <div className="inline-block min-w-max">
-                            <div className="flex flex-col gap-1">
-                              {(() => {
-                                const grid: (Element | null)[][] = Array(7).fill(null).map(() => Array(18).fill(null));
-                                periodicTableElements.forEach((el) => {
-                                  if (el.row <= 7 && el.col <= 18) grid[el.row - 1][el.col - 1] = el;
-                                });
-                                const lanthanides = periodicTableElements.filter((el) => el.category === "lanthanide");
-                                const actinides = periodicTableElements.filter((el) => el.category === "actinide");
-                                const toggle = (symbol: string) => {
-                                  setSelectedPeriodicSymbols((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(symbol)) next.delete(symbol);
-                                    else next.add(symbol);
-                                    return next;
-                                  });
-                                };
-                                return (
-                                  <>
-                                    {grid.map((row, ri) => (
-                                      <div key={ri} className="flex gap-1">
-                                        {row.map((el, ci) => (
-                                          <div key={`${ri}-${ci}`}>
-                                            {el ? (
-                                              <button
-                                                type="button"
-                                                onClick={() => toggle(el.symbol)}
-                                                title={el.name}
-                                                className={cn(
-                                                  "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs transition-all",
-                                                  getCategoryColor(el.category),
-                                                  selectedPeriodicSymbols.has(el.symbol) && "ring-2 ring-primary ring-offset-1 scale-105"
-                                                )}
-                                              >
-                                                {selectedPeriodicSymbols.has(el.symbol) && <Check className="w-3 h-3 absolute top-0 right-0" />}
-                                                <span className="font-bold">{el.symbol}</span>
-                                              </button>
-                                            ) : (
-                                              <div className="w-10 h-10" />
+                        {(() => {
+                          const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicTableFieldKey);
+                          const disabledSet = parseDisabledElementsFromHelpText(field?.help_text);
+                          const toggle = (symbol: string) => {
+                            if (disabledSet.has(symbol)) return;
+                            setSelectedPeriodicSymbols((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(symbol)) next.delete(symbol);
+                              else next.add(symbol);
+                              return next;
+                            });
+                          };
+                          return (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                {selectedPeriodicSymbols.size} element(s) selected. Count is stored for charge calculation.
+                                {disabledSet.size > 0 && (
+                                  <span className="block mt-1"> Elements listed in Help text (admin) are disabled and cannot be selected.</span>
+                                )}
+                              </p>
+                              <div className="overflow-x-auto">
+                                <div className="inline-block min-w-max">
+                                  <div className="flex flex-col gap-1">
+                                    {(() => {
+                                      const grid: (Element | null)[][] = Array(7).fill(null).map(() => Array(18).fill(null));
+                                      periodicTableElements.forEach((el) => {
+                                        if (el.row <= 7 && el.col <= 18) grid[el.row - 1][el.col - 1] = el;
+                                      });
+                                      const lanthanides = periodicTableElements.filter((el) => el.category === "lanthanide");
+                                      const actinides = periodicTableElements.filter((el) => el.category === "actinide");
+                                      const elButton = (el: Element) => {
+                                        const isDisabled = disabledSet.has(el.symbol);
+                                        return (
+                                          <button
+                                            key={el.atomicNumber}
+                                            type="button"
+                                            onClick={() => toggle(el.symbol)}
+                                            disabled={isDisabled}
+                                            title={isDisabled ? `${el.name} (disabled)` : el.name}
+                                            className={cn(
+                                              "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative",
+                                              getCategoryColor(el.category),
+                                              selectedPeriodicSymbols.has(el.symbol) && "ring-2 ring-primary ring-offset-1 scale-105",
+                                              isDisabled && "opacity-60 cursor-not-allowed pointer-events-none bg-muted border-dashed"
                                             )}
+                                          >
+                                            {selectedPeriodicSymbols.has(el.symbol) && <Check className="w-3 h-3 absolute top-0 right-0" />}
+                                            <span className="font-bold">{el.symbol}</span>
+                                          </button>
+                                        );
+                                      };
+                                      return (
+                                        <>
+                                          {grid.map((row, ri) => (
+                                            <div key={ri} className="flex gap-1">
+                                              {row.map((el, ci) => (
+                                                <div key={`${ri}-${ci}`}>
+                                                  {el ? (
+                                                    elButton(el)
+                                                  ) : (
+                                                    <div className="w-10 h-10" />
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ))}
+                                          <div className="flex gap-1 mt-1">
+                                            <div className="w-10 h-10 flex items-center justify-center text-xs font-semibold">Ln</div>
+                                            {lanthanides.map((el) => elButton(el))}
                                           </div>
-                                        ))}
-                                      </div>
-                                    ))}
-                                    <div className="flex gap-1 mt-1">
-                                      <div className="w-10 h-10 flex items-center justify-center text-xs font-semibold">Ln</div>
-                                      {lanthanides.map((el) => (
-                                        <button
-                                          key={el.atomicNumber}
-                                          type="button"
-                                          onClick={() => toggle(el.symbol)}
-                                          title={el.name}
-                                          className={cn(
-                                            "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs",
-                                            getCategoryColor(el.category),
-                                            selectedPeriodicSymbols.has(el.symbol) && "ring-2 ring-primary"
-                                          )}
-                                        >
-                                          <span className="font-bold">{el.symbol}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                    <div className="flex gap-1 mt-1">
-                                      <div className="w-10 h-10 flex items-center justify-center text-xs font-semibold">Ac</div>
-                                      {actinides.map((el) => (
-                                        <button
-                                          key={el.atomicNumber}
-                                          type="button"
-                                          onClick={() => toggle(el.symbol)}
-                                          title={el.name}
-                                          className={cn(
-                                            "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs",
-                                            getCategoryColor(el.category),
-                                            selectedPeriodicSymbols.has(el.symbol) && "ring-2 ring-primary"
-                                          )}
-                                        >
-                                          <span className="font-bold">{el.symbol}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </div>
+                                          <div className="flex gap-1 mt-1">
+                                            <div className="w-10 h-10 flex items-center justify-center text-xs font-semibold">Ac</div>
+                                            {actinides.map((el) => elButton(el))}
+                                          </div>
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setPeriodicTableFieldKey(null)}>Cancel</Button>
                         <Button
                           onClick={() => {
                             if (periodicTableFieldKey) {
-                              handleInputFieldChange(periodicTableFieldKey, selectedPeriodicSymbols.size);
-                              handleInputFieldChange(periodicTableFieldKey + "_elements", Array.from(selectedPeriodicSymbols).join(","));
+                              const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicTableFieldKey);
+                              const disabledSet = parseDisabledElementsFromHelpText(field?.help_text);
+                              const allowed = Array.from(selectedPeriodicSymbols).filter((s) => !disabledSet.has(s));
+                              handleInputFieldChange(periodicTableFieldKey, allowed.length);
+                              handleInputFieldChange(periodicTableFieldKey + "_elements", allowed.join(","));
                               setPeriodicTableFieldKey(null);
                             }
                           }}
@@ -3024,12 +4203,14 @@ const BookEquipment = () => {
                   <div className="mb-6 p-6 bg-primary/10 rounded-lg border-2 border-primary">
                     <h3 className="text-lg font-semibold mb-4">Step 2: Charge Calculation</h3>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Total Time:</span>
-                        <span className="text-sm">
-                          {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
-                        </span>
-                      </div>
+                      {getEffectiveWeeklyViewDisplay() !== 'SLOT_ID' && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Total Time:</span>
+                          <span className="text-sm">
+                            {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
+                          </span>
+                        </div>
+                      )}
                       {calculatedCharge.charge_breakdown && calculatedCharge.charge_breakdown.length > 0 && (
                         <div className="mt-4 space-y-1">
                           <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
@@ -3041,7 +4222,7 @@ const BookEquipment = () => {
                           ))}
                         </div>
                       )}
-                      {isAdminUser() && adminManageMode === "book" && (
+                      {canAccessManageEquipmentModes() && adminManageMode === "book" && (
                         <div className="mt-4 p-3 rounded-lg border bg-muted/30 space-y-2">
                           <Label htmlFor="admin-discount" className="text-sm font-medium">Discount (₹)</Label>
                           <p className="text-xs text-muted-foreground">Adjust the final charge for this booking. Discount is applied when you confirm (single booking).</p>
@@ -3098,7 +4279,7 @@ const BookEquipment = () => {
                       <div className="flex justify-between items-center pt-4 border-t">
                         <span className="text-lg font-semibold">Total Charge:</span>
                         <span className="text-2xl font-bold text-primary">
-                          ₹{isAdminUser() && adminManageMode === "book" && adminDiscountAmount > 0
+                          ₹{canAccessManageEquipmentModes() && adminManageMode === "book" && adminDiscountAmount > 0
                             ? Math.max(0, Number(calculatedCharge.total_charge) - adminDiscountAmount).toFixed(2)
                             : Number(calculatedCharge.total_charge).toFixed(2)}
                         </span>
@@ -3167,11 +4348,27 @@ const BookEquipment = () => {
                         Available: Any week (no restriction)
                       </p>
                     )}
-                    {userType && !isAdminUser() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Available: Current week and next week only
-                      </p>
-                    )}
+                    {userType && !isAdminUser() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (() => {
+                      const maxStr = equipmentDetail?.slot_window_max_date;
+                      const currentWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
+                      const nextWeekSun = addDays(addWeeks(currentWeek, 1), 6);
+                      const nextWeekAvailable = !maxStr || parseISO(maxStr) >= nextWeekSun;
+                      const refWeekday = equipmentDetail?.slot_window_reference_weekday;
+                      const refTime = equipmentDetail?.slot_window_reference_time;
+                      if (!nextWeekAvailable && refWeekday != null && refTime != null) {
+                        const refText = formatSlotWindowReference(Number(refWeekday), String(refTime));
+                        return (
+                          <p className="text-sm font-semibold text-primary mt-1 bg-primary/10 px-2 py-1.5 rounded-md">
+                            Available: Current week only. New slots after {refText}.
+                          </p>
+                        );
+                      }
+                      return (
+                        <p className="text-sm font-semibold text-primary mt-1 bg-primary/10 px-2 py-1.5 rounded-md">
+                          Available: {nextWeekAvailable ? "Current week and next week only" : "Current week only"}
+                        </p>
+                      );
+                    })()}
                     {userType && !isAdminUser() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Available: One week window starting 15 days from today
@@ -3194,7 +4391,9 @@ const BookEquipment = () => {
                   <div className="min-w-[800px]">
                     {/* Header with days */}
                     <div className="grid grid-cols-8 gap-2 mb-2">
-                      <div className="font-semibold text-sm p-2">Time</div>
+                      <div className="font-semibold text-sm p-2">
+                        {getEffectiveWeeklyViewDisplay() === "SLOT_ID" ? "Slot position" : "Time"}
+                      </div>
                       {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                         const day = addDays(currentWeekStart, dayOffset);
                         return (
@@ -3208,28 +4407,12 @@ const BookEquipment = () => {
 
                     {/* Time slots - use Slot Master open_time values (user-defined), else derive from slots */}
                     {(() => {
-                      // First priority: Slot Master open_time values directly from API (exact user-defined times)
-                      const fromSlotMasters = equipmentDetail?.slot_master_times && equipmentDetail.slot_master_times.length > 0
-                        ? equipmentDetail.slot_master_times.map(formatTimeForDisplay).sort()
-                        : [];
-                      const fromSlots = getTimeSlotsFromDailySlots();
-                      const fromWindow = getTimeSlotsFromEquipmentWindow(
-                        equipmentDetail?.slot_start_time,
-                        equipmentDetail?.slot_end_time,
-                        equipmentDetail?.slot_duration_minutes || 60
-                      );
-                      const timeSlots = fromSlotMasters.length > 0
-                        ? fromSlotMasters
-                        : fromSlots.length > 0
-                          ? fromSlots
-                          : fromWindow.length > 0
-                            ? fromWindow
-                            : DEFAULT_TIME_SLOTS;
-                      const slotsToDisplay = timeSlots.length > 0 ? timeSlots : DEFAULT_TIME_SLOTS;
+                      const rowKeysAndLabels = getWeeklyRowKeysAndLabels();
+                      const rowKeys = rowKeysAndLabels.map((r) => r.key);
                       const hasSlotsFromApi = (equipmentDetail?.daily_slots?.length ?? 0) > 0;
                       const fetchedButEmpty = !loadingSlots && lastFetchedWeek && !hasSlotsFromApi;
 
-                      if (slotsToDisplay.length === 0) {
+                      if (rowKeys.length === 0) {
                         return (
                           <div className="col-span-8 p-4 text-center text-muted-foreground">
                             <p>No time slots available for this equipment.</p>
@@ -3244,44 +4427,87 @@ const BookEquipment = () => {
                       }
 
                       if (fetchedButEmpty) {
+                        const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
+                        const refWeekday = equipmentDetail?.slot_window_reference_weekday;
+                        const refTime = equipmentDetail?.slot_window_reference_time;
+                        const now = new Date();
+                        const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
+                        const nextWeek = addWeeks(currentWeek, 1);
+                        const nextWeekSunday = addDays(nextWeek, 6);
+                        const nextWeekAvailable = maxDateStr ? parseISO(maxDateStr) >= nextWeekSunday : true;
+                        const showStayTuned = !nextWeekAvailable && refWeekday != null && refTime != null;
+
+                        if (showStayTuned) {
+                          const refText = formatSlotWindowReference(Number(refWeekday), String(refTime));
+                          return (
+                            <div className="col-span-8 flex flex-col items-center justify-center py-12 px-4 text-center">
+                              <div className="max-w-md space-y-4">
+                                <p className="text-muted-foreground text-sm leading-relaxed">
+                                  No slots available for this week.
+                                </p>
+                                <div className="rounded-lg border bg-muted/40 px-5 py-4">
+                                  <p className="text-sm font-medium text-foreground">
+                                    New slots will be available after {refText}.
+                                  </p>
+                                  <p className="text-muted-foreground text-sm mt-1">
+                                    Till then, stay tuned.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
                         return (
                           <div className="col-span-8 p-4 text-center text-muted-foreground">
                             <p>No slots available for this week.</p>
-                            <p className="text-xs mt-2">Try another week using the buttons above, or contact support if the issue continues.</p>
+                            <p className="text-xs mt-2">
+                              {nextWeekAvailable
+                                ? "Try the next week using the button above."
+                                : "Try another week using the buttons above, or contact support if the issue continues."}
+                            </p>
                           </div>
                         );
                       }
                       
-                      return slotsToDisplay.map((time) => (
-                      <div key={time} className="grid grid-cols-8 gap-2 mb-2">
+                      return rowKeys.map((rowKey, rowIndex) => {
+                      const rowLabel = rowKeysAndLabels[rowIndex]?.label ?? rowKey;
+                      const time = rowKey;
+                      return (
+                      <div key={rowKey} className="grid grid-cols-8 gap-2 mb-2">
                         <div className="text-sm p-2 font-medium flex items-center">
-                          {time}
+                          {rowLabel}
                         </div>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                           const day = addDays(currentWeekStart, dayOffset);
                           const isBooked = isSlotBooked(day, time);
                           const isSelected = isSlotSelected(day, time);
                           
-                          // Parse time to get hours and minutes
-                          const [hours, minutes] = time.split(':').map(Number);
-                          const slotDateTime = new Date(day);
-                          slotDateTime.setHours(hours, minutes || 0, 0, 0);
-                          const isPast = slotDateTime < new Date();
-                          
-                          // Check if slot exists in daily_slots for this day and time
+                          // Check if slot exists in daily_slots for this day and row key (time or slot_number)
                           const slotData = useWeeklySlots() ? getSlotData(day, time) : undefined;
                           const slotExists = slotData !== undefined;
+                          // Past: use slot start datetime when available; else parse time "HH:mm" for TIME mode
+                          const isPast = slotData?.start_datetime
+                            ? parseISO(slotData.start_datetime) < new Date()
+                            : (time.includes(":")
+                              ? (() => { const [h, m] = time.split(":").map(Number); const d = new Date(day); d.setHours(h, m || 0, 0, 0); return d < new Date(); })()
+                              : false);
+                          
                           const isAvailable = slotExists && !isBooked && !isPast;
                           
                           // Get slot status from the actual slot data; prefer booking status if booking exists, else slot status (never empty when slot exists)
                           const slotStatus = slotData?.status ?? "";
                           const isSlotBookedStatus = slotStatus !== "" && slotStatus !== "AVAILABLE";
                           const dateStr = format(day, "yyyy-MM-dd");
-                          const holidayName = equipmentDetail?.weekly_holidays?.[dateStr];
+                          const rawHoliday = equipmentDetail?.weekly_holidays?.[dateStr];
+                          const holidayLabel = typeof rawHoliday === "string" ? rawHoliday : (rawHoliday && typeof rawHoliday === "object" && "label" in rawHoliday ? (rawHoliday as { label: string }).label : undefined);
+                          const holidayColor = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday && (rawHoliday as { color?: string }).color
+                            ? (rawHoliday as { color: string }).color
+                            : undefined;
+                          const holidayName = holidayLabel;
                           const bookingStatusDisplay = slotData?.booking_status_display ?? null;
                           const bookingId = slotData?.booking_id ?? null;
                           // Admin: only BOOKED slots are non-selectable; other statuses (BLOCKED, weekend/holiday) are bookable
-                          const isActuallyBooked = (slotStatus === "BOOKED" || !!bookingId);
+                          const isActuallyBooked = (slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED" || !!bookingId);
                           const considerBooked = isAdminUser() ? isActuallyBooked : (isSlotBookedStatus || isBooked || !!bookingId);
                           const blockedLabel = slotData?.blocked_label ?? null;
                           
@@ -3293,7 +4519,8 @@ const BookEquipment = () => {
                               "BOOKED": "Booked",
                               "BLOCKED": "Blocked",
                               "UNDER_MAINTENANCE": "Under Maintenance",
-                              "OPERATOR_ABSENT": "Operator Absent"
+                              "OPERATOR_ABSENT": "Operator Absent",
+                              "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
                             };
                             rawSlotStatusLabel = statusMap[slotStatus] || slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
                           }
@@ -3386,6 +4613,51 @@ const BookEquipment = () => {
                             displayStatus = holidayName || "—";
                           }
 
+                          const useHolidayBg = Boolean(holidayColor && !isSelected && !considerBooked);
+                          const dayOfWeek = day.getDay();
+                          const isWeekendCell = !slotExists && (dayOfWeek === 6 || dayOfWeek === 0);
+
+                          // Admin-configured calendar colors: merge with full defaults so every slot status has a color
+                          const defaultSlotColors: Record<string, string> = {
+                            AVAILABLE: "#22c55e",
+                            BOOKED: "#ef4444",
+                            BLOCKED: "#64748b",
+                            UNDER_MAINTENANCE: "#f97316",
+                            OPERATOR_ABSENT: "#eab308",
+                            BOOKING_NOT_UTILIZED: "#a855f7",
+                            HOLD: "#f59e0b",
+                          };
+                          const slotColors = {
+                            ...defaultSlotColors,
+                            ...(equipmentDetail?.calendar_colors?.slot_colors || {}),
+                          };
+                          // Use exact values from /calendar-colors; only fallback when missing (so weekend matches admin selection)
+                          const holidayDefault = equipmentDetail?.calendar_colors?.holiday_default || "#f59e0b";
+                          const saturdayColor = equipmentDetail?.calendar_colors?.saturday_color || "#c7d2fe";
+                          const sundayColor = equipmentDetail?.calendar_colors?.sunday_color || "#fbcfe8";
+                          let cellStyle: CSSProperties | undefined;
+                          if (useHolidayBg && holidayColor && !isWeekendCell) {
+                            cellStyle = { backgroundColor: holidayColor, color: getContrastTextColor(holidayColor) };
+                          } else if (isSelected) {
+                            cellStyle = undefined; // use Tailwind primary
+                          } else if (slotExists) {
+                            // Weekday slots: use booking_status for color when slot is BOOKED (e.g. HOLD), else slot status
+                            const statusForColor = (slotStatus === "BOOKED" && slotData?.booking_status)
+                              ? String(slotData.booking_status).toUpperCase()
+                              : slotStatus;
+                            const status = statusForColor || "AVAILABLE";
+                            const bg = slotColors[status] ?? (considerBooked ? slotColors.BOOKED : slotColors.AVAILABLE);
+                            if (isPast && !isAdminUser()) {
+                              cellStyle = { backgroundColor: "#94a3b8", color: "#ffffff" };
+                            } else {
+                              cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
+                            }
+                          } else {
+                            // No slot (weekend/holiday): always use admin-configured weekend colors for Sat/Sun so they match /calendar-colors
+                            const bg = dayOfWeek === 6 ? saturdayColor : dayOfWeek === 0 ? sundayColor : (holidayColor || holidayDefault);
+                            cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
+                          }
+
                           return (
                             <button
                               key={dayOffset}
@@ -3406,21 +4678,22 @@ const BookEquipment = () => {
                               }}
                               disabled={isDisabled}
                               className={`
-                                p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center
-                                ${!slotExists ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
-                                ${considerBooked ? 'bg-destructive/20 text-destructive cursor-not-allowed' : ''}
-                                ${isPast && !considerBooked && slotExists && !isAdminUser() ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}
+                                p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
+                                ${!slotExists ? 'cursor-not-allowed' : ''}
+                                ${considerBooked ? 'cursor-not-allowed' : ''}
+                                ${isPast && !considerBooked && slotExists && !isAdminUser() ? 'cursor-not-allowed' : ''}
                                 ${isSelected ? 'bg-primary text-primary-foreground' : ''}
-                                ${(isAvailable || (isAdminUser() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer' : ''}
-                                ${(isAvailable || (isAdminUser() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'bg-green-100 text-green-800 cursor-not-allowed opacity-60' : ''}
+                                ${(isAvailable || (isAdminUser() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'cursor-pointer hover:opacity-90' : ''}
+                                ${(isAvailable || (isAdminUser() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'cursor-not-allowed opacity-60' : ''}
                               `}
+                              style={cellStyle}
                             >
                               {displayStatus}
                             </button>
                           );
                         })}
                       </div>
-                      ));
+                      ); });
                     })()}
                   </div>
                 </div>
@@ -3452,7 +4725,7 @@ const BookEquipment = () => {
                           <span className="text-sm text-muted-foreground">Total Cost</span>
                           <span className="text-2xl font-bold">
                             ₹{calculatedCharge
-                              ? (isAdminUser() && adminManageMode === "book" && adminDiscountAmount > 0
+                              ? (canAccessManageEquipmentModes() && adminManageMode === "book" && adminDiscountAmount > 0
                                 ? Math.max(0, Number(calculatedCharge.total_charge) - adminDiscountAmount).toFixed(2)
                                 : Number(calculatedCharge.total_charge).toFixed(2))
                               : calculateTotalCost().toFixed(2)}
@@ -3462,17 +4735,24 @@ const BookEquipment = () => {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="mt-6 flex gap-4">
+                    <div className="mt-6 flex flex-wrap gap-4">
                       <Button
                         variant="outline"
-                        className="flex-1"
+                        className="flex-1 min-w-[140px]"
                         onClick={() => setSelectedSlots([])}
                         disabled={selectedSlots.length === 0}
                       >
                         Clear Selection
                       </Button>
                       <Button
-                        className="flex-1"
+                        variant="outline"
+                        className="flex-1 min-w-[140px]"
+                        onClick={() => navigate("/equipments")}
+                      >
+                        Book another equipment
+                      </Button>
+                      <Button
+                        className="flex-1 min-w-[140px]"
                         onClick={handleBooking}
                         disabled={selectedSlots.length === 0 || isSubmittingBooking}
                       >
@@ -3482,7 +4762,7 @@ const BookEquipment = () => {
                             Confirming…
                           </>
                         ) : (
-                          <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''})</>
+                          <>{isUrgentHoldMode ? <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''})</> : <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''})</>}</>
                         )}
                       </Button>
                     </div>
@@ -3492,6 +4772,372 @@ const BookEquipment = () => {
             </Card>
           </div>
         )}
+
+        {/* Urgent booking request dialog (internal users) */}
+        <Dialog open={urgentDialogOpen} onOpenChange={(open) => {
+          setUrgentDialogOpen(open);
+          if (!open) {
+            setPendingHoldSelection(null);
+            setUrgentRequestType('NO_SLOT');
+            setUrgentDisclaimerAccepted(false);
+            urgentDisclaimerAcceptedRef.current = false;
+            setUrgentEvidenceFile(null);
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col text-base">
+            {(() => {
+              const noSlotNoAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length === 0;
+              return (
+            <>
+            <DialogHeader className="shrink-0 pb-2">
+              <DialogTitle className="text-xl font-semibold tracking-tight">Request urgent booking</DialogTitle>
+              <DialogDescription className="text-base text-muted-foreground">
+                Choose the reason. Your request will be reviewed as per the process.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5 py-3 overflow-y-auto min-h-0 flex-1">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Reason</Label>
+                <RadioGroup
+                  value={urgentRequestType}
+                  onValueChange={(v) => { setUrgentRequestType(v as 'NO_SLOT' | 'REVIEWER_URGENT'); setUrgentDisclaimerAccepted(false); urgentDisclaimerAcceptedRef.current = false; setUrgentEvidenceFile(null); }}
+                  className="flex flex-col gap-3"
+                >
+                  <div className="flex items-center space-x-4 rounded-lg border-2 border-border/80 p-4 hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="NO_SLOT" id="urgent-no-slot" className="h-5 w-5" />
+                    <Label htmlFor="urgent-no-slot" className="flex-1 cursor-pointer">
+                      <span className="font-medium text-base">Unable to get slot despite repeated trials</span>
+                      <span className="text-muted-foreground text-sm block mt-0.5">Reviewed by Admin/OIC.</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-4 rounded-lg border-2 border-border/80 p-4 hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer" className="h-5 w-5" />
+                    <Label htmlFor="urgent-reviewer" className="flex-1 cursor-pointer">
+                      <span className="font-medium text-base">Urgent comment from reviewer</span>
+                      <span className="text-muted-foreground text-sm block mt-0.5">Upload evidence; Supervisor then Admin/OIC.</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {selectedEquipment && (
+                <div className="flex flex-col gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="default"
+                    className="w-full h-10 text-base"
+                    disabled={urgentHoldBookingId != null || pendingHoldSelection != null || noSlotNoAttempts}
+                    onClick={() => {
+                      if (urgentHoldBookingId != null || pendingHoldSelection != null) return;
+                      setSearchParams((prev) => {
+                        const p = new URLSearchParams(prev);
+                        p.set('urgent', '1');
+                        return p;
+                      });
+                      setUrgentDialogOpen(false);
+                    }}
+                  >
+                    Select Slot
+                  </Button>
+                  <p className="text-sm text-muted-foreground">Pick slot(s) on the calendar, then return here. Slots are held only when you submit below.</p>
+                  {urgentHoldBookingId != null && (
+                    <p className="text-sm text-green-600 dark:text-green-500 font-medium">Slot held (Booking #{urgentHoldBookingId}).</p>
+                  )}
+                  {pendingHoldSelection != null && urgentHoldBookingId == null && (
+                    <p className="text-sm text-green-600 dark:text-green-500 font-medium">{pendingHoldSelection.slotIds.length} slot(s) selected. Submit below to hold.</p>
+                  )}
+                </div>
+              )}
+
+              {urgentRequestType === 'NO_SLOT' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-4 border border-border/60">I am unable to get any booking despite repeated trials and my requirement is genuine and urgent.</p>
+                  <div className="flex items-center space-x-3">
+                    <Checkbox id="urgent-disclaimer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" disabled={noSlotNoAttempts} />
+                    <Label htmlFor="urgent-disclaimer" className={`text-base cursor-pointer ${noSlotNoAttempts ? "cursor-not-allowed opacity-60" : ""}`}>I confirm the above.</Label>
+                  </div>
+                  {selectedEquipment && (
+                    <div className="space-y-3 mt-4">
+                      <p className="text-base font-medium text-foreground">Your unsuccessful booking attempts for this equipment (past 2 weeks)</p>
+                      <p className="text-sm text-muted-foreground">This log is for your reference only. Admin/OIC will review it when processing your request. Submitting an urgent request does not guarantee approval.</p>
+                      {myUnsuccessfulAttemptsLoading ? (
+                        <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>
+                      ) : myUnsuccessfulAttempts.length > 0 ? (
+                        <div className="border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/50 sticky top-0">
+                              <tr>
+                                <th className="text-left p-3 font-medium">Date</th>
+                                <th className="text-left p-3 font-medium">Time</th>
+                                <th className="text-left p-3 font-medium">Samples</th>
+                                <th className="text-left p-3 font-medium">Slots</th>
+                                <th className="text-left p-3 font-medium">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {myUnsuccessfulAttempts.map((e) => {
+                                const d = e.requested_at ? new Date(e.requested_at) : null;
+                                return (
+                                  <tr key={e.id} className="border-t border-border/50">
+                                    <td className="p-3">{d ? format(d, "dd MMM yyyy") : "—"}</td>
+                                    <td className="p-3">{d ? format(d, "HH:mm:ss") : "—"}</td>
+                                    <td className="p-3">{e.number_of_samples}</td>
+                                    <td className="p-3">{e.slots_requested}</td>
+                                    <td className="p-3 text-muted-foreground max-w-[140px] truncate" title={e.failure_reason}>{e.failure_reason || "—"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">No unsuccessful attempts recorded in the past 2 weeks.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {urgentRequestType === 'REVIEWER_URGENT' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">Upload documentary evidence. Supervisor approves first, then Admin/OIC. Misuse may result in action.</p>
+                  <div className="flex items-center space-x-3">
+                    <Checkbox id="urgent-disclaimer-reviewer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" />
+                    <Label htmlFor="urgent-disclaimer-reviewer" className="text-base cursor-pointer">I have read and will upload genuine evidence.</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="urgent-evidence" className="text-base">Evidence (required) *</Label>
+                    <Input
+                      id="urgent-evidence"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
+                      className="h-10 text-base"
+                      onChange={(e) => setUrgentEvidenceFile(e.target.files?.[0] ?? null)}
+                    />
+                    {urgentEvidenceFile && <p className="text-sm text-muted-foreground">Selected: {urgentEvidenceFile.name}</p>}
+                  </div>
+                </div>
+              )}
+
+            </div>
+            <DialogFooter className="shrink-0 border-t pt-4 mt-2 gap-3">
+              <Button variant="outline" onClick={() => setUrgentDialogOpen(false)} className="text-base">Cancel</Button>
+              <Button
+                disabled={
+                  (!urgentDisclaimerAccepted && !urgentDisclaimerAcceptedRef.current) ||
+                  urgentSubmitting ||
+                  (urgentRequestType === 'REVIEWER_URGENT' && !urgentEvidenceFile) ||
+                  (urgentHoldBookingId == null && pendingHoldSelection == null) ||
+                  noSlotNoAttempts
+                }
+                onClick={async () => {
+                  if (!selectedEquipment) return;
+                  if (urgentRequestType === 'REVIEWER_URGENT' && !urgentEvidenceFile) {
+                    toast.error("Please upload documentary evidence.");
+                    return;
+                  }
+                  setUrgentSubmitting(true);
+                  try {
+                    let holdBookingId: number | undefined = urgentHoldBookingId ?? undefined;
+                    if (pendingHoldSelection != null) {
+                      const res = await apiClient.bookEquipment(selectedEquipment.id, {
+                        slot_ids: pendingHoldSelection.slotIds,
+                        total_hours: pendingHoldSelection.totalTimeMinutes / 60,
+                        total_cost: pendingHoldSelection.totalCharge,
+                        status: "pending",
+                        input_values: pendingHoldSelection.inputValues as Record<string, string | boolean | string[]>,
+                        create_as_hold: true,
+                      });
+                      if (res.error) {
+                        toast.error(res.error);
+                        return;
+                      }
+                      const resData = (res as { data?: { booking_id?: number; id?: number } }).data;
+                      holdBookingId = resData?.booking_id ?? resData?.id;
+                      if (holdBookingId == null) {
+                        toast.error("Could not create hold booking.");
+                        return;
+                      }
+                      setPendingHoldSelection(null);
+                    }
+                    const res = await apiClient.createUrgentBookingRequest({
+                      equipment_id: selectedEquipment.id,
+                      request_type: urgentRequestType,
+                      disclaimer_accepted: true,
+                      number_of_samples: pendingHoldSelection ? 1 : urgentNumberSamples,
+                      slots_requested: pendingHoldSelection ? pendingHoldSelection.slotIds.length : (urgentSlotsRequested || 1),
+                      duration_minutes: calculatedCharge?.total_time_minutes ?? undefined,
+                      evidence_file: urgentRequestType === 'REVIEWER_URGENT' ? urgentEvidenceFile ?? undefined : undefined,
+                      evidence_original_name: urgentEvidenceFile?.name,
+                      hold_booking_id: holdBookingId,
+                    });
+                    if (res.error) {
+                      toast.error(res.error);
+                      return;
+                    }
+                    toast.success(res.data?.message || "Urgent request submitted.");
+                    setUrgentHoldBookingId(null);
+                    setUrgentDialogOpen(false);
+                    setUrgentRequestType('NO_SLOT');
+                    setUrgentDisclaimerAccepted(false);
+                    urgentDisclaimerAcceptedRef.current = false;
+                    setUrgentEvidenceFile(null);
+                  } catch (e: any) {
+                    toast.error(e.message || "Failed to submit request.");
+                  } finally {
+                    setUrgentSubmitting(false);
+                  }
+                }}
+              >
+                {urgentSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Submit request
+              </Button>
+            </DialogFooter>
+            </>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={bookingResultDialog.open} onOpenChange={(open) => !open && setBookingResultDialog((p) => ({ ...p, open: false }))}>
+          <DialogContent className="max-w-2xl min-w-[min(92vw,640px)] sm:min-w-[640px]">
+            <DialogHeader>
+              <DialogTitle className={bookingResultDialog.success ? "text-green-600 dark:text-green-500" : "text-destructive"}>
+                {bookingResultDialog.success ? "Booking successful" : "Booking unsuccessful"}
+              </DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-3">
+                  <p>{bookingResultDialog.message}</p>
+                  <p className="text-foreground font-medium">Do you want to book another equipment or continue booking current equipment?</p>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
+              {bookingResultDialog.success && adminBookForUserId && (
+                <Button
+                  variant="secondary"
+                  className="w-full sm:flex-1 gap-2"
+                  onClick={async () => {
+                    const displayName = usersList.find((u) => String(u.id) === adminBookForUserId)?.name ||
+                      usersList.find((u) => String(u.id) === adminBookForUserId)?.email ||
+                      `User #${adminBookForUserId}`;
+                    setUserTransactionHistoryDialog({ open: true, userId: adminBookForUserId, userDisplayName: displayName });
+                    setUserTransactionHistory({ loading: true, transactions: [], error: null });
+                    try {
+                      const res = await apiClient.getAdminUserTransactionHistory(adminBookForUserId, 100, 0);
+                      setUserTransactionHistory({ loading: false, transactions: res.data?.transactions ?? [], error: null });
+                    } catch (e: any) {
+                      setUserTransactionHistory({ loading: false, transactions: [], error: e?.message ?? "Failed to load transactions" });
+                    }
+                  }}
+                >
+                  <Receipt className="h-4 w-4" />
+                  View transaction history
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="w-full sm:flex-1"
+                onClick={() => {
+                  setBookingResultDialog((p) => ({ ...p, open: false }));
+                }}
+              >
+                Continue booking current equipment
+              </Button>
+              <Button
+                className="w-full sm:flex-1"
+                onClick={() => {
+                  setBookingResultDialog((p) => ({ ...p, open: false }));
+                  navigate("/equipments");
+                }}
+              >
+                Book another equipment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={userTransactionHistoryDialog.open} onOpenChange={(open) => !open && setUserTransactionHistoryDialog((p) => ({ ...p, open: false }))}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Transaction history — {userTransactionHistoryDialog.userDisplayName}</DialogTitle>
+              <DialogDescription>
+                Verify that the correct amount was debited from the user&apos;s wallet after the booking.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto rounded-xl border border-border/80">
+              {userTransactionHistory.loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+                </div>
+              ) : userTransactionHistory.error ? (
+                <p className="text-center text-destructive py-8">{userTransactionHistory.error}</p>
+              ) : userTransactionHistory.transactions.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No transactions found.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
+                      <TableHead className="font-semibold text-foreground w-[120px]">Equipment</TableHead>
+                      <TableHead className="font-semibold text-foreground w-[150px]">Date &amp; Time</TableHead>
+                      <TableHead className="font-semibold text-foreground w-[90px]">Type</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[180px]">Description</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right w-[100px]">Amount</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right w-[120px]">Balance Remaining</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userTransactionHistory.transactions.map((tx) => (
+                      <TableRow key={tx.id} className="border-b border-border/60 last:border-b-0">
+                        <TableCell className="text-sm text-muted-foreground">
+                          {tx.equipment_name ? <span className="font-medium text-foreground">{tx.equipment_name}</span> : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {new Date(tx.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                        </TableCell>
+                        <TableCell>
+                          {tx.transaction_type === "credit" ? (
+                            <Badge variant="default" className="bg-emerald-600 gap-1">
+                              <Plus className="h-3 w-3" /> Credit
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="gap-1">
+                              <Minus className="h-3 w-3" /> Debit
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm max-w-[280px]">
+                          <span className="line-clamp-2" title={tx.description || ""}>{tx.description || "—"}</span>
+                          {tx.department_name && (
+                            <span className="text-xs text-muted-foreground block mt-0.5">
+                              {tx.department_name}{tx.department_code ? ` (${tx.department_code})` : ""}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {tx.transaction_type === "credit" ? (
+                            <span className="text-emerald-600 dark:text-emerald-400">+₹{Number(tx.amount).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-red-600 dark:text-red-400">−₹{Number(tx.amount).toFixed(2)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {tx.balance_after != null && tx.balance_after !== "" ? `₹${Number(tx.balance_after).toFixed(2)}` : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUserTransactionHistoryDialog((p) => ({ ...p, open: false }))}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

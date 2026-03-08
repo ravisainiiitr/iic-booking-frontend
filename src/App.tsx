@@ -16,20 +16,39 @@ import EquipmentList from "./pages/EquipmentList";
 import BookEquipment from "./pages/BookEquipment";
 import MyBookings from "./pages/MyBookings";
 import BookingManagement from "./pages/BookingManagement";
+import UrgentRequests from "./pages/UrgentRequests";
+import UrgentRequestsWallet from "./pages/UrgentRequestsWallet";
+import MyUrgentRequests from "./pages/MyUrgentRequests";
+import StudentManagement from "./pages/StudentManagement";
+import BookingAttemptLogs from "./pages/BookingAttemptLogs";
+import EquipmentWaitlist from "./pages/EquipmentWaitlist";
+import TemporaryOIC from "./pages/TemporaryOIC";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Wallet from "./pages/Wallet";
 import Reports from "./pages/Reports";
 import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
 import AdminSection from "./pages/AdminSection";
+import AdminHeroSlides from "./pages/AdminHeroSlides";
+import ContentManagement from "./pages/ContentManagement";
+import AdminSettings from "./pages/AdminSettings";
+import AdminSettingsAuth from "./pages/AdminSettingsAuth";
+import AdminCommunication from "./pages/AdminCommunication";
+import InboxEmail from "./pages/InboxEmail";
+import AdminSettingsEquipment from "./pages/AdminSettingsEquipment";
+import AdminSettingsSupport from "./pages/AdminSettingsSupport";
+import AdminSettingsQualityImprovement from "./pages/AdminSettingsQualityImprovement";
+import CalendarColorSettings from "./pages/CalendarColorSettings";
 import UserManagement from "./pages/UserManagement";
-import UserGroups from "./pages/UserGroups";
 import SetupTestUsers from "./pages/SetupTestUsers";
 import Profile from "./pages/Profile";
 import PeriodicTable from "./pages/PeriodicTable";
 import EquipmentProfile from "./pages/EquipmentProfile";
 import Tickets from "./pages/Tickets";
 import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
+import WalletRechargeParse from "./pages/WalletRechargeParse";
 import CmsPageView from "./pages/CmsPageView";
+import ChatWidget from "./components/ChatWidget";
 
 const queryClient = new QueryClient();
 
@@ -37,16 +56,17 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter
-              future={{
-                v7_startTransition: true,
-                v7_relativeSplatPath: true,
-              }}
-            >
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <AuthProvider>
+            <NotificationProvider>
+              <Toaster />
+              <Sonner />
+              <ChatWidget />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
@@ -58,13 +78,31 @@ const App = () => (
                 <Route path="/equipment/:id" element={<EquipmentProfile />} />
                 <Route path="/my-bookings" element={<MyBookings />} />
                 <Route path="/booking-management" element={<BookingManagement />} />
+                <Route path="/urgent-requests" element={<UrgentRequests />} />
+                <Route path="/urgent-requests-wallet" element={<UrgentRequestsWallet />} />
+                <Route path="/my-urgent-requests" element={<MyUrgentRequests />} />
+                <Route path="/student-management" element={<StudentManagement />} />
+                <Route path="/booking-attempt-logs" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
+                <Route path="/booking-attempt-logs/" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
+                <Route path="/equipment-waitlist" element={<ErrorBoundary fallbackTitle="Equipment Waitlist" backPath="/dashboard"><EquipmentWaitlist /></ErrorBoundary>} />
+                <Route path="/temporary-oic" element={<ErrorBoundary fallbackTitle="Temporary OIC" backPath="/dashboard"><TemporaryOIC /></ErrorBoundary>} />
                 <Route path="/wallet" element={<Wallet />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/bookings" element={<ReportBookingsList />} />
-                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/admin" element={<Dashboard />} />
                 <Route path="/admin/section/:section" element={<AdminSection />} />
+                <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
+                <Route path="/content-management" element={<ContentManagement />} />
+                <Route path="/admin-settings" element={<AdminSettings />} />
+                <Route path="/admin-settings/auth" element={<AdminSettingsAuth />} />
+                <Route path="/admin-settings/communication" element={<AdminCommunication />} />
+                <Route path="/admin-settings/inbox-email" element={<InboxEmail />} />
+                <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
+                <Route path="/calendar-colors" element={<CalendarColorSettings />} />
+                <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
+                <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
+                <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
                 <Route path="/user-management" element={<UserManagement />} />
-                <Route path="/user-groups" element={<UserGroups />} />
                 <Route path="/setup-test-users" element={<SetupTestUsers />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/periodic-table" element={<PeriodicTable />} />
@@ -77,9 +115,9 @@ const App = () => (
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
-          </NotificationProvider>
-        </AuthProvider>
+            </NotificationProvider>
+          </AuthProvider>
+        </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>

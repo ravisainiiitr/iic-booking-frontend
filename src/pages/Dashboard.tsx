@@ -13,11 +13,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, User as UserIcon, Users, Wallet, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, Menu, Home, ChevronRight } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Badge } from "@/components/ui/badge";
+import { TicketForm, TICKET_TYPE, QUALITY_IMPROVEMENT_SUBJECT } from "@/components/TicketForm";
 
 interface Booking {
   booking_id: number;
@@ -35,6 +36,30 @@ interface Booking {
   total_charge: string;
   created_at: string;
   updated_at: string;
+  rating?: number | null;
+  rating_feedback?: string | null;
+  equipment_user_rating_enabled?: boolean;
+}
+
+/** Map user_type to display category (e.g. IITR Student, Faculty). Use user_type_display from API when present (alias). */
+function getUserCategoryLabel(userType: number | string | undefined | null, userTypeDisplay?: string | null): string {
+  if (userTypeDisplay != null && String(userTypeDisplay).trim() !== "") return String(userTypeDisplay).trim();
+  if (userType == null) return "—";
+  const t = String(userType).toLowerCase();
+  const map: Record<string, string> = {
+    admin: "Admin",
+    manager: "Officer In Charge",
+    operator: "Lab Incharge",
+    finance: "Accounts In Charge",
+    student: "IITR Student",
+    individual_student: "Individual Student",
+    faculty: "Faculty",
+    external: "Educational Institute",
+    rnd: "Govt R&D Organizations",
+    industry: "Industry",
+    other: "Other",
+  };
+  return map[t] || String(userType);
 }
 
 const Dashboard = () => {
@@ -55,6 +80,14 @@ const Dashboard = () => {
     totalSpent: number;
   }>>([]);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [pendingRatingBookings, setPendingRatingBookings] = useState<Booking[]>([]);
+  const [qualityFormOpen, setQualityFormOpen] = useState(false);
+  const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
+  const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
+  const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
+  const [loadingFacultyUrgentCount, setLoadingFacultyUrgentCount] = useState(false);
+  const [myUrgentRequestsCount, setMyUrgentRequestsCount] = useState<number>(0);
+  const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
   
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
@@ -64,6 +97,14 @@ const Dashboard = () => {
   
   // Admin Settings section is only visible to admins (not managers, operators, or finance)
   const isAdmin = userTypeStr === 'admin';
+
+  // Admin and OIC (manager, operator, finance) can see booking attempt log
+  const canAccessBookingAttemptLog =
+    apiClient.isAdminPanelUser(user?.user_type) ||
+    userTypeStr === 'admin' ||
+    userTypeStr === 'manager' ||
+    userTypeStr === 'operator' ||
+    userTypeStr === 'finance';
 
   useEffect(() => {
     let isMounted = true;
@@ -102,63 +143,56 @@ const Dashboard = () => {
         }
 
       try {
-        
-        // Check if user can have wallet using the can_have_wallet field
         const userCanHaveWallet = user?.can_have_wallet === true;
-        const userType: any = user?.user_type;
-        
-        // Determine if user is a regular student (not individual student)
-        // Only regular students can request to join faculty wallets
-        let isStudent = false;
-        if (userType !== undefined && userType !== null) {
-          if (typeof userType === "string") {
-            const userTypeLower = userType.toLowerCase();
-            isStudent = userTypeLower === "student"; // Only regular student, not individual_student
-          } else if (typeof userType === "number") {
-            isStudent = userType === 1;
-          }
-        }
-        
-        // For students without wallet access, check if they have an approved join request
-        let hasApprovedRequest = false;
-        if (!userCanHaveWallet && isStudent && isMounted) {
-          try {
-            const requestsResponse = await apiClient.getWalletJoinRequests();
-            if (requestsResponse.data && requestsResponse.data.requests) {
-              const approvedRequest = requestsResponse.data.requests.find(
-                (req: any) => req.status === "APPROVED"
-              );
-              if (approvedRequest) {
-                hasApprovedRequest = true;
-              }
-            }
-          } catch (error) {
-            console.error("Error checking join requests:", error);
-          }
-        }
-        
-        // Show wallet option if user has wallet OR is a student (so they can request access)
-        // Also show wallet if student has approved request
-        const shouldShowWallet = userCanHaveWallet || isStudent;
-        const actuallyHasWallet = userCanHaveWallet || hasApprovedRequest;
-        setHasWallet(actuallyHasWallet);
-        setShowWalletOption(shouldShowWallet);
-        
-        if (actuallyHasWallet && isMounted) {
-          await fetchWalletBalance();
-        }
-        
-        // Fetch upcoming bookings for regular users (not operators/managers)
-        // Check user type inside useEffect to ensure user is loaded
         const currentUserType: any = user?.user_type;
-        const currentUserTypeStr = currentUserType ? String(currentUserType).toLowerCase() : '';
-        const isCurrentUserOperatorOrManager = 
-          currentUserTypeStr === 'operator' || currentUserTypeStr === 'manager' || currentUserTypeStr === 'admin';
-        
-        if (!isCurrentUserOperatorOrManager && isMounted) {
-          await fetchUpcomingBookings();
-          await fetchEquipmentStatistics();
+        const currentUserTypeStr = currentUserType ? String(currentUserType).toLowerCase() : "";
+        const isCurrentUserOperatorOrManager =
+          currentUserTypeStr === "operator" || currentUserTypeStr === "manager" || currentUserTypeStr === "admin";
+        const isStudent = currentUserTypeStr === "student" || currentUserTypeStr === "individual_student";
+
+        // Determine what to show (before any await)
+        const shouldShowWallet = userCanHaveWallet || (currentUserTypeStr === "student");
+        setShowWalletOption(!!shouldShowWallet);
+
+        // Run all data fetches in parallel (no await chain)
+        const tasks: Promise<void>[] = [];
+
+        if (userCanHaveWallet || (isStudent && !userCanHaveWallet)) {
+          if (isStudent && !userCanHaveWallet) {
+            tasks.push(
+              apiClient.getWalletJoinRequests().then((requestsResponse) => {
+                if (!isMounted) return;
+                if (requestsResponse.data?.requests?.some((req: any) => req.status === "APPROVED")) {
+                  setHasWallet(true);
+                  fetchWalletBalance().catch(() => setHasWallet(false));
+                }
+              }).catch(() => {})
+            );
+          } else if (userCanHaveWallet) {
+            tasks.push(fetchWalletBalance().then(() => {}).catch(() => setHasWallet(false)));
+            setHasWallet(true);
+          }
         }
+
+        if (!isCurrentUserOperatorOrManager) {
+          tasks.push(
+            fetchUpcomingBookings().then(() => {}),
+            fetchEquipmentStatistics().then(() => {}),
+            fetchPendingRatingBookings().then(() => {})
+          );
+        }
+        if (isCurrentUserOperatorOrManager) {
+          tasks.push(fetchUrgentRequestsPendingCount().then(() => {}));
+        }
+        if (currentUserTypeStr === "faculty") {
+          tasks.push(fetchFacultyUrgentPendingCount().then(() => {}));
+        }
+        if (isStudent) {
+          tasks.push(fetchMyUrgentRequestsCount().then(() => {}));
+        }
+
+        setLoading(false);
+        await Promise.all(tasks);
       } catch (error) {
         console.error("Error loading dashboard:", error);
         if (!hasRedirected && isMounted) {
@@ -199,6 +233,54 @@ const Dashboard = () => {
     }
   };
 
+  const fetchUrgentRequestsPendingCount = async () => {
+    setLoadingUrgentCount(true);
+    try {
+      const res = await apiClient.listUrgentBookingRequests({ status: "PENDING", limit: 1, offset: 0 });
+      if (res.data && typeof (res.data as { total_count?: number }).total_count === "number") {
+        setUrgentRequestsPendingCount((res.data as { total_count: number }).total_count);
+      } else {
+        setUrgentRequestsPendingCount(0);
+      }
+    } catch {
+      setUrgentRequestsPendingCount(0);
+    } finally {
+      setLoadingUrgentCount(false);
+    }
+  };
+
+  const fetchFacultyUrgentPendingCount = async () => {
+    setLoadingFacultyUrgentCount(true);
+    try {
+      const res = await apiClient.listUrgentRequestsWalletPending({ limit: 1, offset: 0 });
+      if (res.data && typeof (res.data as { total_count?: number }).total_count === "number") {
+        setFacultyUrgentPendingCount((res.data as { total_count: number }).total_count);
+      } else {
+        setFacultyUrgentPendingCount(0);
+      }
+    } catch {
+      setFacultyUrgentPendingCount(0);
+    } finally {
+      setLoadingFacultyUrgentCount(false);
+    }
+  };
+
+  const fetchMyUrgentRequestsCount = async () => {
+    setLoadingMyUrgentCount(true);
+    try {
+      const res = await apiClient.listMyUrgentBookingRequests({ limit: 1, offset: 0 });
+      if (res.data && typeof (res.data as { total_count?: number }).total_count === "number") {
+        setMyUrgentRequestsCount((res.data as { total_count: number }).total_count);
+      } else {
+        setMyUrgentRequestsCount(0);
+      }
+    } catch {
+      setMyUrgentRequestsCount(0);
+    } finally {
+      setLoadingMyUrgentCount(false);
+    }
+  };
+
   const fetchUpcomingBookings = async () => {
     try {
       setLoadingBookings(true);
@@ -206,10 +288,11 @@ const Dashboard = () => {
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
       
-      // Fetch bookings starting from today onwards
+      // Fetch bookings starting from today onwards; limit to reduce payload
       const response = await apiClient.getBookings({
         start_date: todayStr,
-        ordering: 'start_time',
+        ordering: "start_time",
+        limit: 10,
       });
       
       if (response.error) {
@@ -259,6 +342,23 @@ const Dashboard = () => {
     return colors[statusLower] || "bg-gray-500";
   };
 
+  const fetchPendingRatingBookings = async () => {
+    try {
+      const response = await apiClient.getBookings({ status: "COMPLETED", limit: 50 });
+      if (response.error || !response.data?.bookings) {
+        setPendingRatingBookings([]);
+        return;
+      }
+      const pending = response.data.bookings.filter(
+        (b: Booking) =>
+          (b.rating == null || b.rating === undefined) && (b.equipment_user_rating_enabled !== false)
+      );
+      setPendingRatingBookings(pending);
+    } catch {
+      setPendingRatingBookings([]);
+    }
+  };
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -273,7 +373,10 @@ const Dashboard = () => {
   const fetchEquipmentStatistics = async () => {
     try {
       setLoadingStats(true);
-      const response = await apiClient.getBookings();
+      const response = await apiClient.getBookings({
+        limit: 50,
+        ordering: "-start_time",
+      });
       
       if (response.error) {
         console.error("Error fetching bookings for statistics:", response.error);
@@ -331,7 +434,6 @@ const Dashboard = () => {
     }
   };
 
-
   const handleSignOut = async () => {
     await logout();
     navigate("/auth");
@@ -350,80 +452,548 @@ const Dashboard = () => {
       <DashboardHeader />
 
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">
-            Welcome, {user?.name || user?.email}!
-          </h2>
-          <p className="text-muted-foreground">
-            Manage your equipment bookings and account
-          </p>
+        {/* Profile card – image left, details right */}
+        <div className={`mb-10 overflow-hidden rounded-2xl shadow-xl ${
+          isAdmin 
+            ? "bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-700 text-white" 
+            : "bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600 text-white"
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-stretch gap-0">
+            {/* Avatar */}
+            <div className="flex justify-center sm:justify-start p-6 sm:p-8 sm:pr-0">
+              <Avatar className="h-28 w-28 shrink-0 rounded-2xl border-4 border-white/40 shadow-xl ring-4 ring-white/10">
+                <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={user?.name || "Profile"} className="object-cover" />
+                <AvatarFallback className="rounded-2xl bg-white/20 text-3xl font-bold text-white">
+                  {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            {/* Details – strict order: Name, Category, Department, Mobile, Email */}
+            <div className="flex-1 min-w-0 px-6 pb-6 sm:px-8 sm:py-8 flex flex-col justify-center">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white drop-shadow-sm">
+                {user?.name || "—"}
+              </h2>
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/25 px-3.5 py-1 text-sm font-medium backdrop-blur-sm border border-white/20">
+                  <BadgeCheck className="h-3.5 w-3.5" />
+                  {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
+                </span>
+              </div>
+              <dl className={`mt-6 grid grid-cols-1 gap-4 ${(userTypeStr === "student" || userTypeStr === "individual_student" || userTypeStr === "faculty") ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                    <Building2 className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Department</dt>
+                    <dd className="mt-0.5 font-medium text-white truncate" title={user?.department_name || undefined}>{user?.department_name || "—"}</dd>
+                  </div>
+                </div>
+                {(userTypeStr === "student" || userTypeStr === "individual_student") && (
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                      <IdCard className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Enrollment Number</dt>
+                      <dd className="mt-0.5 font-medium text-white truncate" title={user?.emp_id || undefined}>{user?.emp_id || "—"}</dd>
+                    </div>
+                  </div>
+                )}
+                {userTypeStr === "faculty" && (
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                      <IdCard className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Employee Number</dt>
+                      <dd className="mt-0.5 font-medium text-white truncate" title={user?.emp_id || undefined}>{user?.emp_id || "—"}</dd>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                    <Phone className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Mobile</dt>
+                    <dd className="mt-0.5 font-medium text-white truncate" title={user?.phone_number || user?.secondary_phone_number || undefined}>{user?.phone_number || user?.secondary_phone_number || "—"}</dd>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                    <Mail className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Email</dt>
+                    <dd className="mt-0.5 font-medium text-white truncate" title={user?.email || undefined}>{user?.email || "—"}</dd>
+                  </div>
+                </div>
+              </dl>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Pending rating prompt for internal (student, faculty) and external users */}
+        {!isOperatorOrManager && pendingRatingBookings.length > 0 && (
+          <Card className="mb-8 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 shadow-md">
+            <CardContent className="py-5 px-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                  <Star className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground">
+                    You have {pendingRatingBookings.length} completed booking{pendingRatingBookings.length !== 1 ? "s" : ""} pending your rating
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Please submit your rating and feedback so we can improve our service.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => navigate("/my-bookings?pending_rating=1")}
+                  className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                >
+                  Submit rating
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
+          {isAdmin ? "Quick access" : "Get started"}
+        </p>
+
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
             onClick={() => navigate("/equipments")}
           >
-            <CardHeader>
-              <Package className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Equipment</CardTitle>
-              <CardDescription>
-                Browse and book available laboratory equipment
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-lg">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Equipment</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Browse and book available laboratory equipment
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full">Browse Equipment</Button>
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Browse Equipment</Button>
             </CardContent>
           </Card>
 
           {!isOperatorOrManager && (
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => navigate("/my-bookings")}
             >
-              <CardHeader>
-                <Calendar className="h-10 w-10 text-primary mb-2" />
-                <CardTitle>View Bookings</CardTitle>
-                <CardDescription>
-                  Check your current and past bookings
-                </CardDescription>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">View Bookings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Check your current and past bookings
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full" variant="secondary">View Bookings</Button>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">View Bookings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && showWalletOption && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                  {hasWallet ? "Open Wallet" : "Wallet"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {userTypeStr === "faculty" && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => navigate("/urgent-requests-wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent booking requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review and approve urgent booking requests from students under your supervision
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingFacultyUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : facultyUrgentPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {facultyUrgentPendingCount} pending request{facultyUrgentPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/my-urgent-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent request status</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View the status of your submitted urgent booking requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingMyUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : myUrgentRequestsCount > 0 ? (
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                    {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
+                  </p>
+                ) : null}
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View urgent request status</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {userTypeStr === "faculty" && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => navigate("/student-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Student Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Students for whom you are the supervisor
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => { e.stopPropagation(); navigate("/student-management"); }}
+                >
+                  View students
+                </Button>
               </CardContent>
             </Card>
           )}
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
             onClick={() => navigate("/reports")}
           >
-            <CardHeader>
-              <FileText className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Reports</CardTitle>
-              <CardDescription>
-                View your booking history and statistics
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View your booking history and statistics
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="secondary">View Reports</Button>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View Reports</Button>
             </CardContent>
           </Card>
 
+          <Card 
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+            onClick={() => setQualityFormOpen(true)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                  <MessageSquarePlus className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Quality Improvement</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Report bugs or suggest improvements for the booking website
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Report / Suggest</Button>
+            </CardContent>
+          </Card>
+          <TicketForm
+            open={qualityFormOpen}
+            onOpenChange={setQualityFormOpen}
+            initialValues={{
+              ticket_type: TICKET_TYPE.QUALITY_IMPROVEMENT,
+              subject: QUALITY_IMPROVEMENT_SUBJECT,
+            }}
+            hideTicketType
+            onSuccess={() => setQualityFormOpen(false)}
+          />
+
           {isOperatorOrManager && (
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
               onClick={() => navigate("/booking-management")}
             >
-              <CardHeader>
-                <Settings className="h-10 w-10 text-primary mb-2" />
-                <CardTitle>Booking Management</CardTitle>
-                <CardDescription>
-                  Manage all bookings as operator or manager
-                </CardDescription>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage all bookings as operator or manager
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full" variant="outline">Manage Bookings</Button>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Manage Bookings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => navigate("/urgent-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review and approve or reject urgent booking requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : urgentRequestsPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {urgentRequestsPendingCount} pending request{urgentRequestsPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canAccessBookingAttemptLog && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/booking-attempt-logs")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking attempt log</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View booking submit attempts (success and failure)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canAccessBookingAttemptLog && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => navigate("/equipment-waitlist")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment waitlist</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View and clear waitlist queue per equipment; notify when slots free
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {userTypeStr === "manager" && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => navigate("/temporary-oic")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Temporary OIC (Leave)</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Assign another OIC to manage your equipment until you resume
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Manage temporary OIC</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
+              onClick={() => navigate("/content-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg">
+                    <Layout className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Content Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Menu, pages, home content and hero images (CMS)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white">Manage content</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-cyan-200 dark:hover:border-cyan-800"
+              onClick={() => navigate("/admin-settings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-lg">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Admin Settings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Equipment, users, groups and wallet management
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white">Open settings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => navigate("/calendar-colors")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg">
+                    <Palette className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Calendar colors</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Customize weekly window colors for slot states and holidays
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
               </CardContent>
             </Card>
           )}
@@ -432,14 +1002,17 @@ const Dashboard = () => {
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && (
           <section className="mt-12 space-y-8">
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
+              Your activity
+            </p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Upcoming Bookings Section */}
-              <Card className="overflow-hidden border-0 shadow-lg shadow-primary/5 bg-card">
-                <CardHeader className="pb-4 border-b bg-muted/30">
+              <Card className="overflow-hidden border-0 shadow-lg shadow-sky-500/10 bg-card rounded-2xl">
+                <CardHeader className="pb-4 border-b bg-gradient-to-r from-sky-500/10 to-blue-500/10">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <Calendar className="h-5 w-5" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                        <Calendar className="h-6 w-6" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">Upcoming Bookings</CardTitle>
@@ -450,7 +1023,7 @@ const Dashboard = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/my-bookings")}
-                      className="text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                      className="text-sky-600 hover:text-sky-700 hover:bg-sky-500/10 shrink-0"
                     >
                       View All
                       <ArrowRight className="h-4 w-4 ml-1" />
@@ -499,14 +1072,14 @@ const Dashboard = () => {
                     </ul>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-blue-100 dark:from-sky-900/30 dark:to-blue-900/30 text-sky-600 dark:text-sky-400 mb-4">
                         <Calendar className="h-7 w-7" />
                       </div>
                       <p className="font-medium text-foreground">No upcoming bookings</p>
                       <p className="text-sm text-muted-foreground mt-1">Book equipment to see your sessions here</p>
                       <Button
                         variant="outline"
-                        className="mt-5"
+                        className="mt-5 border-sky-200 text-sky-600 hover:bg-sky-50 dark:border-sky-800 dark:hover:bg-sky-900/20"
                         onClick={() => navigate("/equipments")}
                       >
                         Browse Equipment
@@ -517,12 +1090,12 @@ const Dashboard = () => {
               </Card>
 
               {/* Equipment Statistics Section */}
-              <Card className="overflow-hidden border-0 shadow-lg shadow-primary/5 bg-card">
-                <CardHeader className="pb-4 border-b bg-muted/30">
+              <Card className="overflow-hidden border-0 shadow-lg shadow-emerald-500/10 bg-card rounded-2xl">
+                <CardHeader className="pb-4 border-b bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <BarChart3 className="h-5 w-5" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                        <BarChart3 className="h-6 w-6" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">Equipment Statistics</CardTitle>
@@ -533,7 +1106,7 @@ const Dashboard = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/reports")}
-                      className="text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 shrink-0"
                     >
                       View Report
                       <ArrowRight className="h-4 w-4 ml-1" />
@@ -567,9 +1140,9 @@ const Dashboard = () => {
                               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Hours</p>
                               <p className="text-lg font-bold text-foreground tabular-nums">{stat.totalHours.toFixed(1)}</p>
                             </div>
-                            <div className="rounded-lg bg-primary/10 px-3 py-2 text-center">
-                              <p className="text-[10px] uppercase tracking-wider text-primary/90 font-medium">Spent</p>
-                              <p className="text-lg font-bold text-primary tabular-nums">₹{stat.totalSpent.toFixed(0)}</p>
+                            <div className="rounded-lg bg-emerald-500/15 px-3 py-2 text-center border border-emerald-200/50 dark:border-emerald-800/50">
+                              <p className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-medium">Spent</p>
+                              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">₹{stat.totalSpent.toFixed(0)}</p>
                             </div>
                           </div>
                           {stat.bookingCount > 0 && (
@@ -582,14 +1155,14 @@ const Dashboard = () => {
                     </ul>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-4">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 text-emerald-600 dark:text-emerald-400 mb-4">
                         <TrendingUp className="h-7 w-7" />
                       </div>
                       <p className="font-medium text-foreground">No statistics yet</p>
                       <p className="text-sm text-muted-foreground mt-1">Your usage and spending will appear here after bookings</p>
                       <Button
                         variant="outline"
-                        className="mt-5"
+                        className="mt-5 border-emerald-200 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
                         onClick={() => navigate("/equipments")}
                       >
                         Browse Equipment
@@ -602,112 +1175,6 @@ const Dashboard = () => {
           </section>
         )}
 
-        {isAdmin && (
-          <>
-            <section className="mt-12">
-              <h3 className="text-xl font-semibold mb-4">Content Management (CMS)</h3>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Layout className="h-6 w-6" />
-                    Content Management (CMS)
-                  </CardTitle>
-                  <CardDescription>
-                    Main page and navigation: menu items (with priority) and home page hero, CTAs, and stats
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/admin/section/cmsMenu")}
-                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Menu className="h-5 w-5" />
-                      <span className="font-medium">Menu & Submenu</span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/admin/section/cmsPages")}
-                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Layout className="h-5 w-5" />
-                      <span className="font-medium">Pages</span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/admin/section/cmsHome")}
-                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Home className="h-5 w-5" />
-                      <span className="font-medium">Home Page Content</span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </CardContent>
-              </Card>
-            </section>
-            <section className="mt-12">
-              <h3 className="text-xl font-semibold mb-4">Admin Settings</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card
-                  className="cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => navigate("/admin")}
-                >
-                  <CardHeader>
-                    <Settings className="h-8 w-8 text-primary mb-2" />
-                    <CardTitle className="text-base">Equipment Management</CardTitle>
-                    <CardDescription className="text-sm">
-                      Manage equipment, rates & availability
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-                <Card
-                  className="cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => navigate("/user-management")}
-                >
-                  <CardHeader>
-                    <UserIcon className="h-8 w-8 text-primary mb-2" />
-                    <CardTitle className="text-base">User Management</CardTitle>
-                    <CardDescription className="text-sm">
-                      Users, roles & permissions
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-                <Card
-                  className="cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => navigate("/user-groups")}
-                >
-                  <CardHeader>
-                    <Users className="h-8 w-8 text-primary mb-2" />
-                    <CardTitle className="text-base">Group Management</CardTitle>
-                    <CardDescription className="text-sm">
-                      User groups & equipment access
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-                <Card
-                  className="cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => navigate("/wallet")}
-                >
-                  <CardHeader>
-                    <Wallet className="h-8 w-8 text-primary mb-2" />
-                    <CardTitle className="text-base">Wallet Management</CardTitle>
-                    <CardDescription className="text-sm">
-                      Wallet, join & recharge requests
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              </div>
-            </section>
-          </>
-        )}
       </main>
     </div>
   );

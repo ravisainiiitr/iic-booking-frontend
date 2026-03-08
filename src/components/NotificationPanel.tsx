@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -92,44 +93,50 @@ const NotificationPanel = () => {
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <SheetTitle>Notifications</SheetTitle>
+      <SheetContent side="right" className="w-full sm:max-w-md p-0" hideCloseButton>
+        <SheetHeader className="px-6 pt-6 pb-4 border-b space-y-0">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 shrink">
+              <SheetTitle className="truncate text-base">Notifications</SheetTitle>
               {unreadCount > 0 && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs shrink-0">
                   {unreadCount} new
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-8 w-8 shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   refreshNotifications();
                 }}
                 disabled={loading}
               >
-                <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               </Button>
               {unreadCount > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-8 px-2 text-xs shrink-0 inline-flex items-center gap-1.5"
                   onClick={markAllAsRead}
                 >
-                  <CheckCheck className="h-3 w-3 mr-1" />
-                  Mark all read
+                  <CheckCheck className="h-4 w-4 shrink-0" />
+                  <span>Mark all read</span>
                 </Button>
               )}
+              <SheetClose asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </Button>
+              </SheetClose>
             </div>
           </div>
-          <SheetDescription>
+          <SheetDescription className="mt-1.5">
             {notifications.length === 0
               ? "You're all caught up!"
               : `${notifications.length} notification${notifications.length !== 1 ? "s" : ""}`}

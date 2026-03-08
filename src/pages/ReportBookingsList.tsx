@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Star } from "lucide-react";
 
 interface BookingRow {
   booking_id: number;
@@ -24,6 +24,7 @@ interface BookingRow {
   total_charge: string;
   status: string;
   status_display: string;
+  rating?: number | null;
   created_at: string;
 }
 
@@ -62,6 +63,7 @@ const ReportBookingsList = () => {
         total_charge: b.total_charge ?? "0",
         status: b.status || "",
         status_display: b.status_display || b.status || "",
+        rating: b.rating ?? null,
         created_at: b.created_at || "",
       }));
       setBookings(list);
@@ -140,12 +142,13 @@ const ReportBookingsList = () => {
                           <TableHead className="text-right">Hours</TableHead>
                           <TableHead className="text-right">Amount (₹)</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Rating</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {bookings.map((b) => (
                           <TableRow key={b.booking_id}>
-                            <TableCell className="font-medium">{b.booking_id}</TableCell>
+                            <TableCell className="font-medium">{b.equipment_code}-#{b.booking_id}</TableCell>
                             <TableCell>
                               <span className="font-medium">{b.equipment_name || b.equipment_code}</span>
                               {b.equipment_code && b.equipment_name !== b.equipment_code && (
@@ -162,6 +165,20 @@ const ReportBookingsList = () => {
                             <TableCell className="text-right font-medium">₹{Number(b.total_charge).toFixed(2)}</TableCell>
                             <TableCell>
                               <span className="capitalize">{b.status_display || b.status}</span>
+                            </TableCell>
+                            <TableCell>
+                              {b.rating != null ? (
+                                <span className="inline-flex items-center gap-0.5" title={`${b.rating}/5`}>
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <Star
+                                      key={s}
+                                      className={`h-4 w-4 ${s <= (b.rating ?? 0) ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`}
+                                    />
+                                  ))}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}

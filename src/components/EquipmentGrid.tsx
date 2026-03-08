@@ -6,6 +6,17 @@ import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ApiEquipment {
   equipment_id: number;
@@ -24,10 +35,20 @@ interface ApiEquipment {
 }
 
 const EquipmentGrid = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [equipment, setEquipment] = useState<ApiEquipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    equipmentId: number;
+    equipmentName: string;
+    newStatus: "ACTIVE" | "INACTIVE";
+  } | null>(null);
+
+  const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
+  const isAdminOrOIC = ["admin", "manager", "operator"].includes(userTypeStr);
 
   // Fetch equipment from API
   useEffect(() => {
@@ -112,7 +133,7 @@ const EquipmentGrid = () => {
       name: eq.name,
       category: eq.category_name || "",
       description: `${eq.name}`,
-      image: eq.image_url || "/placeholder.svg",
+      image: (eq.image_url || eq.s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
       video: eq.video_url || undefined, // Use video_url if available, otherwise undefined
       available: eq.status === "ACTIVE",
       status: eq.status,
@@ -120,13 +141,36 @@ const EquipmentGrid = () => {
       address: eq.location || "Institute Instrumentation Centre, IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",
+      showStatusToggle: isAdminOrOIC,
+      onStatusChange: isAdminOrOIC
+        ? (equipmentId, equipmentName, newStatus) => setPendingStatusChange({ equipmentId, equipmentName, newStatus })
+        : undefined,
+      statusUpdatingId: statusUpdatingId ?? undefined,
     }));
+  };
+
+  const handleStatusChange = async (equipmentId: number, newStatus: "ACTIVE" | "INACTIVE") => {
+    setStatusUpdatingId(equipmentId);
+    setPendingStatusChange(null);
+    try {
+      const res = await apiClient.updateEquipmentStatus(equipmentId, newStatus);
+      if (res.error) {
+        toast.error(res.error || "Failed to update status");
+        return;
+      }
+      toast.success(`Equipment set to ${newStatus === "ACTIVE" ? "Active" : "Inactive"}`);
+      await fetchEquipment();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update status");
+    } finally {
+      setStatusUpdatingId(null);
+    }
   };
 
   // Get filtered equipment for "all" tab
   const allEquipment = useMemo(() => {
     return transformEquipment(equipment);
-  }, [equipment]);
+  }, [equipment, statusUpdatingId, isAdminOrOIC]);
 
   // Get filtered equipment for specific category
   const getGroupEquipment = (categoryName: string) => {
@@ -141,7 +185,7 @@ const EquipmentGrid = () => {
     <section id="equipment" className="py-12">
       <div className="mb-12">
         <div className="text-center mb-8">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4 min-h-[1.4em] leading-[1.35] pb-[0.25em] overflow-visible bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Equipment Catalog
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -245,6 +289,35 @@ const EquipmentGrid = () => {
           })}
         </Tabs>
       )}
+
+      <AlertDialog open={pendingStatusChange !== null} onOpenChange={(open) => !open && setPendingStatusChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm status change</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingStatusChange && (
+                <>
+                  Set <strong>{pendingStatusChange.equipmentName}</strong> to{" "}
+                  <strong>{pendingStatusChange.newStatus === "ACTIVE" ? "Active" : "Inactive"}</strong>?
+                  {pendingStatusChange.newStatus === "INACTIVE" && (
+                    <span className="block mt-2">Inactive equipment will not be available for booking.</span>
+                  )}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                pendingStatusChange && handleStatusChange(pendingStatusChange.equipmentId, pendingStatusChange.newStatus)
+              }
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 };

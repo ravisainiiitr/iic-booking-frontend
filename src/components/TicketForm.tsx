@@ -32,20 +32,23 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Paperclip, Trash2 } from "lucide-react";
 
 // Ticket Type Constants
 export const TICKET_TYPE = {
   BOOKING: "booking",
   EQUIPMENT: "equipment",
   OTHER: "other",
+  QUALITY_IMPROVEMENT: "quality_improvement",
 } as const;
+
+export const QUALITY_IMPROVEMENT_SUBJECT = "Quality improvement suggestions/Bugs";
 
 const ticketFormSchema = z.object({
   public_name: z.string().min(2, "Name must be at least 2 characters").optional().or(z.literal("")),
   public_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   public_phone: z.string().optional().or(z.literal("")),
-  ticket_type: z.enum([TICKET_TYPE.BOOKING, TICKET_TYPE.EQUIPMENT, TICKET_TYPE.OTHER], {
+  ticket_type: z.enum([TICKET_TYPE.BOOKING, TICKET_TYPE.EQUIPMENT, TICKET_TYPE.OTHER, TICKET_TYPE.QUALITY_IMPROVEMENT], {
     required_error: "Please select a ticket type",
   }),
   subject: z.string().min(5, "Subject must be at least 5 characters"),
@@ -65,6 +68,9 @@ interface TicketFormProps {
     related_booking_id?: number;
   };
   hideTicketType?: boolean; // Hide ticket type field when auto-set
+  /** When provided, dialog open state is controlled by parent */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 // Ticket type options for display
@@ -72,11 +78,15 @@ const TICKET_TYPE_OPTIONS = [
   { code: TICKET_TYPE.BOOKING, name: "Booking" },
   { code: TICKET_TYPE.EQUIPMENT, name: "Equipment" },
   { code: TICKET_TYPE.OTHER, name: "Other" },
+  { code: TICKET_TYPE.QUALITY_IMPROVEMENT, name: "Quality improvement suggestions/Bugs" },
 ] as const;
 
-const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false }: TicketFormProps) => {
-  const [open, setOpen] = useState(false);
+const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false, open: controlledOpen, onOpenChange }: TicketFormProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
@@ -177,8 +187,22 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false 
         ticketData.public_phone = data.public_phone || "";
       }
 
+      // Attachment validations (client-side)
+      if (attachment) {
+        const maxBytes = 10 * 1024 * 1024; // 10MB
+        if (attachment.size > maxBytes) {
+          toast({
+            title: "Error",
+            description: "Attachment must be 10MB or smaller.",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       console.log("Sending ticket data:", ticketData);
-      const response = await apiClient.createTicket(ticketData);
+      const response = await apiClient.createTicket(ticketData, attachment);
       console.log("API response:", response);
 
       if (response.error) {
@@ -193,6 +217,7 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false 
           description: `Ticket #${response.data?.ticket_id} created successfully! We'll get back to you soon.`,
         });
         form.reset();
+        setAttachment(null);
         setOpen(false);
         if (onSuccess) {
           onSuccess();
@@ -221,19 +246,22 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false 
         subject: initialValues?.subject || "",
         description: initialValues?.description || "",
       });
+      setAttachment(null);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button variant="outline" className="gap-2">
-            <HelpCircle className="h-4 w-4" />
-            Create Support Ticket
-          </Button>
-        )}
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button variant="outline" className="gap-2">
+              <HelpCircle className="h-4 w-4" />
+              Create Support Ticket
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Support Ticket</DialogTitle>
@@ -356,6 +384,46 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false 
                 </FormItem>
               )}
             />
+
+            <FormItem>
+              <FormLabel>Attachment (optional)</FormLabel>
+              <FormControl>
+                <div className="flex flex-col gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setAttachment(file);
+                    }}
+                  />
+                  {attachment && (
+                    <div className="flex items-center justify-between rounded-md border p-2 text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{attachment.name}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          ({Math.ceil(attachment.size / 1024)} KB)
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setAttachment(null)}
+                        aria-label="Remove attachment"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </FormControl>
+              <FormDescription>
+                Upload a screenshot or document (max 10MB).
+              </FormDescription>
+            </FormItem>
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -379,4 +447,5 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false 
   );
 };
 
+export { TicketForm };
 export default TicketForm;

@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Moon, Sun, Monitor, Plus, Trash2, Edit } from "lucide-react";
+import { Upload, Moon, Sun, Monitor, Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -52,6 +52,7 @@ const Profile = () => {
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
+    gender: "" as string | null,
     user_type: 0,
     emp_id: "",
     phone_number: "",
@@ -72,6 +73,8 @@ const Profile = () => {
     last_login: "",
     can_have_wallet: false,
     auto_slot_selection: false,
+    wallet_low_balance_alert_enabled: false,
+    wallet_low_balance_alert_threshold: null as number | string | null,
   });
 
   useEffect(() => {
@@ -153,6 +156,7 @@ const Profile = () => {
       setProfileData({
         name: response.data.name || "",
         email: response.data.email || "",
+        gender: response.data.gender ?? "",
         user_type: response.data.user_type || 0,
         emp_id: response.data.emp_id || "",
         phone_number: response.data.phone_number || "",
@@ -173,6 +177,11 @@ const Profile = () => {
         last_login: response.data.last_login || "",
         can_have_wallet: response.data.can_have_wallet || false,
         auto_slot_selection: response.data.auto_slot_selection || false,
+        wallet_low_balance_alert_enabled: response.data.wallet_low_balance_alert_enabled || false,
+        wallet_low_balance_alert_threshold:
+          response.data.wallet_low_balance_alert_threshold != null
+            ? Number(response.data.wallet_low_balance_alert_threshold)
+            : null,
       });
     }
     setLoading(false);
@@ -191,29 +200,16 @@ const Profile = () => {
     setUploading(true);
 
     try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('avatar', file);
-
-      const response = await fetch('http://127.0.0.1:8000/api/profiles/me/avatar/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${apiClient.getToken()}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload avatar');
+      const response = await apiClient.uploadProfileAvatar(file);
+      if (response.error) {
+        throw new Error(response.error);
       }
-
-      const data = await response.json();
-      setProfileData(prev => ({ ...prev, profile_picture: data.profile_picture || data.avatar_url }));
-      // Refresh user data after avatar upload using AuthContext
+      const data = response.data;
+      setProfileData(prev => ({ ...prev, profile_picture: data?.profile_picture ?? data?.avatar_url ?? null }));
       await refreshUser();
       toast.success("Avatar uploaded successfully");
     } catch (error: any) {
-      toast.error("Error uploading avatar: " + error.message);
+      toast.error("Error uploading avatar: " + (error?.message ?? String(error)));
     } finally {
       setUploading(false);
     }
@@ -383,15 +379,41 @@ const Profile = () => {
   const handleSave = async () => {
     if (!user) return;
 
+    if (profileData.can_have_wallet && profileData.wallet_low_balance_alert_enabled) {
+      const t =
+        profileData.wallet_low_balance_alert_threshold !== null &&
+        profileData.wallet_low_balance_alert_threshold !== ""
+          ? Number(profileData.wallet_low_balance_alert_threshold)
+          : null;
+      if (t == null || Number.isNaN(t) || t <= 0) {
+        toast.error("Please enter a positive amount for the low balance alert threshold.");
+        return;
+      }
+    }
+
     setSaving(true);
 
     try {
+      if (!profileData.gender || !["male", "female", "other"].includes(profileData.gender)) {
+        toast.error("Gender is required");
+        setSaving(false);
+        return;
+      }
       // Update profile using /api/users/{user_id}/
-      // Only send name and phone_number as per requirements
-      const response = await apiClient.updateProfile({
+      const payload: Parameters<typeof apiClient.updateProfile>[0] = {
         name: profileData.name,
         phone_number: profileData.phone_number,
-      });
+        gender: profileData.gender,
+      };
+      if (profileData.can_have_wallet) {
+        payload.wallet_low_balance_alert_enabled = profileData.wallet_low_balance_alert_enabled;
+        payload.wallet_low_balance_alert_threshold = profileData.wallet_low_balance_alert_enabled
+          ? (profileData.wallet_low_balance_alert_threshold !== ""
+            ? Number(profileData.wallet_low_balance_alert_threshold)
+            : null)
+          : null;
+      }
+      const response = await apiClient.updateProfile(payload);
 
       if (response.error) {
         throw new Error(response.error);
@@ -434,7 +456,7 @@ const Profile = () => {
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center gap-4">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={profileData.profile_picture || user?.profile_picture} alt={profileData.name || user?.name} />
+                <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={profileData.name || user?.name} />
                 <AvatarFallback className="text-3xl">
                   {(profileData.name || user?.name || profileData.email || "U")[0].toUpperCase()}
                 </AvatarFallback>
@@ -485,6 +507,23 @@ const Profile = () => {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="gender">Gender <span className="text-destructive">*</span></Label>
+                <Select
+                  value={profileData.gender || ""}
+                  onValueChange={(v) => setProfileData(prev => ({ ...prev, gender: v }))}
+                >
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="emp_id">Employee ID</Label>
                 <Input
                   id="emp_id"
@@ -527,7 +566,7 @@ const Profile = () => {
                     <SelectItem value="individual_student">Individual Student</SelectItem>
                     <SelectItem value="faculty">Faculty</SelectItem>
                     <SelectItem value="external">Educational Institute</SelectItem>
-                    <SelectItem value="RND">Govt R&D Center</SelectItem>
+                    <SelectItem value="RND">Govt R&D Organizations</SelectItem>
                     <SelectItem value="Industry">Industry</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                     <SelectItem value="type_9">Type 9</SelectItem>
@@ -718,6 +757,70 @@ const Profile = () => {
             </div>
 
             <Separator />
+
+            {/* Wallet low balance alert - only for users who can have a wallet */}
+            {profileData.can_have_wallet && (
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Wallet className="h-5 w-5" />
+                      Wallet low balance notification
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Get an email every day at 11:00 AM when your wallet balance falls below a threshold. Disabled by default.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-4 rounded-lg border p-4 bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="wallet-low-balance-enable" className="cursor-pointer">
+                        Enable low balance alert
+                      </Label>
+                      <Switch
+                        id="wallet-low-balance-enable"
+                        checked={profileData.wallet_low_balance_alert_enabled}
+                        onCheckedChange={(checked) =>
+                          setProfileData((prev) => ({
+                            ...prev,
+                            wallet_low_balance_alert_enabled: !!checked,
+                            wallet_low_balance_alert_threshold: checked ? prev.wallet_low_balance_alert_threshold : null,
+                          }))
+                        }
+                      />
+                    </div>
+                    {profileData.wallet_low_balance_alert_enabled && (
+                      <div className="space-y-2">
+                        <Label htmlFor="wallet-low-balance-threshold">Alert when balance is below (₹)</Label>
+                        <Input
+                          id="wallet-low-balance-threshold"
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          placeholder="e.g. 500"
+                          value={
+                            profileData.wallet_low_balance_alert_threshold !== null &&
+                            profileData.wallet_low_balance_alert_threshold !== ""
+                              ? String(profileData.wallet_low_balance_alert_threshold)
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setProfileData((prev) => ({
+                              ...prev,
+                              wallet_low_balance_alert_threshold: v === "" ? null : v,
+                            }));
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          You will receive an email each day at 11:00 AM if your wallet balance is below this amount.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
 
             {/* Projects Section - Only for Faculty */}
             {isFacultyUser() && (

@@ -16,6 +16,15 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 
+/** Return black or white for readable text on the given hex background. */
+function getContrastTextColor(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  if (Number.isNaN(n)) return "#1f2937";
+  const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#1f2937" : "#ffffff";
+}
+
 interface EquipmentProfile {
   equipment_id: number;
   code: string;
@@ -78,6 +87,8 @@ interface EquipmentProfile {
     manager_profile_picture?: string | null;
     created_at: string;
   }>;
+  /** When 'SLOT_ID', weekly grid shows slot number/name on vertical axis; when 'TIME', shows time. Admin/OIC always see TIME. */
+  weekly_view_display?: 'TIME' | 'SLOT_ID';
 }
 
 const EquipmentProfile = () => {
@@ -106,7 +117,13 @@ const EquipmentProfile = () => {
     created_at: string;
     updated_at: string;
   }> | null>(null);
-  const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string>>({});
+  const [weeklyHolidays, setWeeklyHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
+  const [calendarColors, setCalendarColors] = useState<{
+    slot_colors: Record<string, string>;
+    holiday_default: string;
+    saturday_color?: string;
+    sunday_color?: string;
+  } | null>(null);
   const [slotWindow, setSlotWindow] = useState<{
     slot_start_time: string | null;
     slot_end_time: string | null;
@@ -138,6 +155,14 @@ const EquipmentProfile = () => {
         // Store Slot Master times (user-defined open_time values) for calendar time axis
         if (d.slot_master_times && Array.isArray(d.slot_master_times)) {
           setSlotMasterTimes(d.slot_master_times);
+        }
+        if (d.calendar_colors && typeof d.calendar_colors === 'object') {
+          setCalendarColors({
+            slot_colors: d.calendar_colors.slot_colors || {},
+            holiday_default: d.calendar_colors.holiday_default || '#f59e0b',
+            saturday_color: d.calendar_colors.saturday_color,
+            sunday_color: d.calendar_colors.sunday_color,
+          });
         }
       }
     } catch (error: any) {
@@ -180,6 +205,13 @@ const EquipmentProfile = () => {
   const isAdminUser = (): boolean => {
     if (!userType) return false;
     return String(userType).toLowerCase() === 'admin';
+  };
+
+  // Admin and OIC (manager, operator): can manage equipment – book for user, change slot status, and see "Manage another equipment"
+  const canManageEquipment = (): boolean => {
+    if (!userType) return false;
+    const t = String(userType).toLowerCase();
+    return t === 'admin' || t === 'manager' || t === 'operator';
   };
 
   // Check if user type is allowed to book equipment
@@ -285,6 +317,28 @@ const EquipmentProfile = () => {
     return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
   };
 
+  /** Admin and OIC always see time on the vertical axis; setting has no effect for them. */
+  const isAdminOrOIC = (): boolean => {
+    if (userType == null) return false;
+    const t = String(userType).toLowerCase();
+    return t === "admin" || t === "manager";
+  };
+
+  const getEffectiveWeeklyViewDisplay = (): "TIME" | "SLOT_ID" => {
+    if (isAdminOrOIC()) return "TIME";
+    return equipment?.weekly_view_display ?? "TIME";
+  };
+
+  /** Row keys and labels for weekly grid. TIME = show time on vertical axis; SLOT_ID = hide time and show slot position (1, 2, 3...). Admin/OIC always see TIME. */
+  const getWeeklyRowKeysAndLabels = (): { key: string; label: string }[] => {
+    const hideTime = getEffectiveWeeklyViewDisplay() === "SLOT_ID";
+    const times = getTimeSlotsForGrid();
+    return times.map((t, index) => ({
+      key: t,
+      label: hideTime ? `Slot ${index + 1}` : t,
+    }));
+  };
+
   /** Time axis for the weekly grid: use Slot Master open_time values (user-defined), else derive from slots. */
   const getTimeSlotsForGrid = (): string[] => {
     // First priority: use Slot Master open_time values directly from API (exact user-defined times)
@@ -298,7 +352,7 @@ const EquipmentProfile = () => {
     return getTimeSlotsFromEquipmentWindow();
   };
 
-  const getSlotData = (date: Date, time: string): {
+  const getSlotData = (date: Date, timeKey: string): {
     id: number;
     slot_master: number;
     slot_number: number;
@@ -322,7 +376,7 @@ const EquipmentProfile = () => {
     return apiSlots.find(slot => {
       const slotDate = startOfDay(parseISO(slot.date));
       const slotTime = format(parseISO(slot.start_datetime), "HH:mm");
-      return isSameDay(slotDate, normalizedDate) && slotTime === time;
+      return isSameDay(slotDate, normalizedDate) && slotTime === timeKey;
     });
   };
 
@@ -415,7 +469,7 @@ const EquipmentProfile = () => {
               <CardContent>
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
                   <img
-                    src={equipment.image_url}
+                    src={(equipment.image_url || equipment.s3_path) ? apiClient.getEquipmentImageUrl(equipment.equipment_id) : "/placeholder.svg"}
                     alt={equipment.name}
                     className="w-full h-full object-cover"
                   />
@@ -454,7 +508,7 @@ const EquipmentProfile = () => {
                     <div className="min-w-[800px]">
                       {/* Header with days */}
                       <div className="grid grid-cols-8 gap-2 mb-2">
-                        <div className="font-semibold text-sm p-2">Time</div>
+                        <div className="font-semibold text-sm p-2">{getEffectiveWeeklyViewDisplay() === "SLOT_ID" ? "Slot position" : "Time"}</div>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                           const weekStartMonday = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
                           const day = addDays(weekStartMonday, dayOffset);
@@ -467,23 +521,29 @@ const EquipmentProfile = () => {
                         })}
                       </div>
 
-                      {/* Time slots - use user-defined equipment window when available */}
-                      {getTimeSlotsForGrid().length > 0 &&
-                        getTimeSlotsForGrid().map((time) => (
-                          <div key={time} className="grid grid-cols-8 gap-2 mb-2">
+                      {/* Time slots - use row keys/labels from effective weekly view display (Admin/OIC always see Time) */}
+                      {getWeeklyRowKeysAndLabels().length > 0 &&
+                        getWeeklyRowKeysAndLabels().map(({ key: rowKey, label: rowLabel }) => (
+                          <div key={rowKey} className="grid grid-cols-8 gap-2 mb-2">
                             <div className="text-sm p-2 font-medium flex items-center">
-                              {time}
+                              {rowLabel}
                             </div>
                             {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                               const weekStartMonday = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
                               const day = addDays(weekStartMonday, dayOffset);
-                              const slotData = getSlotData(day, time);
+                              const slotData = getSlotData(day, rowKey);
                               const slotExists = slotData !== undefined;
                               const dateStr = format(day, "yyyy-MM-dd");
-                              const [hours, minutes] = time.split(':').map(Number);
-                              const slotDateTime = new Date(day);
-                              slotDateTime.setHours(hours, minutes || 0, 0, 0);
-                              const isPast = slotDateTime < new Date();
+                              const isPast = slotData?.start_datetime
+                                ? parseISO(slotData.start_datetime) < new Date()
+                                : rowKey.includes(":")
+                                  ? (() => {
+                                      const [h, m] = rowKey.split(":").map(Number);
+                                      const d = new Date(day);
+                                      d.setHours(h ?? 0, m ?? 0, 0, 0);
+                                      return d < new Date();
+                                    })()
+                                  : false;
                               const isAvailable = slotExists && slotData?.status === "AVAILABLE" && !isPast;
                               const bookingStatusDisplay = slotData?.booking_status_display ?? null;
                               const bookingId = slotData?.booking_id ?? null;
@@ -498,7 +558,8 @@ const EquipmentProfile = () => {
                                   "BOOKED": "Booked",
                                   "BLOCKED": "Blocked",
                                   "UNDER_MAINTENANCE": "Under Maintenance",
-                                  "OPERATOR_ABSENT": "Operator Absent"
+                                  "OPERATOR_ABSENT": "Operator Absent",
+                                  "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
                                 };
                                 slotStatusLabel = statusMap[slotStatus] || slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
                               }
@@ -517,24 +578,62 @@ const EquipmentProfile = () => {
                               // If slot exists on holiday/Saturday/Sunday and has booking, show BOOKED status
                               // Priority: booking status > slot status > holiday name
                               const hasBooking = bookingId || slotData?.status === "BOOKED";
+                              const rawHoliday = weeklyHolidays[dateStr];
+                              const holidayLabel = typeof rawHoliday === "string" ? rawHoliday : (rawHoliday && typeof rawHoliday === "object" && "label" in rawHoliday ? (rawHoliday as { label: string }).label : undefined);
+                              const holidayColorProfile = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday && (rawHoliday as { color?: string }).color
+                                ? (rawHoliday as { color: string }).color
+                                : undefined;
                               const displayStatus = slotExists
                                 ? (hasBooking || slotData?.status !== "AVAILABLE"
                                     ? (slotDisplayLabel || slotStatusLabel || "Unavailable")
                                     : isPast
                                       ? (slotDisplayLabel || slotStatusLabel || "Available")
                                       : "Available")
-                                : (weeklyHolidays[dateStr] || "—");
+                                : (holidayLabel || "—");
+
+                              // Resolve background and text color from admin-configured calendar colors (pronounced styling)
+                              const slotColors = calendarColors?.slot_colors ?? {
+                                AVAILABLE: "#22c55e",
+                                BOOKED: "#ef4444",
+                                BLOCKED: "#64748b",
+                                UNDER_MAINTENANCE: "#f97316",
+                                OPERATOR_ABSENT: "#eab308",
+                                BOOKING_NOT_UTILIZED: "#a855f7",
+                                HOLD: "#f59e0b",
+                              };
+                              const holidayDefault = calendarColors?.holiday_default || "#f59e0b";
+                              const saturdayColor = calendarColors?.saturday_color || "#c7d2fe";
+                              const sundayColor = calendarColors?.sunday_color || "#fbcfe8";
+                              let cellBg: string | undefined;
+                              let cellText: string | undefined;
+                              if (!slotExists) {
+                                const dayOfWeek = day.getDay();
+                                if (dayOfWeek === 6) cellBg = saturdayColor;
+                                else if (dayOfWeek === 0) cellBg = sundayColor;
+                                else cellBg = holidayColorProfile ?? holidayDefault;
+                                cellText = cellBg ? getContrastTextColor(cellBg) : undefined;
+                              } else {
+                                // Use booking_status for color when slot is BOOKED (e.g. HOLD), else slot status
+                                const statusForColor = (slotData?.status === "BOOKED" && slotData?.booking_status)
+                                  ? String(slotData.booking_status).toUpperCase()
+                                  : (slotData?.status ?? "AVAILABLE");
+                                cellBg = slotColors[statusForColor] ?? slotColors.AVAILABLE;
+                                cellText = getContrastTextColor(cellBg);
+                                if (isPast && statusForColor === "AVAILABLE") {
+                                  cellBg = "#94a3b8"; // muted past slot
+                                  cellText = "#ffffff";
+                                }
+                              }
 
                               return (
                                 <div
                                   key={dayOffset}
-                                  className={`
-                                    p-3 rounded-md text-sm min-h-[48px] flex items-center justify-center
-                                    ${!slotExists ? 'bg-gray-100 text-gray-400' : ''}
-                                    ${slotExists && slotData?.status !== "AVAILABLE" ? 'bg-destructive/20 text-destructive' : ''}
-                                    ${isPast && slotExists ? 'bg-muted text-muted-foreground' : ''}
-                                    ${isAvailable ? 'bg-green-100 text-green-800' : ''}
-                                  `}
+                                  className="p-3 rounded-md text-sm min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm"
+                                  style={
+                                    cellBg
+                                      ? { backgroundColor: cellBg, color: cellText ?? getContrastTextColor(cellBg) }
+                                      : undefined
+                                  }
                                 >
                                   {displayStatus}
                                 </div>
@@ -552,9 +651,9 @@ const EquipmentProfile = () => {
           <div className="lg:col-span-1 space-y-6">
             <div className="sticky top-6 space-y-6">
               {/* Book / Manage Equipment Button */}
-              {canBookEquipment() && (
+              {(canBookEquipment() || canManageEquipment()) && (
                 <Card>
-                  <CardContent className="pt-6">
+                  <CardContent className="pt-6 space-y-3">
                     <Button
                       className="w-full"
                       size="lg"
@@ -562,8 +661,18 @@ const EquipmentProfile = () => {
                         navigate(`/book-equipment?equipment_id=${equipment.equipment_id}`);
                       }}
                     >
-                      {isAdminUser() ? "Manage this Equipment" : "Book This Equipment"}
+                      {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
                     </Button>
+                    {canManageEquipment() && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        size="lg"
+                        onClick={() => navigate("/equipments")}
+                      >
+                        Manage another equipment
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -669,7 +778,7 @@ const EquipmentProfile = () => {
                             name={operator.operator_name}
                             email={operator.operator_email}
                             phone={operator.operator_phone}
-                            profilePicture={operator.operator_profile_picture}
+                            profilePicture={operator.operator_profile_picture && operator.operator != null ? apiClient.getProfilePictureUrl(operator.operator) : undefined}
                             size="md"
                           />
                         </div>
@@ -695,7 +804,7 @@ const EquipmentProfile = () => {
                             name={manager.manager_name}
                             email={manager.manager_email}
                             phone={manager.manager_phone}
-                            profilePicture={manager.manager_profile_picture}
+                            profilePicture={manager.manager_profile_picture && manager.manager != null ? apiClient.getProfilePictureUrl(manager.manager) : undefined}
                             size="md"
                           />
                         </div>

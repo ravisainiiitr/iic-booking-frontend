@@ -6,6 +6,15 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+/** Return black or white for readable text on the given hex background. */
+function getContrastTextColor(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  if (Number.isNaN(n)) return "#1f2937";
+  const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#1f2937" : "#ffffff";
+}
+
 export interface RescheduleSlot {
   id: number;
   date: string;
@@ -52,9 +61,11 @@ export default function RescheduleSlotPicker({
   const currentBookingSlotIds = new Set((booking.daily_slots ?? []).map((s) => s.id));
 
   const [userType, setUserType] = useState<string | number | null>(null);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [slots, setSlots] = useState<RescheduleSlot[]>([]);
-  const [holidays, setHolidays] = useState<Record<string, string>>({});
+  const [holidays, setHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
+  const [slotWindowMinDate, setSlotWindowMinDate] = useState<string | null>(null);
+  const [slotWindowMaxDate, setSlotWindowMaxDate] = useState<string | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selectedSlots, setSelectedSlots] = useState<RescheduleSlot[]>([]);
 
@@ -70,7 +81,7 @@ export default function RescheduleSlotPicker({
           
           // Set initial week based on user type
           const now = new Date();
-          const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+          const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
           const userTypeValue: any = user.user_type;
           let normalizedType: string | null = null;
           if (typeof userTypeValue === 'string') {
@@ -83,14 +94,14 @@ export default function RescheduleSlotPicker({
             setWeekStart(currentWeek);
           } else {
             const fifteenDaysFromNow = addDays(now, 15);
-            setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+            setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
           }
         } else {
           const response = await apiClient.getCurrentUser();
           if (response.data) {
             setUserType(response.data.user_type || null);
             const now = new Date();
-            const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+            const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
             const userTypeValue: any = response.data.user_type;
             let normalizedType: string | null = null;
             if (typeof userTypeValue === 'string') {
@@ -102,7 +113,7 @@ export default function RescheduleSlotPicker({
               setWeekStart(currentWeek);
             } else {
               const fifteenDaysFromNow = addDays(now, 15);
-              setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 }));
+              setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
             }
           }
         }
@@ -139,21 +150,22 @@ export default function RescheduleSlotPicker({
     const normalizedType = normalizeUserType(userType);
     if (!normalizedType) return false;
     const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
     const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
-    const weekStartNormalized = startOfWeek(weekStartDate, { weekStartsOn: 0 });
-    const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 0 });
-    const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 0 });
-    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 0 });
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
+    const weekStartNormalized = startOfWeek(weekStartDate, { weekStartsOn: 1 });
     if (normalizedType === 'student' || normalizedType === 'faculty') {
+      if (slotWindowMinDate && slotWindowMaxDate) {
+        const allowed = getAllowedWeeks();
+        return allowed.some(w => startOfWeek(w, { weekStartsOn: 1 }).getTime() === weekStartNormalized.getTime());
+      }
       return (
-        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
-        weekStartNormalized.getTime() === nextWeekNormalized.getTime()
+        weekStartNormalized.getTime() === startOfWeek(currentWeek, { weekStartsOn: 1 }).getTime() ||
+        weekStartNormalized.getTime() === startOfWeek(nextWeek, { weekStartsOn: 1 }).getTime()
       );
     }
-    return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
+    return weekStartNormalized.getTime() === startOfWeek(allowedWeekStart, { weekStartsOn: 1 }).getTime();
   };
 
   // Get allowed weeks for navigation (admin: not used; nav has no restriction)
@@ -163,12 +175,26 @@ export default function RescheduleSlotPicker({
     const normalizedType = normalizeUserType(userType);
     if (!normalizedType) return [];
     const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 0 });
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
     const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 0 });
+    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
     if (normalizedType === 'student' || normalizedType === 'faculty') {
-      return [currentWeek, nextWeek];
+      if (!slotWindowMinDate || !slotWindowMaxDate) return [currentWeek, nextWeek];
+      const minDate = parseISO(slotWindowMinDate);
+      const maxDate = parseISO(slotWindowMaxDate);
+      const nextWeekSunday = addDays(nextWeek, 6);
+      const nextWeekAvailable = nextWeekSunday <= maxDate;
+      if (!nextWeekAvailable) return [currentWeek];
+      const previousWeek = subWeeks(currentWeek, 1);
+      const weeks: Date[] = [];
+      for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
+        const weekSunday = addDays(weekStart, 6);
+        if (weekSunday >= minDate && weekStart <= maxDate) {
+          weeks.push(weekStart);
+        }
+      }
+      return weeks;
     }
     return [allowedWeekStart];
   };
@@ -194,12 +220,37 @@ export default function RescheduleSlotPicker({
       setSlots([]);
     }
     setHolidays(res.data?.holidays ?? {});
+    setSlotWindowMinDate(res.data?.slot_window_min_date ?? null);
+    setSlotWindowMaxDate(res.data?.slot_window_max_date ?? null);
     setSelectedSlots([]);
   }, [equipmentId, weekStart, userType]);
 
   useEffect(() => {
     fetchSlots();
   }, [fetchSlots]);
+
+  // Internal users with slot window: default to current week when selected week is not allowed
+  useEffect(() => {
+    const nType = userType != null ? normalizeUserType(userType) : null;
+    if (nType !== 'student' && nType !== 'faculty') return;
+    if (!slotWindowMinDate || !slotWindowMaxDate) return;
+    const minDate = parseISO(slotWindowMinDate);
+    const maxDate = parseISO(slotWindowMaxDate);
+    const now = new Date();
+    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
+    const previousWeek = subWeeks(currentWeek, 1);
+    const nextWeek = addWeeks(currentWeek, 1);
+    const allowed: Date[] = [];
+    for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
+      const weekSunday = addDays(weekStart, 6);
+      if (weekSunday >= minDate && weekStart <= maxDate) allowed.push(weekStart);
+    }
+    const selected = startOfWeek(weekStart, { weekStartsOn: 1 });
+    const isAllowed = allowed.some(w => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime());
+    if (!isAllowed) {
+      setWeekStart(currentWeek);
+    }
+  }, [slotWindowMinDate, slotWindowMaxDate, userType, weekStart]);
 
   const getUniqueTimes = (): string[] => {
     const set = new Set<string>();
@@ -355,7 +406,7 @@ export default function RescheduleSlotPicker({
             } else {
               const allowedWeeks = getAllowedWeeks();
               const currentIndex = allowedWeeks.findIndex(week =>
-                startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+                startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
               );
               if (currentIndex > 0) {
                 setWeekStart(allowedWeeks[currentIndex - 1]);
@@ -366,7 +417,7 @@ export default function RescheduleSlotPicker({
           disabled={!isAdminUser() && (() => {
             const allowedWeeks = getAllowedWeeks();
             const currentIndex = allowedWeeks.findIndex(week =>
-              startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+              startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
             );
             return currentIndex <= 0;
           })()}
@@ -405,7 +456,7 @@ export default function RescheduleSlotPicker({
             } else {
               const allowedWeeks = getAllowedWeeks();
               const currentIndex = allowedWeeks.findIndex(week =>
-                startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+                startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
               );
               if (currentIndex < allowedWeeks.length - 1) {
                 setWeekStart(allowedWeeks[currentIndex + 1]);
@@ -416,7 +467,7 @@ export default function RescheduleSlotPicker({
           disabled={!isAdminUser() && (() => {
             const allowedWeeks = getAllowedWeeks();
             const currentIndex = allowedWeeks.findIndex(week =>
-              startOfWeek(week, { weekStartsOn: 0 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 0 }).getTime()
+              startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
             );
             return currentIndex >= allowedWeeks.length - 1;
           })()}
@@ -484,7 +535,8 @@ export default function RescheduleSlotPicker({
                           "BOOKED": "Booked",
                           "BLOCKED": "Blocked",
                           "UNDER_MAINTENANCE": "Under Maintenance",
-                          "OPERATOR_ABSENT": "Operator Absent"
+                          "OPERATOR_ABSENT": "Operator Absent",
+                          "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
                         };
                         statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
                       }
@@ -505,7 +557,8 @@ export default function RescheduleSlotPicker({
                           "BOOKED": "Booked",
                           "BLOCKED": "Blocked",
                           "UNDER_MAINTENANCE": "Under Maintenance",
-                          "OPERATOR_ABSENT": "Operator Absent"
+                          "OPERATOR_ABSENT": "Operator Absent",
+                          "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
                         };
                         statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
                       }
@@ -524,7 +577,8 @@ export default function RescheduleSlotPicker({
                           "BOOKED": "Booked",
                           "BLOCKED": "Blocked",
                           "UNDER_MAINTENANCE": "Under Maintenance",
-                          "OPERATOR_ABSENT": "Operator Absent"
+                          "OPERATOR_ABSENT": "Operator Absent",
+                          "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
                         };
                         statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
                       }
@@ -535,9 +589,15 @@ export default function RescheduleSlotPicker({
                       label = statusLabel || "—";
                     }
                   } else {
-                    // No slot exists for this date/time - show holiday name if it's a holiday
-                    label = holidays[dateStr] || "—";
+                    // No slot exists for this date/time - show holiday label if it's a holiday
+                    const raw = holidays[dateStr];
+                    label = typeof raw === "string" ? raw : (raw && typeof raw === "object" && "label" in raw ? (raw as { label: string }).label : "—");
                   }
+
+                  const rawHoliday = holidays[dateStr];
+                  const holidayColorReschedule = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday && (rawHoliday as { color?: string }).color
+                    ? (rawHoliday as { color: string }).color
+                    : undefined;
 
                   return (
                     <button
@@ -547,7 +607,7 @@ export default function RescheduleSlotPicker({
                       onClick={() => slot && toggleSlot(slot)}
                       className={`
                         p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center
-                        ${!slot ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
+                        ${!slot && !holidayColorReschedule ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
                         ${past && slot ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
                         ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold cursor-not-allowed opacity-75" : ""}
                         ${booked && slot && !currentBookingSlotIds.has(slot.id) ? "bg-destructive/20 text-destructive cursor-not-allowed" : ""}
@@ -555,6 +615,11 @@ export default function RescheduleSlotPicker({
                         ${available && !selected && !currentBooking ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
                         ${available && disabled && !selected && !currentBooking ? "bg-green-100/60 text-green-800 cursor-not-allowed opacity-70" : ""}
                       `}
+                      style={
+                        !slot && holidayColorReschedule
+                          ? { backgroundColor: holidayColorReschedule, color: getContrastTextColor(holidayColorReschedule) }
+                          : undefined
+                      }
                     >
                       {label}
                     </button>

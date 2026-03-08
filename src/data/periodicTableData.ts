@@ -156,3 +156,28 @@ export const getCategoryColor = (category: string): string => {
   };
   return colors[category] || "bg-gray-100 hover:bg-gray-200 border-gray-300";
 };
+
+/** Parse help_text (one element per line) into a Set of symbols to disable in the periodic selector. */
+export function parseDisabledElementsFromHelpText(helpText: string | null | undefined): Set<string> {
+  const set = new Set<string>();
+  if (!helpText || typeof helpText !== "string") return set;
+  const bySymbol = new Map<string, string>();
+  const byName = new Map<string, string>();
+  periodicTableElements.forEach((el) => {
+    bySymbol.set(el.symbol.toLowerCase(), el.symbol);
+    byName.set(el.name.toLowerCase(), el.symbol);
+  });
+  helpText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[,;]+/g, " ").trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const firstToken = line.split(/\s+/)[0]?.trim() || "";
+      const sym =
+        bySymbol.get(firstToken.toLowerCase()) ??
+        byName.get(line.toLowerCase()) ??
+        byName.get(firstToken.toLowerCase());
+      if (sym) set.add(sym);
+    });
+  return set;
+}

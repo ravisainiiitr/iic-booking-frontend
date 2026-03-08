@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -25,14 +26,20 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
-import BookingEventHistory from "@/components/BookingEventHistory";
-import BookingUserInputs from "@/components/BookingUserInputs";
-import UserProfile from "@/components/UserProfile";
-import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { CheckCircle2, XCircle, Clock, RotateCcw, Calendar, History } from "lucide-react";
+import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ExternalLink, ChevronLeft, ChevronRight, Star } from "lucide-react";
 
 interface Booking {
   booking_id: number;
+  virtual_booking_id?: string | null;
   user: number;
   user_email: string;
   user_name: string;
@@ -42,8 +49,10 @@ interface Booking {
   equipment: number;
   equipment_code: string;
   equipment_name: string;
+  wallet_owner_name?: string | null;
   charge_profile: number;
   user_type_snapshot: string;
+  user_type_snapshot_display?: string | null;
   total_time_minutes: number;
   total_hours: number;
   total_charge: string;
@@ -80,29 +89,51 @@ interface Booking {
     created_at: string;
     updated_at: string;
   }>;
+  sample_trace?: Array<{
+    id: number;
+    status: string;
+    status_display: string;
+    sample_identifiers: string;
+    created_at: string;
+    created_by: number | null;
+    created_by_name: string | null;
+  }>;
+  rating?: number | null;
+  rating_feedback?: string | null;
+  rated_at?: string | null;
+  equipment_enable_charge_recalculation?: boolean;
+  equipment_user_rating_enabled?: boolean;
   created_at: string;
   updated_at: string;
+  charge_recalculation_pending_amount?: string | null;
 }
 
-type ActionType = 'complete' | 'refund' | 'absent' | 'reschedule' | null;
+const PAGE_SIZE = 50;
 
 const BookingManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionDialog, setActionDialog] = useState<{ open: boolean; type: ActionType; booking: Booking | null }>({
-    open: false,
-    type: null,
-    booking: null,
-  });
-  const [actionNotes, setActionNotes] = useState("");
-  const [rescheduleLoading, setRescheduleLoading] = useState(false);
-  const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
-  const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
-  const [completeLoading, setCompleteLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("BOOKED");
-  const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [equipmentFilter, setEquipmentFilter] = useState<string>("all");
+  const [userNameFilter, setUserNameFilter] = useState("");
+  const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
+  const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
+  const [ratingFilter, setRatingFilter] = useState<string>("all");
+  const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
+  const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
+  const [resultsData, setResultsData] = useState<{ exists: boolean; files: Array<{ name: string; download_url: string }> } | null>(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const expandId = searchParams.get("expand");
 
   // Check if user is operator or manager
   const userType: any = user?.user_type;
@@ -134,6 +165,52 @@ const BookingManagement = () => {
     checkAuthAndFetchBookings();
   }, [navigate, authLoading, isAuthenticated, user, isOperatorOrManager]);
 
+  // Fetch S3 results for the selected booking when detail view is shown
+  useEffect(() => {
+    if (selectedBookingId == null) {
+      setResultsData(null);
+      return;
+    }
+    let cancelled = false;
+    setResultsLoading(true);
+    setResultsData(null);
+    apiClient
+      .getBookingResults(selectedBookingId)
+      .then((res) => {
+        if (cancelled || res.error) return;
+        setResultsData({
+          exists: res.data?.exists ?? false,
+          files: (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url })),
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setResultsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBookingId]);
+
+  // When landing with ?expand=booking_id (e.g. from Change slot status page), fetch that booking and show detail
+  useEffect(() => {
+    if (!expandId || !isAuthenticated || !user || !isOperatorOrManager) return;
+    const id = parseInt(expandId, 10);
+    if (Number.isNaN(id)) return;
+    let cancelled = false;
+    apiClient.getBookings({ booking_id: id, limit: 1 }).then((res) => {
+      if (cancelled || res.error) return;
+      const b = res.data?.bookings?.[0];
+      if (b) {
+        setOverrideBooking(b);
+        setSelectedBookingId(id);
+        setTimeout(() => {
+          document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 200);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [expandId, isAuthenticated, user, isOperatorOrManager]);
+
   const checkAuthAndFetchBookings = async () => {
     const token = apiClient.getToken();
     if (!token) {
@@ -150,15 +227,34 @@ const BookingManagement = () => {
     fetchBookings();
   };
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (pageOverride?: number) => {
     try {
-      const params: any = {};
+      setLoading(true);
+      const currentPage = pageOverride ?? page;
+      const params: any = {
+        limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
+      };
       if (statusFilter !== "all") {
         params.status = statusFilter;
       }
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
+      if (userNameFilter.trim()) params.user_name = userNameFilter.trim();
+      if (supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
+      if (userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
+      if (ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
       const response = await apiClient.getBookings(params);
       if (response.data && response.data.bookings) {
         setBookings(response.data.bookings);
+        setTotalCount(response.data.total_count ?? response.data.bookings.length);
+      } else {
+        setBookings([]);
+        setTotalCount(0);
       }
     } catch (error) {
       console.error("Error fetching bookings:", error);
@@ -172,146 +268,62 @@ const BookingManagement = () => {
     if (isOperatorOrManager && !authLoading) {
       fetchBookings();
     }
-  }, [statusFilter, isOperatorOrManager, authLoading]);
+  }, [page, isOperatorOrManager, authLoading]);
 
-  const openActionDialog = (type: ActionType, booking: Booking) => {
-    setActionDialog({ open: true, type, booking });
-    setActionNotes("");
-    setCompleteResultFiles([]);
-    setCompleteUploadedFiles([]);
-  };
-
-  const closeActionDialog = () => {
-    setActionDialog({ open: false, type: null, booking: null });
-    setActionNotes("");
-    setRescheduleLoading(false);
-    setCompleteResultFiles([]);
-    setCompleteUploadedFiles([]);
-  };
-
-  const handleComplete = async () => {
-    if (!actionDialog.booking) return;
-
-    setCompleteLoading(true);
-    try {
-      const filesToSend = completeResultFiles.length > 0 ? completeResultFiles : undefined;
-      const response = await apiClient.completeBooking(actionDialog.booking.booking_id, filesToSend);
-      if (response.error) {
-        toast.error(response.error);
-        return;
+  useEffect(() => {
+    if (!isOperatorOrManager || !isAuthenticated) return;
+    apiClient.getEquipments(undefined, "ACTIVE").then((res) => {
+      if (res.data?.equipments) {
+        setEquipmentList(
+          res.data.equipments.map((e: any) => ({
+            equipment_id: e.equipment_id,
+            name: e.name || e.code || "",
+            code: e.code || "",
+          }))
+        );
       }
-      const uploaded = (response.data as { uploaded_files?: string[] })?.uploaded_files ?? [];
-      setCompleteUploadedFiles(uploaded);
-      toast.success(response.data?.message || "Booking marked as completed");
-      fetchBookings();
-      if (uploaded.length === 0) {
-        closeActionDialog();
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to complete booking");
-    } finally {
-      setCompleteLoading(false);
-    }
+    }).catch(() => {});
+  }, [isOperatorOrManager, isAuthenticated]);
+
+  const handleApplyFilters = () => {
+    setPage(1);
+    closeDetail();
+    fetchBookings(1);
   };
 
-  const handleRefund = async () => {
-    if (!actionDialog.booking) return;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, totalCount);
 
-    try {
-      const response = await apiClient.refundBooking(
-        actionDialog.booking.booking_id,
-        actionNotes || undefined
-      );
-      if (response.error) {
-        toast.error(response.error);
-        return;
-      }
-      toast.success(response.data?.message || "Booking refunded successfully");
-      closeActionDialog();
-      fetchBookings();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to refund booking");
-    }
+  const showBookingDetail = (bookingId: number) => {
+    setSelectedBookingId(bookingId);
+    setTimeout(() => {
+      document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
   };
 
-  const handleAbsent = async () => {
-    if (!actionDialog.booking) return;
-
-    try {
-      const response = await apiClient.absentBooking(
-        actionDialog.booking.booking_id,
-        actionNotes || undefined
-      );
-      if (response.error) {
-        toast.error(response.error);
-        return;
-      }
-      toast.success(response.data?.message || "Booking marked as absent");
-      closeActionDialog();
-      fetchBookings();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to mark booking as absent");
-    }
+  const formatBookingStartDate = (startTime: string) => {
+    if (!startTime) return "—";
+    const d = new Date(startTime);
+    return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
   };
 
-  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string) => {
-    if (!actionDialog.booking) return;
-
-    setRescheduleLoading(true);
-    try {
-      const response = await apiClient.rescheduleBooking(
-        actionDialog.booking.booking_id,
-        startTimeISO,
-        endTimeISO
-      );
-      if (response.error) {
-        toast.error(response.error);
-        return;
-      }
-      toast.success(response.data?.message || "Booking rescheduled successfully");
-      closeActionDialog();
-      fetchBookings();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to reschedule booking");
-    } finally {
-      setRescheduleLoading(false);
-    }
+  const formatDuration = (totalMinutes: number) => {
+    if (totalMinutes < 60) return `${totalMinutes} min`;
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
   };
 
-  const getStatusColor = (status: string) => {
-    const statusLower = status.toLowerCase();
-    const colors: Record<string, string> = {
-      booked: "bg-blue-500",
-      completed: "bg-green-500",
-      cancelled: "bg-red-500",
-      absent: "bg-orange-500",
-      refunded: "bg-purple-500",
-    };
-    return colors[statusLower] || "bg-gray-500";
-  };
-
-  const canPerformAction = (booking: Booking, action: ActionType): boolean => {
-    if (!action) return false;
-    const status = booking.status.toUpperCase();
-    
-    // Operators can only mark bookings as complete
-    if (isOperator) {
-      return action === 'complete' && status === 'BOOKED';
-    }
-    
-    // Managers and admins can perform all actions
-    switch (action) {
-      case 'complete':
-        return status === 'BOOKED';
-      case 'refund':
-        return status !== 'REFUNDED' && status !== 'COMPLETED';
-      case 'absent':
-        return status === 'BOOKED';
-      case 'reschedule':
-        return status === 'BOOKED';
-      default:
-        return false;
-    }
+  const closeDetail = () => {
+    setSelectedBookingId(null);
+    setOverrideBooking(null);
+    setSearchParams((prev) => {
+      prev.delete("expand");
+      return prev;
+    });
   };
 
   if (authLoading || loading) {
@@ -326,26 +338,147 @@ const BookingManagement = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Booking Management</h1>
-            <p className="text-muted-foreground">Manage all bookings as operator or manager</p>
+        <div className="mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+            <div>
+              <h1 className="text-3xl font-bold">Booking Management</h1>
+              <p className="text-muted-foreground mt-1">Manage all bookings as operator or manager</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate("/urgent-requests")}>
+              Urgent requests
+            </Button>
           </div>
-          <div className="flex gap-4 items-center">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="BOOKED">Booked</SelectItem>
-                <SelectItem value="COMPLETED">Completed</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                <SelectItem value="ABSENT">Absent</SelectItem>
-                <SelectItem value="REFUNDED">Refunded</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Search &amp; filters</CardTitle>
+              <CardDescription>
+                Search by Booking ID, Equipment Name, User Name, Supervisor Name, User Mobile, or Email. Set filters and click Apply.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div className="lg:col-span-2 space-y-2">
+                  <Label htmlFor="search">Search</Label>
+                  <Input
+                    id="search"
+                    type="text"
+                    placeholder="Booking ID, equipment, user, email, mobile..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="BOOKED">Booked</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
+                      <SelectItem value="REFUNDED">Refunded</SelectItem>
+                      <SelectItem value="BOOKING_NOT_UTILIZED">Booking Not Utilized</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="start_date">Start date</Label>
+                  <Input
+                    id="start_date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end_date">End date</Label>
+                  <Input
+                    id="end_date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="user_name">User name</Label>
+                  <Input
+                    id="user_name"
+                    type="text"
+                    placeholder="Filter by user name"
+                    value={userNameFilter}
+                    onChange={(e) => setUserNameFilter(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="supervisor_name">Supervisor name</Label>
+                  <Input
+                    id="supervisor_name"
+                    type="text"
+                    placeholder="Filter by supervisor name"
+                    value={supervisorNameFilter}
+                    onChange={(e) => setSupervisorNameFilter(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>User type</Label>
+                  <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All users" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All users</SelectItem>
+                      <SelectItem value="internal">Internal (students / faculty)</SelectItem>
+                      <SelectItem value="external">External</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Rating</Label>
+                  <Select value={ratingFilter} onValueChange={setRatingFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All ratings" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All ratings</SelectItem>
+                      <SelectItem value="unrated">Unrated</SelectItem>
+                      <SelectItem value="2_and_below">2 stars and below</SelectItem>
+                      <SelectItem value="3_and_below">3 stars and below</SelectItem>
+                      <SelectItem value="4_and_below">4 stars and below</SelectItem>
+                      <SelectItem value="5">5 stars</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Equipment</Label>
+                  <Select value={equipmentFilter || "all"} onValueChange={setEquipmentFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All equipment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All equipment</SelectItem>
+                      {(equipmentList || []).map((eq) => (
+                        <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
+                          {eq.name} ({eq.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleApplyFilters} className="w-full md:w-auto">
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {bookings.length === 0 ? (
@@ -355,369 +488,136 @@ const BookingManagement = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
-            {bookings.map((booking) => (
-              <Card key={booking.booking_id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{booking.equipment_name}</CardTitle>
-                      <CardDescription>
-                        Booking #{booking.booking_id} • {booking.equipment_code}
-                      </CardDescription>
-                      <div className="mt-2">
-                        <UserProfile
-                          name={booking.user_name}
-                          email={booking.user_email}
-                          phone={booking.user_phone}
-                          department={booking.user_department}
-                          profilePicture={booking.user_profile_picture}
-                          size="sm"
-                        />
-                      </div>
-                    </div>
-                    <Badge className={getStatusColor(booking.status)}>
-                      {booking.status_display}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Start Time</p>
-                      <p className="font-medium">
-                        {new Date(booking.start_time).toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">End Time</p>
-                      <p className="font-medium">
-                        {new Date(booking.end_time).toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Duration</p>
-                      <p className="font-medium">
-                        {booking.total_time_minutes} min ({Number(booking.total_hours).toFixed(2)} hrs)
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Cost</p>
-                      <p className="font-medium text-primary">
-                        ₹{Number(booking.total_charge).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm font-medium mb-2">Actions:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {canPerformAction(booking, 'complete') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openActionDialog('complete', booking)}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Complete
-                        </Button>
-                      )}
-                      {canPerformAction(booking, 'refund') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openActionDialog('refund', booking)}
-                        >
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Refund
-                        </Button>
-                      )}
-                      {canPerformAction(booking, 'absent') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openActionDialog('absent', booking)}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Absent
-                        </Button>
-                      )}
-                      {canPerformAction(booking, 'reschedule') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openActionDialog('reschedule', booking)}
-                        >
-                          <Calendar className="h-4 w-4 mr-2" />
-                          Reschedule
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* User Inputs – Step 1 data; fields with Editing Required are editable until Complete */}
-                  {booking.input_values && Object.keys(booking.input_values).length > 0 && (
-                    <BookingUserInputs
-                      inputValues={booking.input_values}
-                      inputFields={booking.input_fields ?? undefined}
-                      status={booking.status}
-                      onUpdate={async (newInputValues) => {
-                        const res = await apiClient.updateBookingInputValues(booking.booking_id, newInputValues as Record<string, string | number | boolean | string[]>);
-                        if (res.error) throw new Error(res.error);
-                        fetchBookings();
-                      }}
-                    />
-                  )}
-
-                  {booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
-                      <ul className="space-y-1">
-                        {booking.charge_breakdown.map((charge, index) => (
-                          <li key={index} className="text-sm text-muted-foreground flex justify-between">
-                            <span>{charge.description}</span>
-                            <span>{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      {(() => {
-                        const totalCharge = Number(booking.total_charge);
-                        const chargeLines = booking.charge_breakdown.filter(
-                          (c) => String(c.description || "").trim().toLowerCase() !== "total"
-                        );
-                        const explicitDiscount = Math.abs(
-                          booking.charge_breakdown
-                            .map((c) => Number(c.amount))
-                            .filter((a) => a < 0)
-                            .reduce((s, a) => s + a, 0)
-                        );
-                        const totalBeforeDiscount = chargeLines
-                          .map((c) => Number(c.amount))
-                          .filter((a) => a > 0)
-                          .reduce((s, a) => s + a, 0);
-                        const inferredDiscount = totalBeforeDiscount > totalCharge ? totalBeforeDiscount - totalCharge : 0;
-                        const discountAmount = explicitDiscount > 0 ? explicitDiscount : inferredDiscount;
-                        const hasDiscount = discountAmount > 0;
-                        return (
-                          <div className="mt-3 pt-3 border-t space-y-1 text-sm">
-                            {hasDiscount && (
-                              <>
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>Total amount</span>
-                                  <span>₹{totalBeforeDiscount.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>Discount</span>
-                                  <span>-₹{discountAmount.toFixed(2)}</span>
-                                </div>
-                              </>
-                            )}
-                            <div className="flex justify-between font-medium">
-                              <span>{hasDiscount ? "Final amount after discount" : "Total"}</span>
-                              <span className="text-primary">₹{totalCharge.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  {booking.notes && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium mb-1">Notes:</p>
-                      <p className="text-sm text-muted-foreground">{booking.notes}</p>
-                    </div>
-                  )}
-                  
-                  {/* Event History Section */}
-                  <div className="mt-4 pt-4 border-t">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const newExpanded = new Set(expandedBookings);
-                        if (newExpanded.has(booking.booking_id)) {
-                          newExpanded.delete(booking.booking_id);
-                        } else {
-                          newExpanded.add(booking.booking_id);
-                        }
-                        setExpandedBookings(newExpanded);
-                      }}
-                      className="w-full"
-                    >
-                      <History className="h-4 w-4 mr-2" />
-                      {expandedBookings.has(booking.booking_id) ? "Hide" : "Show"} Event History
-                    </Button>
-                    {expandedBookings.has(booking.booking_id) && (
-                      <div className="mt-4">
-                        <BookingEventHistory
-                          bookingId={booking.booking_id}
-                          onEventAdded={() => fetchBookings()}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* Action Dialogs */}
-        <Dialog open={actionDialog.open} onOpenChange={(open) => !open && closeActionDialog()}>
-          <DialogContent className={actionDialog.type === 'reschedule' ? 'sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto' : ''}>
-            <DialogHeader>
-              <DialogTitle>
-                {actionDialog.type === 'complete' && 'Complete Booking'}
-                {actionDialog.type === 'refund' && 'Refund Booking'}
-                {actionDialog.type === 'absent' && 'Mark Booking as Absent'}
-                {actionDialog.type === 'reschedule' && 'Reschedule Booking'}
-              </DialogTitle>
-              {actionDialog.booking && (
-                <>
-                  <DialogDescription>
-                    Booking #{actionDialog.booking.booking_id} - {actionDialog.booking.equipment_name}
-                  </DialogDescription>
-                  <div className="mt-2 space-y-1">
-                    <UserProfile
-                      name={actionDialog.booking.user_name}
-                      email={actionDialog.booking.user_email}
-                      phone={actionDialog.booking.user_phone}
-                      department={actionDialog.booking.user_department}
-                      profilePicture={actionDialog.booking.user_profile_picture}
-                      size="sm"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Amount: ₹{Number(actionDialog.booking.total_charge).toFixed(2)}
-                    </p>
-                  </div>
-                </>
-              )}
-            </DialogHeader>
-
-            {actionDialog.type === 'reschedule' && actionDialog.booking && (
-              <RescheduleSlotPicker
-                equipmentId={actionDialog.booking.equipment}
-                booking={{
-                  booking_id: actionDialog.booking.booking_id,
-                  equipment: actionDialog.booking.equipment,
-                  start_time: actionDialog.booking.start_time,
-                  end_time: actionDialog.booking.end_time,
-                  daily_slots: (actionDialog.booking.daily_slots ?? []).map((s) => ({
-                    id: s.id,
-                    start_datetime: s.start_datetime,
-                    end_datetime: s.end_datetime,
-                    date: s.date,
-                  })),
-                }}
-                onConfirm={handleRescheduleConfirm}
-                onCancel={closeActionDialog}
-                confirmLoading={rescheduleLoading}
-              />
-            )}
-
-            {actionDialog.type === 'complete' && (
-              <div className="space-y-3">
-                <div>
-                  <Label>Upload results (optional)</Label>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Attach result files to send to the user&apos;s email with the booking complete message.
+          <>
+            {/* Concise table view */}
+            <Card className="overflow-hidden border shadow-sm">
+              <CardHeader className="bg-muted/30 border-b py-4">
+                <CardTitle className="text-lg">All Bookings</CardTitle>
+                <CardDescription>Click a booking ID to view full details for that booking</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="font-semibold">Booking ID</TableHead>
+                      <TableHead className="font-semibold">Equipment Name</TableHead>
+                      <TableHead className="font-semibold">User Name</TableHead>
+                      <TableHead className="font-semibold">Supervisor Name</TableHead>
+                      <TableHead className="font-semibold">User Mobile</TableHead>
+                      <TableHead className="font-semibold">User Email</TableHead>
+                      <TableHead className="font-semibold">Booking Start Date</TableHead>
+                      <TableHead className="font-semibold">Duration</TableHead>
+                      <TableHead className="font-semibold">Rating</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bookings.map((booking) => (
+                      <TableRow key={booking.booking_id} className="group">
+                        <TableCell className="font-medium">
+                          <button
+                            type="button"
+                            onClick={() => showBookingDetail(booking.booking_id)}
+                            className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+                              booking.status.toUpperCase() === "COMPLETED"
+                                ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
+                                : "text-primary hover:text-primary/80"
+                            }`}
+                          >
+                            {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+                            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                          </button>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
+                          {booking.equipment_name}
+                        </TableCell>
+                        <TableCell>{booking.user_name || "—"}</TableCell>
+                        <TableCell>{booking.wallet_owner_name || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{booking.user_phone || "—"}</TableCell>
+                        <TableCell className="max-w-[180px] truncate" title={booking.user_email}>
+                          {booking.user_email || "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {formatBookingStartDate(booking.start_time)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {formatDuration(booking.total_time_minutes)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {booking.rating != null ? (
+                            <span className="inline-flex items-center gap-0.5" title={`${booking.rating}/5`}>
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`h-4 w-4 ${s <= (booking.rating ?? 0) ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`}
+                                />
+                              ))}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+              {totalCount > 0 && (
+                <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/20">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {rangeStart}–{rangeEnd} of {totalCount} booking{totalCount !== 1 ? "s" : ""}
                   </p>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      id="complete-results-input"
-                      onChange={(e) => {
-                        const chosen = e.target.files;
-                        if (chosen?.length) setCompleteResultFiles((prev) => [...prev, ...Array.from(chosen)]);
-                        e.target.value = "";
-                      }}
-                    />
                     <Button
-                      type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => document.getElementById('complete-results-input')?.click()}
+                      onClick={() => {
+                        setPage((p) => Math.max(1, p - 1));
+                        closeDetail();
+                      }}
+                      disabled={!hasPrevPage}
                     >
-                      Browse
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
                     </Button>
-                    {completeResultFiles.length > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCompleteResultFiles([])}
-                      >
-                        Clear files
-                      </Button>
-                    )}
+                    <span className="text-sm text-muted-foreground px-2">
+                      Page {page} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setPage((p) => p + 1);
+                        closeDetail();
+                      }}
+                      disabled={!hasNextPage}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                  {completeResultFiles.length > 0 && (
-                    <ul className="mt-2 text-sm text-muted-foreground list-disc list-inside">
-                      {completeResultFiles.map((f, i) => (
-                        <li key={`${f.name}-${i}`}>{f.name}</li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
-                {completeUploadedFiles.length > 0 && (
-                  <div className="rounded-md bg-muted p-3">
-                    <p className="text-sm font-medium mb-1">
-                      {completeUploadedFiles.length} file(s) sent to user email:
-                    </p>
-                    <ul className="text-sm text-muted-foreground list-disc list-inside">
-                      {completeUploadedFiles.map((name, i) => (
-                        <li key={`${name}-${i}`}>{name}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </Card>
 
-            {(actionDialog.type === 'refund' || actionDialog.type === 'absent') && (
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  value={actionNotes}
-                  onChange={(e) => setActionNotes(e.target.value)}
-                  placeholder={
-                    actionDialog.type === 'refund'
-                      ? "Add any notes about the refund..."
-                      : "Add any notes about the absence..."
-                  }
+            {/* Detailed view – shown only when a booking ID is clicked */}
+            {selectedBookingId != null && (() => {
+              const booking = overrideBooking ?? bookings.find((b) => b.booking_id === selectedBookingId);
+              if (!booking) return null;
+              return (
+                <BookingDetailCard
+                  booking={booking as BookingDetailCardBooking}
+                  onClose={closeDetail}
+                  onUpdated={fetchBookings}
+                  isOperator={isOperatorOrManager}
+                  currentUserId={user?.id}
+                  backLabel="Back to list"
+                  showPrintButton
                 />
-              </div>
-            )}
+              );
+            })()}
+          </>
+        )}
 
-            {actionDialog.type !== 'reschedule' && (
-              <DialogFooter>
-                <Button variant="outline" onClick={closeActionDialog}>
-                  {actionDialog.type === 'complete' && completeUploadedFiles.length > 0 ? 'Close' : 'Cancel'}
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (actionDialog.type === 'complete') {
-                      if (completeUploadedFiles.length > 0) closeActionDialog();
-                      else handleComplete();
-                    } else if (actionDialog.type === 'refund') handleRefund();
-                    else if (actionDialog.type === 'absent') handleAbsent();
-                  }}
-                  disabled={actionDialog.type === 'complete' && completeLoading}
-                >
-                  {actionDialog.type === 'complete' && completeUploadedFiles.length > 0
-                    ? 'Done'
-                    : actionDialog.type === 'complete' && completeLoading
-                      ? 'Completing...'
-                      : 'Confirm'}
-                </Button>
-              </DialogFooter>
-            )}
-          </DialogContent>
-        </Dialog>
       </main>
     </div>
   );

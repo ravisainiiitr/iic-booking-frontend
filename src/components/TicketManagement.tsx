@@ -56,6 +56,7 @@ interface Ticket {
   created_at: string;
   updated_at: string;
   comments_count: number;
+  attachment_url?: string | null;
 }
 
 interface TicketComment {
@@ -355,6 +356,20 @@ const TicketManagement = () => {
                   <p className="text-sm font-medium text-muted-foreground mb-2">Description</p>
                   <p className="whitespace-pre-wrap">{selectedTicket.description}</p>
                 </div>
+
+                {selectedTicket.attachment_url && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Attachment</p>
+                    <a
+                      href={selectedTicket.attachment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline break-all"
+                    >
+                      View / Download attachment
+                    </a>
+                  </div>
+                )}
 
                 <div className="border-t pt-4">
                   <p className="text-sm font-medium mb-2">Comments</p>

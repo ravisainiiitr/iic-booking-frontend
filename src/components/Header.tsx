@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FlaskConical, ChevronDown, Settings, User as UserIcon, Wallet, LogOut, HelpCircle } from "lucide-react";
+import { Calendar, FlaskConical, ChevronDown, Settings, User as UserIcon, Wallet, LogOut, HelpCircle, Package, ClipboardList } from "lucide-react";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -32,6 +32,8 @@ const Header = () => {
   const [menuItems, setMenuItems] = useState<CmsMenuItem[] | null>(null);
   const checkingRef = useRef(false);
   const hasCheckedRef = useRef(false);
+  const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : '';
+  const canManageBookings = ['admin', 'operator', 'manager'].includes(userTypeStr);
 
   useEffect(() => {
     apiClient.getCmsMenu().then((res) => {
@@ -295,7 +297,7 @@ const Header = () => {
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                       <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-                        <AvatarImage src={user?.profile_picture || undefined} alt={user?.name || "User"} />
+                        <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={user?.name || "User"} />
                         <AvatarFallback>{(user?.name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
                       </Avatar>
                     </button>
@@ -311,6 +313,14 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => navigate("/dashboard")}>
                       <Calendar className="mr-2 h-4 w-4" />
                       <span>Dashboard</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/equipments")}>
+                      <Package className="mr-2 h-4 w-4" />
+                      <span>Browse Equipment</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(canManageBookings ? "/booking-management" : "/my-bookings")}>
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      <span>{canManageBookings ? "Manage booking" : "My Booking"}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/profile")}>
                       <UserIcon className="mr-2 h-4 w-4" />

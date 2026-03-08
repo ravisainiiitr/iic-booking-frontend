@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 
 interface User {
@@ -7,6 +6,7 @@ interface User {
   email: string;
   name: string;
   user_type: number | string;
+  user_type_display?: string | null;
   emp_id?: string | null;
   phone_number?: string | null;
   secondary_phone_number?: string | null;
@@ -29,6 +29,8 @@ interface User {
   designation?: string | null;
   date_joined?: string | null;
   last_login?: string | null;
+  /** Set by backend from admin Auth settings; used for inactivity auto-logout timer. */
+  auth_inactivity_timeout_seconds?: number;
 }
 
 interface AuthContextType {
@@ -121,6 +123,76 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   }, [refreshUser]);
+
+  // On 401 from API (session expired / invalidated), clear auth and redirect to login
+  useEffect(() => {
+    apiClient.onUnauthorized = () => {
+      apiClient.setToken(null);
+      localStorage.removeItem("user");
+      setUser(null);
+      if (window.location.pathname !== "/auth") {
+        window.location.replace("/auth");
+      }
+    };
+    return () => {
+      apiClient.onUnauthorized = null;
+    };
+  }, []);
+
+  // Inactivity logout: use admin-configured timeout from API, or fallback to 25 min (slightly less than backend default)
+  // Frontend logs out 5 minutes before backend so the session is cleared in time
+  const inactivityTimeoutSeconds = user?.auth_inactivity_timeout_seconds ?? 1800;
+  const INACTIVITY_MS = Math.max(
+    5 * 60 * 1000,
+    (inactivityTimeoutSeconds - 5 * 60) * 1000
+  );
+  useEffect(() => {
+    if (!user) return;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        apiClient.setToken(null);
+        localStorage.removeItem("user");
+        setUser(null);
+        if (window.location.pathname !== "/auth") {
+          window.location.replace("/auth?reason=inactivity");
+        }
+      }, INACTIVITY_MS);
+    };
+
+    resetTimer();
+    const events = ["mousedown", "mousemove", "keydown", "scroll", "touchstart"];
+    events.forEach((ev) => window.addEventListener(ev, resetTimer));
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, resetTimer));
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [user]);
+
+  // Periodic session check: when logged in and tab is visible, validate token so we detect
+  // "logged in elsewhere" (single-session) quickly and redirect this tab to login
+  const SESSION_CHECK_MS = 15 * 1000; // 15 seconds
+  useEffect(() => {
+    if (!user || !apiClient.getToken()) return;
+
+    const checkSession = () => {
+      if (document.visibilityState !== "visible") return;
+      apiClient.getCurrentUser();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") checkSession();
+    };
+
+    const intervalId = setInterval(checkSession, SESSION_CHECK_MS);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {

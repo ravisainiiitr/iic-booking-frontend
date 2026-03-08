@@ -108,3 +108,39 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Print: show only the detailed booking view (BookingManagement or single card in MyBookings) */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  /* BookingManagement: only the detail card */
+  body * {
+    visibility: hidden;
+  }
+  #booking-detail-section .booking-detail-print-area,
+  #booking-detail-section .booking-detail-print-area * {
+    visibility: visible;
+  }
+  #booking-detail-section .booking-detail-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid hsl(var(--border));
+  }
+  /* MyBookings: only the card with data-print-me */
+  .booking-card-print-area[data-print-me="true"],
+  .booking-card-print-area[data-print-me="true"] * {
+    visibility: visible;
+  }
+  .booking-card-print-area[data-print-me="true"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid hsl(var(--border));
+  }
+}

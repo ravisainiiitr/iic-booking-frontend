@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,28 +23,49 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
-import BookingEventHistory from "@/components/BookingEventHistory";
-import BookingUserInputs from "@/components/BookingUserInputs";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import TicketForm, { TICKET_TYPE } from "@/components/TicketForm";
-import { X, Calendar as CalendarIcon, History, HelpCircle } from "lucide-react";
+import { X, FolderDown, Download, Star, Filter, RotateCcw, Banknote } from "lucide-react";
+import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Booking {
   booking_id: number;
+  virtual_booking_id?: string | null;
   user: number;
   user_email: string;
   user_name: string;
+  created_by_name?: string | null;
+  user_phone?: string | null;
+  user_department?: string | null;
+  user_profile_picture?: string | null;
   equipment: number;
   equipment_code: string;
   equipment_name: string;
+  wallet_owner_name?: string | null;
   equipment_reschedule_hours_threshold?: number;
   charge_profile: number;
   user_type_snapshot: string;
+  user_type_snapshot_display?: string | null;
   total_time_minutes: number;
   total_hours: number;
   total_charge: string;
@@ -65,6 +87,7 @@ interface Booking {
   notes: string;
   start_time: string;
   end_time: string;
+  equipment_weekly_view_display?: 'TIME' | 'SLOT_ID';
   daily_slots: Array<{
     id: number;
     slot_master: number;
@@ -80,57 +103,215 @@ interface Booking {
     created_at: string;
     updated_at: string;
   }>;
+  sample_trace?: Array<{
+    id: number;
+    status: string;
+    status_display: string;
+    sample_identifiers: string;
+    created_at: string;
+    created_by: number | null;
+    created_by_name: string | null;
+  }>;
+  rating?: number | null;
+  rating_feedback?: string | null;
+  rated_at?: string | null;
+  completed_at?: string | null;
+  equipment_repeat_sample_request_days?: number | null;
+  equipment_repeat_sample_disclaimer?: string | null;
+  equipment_enable_charge_recalculation?: boolean;
+  equipment_user_rating_enabled?: boolean;
+  repeat_sample_request_status?: string | null;
+  repeat_sample_enabled?: boolean;
+  source_booking_id?: number | null;
   created_at: string;
   updated_at: string;
+  charge_recalculation_pending_amount?: string | null;
 }
+
+const PAGE_SIZE = 50;
 
 const MyBookings = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set());
+  const [resultsCache, setResultsCache] = useState<Record<number, { exists: boolean; files: Array<{ name: string; download_url: string }> }>>({});
+  const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
+  const [resultsDialogFiles, setResultsDialogFiles] = useState<Array<{ name: string; download_url: string }>>([]);
+  const [resultsDialogBookingId, setResultsDialogBookingId] = useState<number | null>(null);
+  const [resultsLoadingId, setResultsLoadingId] = useState<number | null>(null);
+  const [ratingLoadingId, setRatingLoadingId] = useState<number | null>(null);
+  const [ratingDraft, setRatingDraft] = useState<Record<number, { stars: number; feedback: string }>>({});
+  const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [equipmentFilter, setEquipmentFilter] = useState<string>("all");
+  const [ordering, setOrdering] = useState<string>("-created_at");
+  const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
+  const [currentUserType, setCurrentUserType] = useState<string | null>(null);
 
   useEffect(() => {
-    checkAuthAndFetchBookings();
-  }, []);
+    if (user?.user_type != null) setCurrentUserType(String(user.user_type));
+  }, [user?.user_type]);
 
-  const checkAuthAndFetchBookings = async () => {
+  const isAdminOrOIC = (): boolean => {
+    if (!currentUserType) return false;
+    const t = String(currentUserType).toLowerCase();
+    return t === "admin" || t === "manager";
+  };
+
+  const shouldShowTimeDisplay = (booking: Booking): boolean => {
+    if (isAdminOrOIC()) return true;
+    return booking.equipment_weekly_view_display !== "SLOT_ID";
+  };
+
+  const handleResultsClick = async (booking: Booking) => {
+    const bid = booking.booking_id;
+    const cached = resultsCache[bid];
+    if (cached) {
+      if (cached.exists && cached.files.length > 0) {
+        setResultsDialogFiles(cached.files);
+        setResultsDialogBookingId(bid);
+        setResultsDialogOpen(true);
+      } else {
+        toast.info("No results folder found for this booking.");
+      }
+      return;
+    }
+    setResultsLoadingId(bid);
+    const res = await apiClient.getBookingResults(bid);
+    setResultsLoadingId(null);
+    const exists = res.data?.exists ?? false;
+    const files = (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url }));
+    setResultsCache((prev) => ({ ...prev, [bid]: { exists, files } }));
+    if (exists && files.length > 0) {
+      setResultsDialogFiles(files);
+      setResultsDialogBookingId(bid);
+      setResultsDialogOpen(true);
+    } else {
+      toast.info("No results folder found for this booking.");
+    }
+  };
+
+  useEffect(() => {
+    const pendingRating = searchParams.get("pending_rating");
+    const onlyShowPendingRating = pendingRating === "1" || pendingRating === "true";
+    if (onlyShowPendingRating) {
+      setStatusFilter("COMPLETED");
+      setSearchParams({}, { replace: true });
+    }
+    if (authLoading) return;
     const token = apiClient.getToken();
     if (!token) {
       navigate("/auth");
       return;
     }
+    checkAuthAndFetchBookings(onlyShowPendingRating);
+  }, [authLoading]);
 
-    const userResponse = await apiClient.getCurrentUser();
-    if (userResponse.error || !userResponse.data) {
+  useEffect(() => {
+    const token = apiClient.getToken();
+    if (!token) return;
+    apiClient.getEquipments(undefined, "ACTIVE").then((res) => {
+      if (res.data?.equipments) {
+        setEquipmentList(
+          res.data.equipments.map((e: { equipment_id: number; name?: string; code?: string }) => ({
+            equipment_id: e.equipment_id,
+            name: e.name || e.code || "",
+            code: e.code || "",
+          }))
+        );
+      }
+    }).catch(() => {});
+  }, []);
+
+  // When opening from email link (e.g. ?booking=123), fetch that booking and show detail
+  const bookingIdParam = searchParams.get("booking");
+  useEffect(() => {
+    if (!bookingIdParam) return;
+    const bid = parseInt(bookingIdParam, 10);
+    if (!Number.isInteger(bid)) return;
+    const inList = bookings.some((b) => b.booking_id === bid);
+    if (inList) {
+      setSelectedBookingId(bid);
+      setOverrideBooking(null);
+      setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
+      return;
+    }
+    let cancelled = false;
+    apiClient.getBookings({ booking_id: bid, limit: 1 }).then((res) => {
+      if (cancelled || res.error) return;
+      const b = res.data?.bookings?.[0];
+      if (b) {
+        setOverrideBooking(b);
+        setSelectedBookingId(bid);
+        setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [bookingIdParam, bookings]);
+
+  const checkAuthAndFetchBookings = async (onlyShowPendingRating?: boolean) => {
+    const token = apiClient.getToken();
+    if (!token) {
       navigate("/auth");
       return;
     }
-
-    fetchBookings();
+    fetchBookings(onlyShowPendingRating ? { status: "COMPLETED", onlyShowUnrated: true } : undefined, 1);
   };
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (overrides?: { status?: string; onlyShowUnrated?: boolean }, pageOverride?: number) => {
     try {
       setLoading(true);
-      const response = await apiClient.getBookings();
+      const currentPage = pageOverride ?? page;
+      const params: Record<string, string | number | boolean> = {
+        limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
+        list_view: true,
+      };
+      const status = overrides?.status ?? statusFilter;
+      if (status !== "all") params.status = status;
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
+      if (ordering) params.ordering = ordering;
+      const response = await apiClient.getBookings(params);
       if (response.error) {
         toast.error(response.error || "Failed to load bookings");
         setBookings([]);
+        setTotalCount(0);
       } else if (response.data && response.data.bookings) {
-        setBookings(response.data.bookings);
+        let list = response.data.bookings;
+        if (overrides?.onlyShowUnrated) {
+          list = list.filter(
+            (b: Booking) =>
+              (b.rating == null || b.rating === undefined) && (b.equipment_user_rating_enabled !== false)
+          );
+        }
+        setBookings(list);
+        setTotalCount(response.data.total_count ?? list.length);
       } else {
         setBookings([]);
+        setTotalCount(0);
       }
     } catch (error: any) {
       console.error("Error fetching bookings:", error);
       toast.error("Failed to load bookings");
       setBookings([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -142,12 +323,47 @@ const MyBookings = () => {
       pending: "bg-yellow-500",
       confirmed: "bg-blue-500",
       approved: "bg-blue-500",
+      booked: "bg-blue-500",
       in_progress: "bg-green-500",
-      completed: "bg-gray-500",
+      completed: "bg-green-500",
       cancelled: "bg-red-500",
       rejected: "bg-red-500",
+      absent: "bg-orange-500",
+      refunded: "bg-purple-500",
+      booking_not_utilized: "bg-amber-600",
     };
     return colors[statusLower] || "bg-gray-500";
+  };
+
+  const formatBookingStartDate = (startTime: string) => {
+    if (!startTime) return "—";
+    const d = new Date(startTime);
+    return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+  };
+
+  const formatDuration = (totalMinutes: number) => {
+    if (totalMinutes < 60) return `${totalMinutes} min`;
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
+  };
+
+  const showBookingDetail = (bookingId: number) => {
+    setSelectedBookingId(bookingId);
+    setOverrideBooking(null);
+    apiClient.getBookings({ booking_id: bookingId, limit: 1 }).then((res) => {
+      if (res.data?.bookings?.[0]) setOverrideBooking(res.data.bookings[0]);
+    });
+    setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  };
+
+  const closeDetail = () => {
+    setSelectedBookingId(null);
+    setOverrideBooking(null);
+    setSearchParams((prev) => {
+      prev.delete("booking");
+      return prev;
+    });
   };
 
   const canCancelOrReschedule = (status: string) => {
@@ -155,42 +371,61 @@ const MyBookings = () => {
     return statusLower === "pending" || statusLower === "booked";
   };
 
-  // Check if booking is within the reschedule/cancel threshold window
+  const isRepeatBooking = (booking: Booking): boolean =>
+    (booking.source_booking_id != null && booking.source_booking_id !== undefined) ||
+    (typeof booking.virtual_booking_id === "string" && booking.virtual_booking_id.endsWith("R"));
+
   const isWithinThresholdWindow = (booking: Booking): boolean => {
-    // Check status first
-    if (!canCancelOrReschedule(booking.status)) {
-      return false;
-    }
-
-    // Check if start time exists
-    if (!booking.start_time) {
-      return false;
-    }
-
+    if (!canCancelOrReschedule(booking.status)) return false;
+    if (!booking.start_time) return false;
     try {
       const startTime = new Date(booking.start_time);
       const now = new Date();
-      
-      // Check if start time is in the past
-      if (startTime <= now) {
-        return false;
-      }
-      
+      if (startTime <= now) return false;
       const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-      // Get threshold from equipment (default to 48 hours if not specified)
       const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
-
-      // Show options if booking is more than threshold hours away
       return hoursUntilStart > threshold;
-    } catch (error) {
-      console.error('Error calculating threshold window:', error);
+    } catch {
       return false;
     }
   };
 
+  const canRateBooking = (booking: Booking): boolean => {
+    if (booking.rating != null && booking.rating !== undefined) return false;
+    if (booking.equipment_user_rating_enabled === false) return false;
+    return booking.status.toUpperCase() === "COMPLETED";
+  };
+
+  const handleSubmitRating = async (booking: Booking) => {
+    const draft = ratingDraft[booking.booking_id];
+    if (!draft || draft.stars < 1) {
+      toast.error("Please select a rating (1–5 stars).");
+      return;
+    }
+    setRatingLoadingId(booking.booking_id);
+    const res = await apiClient.rateBooking(booking.booking_id, draft.stars, draft.feedback.trim() || undefined);
+    setRatingLoadingId(null);
+    if (res.error) {
+      toast.error(res.error || "Failed to submit rating");
+      return;
+    }
+    toast.success("Rating submitted.");
+    setRatingDraft((prev) => {
+      const next = { ...prev };
+      delete next[booking.booking_id];
+      return next;
+    });
+    await fetchBookings(undefined, page);
+  };
+
+  const canShowRepeatSampleButton = (booking: Booking): boolean => {
+    if (booking.status.toUpperCase() !== "COMPLETED") return false;
+    const status = (booking.repeat_sample_request_status || "").toUpperCase();
+    if (status === "PENDING" || status === "APPROVED") return false;
+    return false;
+  };
+
   const canReschedule = (booking: Booking) => {
-    // Check status first
     if (!canCancelOrReschedule(booking.status)) {
       return false;
     }
@@ -223,6 +458,10 @@ const MyBookings = () => {
   };
 
   const handleCancelClick = (booking: Booking) => {
+    if (isRepeatBooking(booking)) {
+      toast.error("Repeat sample bookings cannot be cancelled. Please contact admin if you need to cancel.");
+      return;
+    }
     // Check if cancel is allowed based on time threshold
     if (!isWithinThresholdWindow(booking)) {
       if (booking.start_time) {
@@ -291,7 +530,9 @@ const MyBookings = () => {
       setCancelDialogOpen(false);
       setSelectedBooking(null);
       setCancelNotes("");
-      await fetchBookings(); // Refresh bookings list
+      setSelectedBookingId(null);
+      setOverrideBooking(null);
+      await fetchBookings(undefined, page);
     } catch (error: any) {
       console.error("Cancel booking error:", error);
       toast.error(error.message || "Failed to cancel booking");
@@ -317,7 +558,9 @@ const MyBookings = () => {
         toast.success(response.data?.message || "Booking rescheduled successfully");
         setRescheduleDialogOpen(false);
         setSelectedBooking(null);
-        await fetchBookings(); // Refresh bookings list
+        setSelectedBookingId(null);
+        setOverrideBooking(null);
+        await fetchBookings(undefined, page);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to reschedule booking");
@@ -326,12 +569,52 @@ const MyBookings = () => {
     }
   };
 
-  if (loading) {
+  const handleProcessChargeRecalcRefund = async (b: Booking) => {
+    setChargeRecalcActionLoading(true);
+    try {
+      const res = await apiClient.processChargeRecalculationRefund(b.booking_id);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.data?.message || "Refund processed. Amount credited to wallet.");
+      await fetchBookings(undefined, page);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to process refund");
+    } finally {
+      setChargeRecalcActionLoading(false);
+    }
+  };
+
+  const handleProcessChargeRecalcPayNow = async (b: Booking) => {
+    setChargeRecalcActionLoading(true);
+    try {
+      const res = await apiClient.processChargeRecalculationPayNow(b.booking_id);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.data?.message || "Payment processed. Amount debited from wallet.");
+      await fetchBookings(undefined, page);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to process payment");
+    } finally {
+      setChargeRecalcActionLoading(false);
+    }
+  };
+
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  const token = apiClient.getToken();
+  if (!authLoading && !token) {
+    navigate("/auth");
+    return null;
   }
 
   return (
@@ -340,240 +623,411 @@ const MyBookings = () => {
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">My Bookings</h1>
 
-        {bookings.length === 0 ? (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="h-5 w-5" />
+              Filters
+            </CardTitle>
+            <CardDescription>Filter your bookings by status, date range, equipment, or search.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="PENDING">PENDING</SelectItem>
+                    <SelectItem value="BOOKED">BOOKED</SelectItem>
+                    <SelectItem value="COMPLETED">COMPLETED</SelectItem>
+                    <SelectItem value="CANCELLED">CANCELLED</SelectItem>
+                    <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
+                    <SelectItem value="REFUNDED">REFUNDED</SelectItem>
+                    <SelectItem value="BOOKING_NOT_UTILIZED">Booking Not Utilized</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Start date</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End date</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Search</Label>
+                <Input
+                  placeholder="Booking ID or equipment name"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Equipment</Label>
+                <Select value={equipmentFilter} onValueChange={setEquipmentFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All equipment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All equipment</SelectItem>
+                    {equipmentList.map((eq) => (
+                      <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
+                        {eq.name || eq.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Sort</Label>
+                <Select value={ordering} onValueChange={setOrdering}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="-created_at">Newest first</SelectItem>
+                    <SelectItem value="created_at">Oldest first</SelectItem>
+                    <SelectItem value="-start_time">Start time (newest)</SelectItem>
+                    <SelectItem value="start_time">Start time (oldest)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button
+                onClick={() => {
+                  setPage(1);
+                  setSelectedBookingId(null);
+                  setOverrideBooking(null);
+                  fetchBookings(undefined, 1);
+                }}
+              >
+                Apply filters
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setStartDate("");
+                  setEndDate("");
+                  setSearchQuery("");
+                  setEquipmentFilter("all");
+                  setOrdering("-created_at");
+                  setPage(1);
+                  setSelectedBookingId(null);
+                  setOverrideBooking(null);
+                  setTimeout(() => fetchBookings(undefined, 1), 0);
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {!loading && bookings.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">No bookings yet</p>
-                <Button onClick={() => navigate("/equipments")}>
-                Book Equipment
-              </Button>
+              {statusFilter !== "all" || startDate || endDate || searchQuery.trim() || (equipmentFilter && equipmentFilter !== "all") ? (
+                <>
+                  <p className="text-muted-foreground mb-4">No bookings match your filters</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setStartDate("");
+                      setEndDate("");
+                      setSearchQuery("");
+                      setEquipmentFilter("all");
+                      setOrdering("-created_at");
+                      setPage(1);
+                      setSelectedBookingId(null);
+                      setOverrideBooking(null);
+                      setTimeout(() => fetchBookings(undefined, 1), 0);
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground mb-4">No bookings yet</p>
+                  <Button onClick={() => navigate("/equipments")}>
+                    Book Equipment
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
-            {bookings.map((booking) => (
-              <Card key={booking.booking_id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{booking.equipment_name}</CardTitle>
-                      <CardDescription>
-                        {booking.equipment_code} • {booking.user_type_snapshot}
-                      </CardDescription>
-                    </div>
-                    <Badge className={getStatusColor(booking.status)}>
-                      {booking.status_display}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Start Time</p>
-                      <p className="font-medium">
-                        {new Date(booking.start_time).toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">End Time</p>
-                      <p className="font-medium">
-                        {new Date(booking.end_time).toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Duration</p>
-                      <p className="font-medium">
-                        {booking.total_time_minutes} min ({Number(booking.total_hours).toFixed(2)} hrs)
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Cost</p>
-                      <p className="font-medium text-primary">
-                        ₹{Number(booking.total_charge).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  {/* User Inputs – Step 1 data; fields with Editing Required are editable until Complete */}
-                  {booking.input_values && Object.keys(booking.input_values).length > 0 && (
-                    <BookingUserInputs
-                      inputValues={booking.input_values}
-                      inputFields={booking.input_fields ?? undefined}
-                      status={booking.status}
-                      onUpdate={async (newInputValues) => {
-                        const res = await apiClient.updateBookingInputValues(booking.booking_id, newInputValues as Record<string, string | number | boolean | string[]>);
-                        if (res.error) throw new Error(res.error);
-                        fetchBookings();
-                      }}
-                    />
-                  )}
-                  {booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
-                      <ul className="space-y-1">
-                        {booking.charge_breakdown.map((charge, index) => (
-                          <li key={index} className="text-sm text-muted-foreground flex justify-between">
-                            <span>{charge.description}</span>
-                            <span>{Number(charge.amount) >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
-                          </li>
+          <>
+            <Card className="overflow-hidden border shadow-sm">
+              <CardHeader className="bg-muted/30 border-b py-4">
+                <CardTitle className="text-lg">My Bookings</CardTitle>
+                <CardDescription>Click a booking ID to view full details. Use filters above and Apply to search.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="font-semibold">Booking ID</TableHead>
+                      <TableHead className="font-semibold">Equipment</TableHead>
+                      <TableHead className="font-semibold">Start</TableHead>
+                      <TableHead className="font-semibold">Duration</TableHead>
+                      <TableHead className="font-semibold">Cost</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Rating</TableHead>
+                      <TableHead className="font-semibold text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading && bookings.length === 0 ? (
+                      <>
+                        {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                          <TableRow key={i}>
+                            <TableCell colSpan={8} className="h-12">
+                              <div className="animate-pulse flex gap-2">
+                                <div className="h-4 bg-muted rounded w-24" />
+                                <div className="h-4 bg-muted rounded w-32" />
+                                <div className="h-4 bg-muted rounded w-28" />
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </ul>
-                      {(() => {
-                        const totalCharge = Number(booking.total_charge);
-                        // Exclude "Total" line so we don't count final amount as part of subtotal
-                        const chargeLines = booking.charge_breakdown.filter(
-                          (c) => String(c.description || "").trim().toLowerCase() !== "total"
-                        );
-                        const explicitDiscount = Math.abs(
-                          booking.charge_breakdown
-                            .map((c) => Number(c.amount))
-                            .filter((a) => a < 0)
-                            .reduce((s, a) => s + a, 0)
-                        );
-                        const totalBeforeDiscount = chargeLines
-                          .map((c) => Number(c.amount))
-                          .filter((a) => a > 0)
-                          .reduce((s, a) => s + a, 0);
-                        // Show discount if we have an explicit Discount line or inferred (subtotal > final)
-                        const inferredDiscount = totalBeforeDiscount > totalCharge ? totalBeforeDiscount - totalCharge : 0;
-                        const discountAmount = explicitDiscount > 0 ? explicitDiscount : inferredDiscount;
-                        const hasDiscount = discountAmount > 0;
-                        return (
-                          <div className="mt-3 pt-3 border-t space-y-1 text-sm">
-                            {hasDiscount && (
-                              <>
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>Total amount</span>
-                                  <span>₹{totalBeforeDiscount.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>Discount</span>
-                                  <span>-₹{discountAmount.toFixed(2)}</span>
-                                </div>
-                              </>
-                            )}
-                            <div className="flex justify-between font-medium">
-                              <span>{hasDiscount ? "Final amount after discount" : "Total"}</span>
-                              <span className="text-primary">₹{totalCharge.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  {booking.daily_slots && booking.daily_slots.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium mb-2">Booked Slots:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {booking.daily_slots.map((slot) => (
-                          <Badge key={slot.id} variant="outline" className="text-xs">
-                            {slot.slot_name} ({new Date(slot.start_datetime).toLocaleString()})
+                      </>
+                    ) : (
+                      bookings.map((booking) => (
+                      <TableRow key={booking.booking_id} className="group">
+                        <TableCell className="font-medium">
+                          <button
+                            type="button"
+                            onClick={() => showBookingDetail(booking.booking_id)}
+                            className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+                              booking.status.toUpperCase() === "COMPLETED"
+                                ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
+                                : "text-primary hover:text-primary/80"
+                            }`}
+                          >
+                            {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+                            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                          </button>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
+                          {booking.equipment_name}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {formatBookingStartDate(booking.start_time)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {formatDuration(booking.total_time_minutes)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap font-medium text-primary">
+                          ₹{Number(booking.total_charge).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(booking.status)}>
+                            {booking.status_display}
                           </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {booking.notes && (
-                    <div className="mt-4 pt-4 border-t">
-                      <p className="text-sm font-medium mb-1">Notes:</p>
-                      <p className="text-sm text-muted-foreground">{booking.notes}</p>
-                    </div>
-                  )}
-                  {canCancelOrReschedule(booking.status) && (
-                    <div className="mt-4 pt-4 border-t flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => handleRescheduleClick(booking)}
-                        className="flex-1"
-                        title={!canReschedule(booking) && booking.start_time ? 
-                          `Reschedule is only available until ${(() => {
-                            const startTime = new Date(booking.start_time);
-                            const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
-                            const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
-                            return cutoffTime.toLocaleString();
-                          })()}` : 
-                          'Reschedule this booking'}
-                      >
-                        <CalendarIcon className="h-4 w-4 mr-2" />
-                        Reschedule
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => handleCancelClick(booking)}
-                        className="flex-1"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-                  {canCancelOrReschedule(booking.status) && !canReschedule(booking) && booking.start_time && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      <p>
-                        Reschedule is only available until{' '}
-                        {(() => {
-                          const startTime = new Date(booking.start_time);
-                          const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
-                          const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
-                          return cutoffTime.toLocaleString();
-                        })()}
-                      </p>
-                    </div>
-                  )}
-                  {booking.status.toLowerCase() === 'booked' && (
-                    <div className="mt-4 pt-4 border-t">
-                      <TicketForm
-                        trigger={
-                          <Button variant="outline" size="sm" className="w-full">
-                            <HelpCircle className="h-4 w-4 mr-2" />
-                            Create Support Ticket
-                          </Button>
-                        }
-                        initialValues={{
-                          ticket_type: "booking", // Auto-set to booking for booking-related tickets
-                          subject: `Support Request for Booking #${booking.booking_id} - ${booking.equipment_name}`,
-                          description: `Booking Details:\n- Booking ID: #${booking.booking_id}\n- Equipment: ${booking.equipment_name} (${booking.equipment_code})\n- Start Time: ${new Date(booking.start_time).toLocaleString()}\n- End Time: ${new Date(booking.end_time).toLocaleString()}\n- Total Charge: ₹${Number(booking.total_charge).toFixed(2)}\n\nPlease describe your issue or request:`,
-                          related_equipment_id: booking.equipment,
-                          related_booking_id: booking.booking_id,
-                        }}
-                        hideTicketType={true} // Hide ticket type field since it's auto-set to booking
-                        onSuccess={() => {
-                          toast.success("Support ticket created successfully");
-                        }}
-                      />
-                    </div>
-                  )}
-                  <div className="mt-4 pt-4 border-t">
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {booking.rating != null ? (
+                            <span className="inline-flex items-center gap-0.5" title={`${booking.rating}/5`}>
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`h-4 w-4 ${s <= (booking.rating ?? 0) ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`}
+                                />
+                              ))}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => showBookingDetail(booking.booking_id)}
+                            >
+                              View
+                            </Button>
+                            {booking.status.toUpperCase() === "COMPLETED" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={resultsLoadingId === booking.booking_id}
+                                onClick={() => handleResultsClick(booking)}
+                              >
+                                {resultsLoadingId === booking.booking_id ? "…" : "Results"}
+                              </Button>
+                            )}
+                            {canCancelOrReschedule(booking.status) && canReschedule(booking) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBooking(booking);
+                                  setRescheduleDialogOpen(true);
+                                }}
+                              >
+                                Reschedule
+                              </Button>
+                            )}
+                            {canCancelOrReschedule(booking.status) && !isRepeatBooking(booking) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleCancelClick(booking)}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                            {canRateBooking(booking) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  showBookingDetail(booking.booking_id);
+                                  setRatingDraft((prev) => ({ ...prev, [booking.booking_id]: { stars: 0, feedback: "" } }));
+                                }}
+                              >
+                                Rate
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+              {totalCount > 0 && (
+                <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/20">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} booking{totalCount !== 1 ? "s" : ""}
+                  </p>
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => {
-                        const newExpanded = new Set(expandedBookings);
-                        if (newExpanded.has(booking.booking_id)) {
-                          newExpanded.delete(booking.booking_id);
-                        } else {
-                          newExpanded.add(booking.booking_id);
-                        }
-                        setExpandedBookings(newExpanded);
+                        setPage((p) => Math.max(1, p - 1));
+                        closeDetail();
+                        fetchBookings(undefined, Math.max(1, page - 1));
                       }}
-                      className="w-full"
+                      disabled={page <= 1}
                     >
-                      <History className="h-4 w-4 mr-2" />
-                      {expandedBookings.has(booking.booking_id) ? "Hide" : "Show"} Event History
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
                     </Button>
-                    {expandedBookings.has(booking.booking_id) && (
-                      <div className="mt-4">
-                        <BookingEventHistory
-                          bookingId={booking.booking_id}
-                          onEventAdded={() => fetchBookings()}
-                        />
-                      </div>
-                    )}
+                    <span className="text-sm text-muted-foreground px-2">
+                      Page {page} of {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const nextPage = page + 1;
+                        setPage(nextPage);
+                        closeDetail();
+                        fetchBookings(undefined, nextPage);
+                      }}
+                      disabled={page >= Math.ceil(totalCount / PAGE_SIZE)}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              )}
+            </Card>
+
+            {selectedBookingId != null && (() => {
+              if (!overrideBooking) {
+                return (
+                  <div id="booking-detail-section" className="mt-6 flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                    <span className="ml-3 text-muted-foreground">Loading booking details…</span>
+                  </div>
+                );
+              }
+              return (
+                <BookingDetailCard
+                  booking={overrideBooking as BookingDetailCardBooking}
+                  onClose={closeDetail}
+                  onUpdated={() => fetchBookings(undefined, page)}
+                  isOperator={false}
+                  currentUserId={user?.id}
+                  backLabel="Back to list"
+                  showPrintButton
+                  onUserCancelClick={(b) => {
+                    setSelectedBooking(b as Booking);
+                    setCancelDialogOpen(true);
+                  }}
+                />
+              );
+            })()}
+          </>
         )}
+
+        {/* Results download dialog */}
+        <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Download Results</DialogTitle>
+              <DialogDescription>
+                Download the entire folder as ZIP (includes booking ID folder and all subfiles), or open individual files below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3">
+              {resultsDialogBookingId != null && (
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={async () => {
+                    const err = await apiClient.downloadBookingResultsZip(resultsDialogBookingId);
+                    if (err.error) toast.error(err.error);
+                    else toast.success("Download started.");
+                  }}
+                >
+                  <FolderDown className="h-4 w-4 mr-2" />
+                  Download folder (ZIP)
+                </Button>
+              )}
+              <p className="text-sm text-muted-foreground">Individual files:</p>
+              <ul className="space-y-2 max-h-64 overflow-y-auto">
+                {resultsDialogFiles.map((file, idx) => (
+                  <li key={idx}>
+                    <a
+                      href={file.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline"
+                    >
+                      <Download className="h-4 w-4 shrink-0" />
+                      {file.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Cancel Booking Dialog */}
         <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
@@ -585,7 +1039,11 @@ const MyBookings = () => {
                 {selectedBooking && (
                   <div className="mt-2 text-sm">
                     <p><strong>Equipment:</strong> {selectedBooking.equipment_name}</p>
-                    <p><strong>Start Time:</strong> {new Date(selectedBooking.start_time).toLocaleString()}</p>
+                    <p><strong>{shouldShowTimeDisplay(selectedBooking) ? "Start Time:" : "Date:"}</strong>{" "}
+                      {shouldShowTimeDisplay(selectedBooking)
+                        ? new Date(selectedBooking.start_time).toLocaleString()
+                        : new Date(selectedBooking.start_time).toLocaleDateString()}
+                    </p>
                     <p><strong>Total Charge:</strong> ₹{Number(selectedBooking.total_charge).toFixed(2)}</p>
                   </div>
                 )}
