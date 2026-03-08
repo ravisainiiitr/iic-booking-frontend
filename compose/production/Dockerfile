@@ -10,8 +10,8 @@ WORKDIR ${APP_HOME}
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (--legacy-peer-deps until lockfile aligns eslint with eslint-plugin-react-hooks peer)
+RUN npm ci --legacy-peer-deps
 
 # Copy application code
 COPY . ${APP_HOME}
