@@ -87,6 +87,12 @@ type NoticeRow = {
   updated_at?: string;
 };
 
+type AdminEquipmentRow = {
+  equipment_id: number;
+  code: string;
+  name: string;
+};
+
 const COMM_TYPES = [
   { value: "email", label: "Email" },
   { value: "push_notification", label: "Push Notification" },
@@ -166,6 +172,17 @@ const AdminCommunication = () => {
   });
   const [deleteConfirmNoticeId, setDeleteConfirmNoticeId] = useState<number | null>(null);
   const [deletingNoticeId, setDeletingNoticeId] = useState<number | null>(null);
+
+  // Equipment user groups (booking requesters)
+  const [equipments, setEquipments] = useState<AdminEquipmentRow[]>([]);
+  const [loadingEquipments, setLoadingEquipments] = useState(false);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>("");
+  const [groupRecipients, setGroupRecipients] = useState<Array<{ email: string; name: string }>>([]);
+  const [groupMeta, setGroupMeta] = useState<{ group_code: string | null; group_name: string | null; equipment_name?: string } | null>(null);
+  const [loadingGroupRecipients, setLoadingGroupRecipients] = useState(false);
+  const [draftSubject, setDraftSubject] = useState("");
+  const [draftBody, setDraftBody] = useState("");
+  const [sendingGroupEmail, setSendingGroupEmail] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -250,6 +267,88 @@ const AdminCommunication = () => {
     if (!isAdmin) return;
     fetchNotices();
   }, [isAdmin, noticeFilters.search, noticeFilters.notice_type, noticeFilters.is_active]);
+
+  const fetchEquipments = async () => {
+    setLoadingEquipments(true);
+    try {
+      const res = await apiClient.adminEquipmentList({ search: undefined });
+      const data = (res as { data?: Array<Record<string, unknown>> }).data ?? res;
+      const rows = Array.isArray(data) ? data : [];
+      const mapped: AdminEquipmentRow[] = rows
+        .map((r) => ({
+          equipment_id: Number((r as { equipment_id?: number | string }).equipment_id),
+          code: String((r as { code?: string }).code ?? ""),
+          name: String((r as { name?: string }).name ?? ""),
+        }))
+        .filter((x) => Number.isFinite(x.equipment_id) && x.code);
+      setEquipments(mapped);
+    } catch {
+      setEquipments([]);
+      toast.error("Failed to load equipments");
+    } finally {
+      setLoadingEquipments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchEquipments();
+  }, [isAdmin]);
+
+  const fetchGroupRecipients = async (equipmentId: string) => {
+    if (!equipmentId) return;
+    setLoadingGroupRecipients(true);
+    try {
+      const res = await apiClient.adminEquipmentBookingRequesters(equipmentId);
+      const d = (res as { data?: Record<string, unknown> }).data ?? res;
+      const recipients = Array.isArray((d as { recipients?: unknown }).recipients) ? (d as { recipients: Array<{ email: string; name: string }> }).recipients : [];
+      setGroupRecipients(recipients.map((x) => ({ email: String(x.email), name: String(x.name ?? x.email) })));
+      setGroupMeta({
+        group_code: (d as { group_code?: string | null }).group_code ?? null,
+        group_name: (d as { group_name?: string | null }).group_name ?? null,
+        equipment_name: String((d as { equipment_name?: string }).equipment_name ?? ""),
+      });
+    } catch {
+      setGroupRecipients([]);
+      setGroupMeta(null);
+      toast.error("Failed to load equipment group recipients");
+    } finally {
+      setLoadingGroupRecipients(false);
+    }
+  };
+
+  const handleSendGroupEmail = async () => {
+    const emails = groupRecipients.map((r) => r.email).filter(Boolean);
+    if (!selectedEquipmentId) {
+      toast.error("Select equipment.");
+      return;
+    }
+    if (emails.length === 0) {
+      toast.error("No recipients found for this equipment.");
+      return;
+    }
+    if (!draftSubject.trim()) {
+      toast.error("Subject is required.");
+      return;
+    }
+    if (!draftBody.trim()) {
+      toast.error("Body is required.");
+      return;
+    }
+    setSendingGroupEmail(true);
+    try {
+      const res = await apiClient.sendBulkEmail(emails, draftSubject.trim(), draftBody.trim());
+      const out = (res as { data?: { message?: string; failed_count?: number } }).data ?? res;
+      toast.success(String((out as { message?: string }).message ?? "Email sent."));
+      if ((out as { failed_count?: number }).failed_count) {
+        toast.warning("Some emails failed. Check backend logs.");
+      }
+    } catch {
+      toast.error("Failed to send email.");
+    } finally {
+      setSendingGroupEmail(false);
+    }
+  };
 
   const openAddNotice = () => {
     setEditingNotice(null);
@@ -439,10 +538,11 @@ const AdminCommunication = () => {
         </div>
 
         <Tabs defaultValue="templates" className="space-y-4">
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className="grid w-full max-w-3xl grid-cols-4">
             <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="notices">Notices</TabsTrigger>
+            <TabsTrigger value="equipment-groups">Equipment groups</TabsTrigger>
           </TabsList>
 
           <TabsContent value="templates" className="space-y-4">
@@ -806,6 +906,113 @@ const AdminCommunication = () => {
                       )}
                     </TableBody>
                   </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="equipment-groups" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base">Email equipment booking users</CardTitle>
+                <CardDescription>
+                  Users are auto-added to the equipment group when they create a booking request for that equipment.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-1">
+                    <Label>Equipment</Label>
+                    <Select
+                      value={selectedEquipmentId || "none"}
+                      onValueChange={(v) => {
+                        const id = v === "none" ? "" : v;
+                        setSelectedEquipmentId(id);
+                        setGroupRecipients([]);
+                        setGroupMeta(null);
+                        if (id) fetchGroupRecipients(id);
+                      }}
+                      disabled={loadingEquipments}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder={loadingEquipments ? "Loading..." : "Select equipment"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select equipment</SelectItem>
+                        {equipments.map((e) => (
+                          <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
+                            {e.code} — {e.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      {groupMeta?.group_code ? (
+                        <div>Group: <span className="font-mono">{groupMeta.group_code}</span> ({groupMeta.group_name})</div>
+                      ) : selectedEquipmentId ? (
+                        <div>No group created yet (no booking requests recorded).</div>
+                      ) : (
+                        <div>Select an equipment to view recipients.</div>
+                      )}
+                    </div>
+                    <div className="mt-3 text-sm">
+                      {loadingGroupRecipients ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading recipients…
+                        </div>
+                      ) : (
+                        <div>
+                          <div><strong>{groupRecipients.length}</strong> recipient(s)</div>
+                          {groupRecipients.length > 0 ? (
+                            <div className="mt-2 max-h-48 overflow-y-auto rounded border p-2 text-xs">
+                              {groupRecipients.map((r) => (
+                                <div key={r.email} className="truncate" title={r.email}>{r.name} &lt;{r.email}&gt;</div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-3">
+                    <div>
+                      <Label>Subject</Label>
+                      <Input
+                        value={draftSubject}
+                        onChange={(e) => setDraftSubject(e.target.value)}
+                        placeholder="Email subject"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Body</Label>
+                      <Textarea
+                        value={draftBody}
+                        onChange={(e) => setDraftBody(e.target.value)}
+                        placeholder="Write your email…"
+                        rows={8}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={handleSendGroupEmail} disabled={sendingGroupEmail || loadingGroupRecipients}>
+                        {sendingGroupEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Send email to group
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setDraftSubject("");
+                          setDraftBody("");
+                        }}
+                        disabled={sendingGroupEmail}
+                      >
+                        Clear draft
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

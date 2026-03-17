@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Minus, Trash2, Mail, Receipt, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, Tag, ShieldCheck } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import {
@@ -56,6 +56,10 @@ interface DailySlot {
   status: string;
   status_display?: string;
   blocked_label?: string | null;
+  /** When true, slot is shown as Available to external users; only these can be booked by external users. */
+  reserved_for_external?: boolean;
+  /** True when slot is bookable by external users (reserved_for_external and status AVAILABLE). */
+  available_for_external?: boolean;
   booking_id?: number | null;
   booking_status?: string | null;
   booking_status_display?: string | null;
@@ -194,22 +198,26 @@ function parseIsoDateAndTime(isoStr: string): { dateStr: string; timeStr: string
 /** Default colors for slot statuses in Change slot status calendar (hex). */
 const DEFAULT_SLOT_STATUS_COLORS: Record<string, string> = {
   AVAILABLE: "#dcfce7",
+  NOT_AVAILABLE: "#e5e7eb",
   BOOKED: "#fecaca",
   BLOCKED: "#e5e7eb",
   UNDER_MAINTENANCE: "#fed7aa",
   OPERATOR_ABSENT: "#fde68a",
   BOOKING_NOT_UTILIZED: "#e9d5ff",
   HOLD: "#fef3c7",
+  RESERVED_FOR_EXTERNAL: "#94a3b8",
 };
 
 const SLOT_STATUS_LABELS: Record<string, string> = {
   AVAILABLE: "Available",
+  NOT_AVAILABLE: "Not Available",
   BOOKED: "Booked",
   BLOCKED: "Blocked",
   UNDER_MAINTENANCE: "Under Maintenance",
   OPERATOR_ABSENT: "Operator Absent",
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
   HOLD: "Hold",
+  RESERVED_FOR_EXTERNAL: "Reserved for External User",
 };
 
 /** Return black or white for readable text on the given hex background. */
@@ -257,6 +265,9 @@ const BookEquipment = () => {
     total_charge: string;
     total_time_minutes: number;
     charge_breakdown: Array<{ description: string; amount: number }>;
+    base_charge?: string;
+    gst_percent?: number;
+    gst_amount?: string;
   } | null>(null);
   const [loadingCharge, setLoadingCharge] = useState(false);
   const [showSlots, setShowSlots] = useState(false);
@@ -268,8 +279,14 @@ const BookEquipment = () => {
   // Admin manage-equipment: 'book' = book for user, 'status' = change slot status, null = show mode selector
   const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(null);
   const [adminBookForUserId, setAdminBookForUserId] = useState<string | null>(null);
-  const [adminDiscountAmount, setAdminDiscountAmount] = useState<number>(0);
-  const [adminDiscountReason, setAdminDiscountReason] = useState<string>("");
+  const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null);
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [showCouponCodeInput, setShowCouponCodeInput] = useState(false);
+  const [validatedCouponFromCode, setValidatedCouponFromCode] = useState<{ id: number; code: string; amount: string } | null>(null);
+  const [couponValidatePopup, setCouponValidatePopup] = useState<{ open: boolean; success: boolean; message: string; amount?: string }>({ open: false, success: false, message: "" });
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [myCoupons, setMyCoupons] = useState<Array<{ id: number; code: string; amount: string; balance?: string; valid_until: string | null; is_expired?: boolean }>>([]);
+  const hasValidCoupons = myCoupons.some((c) => !c.is_expired && Number(c.balance ?? c.amount) > 0);
   const [adminBookForUserInfo, setAdminBookForUserInfo] = useState<{
     email: string;
     department_name: string;
@@ -294,7 +311,14 @@ const BookEquipment = () => {
   const [blockedLabelForStatus, setBlockedLabelForStatus] = useState<string>('');
   const [sendEmailToWalletOwnerForNotUtilized, setSendEmailToWalletOwnerForNotUtilized] = useState(true);
   const BULK_EMAIL_OPERATION_VALUE = "__bulk_email__";
+  const RESERVED_FOR_EXTERNAL_VALUE = "RESERVED_FOR_EXTERNAL";
   const [updatingSlotStatus, setUpdatingSlotStatus] = useState(false);
+  const [updatingReserveExternal, setUpdatingReserveExternal] = useState(false);
+  /** True when current user is external (Educational Institute, RND, Industry, Other). Used to decide if reserved_for_external slots are selectable. */
+  const isExternalUser = useMemo(() => {
+    const ut = String(userType ?? "").toLowerCase();
+    return ["external", "rnd", "industry", "other"].includes(ut);
+  }, [userType]);
   const [applyProgressPercent, setApplyProgressPercent] = useState(0);
   const applyProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
@@ -304,6 +328,8 @@ const BookEquipment = () => {
   const [bulkEmailTemplatesLoading, setBulkEmailTemplatesLoading] = useState(false);
   const [sendingBulkEmail, setSendingBulkEmail] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [bookAnyAvailableSlots, setBookAnyAvailableSlots] = useState(false);
+  const [bookEvenIfSingleSlotAvailable, setBookEvenIfSingleSlotAvailable] = useState(false);
   const [bookingResultDialog, setBookingResultDialog] = useState<{ open: boolean; success: boolean; message: string }>({ open: false, success: false, message: "" });
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
   const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
@@ -986,6 +1012,43 @@ const BookEquipment = () => {
     }
   }, [searchParams, selectedEquipment, loadingEquipmentDetail, handleEquipmentSelect, navigate]);
 
+  // Load my coupons when on booking page (for coupon dropdown in Step 2)
+  useEffect(() => {
+    if (!selectedEquipment?.id) return;
+    apiClient.getMyCoupons().then((res) => {
+      const out = res as { data?: { coupons?: Array<{ id: number; code: string; amount: string; balance?: string; valid_until: string | null; is_expired?: boolean }> } };
+      setMyCoupons(out.data?.coupons ?? []);
+    }).catch(() => setMyCoupons([]));
+  }, [selectedEquipment?.id]);
+
+  const applyCouponCode = async () => {
+    const code = couponCodeInput.trim();
+    if (!code) {
+      setCouponValidatePopup({ open: true, success: false, message: "Please enter a coupon code." });
+      return;
+    }
+    setValidatingCoupon(true);
+    try {
+      const res = await apiClient.validateCoupon(code) as { data?: { valid: boolean; message?: string; coupon?: { id: number; code: string; amount: string } }; error?: string };
+      const data = res.data;
+      const err = res.error;
+      if (err || !data) {
+        setCouponValidatePopup({ open: true, success: false, message: (data && !data.valid && data.message) ? data.message : (err || "Validation failed.") });
+        return;
+      }
+      if (data.valid && data.coupon) {
+        setValidatedCouponFromCode({ id: data.coupon.id, code: data.coupon.code, amount: data.coupon.amount });
+        setCouponValidatePopup({ open: true, success: true, message: `Coupon applied. Discount: ₹${data.coupon.amount}`, amount: data.coupon.amount });
+      } else {
+        setCouponValidatePopup({ open: true, success: false, message: data.message || "Invalid coupon." });
+      }
+    } catch {
+      setCouponValidatePopup({ open: true, success: false, message: "Could not validate coupon. Please try again." });
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
   // Repeat-sample flow: when repeatOf is in URL, load that booking and prefill form (read-only params, zero charge, user picks slots)
   useEffect(() => {
     const repeatOf = searchParams.get("repeatOf");
@@ -1042,6 +1105,9 @@ const BookEquipment = () => {
         total_charge: "0",
         total_time_minutes: b.total_time_minutes || 0,
         charge_breakdown: breakdown,
+        base_charge: "0",
+        gst_percent: 0,
+        gst_amount: "0",
       });
       setShowSlots(true);
       setChargeCalculationFailed(false);
@@ -1131,6 +1197,9 @@ const BookEquipment = () => {
           total_charge: response.data.total_charge,
           total_time_minutes: response.data.total_time_minutes,
           charge_breakdown: response.data.charge_breakdown || [],
+          base_charge: response.data.base_charge,
+          gst_percent: response.data.gst_percent ?? 0,
+          gst_amount: response.data.gst_amount ?? "0",
         });
         setChargeCalculated(true);
         setShowSlots(true);
@@ -1750,7 +1819,10 @@ const BookEquipment = () => {
     if (!slotData) return false;
     // Admin: only BOOKED status (or has booking_id) is considered booked; other statuses and past are selectable
     if (isAdminUser()) return slotData.status === "BOOKED" || !!slotData.booking_id;
-    return slotData.status !== "AVAILABLE";
+    // External users: only AVAILABLE slots (reserved for external) are selectable; all others are not
+    if (isExternalUser) return slotData.status !== "AVAILABLE";
+    // Internal users: AVAILABLE slots that are NOT reserved for external are selectable; reserved for external are not
+    return slotData.status !== "AVAILABLE" || slotData.reserved_for_external === true;
   };
 
   const isSlotSelected = (date: Date, time: string): boolean => {
@@ -2644,20 +2716,119 @@ const BookEquipment = () => {
         return;
       }
 
+      // Resolve final slot IDs and charge: when "Book any available slots" is on, use selected if available else pick any available run in the window
+      let finalSlotIds = slotIds;
+      let totalHours = calculatedCharge ? calculatedCharge.total_time_minutes / 60 : 0;
+      let totalCost = calculatedCharge ? Number(calculatedCharge.total_charge) : 0;
+      const requiredMinutes = calculatedCharge?.total_time_minutes ?? 0;
+
+      if (canUseSlotIds && bookAnyAvailableSlots) {
+        const dates = selectedSlots.map((s) => {
+          if (s.slotData?.start_datetime) return parseISO(s.slotData.start_datetime);
+          return s.date;
+        });
+        const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+        const windowStart = startOfWeek(minDate, { weekStartsOn: 1 });
+        const windowEnd = addDays(startOfWeek(maxDate, { weekStartsOn: 1 }), 6);
+        const startStr = format(windowStart, "yyyy-MM-dd");
+        const endStr = format(windowEnd, "yyyy-MM-dd");
+        try {
+          const res = await apiClient.getEquipmentSlots(selectedEquipment.id, startStr, endStr);
+          const slots = (res as { data?: { slots?: Array<{ id: number; status?: string; start_datetime?: string; end_datetime?: string }> } })?.data?.slots ?? [];
+          const statusById = new Map(slots.map((s) => [s.id, (s.status || "").toUpperCase()]));
+          const allSelectedAvailable = slotIds.every((id) => statusById.get(id) === "AVAILABLE");
+
+          if (allSelectedAvailable) {
+            finalSlotIds = slotIds;
+          } else {
+            const available = slots
+              .filter((s) => (s.status || "").toUpperCase() === "AVAILABLE")
+              .sort((a, b) => (a.start_datetime || "").localeCompare(b.start_datetime || ""));
+            const selected: typeof available = [];
+            let runMinutes = 0;
+            for (const slot of available) {
+              const start = slot.start_datetime ? parseISO(slot.start_datetime).getTime() : 0;
+              const end = slot.end_datetime ? parseISO(slot.end_datetime).getTime() : start + 60 * 60 * 1000;
+              const mins = (end - start) / (60 * 1000);
+              selected.push(slot);
+              runMinutes += mins;
+              if (runMinutes >= requiredMinutes) break;
+            }
+            if (selected.length > 0 && runMinutes >= requiredMinutes) {
+              finalSlotIds = selected.map((s) => s.id);
+              totalHours = runMinutes / 60;
+              const rate = calculatedCharge && calculatedCharge.total_time_minutes > 0
+                ? Number(calculatedCharge.total_charge) / calculatedCharge.total_time_minutes
+                : 0;
+              totalCost = rate * runMinutes;
+              toast.info("Selected slots were unavailable. Booking with alternative available slots in this window.");
+            } else if (bookEvenIfSingleSlotAvailable && available.length > 0) {
+              const singleSlot = available[0];
+              const start = singleSlot.start_datetime ? parseISO(singleSlot.start_datetime).getTime() : 0;
+              const end = singleSlot.end_datetime ? parseISO(singleSlot.end_datetime).getTime() : start + 60 * 60 * 1000;
+              const singleMinutes = (end - start) / (60 * 1000);
+              finalSlotIds = [singleSlot.id];
+              totalHours = singleMinutes / 60;
+              const rate = calculatedCharge && calculatedCharge.total_time_minutes > 0
+                ? Number(calculatedCharge.total_charge) / calculatedCharge.total_time_minutes
+                : 0;
+              totalCost = rate * singleMinutes;
+              toast.info("Required duration not available. Booking a single slot and charging accordingly.");
+            } else {
+              toast.error(
+                bookEvenIfSingleSlotAvailable
+                  ? "No available slots in this window. Please choose another week or try again later."
+                  : "No available slots in this window can cover your required duration. Please choose another week or enable \"Book even if single slot is available\" to book one slot."
+              );
+              return;
+            }
+          }
+        } catch {
+          toast.error("Could not verify slot availability. Please try again.");
+          return;
+        }
+      }
+
       if (canUseSlotIds) {
-        const totalHours = calculatedCharge ? calculatedCharge.total_time_minutes / 60 : 0;
-        const totalCost = calculatedCharge ? Number(calculatedCharge.total_charge) : 0;
         if (isUrgentHoldMode) {
-          // Don't create hold yet: store selection and open urgent dialog. Hold is created only when user clicks Submit request there.
+          const returnToPage = searchParams.get("return_to") === "my-urgent-requests" || searchParams.get("return_to") === "dashboard";
+          if (returnToPage) {
+            // Create hold and redirect to dashboard to complete urgent request form
+            const res = await apiClient.bookEquipment(selectedEquipment.id, {
+              slot_ids: finalSlotIds,
+              total_hours: totalHours,
+              total_cost: totalCost,
+              status: "pending",
+              input_values: inputFieldValues,
+              create_as_hold: true,
+              ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
+            });
+            if (res.error) {
+              toast.error((res as { error: string }).error);
+              return;
+            }
+            const resData = (res as { data?: { booking_id?: number; id?: number } }).data;
+            const holdId = resData?.booking_id ?? resData?.id;
+            setSelectedSlots([]);
+            if (holdId != null) {
+              navigate(`/my-urgent-requests?urgent_equipment_id=${selectedEquipment.id}&hold_booking_id=${holdId}`, { replace: true });
+              toast.success("Slots held. Complete and submit your urgent request on the page.");
+            } else {
+              toast.error("Could not create hold.");
+            }
+            return;
+          }
+          // Legacy: store selection and open urgent dialog (when not coming from dashboard)
           setPendingHoldSelection({
-            slotIds: slotIds,
+            slotIds: finalSlotIds,
             inputValues: { ...inputFieldValues },
             totalCharge: totalCost,
-            totalTimeMinutes: calculatedCharge?.total_time_minutes ?? 0,
+            totalTimeMinutes: Math.round(totalHours * 60),
           });
           setSearchParams((prev) => {
             const p = new URLSearchParams(prev);
-            p.delete('urgent');
+            p.delete("urgent");
             return p;
           });
           setSelectedSlots([]);
@@ -2666,14 +2837,13 @@ const BookEquipment = () => {
           return;
         }
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
-          slot_ids: slotIds,
+          slot_ids: finalSlotIds,
           total_hours: totalHours,
           total_cost: totalCost,
           status: "pending",
           input_values: inputFieldValues,
           ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
-          ...(isAdminUser() && adminDiscountAmount > 0 ? { discount_amount: adminDiscountAmount } : {}),
-          ...(isAdminUser() && adminDiscountAmount > 0 && adminDiscountReason.trim() ? { discount_reason: adminDiscountReason.trim() } : {}),
+          ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
         });
         if (res.error) {
           const errRes = res as { error: string; waitlist_position?: number };
@@ -2778,6 +2948,7 @@ const BookEquipment = () => {
           status: "pending",
           input_values: inputFieldValues,
           ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
         });
       });
 
@@ -2815,16 +2986,28 @@ const BookEquipment = () => {
   };
 
   if (!selectedEquipment || !equipmentDetail) {
+    const equipmentIdFromUrl = searchParams.get("equipment_id");
+    const isLoadingFromUrl = Boolean(equipmentIdFromUrl) && (loadingEquipmentDetail || !selectedEquipment);
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
         <DashboardHeader />
         <main className="container mx-auto px-4 py-8">
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">No equipment selected for booking</p>
-              <Button onClick={() => navigate('/equipments')}>
-                Browse Equipment
-              </Button>
+              {isLoadingFromUrl ? (
+                <>
+                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-4">Loading equipment…</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground mb-4">No equipment selected for booking</p>
+                  <Button onClick={() => navigate("/equipments")}>
+                    Browse Equipment
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </main>
@@ -2848,11 +3031,6 @@ const BookEquipment = () => {
           <h1 className="text-3xl font-bold">
             {canAccessManageEquipmentModes() ? "Manage" : "Book"} {selectedEquipment.name}
           </h1>
-          {!isAdminUser() && isInternalUser() && !isUrgentHoldMode && canShowRequestUrgentBookingButton(equipmentDetail?.slot_window_reference_weekday ?? null, equipmentDetail?.slot_window_reference_time ?? null) && (
-            <Button variant="outline" size="sm" onClick={() => setUrgentDialogOpen(true)}>
-              Request urgent booking
-            </Button>
-          )}
         </div>
 
         {/* Admin: mode selector (Manage this Equipment) */}
@@ -3126,6 +3304,7 @@ const BookEquipment = () => {
                     <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
                     <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
                     <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
+                    <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
                     <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
                       <span className="flex items-center gap-2">
                         <Mail className="h-5 w-5" />
@@ -3162,6 +3341,7 @@ const BookEquipment = () => {
                   disabled={
                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                     updatingSlotStatus ||
+                    updatingReserveExternal ||
                     (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0)
                   }
                   onClick={async () => {
@@ -3170,6 +3350,29 @@ const BookEquipment = () => {
                     if (!bySlots && effectiveDates.length === 0) return;
                     if (newSlotStatus === "BOOKING_NOT_UTILIZED" && !bySlots) {
                       toast.error("For 'Booking Not Utilized' please use Week view to select booked slots only.");
+                      return;
+                    }
+                    if (newSlotStatus === RESERVED_FOR_EXTERNAL_VALUE) {
+                      setUpdatingReserveExternal(true);
+                      try {
+                        const payload: { reserved_for_external: boolean; dates?: string[]; slot_ids?: number[] } = { reserved_for_external: true };
+                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
+                        else payload.dates = effectiveDates;
+                        const res = await apiClient.adminEquipmentBulkReserveExternal(selectedEquipment.id, payload);
+                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
+                        const data = (res as { data?: { updated?: number; message?: string } }).data;
+                        toast.success(data?.message ?? `Marked ${data?.updated ?? 0} slot(s) as Reserved for External.`);
+                        setSelectedDatesForStatus([]);
+                        setSelectedSlotIdsForStatus([]);
+                        setStatusChangeSelectedMonths([]);
+                        setLastFetchedWeek(null);
+                        await fetchSlotsForWeek(true);
+                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : "Failed to update slots");
+                      } finally {
+                        setUpdatingReserveExternal(false);
+                      }
                       return;
                     }
                     if (applyProgressIntervalRef.current) {
@@ -3217,7 +3420,7 @@ const BookEquipment = () => {
                     }
                   }}
                 >
-                  {updatingSlotStatus
+                  {updatingSlotStatus || updatingReserveExternal
                     ? "Applying…"
                     : selectedSlotIdsForStatus.length > 0
                       ? `Apply to ${selectedSlotIdsForStatus.length} slot(s)`
@@ -3662,8 +3865,10 @@ const BookEquipment = () => {
                                           value={String(u.id)}
                                           onSelect={() => {
                                             setAdminBookForUserId(String(u.id));
-                                            setAdminDiscountAmount(0);
-                                            setAdminDiscountReason("");
+                                            setSelectedCouponId(null);
+                                            setCouponCodeInput("");
+                                            setShowCouponCodeInput(false);
+                                            setValidatedCouponFromCode(null);
                                             setAdminBookForUserInfo(null); // Clear until new fetch completes
                                             setChargeCalculated(false);
                                             setCalculatedCharge(null);
@@ -4222,66 +4427,197 @@ const BookEquipment = () => {
                           ))}
                         </div>
                       )}
-                      {canAccessManageEquipmentModes() && adminManageMode === "book" && (
-                        <div className="mt-4 p-3 rounded-lg border bg-muted/30 space-y-2">
-                          <Label htmlFor="admin-discount" className="text-sm font-medium">Discount (₹)</Label>
-                          <p className="text-xs text-muted-foreground">Adjust the final charge for this booking. Discount is applied when you confirm (single booking).</p>
-                          <Input
-                            id="admin-discount"
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            value={adminDiscountAmount === 0 ? "" : adminDiscountAmount}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "") setAdminDiscountAmount(0);
-                              else {
-                                const n = parseFloat(v);
-                                if (!Number.isNaN(n) && n >= 0) setAdminDiscountAmount(n);
-                              }
-                            }}
-                            placeholder="0"
-                            className="max-w-[140px]"
-                          />
-                          {adminDiscountAmount > 0 && (
-                            <div className="space-y-1.5">
-                              <Label htmlFor="admin-discount-reason" className="text-sm font-medium">Reason for discount (optional)</Label>
-                              <Textarea
-                                id="admin-discount-reason"
-                                value={adminDiscountReason}
-                                onChange={(e) => setAdminDiscountReason(e.target.value)}
-                                placeholder="e.g. Promotional offer, damaged sample, collaboration discount"
-                                rows={2}
-                                className="resize-none"
-                              />
-                            </div>
-                          )}
-                          <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>Original:</span>
-                            <span>₹{Number(calculatedCharge.total_charge).toFixed(2)}</span>
+                      <div className="mt-4 pt-3 border-t space-y-1.5">
+                        {calculatedCharge.base_charge != null && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Base amount</span>
+                            <span>₹{Number(calculatedCharge.base_charge).toFixed(2)}</span>
                           </div>
-                          {adminDiscountAmount > 0 && (
-                            <>
-                              <div className="flex justify-between text-sm text-muted-foreground">
-                                <span>Discount:</span>
-                                <span>-₹{adminDiscountAmount.toFixed(2)}</span>
+                        )}
+                        {(calculatedCharge.gst_percent ?? 0) > 0 && (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">GST ({calculatedCharge.gst_percent}%)</span>
+                              <span>₹{Number(calculatedCharge.gst_amount ?? 0).toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex justify-between font-semibold text-base pt-1">
+                          <span>Final amount</span>
+                          <span>₹{Number(calculatedCharge.total_charge).toFixed(2)}</span>
+                        </div>
+                      </div>
+                      {canAccessManageEquipmentModes() && adminManageMode === "book" && hasValidCoupons && (
+                        <div className="mt-4 rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 p-4 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                              <Tag className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <Label className="text-sm font-semibold text-foreground">Coupon (optional)</Label>
+                              <p className="text-xs text-muted-foreground mt-0.5">Select a coupon for the booking user or enter a code and validate.</p>
+                            </div>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-1">
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-medium text-muted-foreground">Choose from booking user's coupons</span>
+                              <Select
+                                value={selectedCouponId != null ? String(selectedCouponId) : "none"}
+                                onValueChange={(v) => {
+                                  if (v === "none") { setSelectedCouponId(null); setCouponCodeInput(""); setValidatedCouponFromCode(null); }
+                                  else {
+                                    const id = parseInt(v, 10);
+                                    const c = myCoupons.find((x) => x.id === id);
+                                    setSelectedCouponId(id);
+                                    setCouponCodeInput(c?.code ?? "");
+                                    setValidatedCouponFromCode(null);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-full max-w-sm border-amber-200/80 bg-background/80">
+                                  <SelectValue placeholder="No coupon" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No coupon</SelectItem>
+                                  {myCoupons.filter((c) => !c.is_expired && Number(c.balance ?? c.amount) > 0).map((c) => (
+                                    <SelectItem key={c.id} value={String(c.id)}>
+                                      {c.code} — Balance ₹{c.balance ?? c.amount}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-medium text-muted-foreground">Or enter coupon code</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Input
+                                  placeholder="Enter coupon code"
+                                  value={couponCodeInput}
+                                  onChange={(e) => {
+                                    setCouponCodeInput(e.target.value);
+                                    setValidatedCouponFromCode(null);
+                                    if (selectedCouponId != null) setSelectedCouponId(null);
+                                  }}
+                                  className="max-w-xs font-mono border-amber-200/80 bg-background/80"
+                                />
+                                <Button type="button" variant="secondary" size="sm" onClick={applyCouponCode} disabled={validatingCoupon} className="shrink-0">
+                                  {validatingCoupon ? "Validating…" : "Apply Coupon"}
+                                </Button>
                               </div>
-                              <div className="flex justify-between items-center pt-2 border-t">
-                                <span className="font-medium">Final charge:</span>
-                                <span className="font-bold text-primary">
-                                  ₹{Math.max(0, Number(calculatedCharge.total_charge) - adminDiscountAmount).toFixed(2)}
+                            </div>
+                          </div>
+                          {(selectedCouponId != null || validatedCouponFromCode) && (() => {
+                            const c = selectedCouponId != null ? myCoupons.find((x) => x.id === selectedCouponId) : null;
+                            const base = Number(calculatedCharge?.total_charge ?? 0);
+                            const amt = c ? Number(c.balance ?? c.amount ?? 0) : validatedCouponFromCode ? Number(validatedCouponFromCode.amount) : 0;
+                            const effective = Math.min(amt, base);
+                            const isCapped = amt > base;
+                            return (
+                              <div className="flex items-center justify-between rounded-lg bg-amber-500/10 dark:bg-amber-500/15 px-3 py-2 text-sm">
+                                <span className="text-muted-foreground">
+                                  Discount{isCapped ? " (capped to charge)" : ""}
                                 </span>
+                                <span className="font-semibold text-amber-700 dark:text-amber-400">−₹{effective.toFixed(2)}</span>
                               </div>
-                            </>
+                            );
+                          })()}
+                          {couponCodeInput.trim() && selectedCouponId == null && !validatedCouponFromCode && (
+                            <p className="text-xs text-muted-foreground">Click Apply Coupon to validate this code.</p>
+                          )}
+                        </div>
+                      )}
+                      {!canAccessManageEquipmentModes() && hasValidCoupons && (
+                        <div className="mt-4 rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 p-4 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                              <Tag className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <Label className="text-sm font-semibold text-foreground">Coupon (optional)</Label>
+                              <p className="text-xs text-muted-foreground mt-0.5">Select a coupon or enter a code for a discount.</p>
+                            </div>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-1">
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-medium text-muted-foreground">Choose from your coupons</span>
+                              <Select
+                                value={selectedCouponId != null ? String(selectedCouponId) : "none"}
+                                onValueChange={(v) => {
+                                  if (v === "none") { setSelectedCouponId(null); setCouponCodeInput(""); setValidatedCouponFromCode(null); }
+                                  else {
+                                    const id = parseInt(v, 10);
+                                    const c = myCoupons.find((x) => x.id === id);
+                                    setSelectedCouponId(id);
+                                    setCouponCodeInput(c?.code ?? "");
+                                    setValidatedCouponFromCode(null);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-full max-w-sm border-amber-200/80 bg-background/80">
+                                  <SelectValue placeholder="No coupon" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No coupon</SelectItem>
+                                  {myCoupons.filter((c) => !c.is_expired && Number(c.balance ?? c.amount) > 0).map((c) => (
+                                    <SelectItem key={c.id} value={String(c.id)}>
+                                      {c.code} — Balance ₹{c.balance ?? c.amount}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-medium text-muted-foreground">Or enter coupon code</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Input
+                                  placeholder="Enter coupon code"
+                                  value={couponCodeInput}
+                                  onChange={(e) => {
+                                    setCouponCodeInput(e.target.value);
+                                    setValidatedCouponFromCode(null);
+                                    if (selectedCouponId != null) setSelectedCouponId(null);
+                                  }}
+                                  className="max-w-xs font-mono border-amber-200/80 bg-background/80"
+                                />
+                                <Button type="button" variant="secondary" size="sm" onClick={applyCouponCode} disabled={validatingCoupon} className="shrink-0">
+                                  {validatingCoupon ? "Validating…" : "Apply Coupon"}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                          {(selectedCouponId != null || validatedCouponFromCode) && (() => {
+                            const c = selectedCouponId != null ? myCoupons.find((x) => x.id === selectedCouponId) : null;
+                            const base = Number(calculatedCharge?.total_charge ?? 0);
+                            const amt = c ? Number(c.balance ?? c.amount ?? 0) : validatedCouponFromCode ? Number(validatedCouponFromCode.amount) : 0;
+                            const effective = Math.min(amt, base);
+                            const isCapped = amt > base;
+                            return (
+                              <div className="flex items-center justify-between rounded-lg bg-amber-500/10 dark:bg-amber-500/15 px-3 py-2 text-sm">
+                                <span className="text-muted-foreground">
+                                  Discount{isCapped ? " (capped to charge)" : ""}
+                                </span>
+                                <span className="font-semibold text-amber-700 dark:text-amber-400">−₹{effective.toFixed(2)}</span>
+                              </div>
+                            );
+                          })()}
+                          {couponCodeInput.trim() && selectedCouponId == null && !validatedCouponFromCode && (
+                            <p className="text-xs text-muted-foreground">Click Apply Coupon to validate this code.</p>
                           )}
                         </div>
                       )}
                       <div className="flex justify-between items-center pt-4 border-t">
                         <span className="text-lg font-semibold">Total Charge:</span>
                         <span className="text-2xl font-bold text-primary">
-                          ₹{canAccessManageEquipmentModes() && adminManageMode === "book" && adminDiscountAmount > 0
-                            ? Math.max(0, Number(calculatedCharge.total_charge) - adminDiscountAmount).toFixed(2)
-                            : Number(calculatedCharge.total_charge).toFixed(2)}
+                          ₹{(() => {
+                            const base = Number(calculatedCharge.total_charge);
+                            const couponAmt = selectedCouponId != null
+                              ? Number(myCoupons.find((c) => c.id === selectedCouponId)?.balance ?? myCoupons.find((c) => c.id === selectedCouponId)?.amount ?? 0)
+                              : validatedCouponFromCode
+                                ? Number(validatedCouponFromCode.amount)
+                                : 0;
+                            const effectiveDiscount = Math.min(couponAmt, base);
+                            return (base - effectiveDiscount).toFixed(2);
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -4386,8 +4722,22 @@ const BookEquipment = () => {
                   </Button>
                 </div>
 
-                {/* Slot Grid */}
-                <div className="overflow-x-auto">
+                {/* Slot Grid - show loading overlay when fetching a different week */}
+                {(() => {
+                  const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+                  const weekEnd = addDays(weekStart, 7);
+                  const currentWeekKey = `${format(weekStart, "yyyy-MM-dd")}_${format(weekEnd, "yyyy-MM-dd")}`;
+                  const isLoadingThisWeek = loadingSlots && (lastFetchedWeek === null || currentWeekKey !== lastFetchedWeek);
+                  return (
+                <div className="overflow-x-auto relative">
+                  {isLoadingThisWeek && (
+                    <div className="absolute inset-0 bg-background/80 z-10 flex items-center justify-center rounded-md min-h-[200px]">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <p className="text-sm text-muted-foreground">Loading weekly slots…</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="min-w-[800px]">
                     {/* Header with days */}
                     <div className="grid grid-cols-8 gap-2 mb-2">
@@ -4516,6 +4866,7 @@ const BookEquipment = () => {
                           if (!rawSlotStatusLabel && slotStatus) {
                             const statusMap: Record<string, string> = {
                               "AVAILABLE": "Available",
+                              "NOT_AVAILABLE": "Not Available",
                               "BOOKED": "Booked",
                               "BLOCKED": "Blocked",
                               "UNDER_MAINTENANCE": "Under Maintenance",
@@ -4593,9 +4944,9 @@ const BookEquipment = () => {
                             } else if (isSelected) {
                               displayStatus = "Selected";
                               isDisabled = false; // Allow deselecting
-                            } else if (isPast && !isAdminUser()) {
-                              displayStatus = slotDisplayLabel || slotStatusLabel || "Available";
-                              isDisabled = true;
+                            } else if (isPast) {
+                              displayStatus = considerBooked ? (slotDisplayLabel || slotStatusLabel || "Unavailable") : "No Booking";
+                              isDisabled = !isAdminUser();
                             } else if (chargeNotCalculated) {
                               displayStatus = slotDisplayLabel || slotStatusLabel || "—";
                               isDisabled = true;
@@ -4613,7 +4964,7 @@ const BookEquipment = () => {
                             displayStatus = holidayName || "—";
                           }
 
-                          const useHolidayBg = Boolean(holidayColor && !isSelected && !considerBooked);
+                          const useHolidayBg = Boolean(holidayColor && !isSelected && !considerBooked && !(isExternalUser && slotExists));
                           const dayOfWeek = day.getDay();
                           const isWeekendCell = !slotExists && (dayOfWeek === 6 || dayOfWeek === 0);
 
@@ -4626,6 +4977,8 @@ const BookEquipment = () => {
                             OPERATOR_ABSENT: "#eab308",
                             BOOKING_NOT_UTILIZED: "#a855f7",
                             HOLD: "#f59e0b",
+                            RESERVED_FOR_EXTERNAL: "#94a3b8",
+                            NOT_AVAILABLE: "#e2e8f0",
                           };
                           const slotColors = {
                             ...defaultSlotColors,
@@ -4641,10 +4994,11 @@ const BookEquipment = () => {
                           } else if (isSelected) {
                             cellStyle = undefined; // use Tailwind primary
                           } else if (slotExists) {
-                            // Weekday slots: use booking_status for color when slot is BOOKED (e.g. HOLD), else slot status
-                            const statusForColor = (slotStatus === "BOOKED" && slotData?.booking_status)
-                              ? String(slotData.booking_status).toUpperCase()
-                              : slotStatus;
+                            // Use RESERVED_FOR_EXTERNAL / NOT_AVAILABLE from calendar-colors when applicable
+                            let statusForColor = slotStatus;
+                            if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
+                            else if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
+                            else if (slotStatus === "BOOKED" && slotData?.booking_status) statusForColor = String(slotData.booking_status).toUpperCase();
                             const status = statusForColor || "AVAILABLE";
                             const bg = slotColors[status] ?? (considerBooked ? slotColors.BOOKED : slotColors.AVAILABLE);
                             if (isPast && !isAdminUser()) {
@@ -4697,6 +5051,8 @@ const BookEquipment = () => {
                     })()}
                   </div>
                 </div>
+                  );
+                })()}
 
                     {/* Booking Summary */}
                     {selectedSlots.length > 0 && (
@@ -4734,6 +5090,48 @@ const BookEquipment = () => {
                       </div>
                     )}
 
+                    {/* Booking options */}
+                    <div className="mt-6 rounded-xl border border-border/80 bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <p className="text-sm font-medium text-foreground">Booking options</p>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
+                          <Checkbox
+                            id="book-any-available-slots"
+                            checked={bookAnyAvailableSlots}
+                            onCheckedChange={(c) => {
+                              const v = c === true;
+                              setBookAnyAvailableSlots(v);
+                              if (!v) setBookEvenIfSingleSlotAvailable(false);
+                            }}
+                            className="mt-0.5 h-4 w-4"
+                          />
+                          <span className="text-sm text-foreground group-hover:text-foreground">
+                            Book any available slots
+                          </span>
+                        </label>
+                        <p className="text-xs text-muted-foreground pl-7">First priority: book your required slots and duration. If selected slots are unavailable, the system will auto-select available slots in this window (in time order, even if not consecutive) until your required duration is covered.</p>
+                        {bookAnyAvailableSlots && (
+                          <>
+                            <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
+                              <Checkbox
+                                id="book-even-if-single-slot-available"
+                                checked={bookEvenIfSingleSlotAvailable}
+                                onCheckedChange={(c) => setBookEvenIfSingleSlotAvailable(c === true)}
+                                className="mt-0.5 h-4 w-4"
+                              />
+                              <span className="text-sm text-foreground group-hover:text-foreground">
+                                Book even if single slot is available
+                              </span>
+                            </label>
+                            <p className="text-xs text-muted-foreground pl-7">If required duration cannot be met, book a single available slot and charge accordingly (number of slots/samples adjusted).</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Action Buttons */}
                     <div className="mt-6 flex flex-wrap gap-4">
                       <Button
@@ -4762,7 +5160,7 @@ const BookEquipment = () => {
                             Confirming…
                           </>
                         ) : (
-                          <>{isUrgentHoldMode ? <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''})</> : <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''})</>}</>
+                          <>{isUrgentHoldMode ? ((searchParams.get("return_to") === "my-urgent-requests" || searchParams.get("return_to") === "dashboard") ? <>Hold slots and return ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</> : <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>) : <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>}</>
                         )}
                       </Button>
                     </div>
@@ -4948,6 +5346,7 @@ const BookEquipment = () => {
                         status: "pending",
                         input_values: pendingHoldSelection.inputValues as Record<string, string | boolean | string[]>,
                         create_as_hold: true,
+                        ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
                       });
                       if (res.error) {
                         toast.error(res.error);
@@ -4997,6 +5396,40 @@ const BookEquipment = () => {
             </>
               );
             })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* Immediate feedback while booking is being processed */}
+        <Dialog open={isSubmittingBooking} onOpenChange={() => {}}>
+          <DialogContent
+            className="max-w-sm border-2 border-primary/20 shadow-lg"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <div className="flex flex-col items-center justify-center py-6 px-4 text-center">
+              <Loader2 className="h-14 w-14 animate-spin text-primary mb-4" />
+              <DialogTitle className="text-lg font-semibold mb-1">Confirming your booking</DialogTitle>
+              <DialogDescription asChild>
+                <p className="text-sm text-muted-foreground">Processing your request. Please wait a moment…</p>
+              </DialogDescription>
+              <p className="text-xs text-muted-foreground mt-3">Do not close this window.</p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={couponValidatePopup.open} onOpenChange={(open) => !open && setCouponValidatePopup((p) => ({ ...p, open: false }))}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className={couponValidatePopup.success ? "text-green-600 dark:text-green-500" : "text-destructive"}>
+                {couponValidatePopup.success ? "Coupon applied" : "Coupon invalid"}
+              </DialogTitle>
+              <DialogDescription asChild>
+                <p>{couponValidatePopup.message}</p>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={() => setCouponValidatePopup((p) => ({ ...p, open: false }))}>OK</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

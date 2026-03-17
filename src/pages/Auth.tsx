@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff, Upload, X, FileText, User, Home, Mail, ArrowLeft, KeyRound, UserPlus, ChevronsUpDown } from "lucide-react";
+import { Eye, EyeOff, Upload, X, FileText, User, Home, Mail, ArrowLeft, KeyRound, UserPlus, ChevronsUpDown, ListChecks, Building2, Calendar, FileSignature } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const authSchema = z.object({
@@ -35,9 +35,9 @@ const authSchema = z.object({
       },
       "Enter a valid 10-digit Indian mobile number (e.g. 9876543210). It must start with 6, 7, 8, or 9."
     ),
-  department: z.number().int().positive("Department ID must be a positive number"),
+  department: z.number().int().positive("Department ID must be a positive number").optional(),
   gender: z.enum(["male", "female", "other"], { required_error: "Gender is required", invalid_type_error: "Please select gender" }),
-  program_end_date: z.string().min(1, "Program valid until is required"),
+  program_end_date: z.string().min(1, "Current Program/Employment Validity is required"),
 }).refine((data) => data.password === data.password_confirm, {
   message: "Passwords do not match",
   path: ["password_confirm"],
@@ -70,6 +70,13 @@ interface Department {
   code: string;
   department_type?: string;
   department_type_display?: string;
+  verified?: boolean;
+}
+
+interface PendingOrganizationRequest {
+  id: number;
+  name: string;
+  verified: false;
 }
 
 interface UserType {
@@ -89,7 +96,7 @@ interface FacultySearchResult {
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, isAuthenticated, refreshUser } = useAuth();
+  const { login, isAuthenticated, refreshUser, setUserFromAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [email, setEmail] = useState("");
@@ -103,7 +110,8 @@ const Auth = () => {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [department, setDepartment] = useState("");
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [indianStates, setIndianStates] = useState<Array<{ value: string; label: string }>>([]);
+  const [pendingOrganizationRequests, setPendingOrganizationRequests] = useState<PendingOrganizationRequest[]>([]);
+  const [indianStates, setIndianStates] = useState<Array<{ value: string; label: string; type?: "state" | "union_territory" }>>([]);
   const [selectedStateUt, setSelectedStateUt] = useState("");
   const [stateComboboxOpen, setStateComboboxOpen] = useState(false);
   const [loadingStates, setLoadingStates] = useState(false);
@@ -116,7 +124,6 @@ const Auth = () => {
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState("signin");
   const [documents, setDocuments] = useState<File[]>([]);
-  const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [documentErrors, setDocumentErrors] = useState<string[]>([]);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
@@ -126,6 +133,10 @@ const Auth = () => {
   const [facultySearchResults, setFacultySearchResults] = useState<FacultySearchResult[]>([]);
   const [loadingFacultySearch, setLoadingFacultySearch] = useState(false);
   const facultySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [orgRequestName, setOrgRequestName] = useState("");
+  const [orgRequestNotes, setOrgRequestNotes] = useState("");
+  const [pendingOrganizationRequestId, setPendingOrganizationRequestId] = useState<number | null>(null);
+  const [pendingOrganizationName, setPendingOrganizationName] = useState<string>("");
 
   // Login via OTP (email)
   const [loginViaOtpStep, setLoginViaOtpStep] = useState<null | "email" | "otp">(null);
@@ -245,17 +256,23 @@ const Auth = () => {
       .then((response) => {
         if (response.data?.departments) setDepartments(response.data.departments);
         else setDepartments([]);
+        if (response.data?.pending_organization_requests) {
+          setPendingOrganizationRequests(response.data.pending_organization_requests);
+        } else {
+          setPendingOrganizationRequests([]);
+        }
       })
       .catch(() => {
         toast.error("Failed to load departments");
         setDepartments([]);
+        setPendingOrganizationRequests([]);
       })
       .finally(() => setLoadingDepartments(false));
   }, [activeTab, userType, userTypes, selectedStateUt]);
 
-  // Fetch user types only when signup tab is active
+  // Fetch user types when Auth mounts and when signup tab is active (so list is ready when user opens signup)
   useEffect(() => {
-    if (activeTab === "signup" && userTypes.length === 0 && !loadingUserTypes) {
+    if (userTypes.length === 0 && !loadingUserTypes) {
       fetchUserTypes();
     }
   }, [activeTab]);
@@ -290,6 +307,14 @@ const Auth = () => {
   }, [needsSupervisor]);
 
   useEffect(() => {
+    const code = userType.includes("|") ? userType.split("|")[0] : userType;
+    if (code !== "RND") {
+      setPendingOrganizationRequestId(null);
+      setPendingOrganizationName("");
+    }
+  }, [userType]);
+
+  useEffect(() => {
     if (!facultySearchQuery.trim() || facultySearchQuery.length < 2) {
       setFacultySearchResults([]);
       return;
@@ -315,8 +340,16 @@ const Auth = () => {
     setLoadingUserTypes(true);
     try {
       const response = await apiClient.getUserTypes();
-      if (response.data?.user_types) {
-        setUserTypes(response.data.user_types);
+      if (response.error) {
+        toast.error(response.error || "Failed to load user types");
+        return;
+      }
+      const list = response.data?.user_types ?? (response.data as Record<string, unknown>)?.user_types;
+      if (Array.isArray(list) && list.length > 0) {
+        setUserTypes(list);
+      } else if (response.data && typeof response.data === "object") {
+        console.warn("User types response missing or empty:", response.data);
+        toast.error("No user types available. Please try again later.");
       }
     } catch (error) {
       console.error("Error fetching user types:", error);
@@ -367,13 +400,40 @@ const Auth = () => {
       return;
     }
     const resolvedCode = userType.includes("|") ? userType.split("|")[0]! : userType;
-    if ((resolvedCode === "external" || resolvedCode === "RND" || resolvedCode === "Industry") && !selectedStateUt) {
+    const isExternalType = resolvedCode === "external" || resolvedCode === "RND" || resolvedCode === "Industry";
+    if (isExternalType && !selectedStateUt) {
       toast.error("State/Union Territory is required for Educational Institute, Govt R&D Organizations, and Industry");
       return;
     }
-    if ((resolvedCode === "external" || resolvedCode === "RND") && isPublicEmailDomain(email) && documents.length === 0) {
-      toast.error("Documents are required when using a public email (e.g. Gmail, Yahoo) for Educational Institute or Govt R&D Organizations. Upload at least one document or use your institution/organization email.");
+    if (isExternalType && email.trim().toLowerCase().endsWith("@iitr.ac.in")) {
+      toast.error("External users cannot register with an IIT Roorkee (iitr.ac.in) email. Please use your institution or organization email.");
       return;
+    }
+    const needsKycForm = (resolvedCode === "external" || resolvedCode === "RND") && isPublicEmailDomain(email);
+    if (needsKycForm && documents.length === 0) {
+      toast.error("A signed and filled KYC form (scan) is required when using a public email. Download the form below, fill it, sign it, scan it, and upload it—or use your institution/organization email.");
+      return;
+    }
+    // Document type selection is not required; any uploaded document is treated as the KYC scan for this validation.
+    const isReqFromDropdown = resolvedCode === "RND" && department.startsWith("req-");
+    const hasOrgSelection = department || pendingOrganizationRequestId != null;
+    if (resolvedCode === "RND" && !hasOrgSelection) {
+      toast.error("Select an organization from the list or request a new organization name, then proceed with signup.");
+      return;
+    }
+    if (resolvedCode !== "RND" && !department) {
+      toast.error("Please select a department.");
+      return;
+    }
+
+    let signupDepartment: number | null = null;
+    let signupOrgRequestId: number | undefined;
+    if (resolvedCode === "RND" && (isReqFromDropdown || pendingOrganizationRequestId != null)) {
+      signupOrgRequestId = isReqFromDropdown
+        ? parseInt(department.slice(4), 10)
+        : (pendingOrganizationRequestId ?? undefined);
+    } else if (department && !department.startsWith("req-")) {
+      signupDepartment = parseInt(department, 10);
     }
 
     try {
@@ -387,7 +447,7 @@ const Auth = () => {
         user_type_alias: (resolvedCode === "student" || resolvedCode === "individual_student") ? (resolvedAlias || userTypeAlias) : undefined,
         emp_id: empId,
         phone_number: phoneNumber?.trim() || undefined,
-        department: parseInt(department, 10),
+        department: signupDepartment ?? undefined,
         gender: gender && gender !== "none" ? gender : undefined,
         program_end_date: programEndDate || undefined,
       });
@@ -401,15 +461,16 @@ const Auth = () => {
         validated.user_type,
         validated.emp_id,
         validated.phone_number!,
-        validated.department,
+        signupDepartment,
         documents.length > 0 ? documents : undefined,
-        documents.length > 0 && documentTypes.length > 0 ? documentTypes : undefined,
+        undefined,
         profilePicture,
         validated.user_type_alias,
         supervisorId ? (supervisorId as number) : undefined,
         validated.program_end_date,
         undefined,
-        validated.gender
+        validated.gender,
+        signupOrgRequestId
       );
 
       if ('error' in response && response.error) {
@@ -468,8 +529,9 @@ const Auth = () => {
           setProfilePicture(null);
           setProfilePicturePreview(null);
           setDocuments([]);
-          setDocumentTypes([]);
           setDocumentErrors([]);
+          setPendingOrganizationRequestId(null);
+          setPendingOrganizationName("");
           
           // Switch to signin tab to guide user
           setActiveTab("signin");
@@ -489,6 +551,8 @@ const Auth = () => {
         setDepartment("");
     setSelectedStateUt("");
         setSupervisorId("");
+        setPendingOrganizationRequestId(null);
+        setPendingOrganizationName("");
         setSupervisorDisplay(null);
         setProfilePicture(null);
         setProfilePicturePreview(null);
@@ -615,8 +679,7 @@ const Auth = () => {
 
       // Login successful
         toast.success("Signed in successfully!");
-      // Refresh user data to ensure we have the latest
-      await refreshUser();
+      // User already set from login response; skip refresh to avoid 401 redirect race
         navigate("/dashboard");
     } catch (error: any) {
       // Check if error message contains email verification or pending approval
@@ -691,7 +754,7 @@ const Auth = () => {
         return;
       }
       toast.success("Signed in successfully!");
-      await refreshUser();
+      if (res.data?.user) setUserFromAuth(res.data.user);
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err?.message || "Verification failed.");
@@ -775,11 +838,11 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.12),transparent)] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.18),transparent)]">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-2xl">
         {/* Card */}
         <Card className="overflow-hidden border-0 shadow-[var(--shadow-elegant)] bg-card/95 backdrop-blur-sm rounded-2xl">
           {/* Header */}
-          <div className="relative px-6 pt-6 pb-4 text-center border-b border-border/50 bg-gradient-to-b from-muted/30 to-transparent">
+          <div className="relative px-6 sm:px-8 pt-6 pb-4 text-center border-b border-border/50 bg-gradient-to-b from-muted/30 to-transparent">
             <Button
               variant="ghost"
               size="icon"
@@ -808,12 +871,12 @@ const Auth = () => {
             <p className="mt-1 text-sm font-semibold text-muted-foreground">
               Institute Instrumentation Centre
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Sign in or create an account
             </p>
           </div>
 
-          <CardContent className="p-6 sm:p-8">
+          <CardContent className="p-6 sm:p-8 text-base">
             {/* Channel i — primary CTA */}
             <div className="mb-6">
               <Button
@@ -843,7 +906,7 @@ const Auth = () => {
                 <div className="w-full border-t border-border/80" />
               </div>
               <div className="relative flex justify-center">
-                <span className="bg-card px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="bg-card px-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
                   Or continue with email
                 </span>
               </div>
@@ -1144,24 +1207,93 @@ const Auth = () => {
             <TabsContent value="signup" className="mt-6 focus-visible:outline-none">
               <form onSubmit={handleSignUp} className="space-y-6">
                 {/* Who can register — elegant info box */}
-                <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4">
-                  <p className="text-sm font-semibold text-foreground">Who can register</p>
-                  <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+                <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-5">
+                  <p className="text-base font-semibold text-foreground">Who can register</p>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
                     External users and IITR Post Doctoral Fellows, Research Associates in Projects, and IITR Startups can register here.
                   </p>
-                  <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary dark:text-primary">
+                  <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary dark:text-primary">
                     IITR Students, Faculty, and Officer in Charge / Lab in charge → sign in with Channel i IITR above.
                   </p>
                 </div>
-                <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-2">
-                  <p className="text-sm font-semibold text-foreground">Registration requirements</p>
-                  <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
-                    <li><strong>Gender</strong> and <strong>Program Valid Until</strong> are required for all.</li>
-                    <li><strong>Educational Institute, Govt R&D Organizations, Industry:</strong> Select <strong>State/Union Territory</strong> first; departments will be filtered by your type and state.</li>
-                    <li><strong>Educational Institute &amp; Govt R&D Organizations:</strong> If you use a <strong>public email</strong> (e.g. Gmail, Yahoo, Outlook), you must upload <strong>at least one document</strong>. Using your institution/organization email makes documents optional.</li>
-                    <li><strong>IITR Post Doctoral Fellows &amp; Research Associates:</strong> Select a department under IIT Roorkee Department/Centres and an <strong>IITR Faculty supervisor</strong>.</li>
-                    <li><strong>IITR Startups:</strong> Select a department under <strong>Startups</strong>.</li>
-                  </ul>
+                <div className="rounded-xl border border-border/80 bg-muted/20 dark:bg-muted/30 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border/60 bg-muted/40">
+                    <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      <ListChecks className="h-5 w-5 text-primary" />
+                      Registration requirements
+                    </h3>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div className="flex gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <User className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">For everyone</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed"><strong>Gender</strong> and <strong>Current Program/Employment Validity</strong> are required.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Building2 className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Educational Institute, Govt R&amp;D, Industry</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Select <strong>State/Union Territory</strong> first; departments are filtered by type and state. Use your <strong>institution or organization email</strong> (not @iitr.ac.in).</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Mail className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Institution/organization email</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">With a non-public email you get a <strong>self-verification link</strong>—no admin approval. Confirm your details and accept to start using the portal.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                        <FileSignature className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">Public email (Gmail, Yahoo, etc.)</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Download the <strong>KYC form</strong>, fill it, sign it, and upload a <strong>scan</strong> (choose &quot;KYC Form (signed &amp; scanned)&quot; as document type). Or use your institution email to skip this.</p>
+                        <a
+                          href="/IIC_IIT_Roorkee_KYC_Form.pdf"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 mt-2 text-sm font-medium text-primary hover:underline"
+                        >
+                          <FileText className="h-4 w-4 shrink-0" />
+                          Download IIC IIT Roorkee KYC Form (PDF)
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border/60 pt-4 space-y-3">
+                      <div className="flex gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Building2 className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">IITR Post Doctoral Fellows &amp; Research Associates</p>
+                          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Select a department under IIT Roorkee Department/Centres and an <strong>IITR Faculty supervisor</strong>.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Building2 className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">IITR Startups</p>
+                          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Select a department under <strong>Startups</strong>.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-4">
                 <div className="space-y-2">
@@ -1333,13 +1465,16 @@ const Auth = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-state-ut" className="text-foreground font-medium">
-                    State / Union Territory
-                    {userType && (() => {
+                    {(() => {
                       const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                      if (code === "external" || code === "RND" || code === "Industry") {
-                        return <span className="text-destructive"> *</span>;
+                      const needsState = code === "external" || code === "RND" || code === "Industry";
+                      const requiredMark = needsState ? <span className="text-destructive"> *</span> : null;
+                      if (selectedStateUt) {
+                        const selected = indianStates.find((s) => s.value === selectedStateUt);
+                        const label = selected?.type === "union_territory" ? "Union Territory" : "State";
+                        return <>{label}{requiredMark}</>;
                       }
-                      return null;
+                      return <>State / Union Territory{requiredMark}</>;
                     })()}
                   </Label>
                   <Popover open={stateComboboxOpen} onOpenChange={setStateComboboxOpen}>
@@ -1362,23 +1497,49 @@ const Auth = () => {
                     </PopoverTrigger>
                     <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Search state or UT..." />
+                        <CommandInput placeholder="Search state or union territory..." />
                         <CommandList>
-                          <CommandEmpty>No state or UT found.</CommandEmpty>
-                          <CommandGroup>
-                            {indianStates.map((s) => (
-                              <CommandItem
-                                key={s.value}
-                                value={s.label}
-                                onSelect={() => {
-                                  setSelectedStateUt(s.value);
-                                  setStateComboboxOpen(false);
-                                }}
-                              >
-                                {s.label}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                          <CommandEmpty>No state or union territory found.</CommandEmpty>
+                          {(() => {
+                            const states = indianStates.filter((s) => (s.type ?? "state") === "state");
+                            const uts = indianStates.filter((s) => s.type === "union_territory");
+                            return (
+                              <>
+                                {states.length > 0 && (
+                                  <CommandGroup heading="States">
+                                    {states.map((s) => (
+                                      <CommandItem
+                                        key={s.value}
+                                        value={s.label}
+                                        onSelect={() => {
+                                          setSelectedStateUt(s.value);
+                                          setStateComboboxOpen(false);
+                                        }}
+                                      >
+                                        {s.label}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                )}
+                                {uts.length > 0 && (
+                                  <CommandGroup heading="Union Territories">
+                                    {uts.map((s) => (
+                                      <CommandItem
+                                        key={s.value}
+                                        value={s.label}
+                                        onSelect={() => {
+                                          setSelectedStateUt(s.value);
+                                          setStateComboboxOpen(false);
+                                        }}
+                                      >
+                                        {s.label}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                )}
+                              </>
+                            );
+                          })()}
                         </CommandList>
                       </Command>
                     </PopoverContent>
@@ -1388,17 +1549,34 @@ const Auth = () => {
                       const code = userType.includes("|") ? userType.split("|")[0] : userType;
                       const needsState = code === "external" || code === "RND" || code === "Industry";
                       return needsState
-                        ? "Required for Educational Institute, Govt R&D Organizations, and Industry. Departments are filtered by this state/UT."
-                        : "You can search by name.";
+                        ? "Required for Educational Institute, Govt R&D Organizations, and Industry. The list below is filtered by your selection."
+                        : "Optional. You can search by name.";
                     })()}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-department" className="text-foreground font-medium">Department</Label>
+                  <Label htmlFor="signup-department" className="text-foreground font-medium">
+                    {(() => {
+                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
+                      if (code === "RND") return "Organization";
+                      if (code === "Industry") return "Organization";
+                      if (code === "external") return "Department / Institute";
+                      return "Department";
+                    })()}
+                  </Label>
                   <Select
                     value={department}
-                    onValueChange={(value) => setDepartment(value)}
-                    required
+                    onValueChange={(value) => {
+                      setDepartment(value);
+                      if (value && !value.startsWith("req-")) {
+                        setPendingOrganizationRequestId(null);
+                        setPendingOrganizationName("");
+                      }
+                    }}
+                    required={!(() => {
+                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
+                      return code === "RND" && (department || pendingOrganizationRequestId != null);
+                    })()}
                     disabled={
                       loadingDepartments ||
                       !userType ||
@@ -1417,10 +1595,18 @@ const Auth = () => {
                             : (() => {
                                 const code = userType.includes("|") ? userType.split("|")[0] : userType;
                                 const needsState = code === "external" || code === "RND" || code === "Industry";
-                                if (needsState && !selectedStateUt) return "Select State/UT first";
+                                if (needsState && !selectedStateUt) {
+                                  return "Select State / Union Territory first";
+                                }
                                 const selected = userTypes.find((t) => (t.alias ? `${t.code}|${t.name}` === userType : t.code === userType));
                                 if (selected?.alias) {
                                   return selected.name === "IITR Startups" ? "Select internal Startup" : "Select internal department";
+                                }
+                                if (code === "RND" || code === "Industry") {
+                                  return loadingDepartments ? "Loading organizations..." : "Select organization";
+                                }
+                                if (code === "external") {
+                                  return loadingDepartments ? "Loading departments..." : "Select department / institute";
                                 }
                                 return loadingDepartments ? "Loading departments..." : "Select department";
                               })()
@@ -1428,11 +1614,53 @@ const Auth = () => {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id.toString()}>
-                          {dept.name} {dept.code ? `(${dept.code})` : ""}
-                        </SelectItem>
-                      ))}
+                      {(() => {
+                        const code = userType.includes("|") ? userType.split("|")[0] : userType;
+                        if (code === "RND") {
+                          return (
+                            <>
+                              {departments.map((dept) => (
+                                <SelectItem key={`dept-${dept.id}`} value={dept.id.toString()}>
+                                  <span className="flex items-center gap-2">
+                                    {dept.name} {dept.code ? `(${dept.code})` : ""}
+                                    <span className="text-xs font-medium text-green-600 dark:text-green-500">Verified</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                              {pendingOrganizationRequests.map((r) => (
+                                <SelectItem key={`req-${r.id}`} value={`req-${r.id}`}>
+                                  <span className="flex items-center gap-2">
+                                    {r.name}
+                                    <span className="text-xs font-medium text-muted-foreground">Unverified</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </>
+                          );
+                        }
+                        return (
+                          <>
+                            {departments.map((dept) => (
+                              <SelectItem key={`dept-${dept.id}`} value={dept.id.toString()}>
+                                <span className="flex items-center gap-2">
+                                  {dept.name} {dept.code ? `(${dept.code})` : ""}
+                                  {dept.verified !== false && (
+                                    <span className="text-xs font-medium text-green-600 dark:text-green-500">Verified</span>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            ))}
+                            {pendingOrganizationRequests.map((r) => (
+                              <SelectItem key={`req-${r.id}`} value={`req-${r.id}`}>
+                                <span className="flex items-center gap-2">
+                                  {r.name}
+                                  <span className="text-xs font-medium text-muted-foreground">Unverified</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        );
+                      })()}
                     </SelectContent>
                   </Select>
                   {userType && (() => {
@@ -1441,14 +1669,34 @@ const Auth = () => {
                     if (needsState && !selectedStateUt) {
                       return (
                         <p className="text-xs text-muted-foreground">
-                          Select State/UT above to load departments for your type and location.
+                          {code === "RND" || code === "Industry"
+                            ? "Select State / Union Territory above to load organizations for your type and location."
+                            : "Select State / Union Territory above to load departments for your type and location."}
                         </p>
                       );
                     }
-                    if (departments.length === 0 && !loadingDepartments) {
+                    if (code === "RND" || code === "Industry") {
+                      const hasAny = departments.length > 0 || pendingOrganizationRequests.length > 0;
+                      if (!hasAny && !loadingDepartments && code === "RND") {
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            No organizations available for this user type and state. Request a new organization below.
+                          </p>
+                        );
+                      }
+                      if (!hasAny && !loadingDepartments && code === "Industry") {
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            No organizations available for this user type and state.
+                          </p>
+                        );
+                      }
+                    } else if (departments.length === 0 && !loadingDepartments) {
                       return (
                         <p className="text-xs text-muted-foreground">
-                          No departments available for this user type and state
+                          {code === "external"
+                            ? "No departments / institutes available for this user type and state."
+                            : "No departments available for this user type and state."}
                         </p>
                       );
                     }
@@ -1456,13 +1704,124 @@ const Auth = () => {
                   })()}
                   {!userType && (
                     <p className="text-xs text-muted-foreground">
-                      Select user type to load departments
+                      Select user type to load the appropriate list
                     </p>
                   )}
                 </div>
+                {(() => {
+                  const code = userType.includes("|") ? userType.split("|")[0] : userType;
+                  if (code === "RND") {
+                    return (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Can’t find your organization in the list?
+                        </p>
+                        <div className="space-y-2 rounded-lg border border-border/70 bg-muted/30 p-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="signup-org-request-name" className="text-xs font-medium text-foreground">
+                              Request new Organization name
+                            </Label>
+                            <Input
+                              id="signup-org-request-name"
+                              type="text"
+                              value={orgRequestName}
+                              onChange={(e) => setOrgRequestName(e.target.value)}
+                              placeholder="Enter full organization name"
+                              className="h-9 rounded-lg border-border/80 bg-background text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="signup-org-request-notes" className="text-xs font-medium text-foreground">
+                              Webpage (optional)
+                            </Label>
+                            <Input
+                              id="signup-org-request-notes"
+                              type="url"
+                              value={orgRequestNotes}
+                              onChange={(e) => setOrgRequestNotes(e.target.value)}
+                              placeholder="https://..."
+                              className="h-9 rounded-lg border-border/80 bg-background text-sm"
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setOrgRequestName("");
+                                setOrgRequestNotes("");
+                              }}
+                            >
+                              Clear
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!orgRequestName.trim() || !selectedStateUt}
+                              onClick={async () => {
+                                if (!selectedStateUt) {
+                                  toast.error("Select State/UT before requesting a new organization.");
+                                  return;
+                                }
+                                try {
+                                  const res = await apiClient.requestOrganization({
+                                    name: orgRequestName.trim(),
+                                    state: selectedStateUt,
+                                    email: email.trim() || undefined,
+                                    web_page: orgRequestNotes.trim() || undefined,
+                                  });
+                                  if (res.error) {
+                                    throw new Error(res.error);
+                                  }
+                                  const requestId = res.data?.id;
+                                  const requestedName = orgRequestName.trim();
+                                  if (requestId != null && selectedStateUt) {
+                                    setPendingOrganizationRequestId(requestId);
+                                    setPendingOrganizationName(requestedName);
+                                    setDepartment(`req-${requestId}`);
+                                    apiClient
+                                      .getDepartments("external", false, "govt_rnd", selectedStateUt)
+                                      .then((response) => {
+                                        if (response.data?.pending_organization_requests) {
+                                          setPendingOrganizationRequests(response.data.pending_organization_requests);
+                                        }
+                                      })
+                                      .catch(() => {});
+                                  }
+                                  toast.success(
+                                    requestId != null
+                                      ? `Organization "${requestedName}" requested. You can proceed with signup below using this organization; it will be linked once admin approves.`
+                                      : (res.data?.message || "Organization request submitted. Admin will review and add it to the list.")
+                                  );
+                                  setOrgRequestName("");
+                                  setOrgRequestNotes("");
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Failed to submit organization request");
+                                }
+                              }}
+                            >
+                              Submit request
+                            </Button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Your request will be validated by an administrator. Once approved, the organization
+                            will appear in this list for all users.
+                          </p>
+                          {pendingOrganizationRequestId != null && pendingOrganizationName && (
+                            <p className="text-xs font-medium text-primary">
+                              You are signing up with requested organization: <strong>{pendingOrganizationName}</strong>. You can proceed with &quot;Create account&quot; below; your account will be linked once admin approves.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div className="space-y-2">
                   <Label htmlFor="signup-program-end-date" className="text-foreground font-medium">
-                    Program Valid Until <span className="text-destructive">*</span>
+                    Current Program/Employment Validity <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="signup-program-end-date"
@@ -1595,17 +1954,41 @@ const Auth = () => {
                     <p className="text-xs text-muted-foreground">JPG, PNG, GIF, or WEBP</p>
                   </div>
                 </div>
+                {(() => {
+                  const code = userType.includes("|") ? userType.split("|")[0] : userType;
+                  const showKycSection = (code === "external" || code === "RND") && isPublicEmailDomain(email);
+                  return showKycSection ? (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 p-4 space-y-2">
+                      <p className="text-sm font-semibold text-foreground">KYC form required (public email)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Download the IIC IIT Roorkee KYC form below, fill it, sign it, and upload a scan of the signed form. One of your document uploads must be this KYC form with type &quot;KYC Form (signed &amp; scanned)&quot;.
+                      </p>
+                      <a
+                        href="/IIC_IIT_Roorkee_KYC_Form.pdf"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Download IIC IIT Roorkee KYC Form (PDF)
+                      </a>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="space-y-2">
                   <Label htmlFor="signup-documents" className="text-foreground font-medium">
-                    Documents
+                    Upload KYC
                     {(() => {
                       const code = userType.includes("|") ? userType.split("|")[0] : userType;
                       if ((code === "external" || code === "RND") && isPublicEmailDomain(email)) {
                         return <span className="text-destructive"> *</span>;
                       }
-                      return " (Optional)";
+                      return "";
                     })()}
                   </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Only required if public emails (e.g. Gmail, Yahoo) are used for registration.
+                  </p>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Input
@@ -1639,8 +2022,6 @@ const Auth = () => {
                           } else {
                             setDocumentErrors([]);
                             setDocuments((prev) => [...prev, ...validFiles]);
-                            // Initialize document types for new files (default to empty string)
-                            setDocumentTypes((prev) => [...prev, ...Array(validFiles.length).fill("")]);
                           }
                           
                           // Reset input
@@ -1671,32 +2052,10 @@ const Auth = () => {
                                 className="h-8 w-8 p-0 flex-shrink-0 rounded-lg"
                                 onClick={() => {
                                   setDocuments((prev) => prev.filter((_, i) => i !== index));
-                                  setDocumentTypes((prev) => prev.filter((_, i) => i !== index));
                                 }}
                               >
                                 <X className="h-4 w-4" />
                               </Button>
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor={`doc-type-${index}`} className="text-xs font-medium text-muted-foreground">Document type (optional)</Label>
-                              <Select
-                                value={documentTypes[index] || ""}
-                                onValueChange={(value) => {
-                                  const newTypes = [...documentTypes];
-                                  newTypes[index] = value;
-                                  setDocumentTypes(newTypes);
-                                }}
-                              >
-                                <SelectTrigger id={`doc-type-${index}`} className="h-9 rounded-lg text-sm border-border/80">
-                                  <SelectValue placeholder="Select type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="identity_proof">Identity Proof</SelectItem>
-                                  <SelectItem value="address_proof">Address Proof</SelectItem>
-                                  <SelectItem value="qualification">Qualification</SelectItem>
-                                  <SelectItem value="other">Other</SelectItem>
-                                </SelectContent>
-                              </Select>
                             </div>
                           </div>
                         ))}
@@ -1714,7 +2073,7 @@ const Auth = () => {
                         const code = userType.includes("|") ? userType.split("|")[0] : userType;
                         const required = (code === "external" || code === "RND") && isPublicEmailDomain(email);
                         return required
-                          ? "Required for Educational Institute and Govt R&D Organizations when using a public email (e.g. Gmail, Yahoo). Use your institution/organization email to make documents optional."
+                          ? "Required: upload a scan of the signed KYC form (select 'KYC Form (signed & scanned)' as type). Use your institution/organization email to skip this."
                           : "Images, PDF, DOC, DOCX";
                       })()}
                     </p>

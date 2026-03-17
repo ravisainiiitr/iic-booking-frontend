@@ -21,6 +21,8 @@ import {
   Receipt,
   ArrowLeft,
   ChevronRight,
+  Tag,
+  UserCheck,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 
@@ -123,7 +125,32 @@ const AdminPanel = () => {
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-2">
+        <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <UserCheck className="h-6 w-6" />
+                External User Management
+              </CardTitle>
+              <CardDescription>
+                Verify external departments/organizations and external users.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              <button
+                type="button"
+                onClick={() => navigate("/admin/external-user-management")}
+                className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+              >
+                <span className="flex items-center gap-3">
+                  <UserCheck className="h-5 w-5" />
+                  <span className="font-medium">Open external user tools</span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -183,6 +210,31 @@ const AdminPanel = () => {
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Tag className="h-6 w-6" />
+                Coupons
+              </CardTitle>
+              <CardDescription>
+                Create discount coupons, assign them to users, and view consumption history.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              <button
+                type="button"
+                onClick={() => navigate("/admin/coupons")}
+                className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+              >
+                <span className="flex items-center gap-3">
+                  <Tag className="h-5 w-5" />
+                  <span className="font-medium">Create & manage coupons</span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
             </CardContent>
           </Card>
         </div>

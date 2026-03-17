@@ -10,7 +10,10 @@ const getApiBaseUrl = (): string => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // Default fallback
+  // In browser (e.g. Vite dev): use relative /api so the dev server proxy is used (avoids CORS and "Failed to fetch")
+  if (typeof window !== 'undefined') {
+    return '/api';
+  }
   return 'http://127.0.0.1:8000/api';
 };
 
@@ -20,7 +23,7 @@ const API_BASE_URL = getApiBaseUrl();
 export const getAdminBaseUrl = (): string => {
   const base = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
     ? (window as any).__RUNTIME_CONFIG__.VITE_API_URL
-    : import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+    : import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://127.0.0.1:8000/api');
   const origin = base.replace(/\/api\/?$/, '');
   return `${origin}/admin/`;
 };
@@ -37,6 +40,7 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   repeatSampleRequests: 'admin/repeat-sample-requests',
   // Users
   departments: 'admin/departments',
+  organizationRequests: 'admin/organization-requests',
   projects: 'admin/projects',
   subWalletTransactions: 'admin/sub-wallet-transactions',
   subWallets: 'admin/sub-wallets',
@@ -55,6 +59,7 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   communicationTemplates: 'admin/communication-templates',
   communicationLogs: 'admin/communication-logs',
   notices: 'admin/notices',
+  coupons: 'admin/coupons',
   calendarColors: 'admin/calendar-colors',
   internalSlotWindow: 'admin/internal-slot-window',
   equipmentReports: 'admin/equipment-reports',
@@ -98,6 +103,57 @@ interface User {
   last_login?: string | null;
   auto_slot_selection?: boolean;
   is_staff?: boolean;
+}
+
+/** Student equipment operating nomination (semester-wise, supervisor nominates). */
+export interface EquipmentNomination {
+  id: number;
+  student_id: number;
+  student_name: string;
+  student_email: string;
+  student_branch_name?: string;
+  student_degree_name?: string;
+  student_department_name?: string;
+  supervisor_id: number;
+  supervisor_name: string;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  semester_id: number;
+  semester_code: string;
+  semester_name: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  remarks: string | null;
+  nominated_at: string | null;
+  approved_at: string | null;
+  approved_by_id: number | null;
+  approved_by_name?: string | null;
+  outcome_summary?: string;
+  ta_call_id?: number | null;
+  resume_submitted_at?: string | null;
+  resume_filename?: string | null;
+  has_resume?: boolean;
+}
+
+/** TA nomination call initiated by OIC/Admin; email sent to all Faculty. */
+export interface TANominationCall {
+  id: number;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  semester_id: number;
+  semester_code: string;
+  semester_name: string;
+  number_of_operators_required: number;
+  eligibility_criteria: string;
+  expected_duty_hours: string;
+  expected_duty_time: string;
+  benefits: string;
+  nomination_deadline: string | null;
+  status: 'OPEN' | 'CLOSED';
+  created_by_id: number | null;
+  created_at: string | null;
+  email_sent_at: string | null;
 }
 
 interface AuthResponse {
@@ -539,7 +595,7 @@ class ApiClient {
     user_type: string,
     emp_id: string,
     phone_number: string | undefined,
-    department: number,
+    department: number | null,
     documents?: File[],
     document_types?: string[],
     profile_picture?: File | null,
@@ -547,7 +603,8 @@ class ApiClient {
     supervisor?: number | null,
     program_end_date?: string,
     program_start_date?: string | null,
-    gender?: string | null
+    gender?: string | null,
+    organization_request_id?: number | null
   ) {
     const url = `${this.baseURL}/auth/register/`;
     const formData = new FormData();
@@ -576,7 +633,12 @@ class ApiClient {
     if (phone_number) {
       formData.append('phone_number', phone_number);
     }
-    formData.append('department', department.toString());
+    if (organization_request_id != null && organization_request_id !== undefined) {
+      formData.append('organization_request', organization_request_id.toString());
+    }
+    if (department != null && department !== undefined && department !== 0) {
+      formData.append('department', department.toString());
+    }
     
     // Append profile picture if provided
     if (profile_picture) {
@@ -696,6 +758,22 @@ class ApiClient {
     return response;
   }
 
+  /** Self-verification (external non-public email): get user details to show Accept/Reject page. */
+  async getSelfVerifyDetails(uidb64: string, token: string) {
+    return this.request<{ name: string; email: string; department_name: string | null; user_type_display: string }>(
+      `/auth/self-verify/${encodeURIComponent(uidb64)}/${encodeURIComponent(token)}/`,
+      { method: 'GET' }
+    );
+  }
+
+  /** Self-verification: accept (activate account) or reject (remove registration). */
+  async selfVerifyAction(uidb64: string, token: string, action: 'accept' | 'reject') {
+    return this.request<{ message: string; email_verified?: boolean; admin_approved?: boolean }>(
+      `/auth/self-verify/${encodeURIComponent(uidb64)}/${encodeURIComponent(token)}/`,
+      { method: 'POST', body: JSON.stringify({ action }) }
+    );
+  }
+
   /** Request OTP for login (sent to user's email). Active, verified, approved users only. */
   async requestLoginOtp(email: string) {
     return this.request<{ message: string }>('/auth/login/request-otp/', {
@@ -799,6 +877,114 @@ class ApiClient {
   // Profile endpoints
   async getProfileMe() {
     return this.request<User>('/profiles/me/');
+  }
+
+  // External user billing profile (for invoice/shipping label)
+  async getExternalBillingProfileMe() {
+    return this.request<{
+      billing_name: string;
+      gstin: string;
+      billing_address_line1: string;
+      billing_address_line2: string;
+      billing_city: string;
+      billing_state: string;
+      billing_pincode: string;
+      billing_country: string;
+      shipping_same_as_billing: boolean;
+      shipping_name: string;
+      shipping_phone: string;
+      shipping_address_line1: string;
+      shipping_address_line2: string;
+      shipping_city: string;
+      shipping_state: string;
+      shipping_pincode: string;
+      shipping_country: string;
+    }>('/profiles/me/external-billing/');
+  }
+
+  async updateExternalBillingProfileMe(data: Partial<{
+    billing_name: string;
+    gstin: string;
+    billing_address_line1: string;
+    billing_address_line2: string;
+    billing_city: string;
+    billing_state: string;
+    billing_pincode: string;
+    billing_country: string;
+    shipping_same_as_billing: boolean;
+    shipping_name: string;
+    shipping_phone: string;
+    shipping_address_line1: string;
+    shipping_address_line2: string;
+    shipping_city: string;
+    shipping_state: string;
+    shipping_pincode: string;
+    shipping_country: string;
+  }>) {
+    return this.request<{
+      billing_name: string;
+      gstin: string;
+      billing_address_line1: string;
+      billing_address_line2: string;
+      billing_city: string;
+      billing_state: string;
+      billing_pincode: string;
+      billing_country: string;
+      shipping_same_as_billing: boolean;
+      shipping_name: string;
+      shipping_phone: string;
+      shipping_address_line1: string;
+      shipping_address_line2: string;
+      shipping_city: string;
+      shipping_state: string;
+      shipping_pincode: string;
+      shipping_country: string;
+    }>('/profiles/me/external-billing/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getBookingInvoicePdfBlob(bookingId: number): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL}/bookings/${bookingId}/invoice.pdf`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
+  }
+
+  async getBookingShippingLabelPdfBlob(bookingId: number): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL}/bookings/${bookingId}/shipping-label.pdf`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
+  }
+
+  async getEquipmentProformaInvoicePdfBlob(equipmentId: number, data: { base_charge: number | string; description?: string }) {
+    const token = this.getToken();
+    const url = `${this.baseURL}/equipments/${equipmentId}/proforma-invoice.pdf`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Token ${token}` } : {}),
+    };
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(data) });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return { error: (d as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
   }
 
   /** Upload profile picture (multipart form key: avatar). Returns profile_picture and avatar_url. */
@@ -1064,12 +1250,73 @@ class ApiClient {
       profile_type: string;
       input_values: Record<string, number | string>;
       total_time_minutes: number;
+      base_charge: string;
+      gst_percent: number;
+      gst_amount: string;
       total_charge: string;
       charge_breakdown: Array<{
         description: string;
         amount: number;
       }>;
     }>(endpoint);
+  }
+
+  /** Download proforma invoice PDF (IIT Roorkee letterhead, user details, date/time, disclaimer). */
+  async proformaInvoiceDownloadPdf(payload: {
+    line_items: Array<{
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      input_values: Record<string, number | string>;
+      input_labels_and_values?: Record<string, string | number>;
+      charge_breakdown: Array<{ description: string; amount: number }>;
+      base_charge: string;
+      gst_amount: string;
+      total_charge: string;
+    }>;
+    subtotal: string;
+    total_gst: string;
+    total_amount: string;
+  }): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL.replace(/\/$/, '')}/proforma-invoice/download.pdf`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Token ${token}` } : {}),
+    };
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
+  }
+
+  /** Calculate proforma invoice for multiple equipments (samples/slots/elements). Charge is based on logged-in user type. */
+  async proformaInvoiceCalculate(items: Array<{ equipment_id: number; input_values: Record<string, number | string> }>) {
+    return this.request<{
+      user_type: string;
+      line_items: Array<{
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        profile_type: string;
+        input_values: Record<string, number | string>;
+        total_time_minutes: number;
+        charge_breakdown: Array<{ description: string; amount: number }>;
+        base_charge: string;
+        gst_percent: number;
+        gst_amount: string;
+        total_charge: string;
+      }>;
+      subtotal: string;
+      total_gst: string;
+      total_amount: string;
+    }>('/proforma-invoice/calculate/', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
   }
 
   async getEquipmentSlots(
@@ -1412,13 +1659,63 @@ class ApiClient {
         code: string; 
         department_type: string;
         department_type_display: string;
+        verified?: boolean;
       }>; 
       count: number;
+      pending_organization_requests?: Array<{ id: number; name: string; verified: boolean }>;
       grouped?: {
         internal: Array<{ id: number; name: string; code: string; department_type: string; department_type_display: string }>;
         external: Array<{ id: number; name: string; code: string; department_type: string; department_type_display: string }>;
       };
     }>(url);
+  }
+
+  /**
+   * Get separate lists for Educational Institute, Govt R&D, and Industry for a given State/UT.
+   * Use this when you need all three lists for one state (e.g. admin or reporting).
+   */
+  async getDepartmentsBySubcategoryForState(state: string) {
+    const params = new URLSearchParams({
+      type: 'external',
+      state,
+      group_by_subcategory: 'true',
+    });
+    return this.request<{
+      state: string;
+      by_subcategory: {
+        educational_institute: {
+          departments: Array<{ id: number; name: string; code: string; verified?: boolean }>;
+          pending_organization_requests: Array<{ id: number; name: string; verified: boolean }>;
+          count: number;
+        };
+        govt_rnd: {
+          departments: Array<{ id: number; name: string; code: string; verified?: boolean }>;
+          pending_organization_requests: Array<{ id: number; name: string; verified: boolean }>;
+          count: number;
+        };
+        industries: {
+          departments: Array<{ id: number; name: string; code: string; verified?: boolean }>;
+          pending_organization_requests: Array<{ id: number; name: string; verified: boolean }>;
+          count: number;
+        };
+      };
+    }>(`/departments/?${params.toString()}`);
+  }
+
+  /** Request addition of a new external organization (e.g. Govt R&D) when not found in dropdown. */
+  async requestOrganization(payload: {
+    name: string;
+    state: string;
+    external_subcategory?: string;
+    email?: string;
+    requester_name?: string;
+    web_page?: string;
+    notes?: string;
+  }) {
+    return this.request<{ id: number; message: string }>('/departments/request-organization/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // User type endpoints
@@ -1440,7 +1737,7 @@ class ApiClient {
 
   /** Get Indian states and union territories for signup State/UT dropdown (public, no auth). */
   async getIndianStates() {
-    return this.request<{ states: Array<{ value: string; label: string }> }>('/auth/register/indian-states/');
+    return this.request<{ states: Array<{ value: string; label: string; type?: "state" | "union_territory" }> }>('/auth/register/indian-states/');
   }
 
   async createUser(data: {
@@ -2360,10 +2657,10 @@ class ApiClient {
     user_id?: number | string;
     /** When provided, create one booking for exactly these slot IDs (faster, single entry in My Bookings) */
     slot_ids?: number[];
-    /** Admin only: discount amount in ₹ to subtract from calculated charge */
-    discount_amount?: number;
-    /** Admin only: reason for giving the discount (stored in booking notes) */
-    discount_reason?: string;
+    /** Coupon: id of assigned coupon to apply (optional) */
+    coupon_id?: number;
+    /** Coupon: or provide code to apply (optional) */
+    coupon_code?: string;
     /** When true, create booking in HOLD status (no wallet debit); used for urgent request "Select Slot" flow */
     create_as_hold?: boolean;
   }) {
@@ -2383,6 +2680,58 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /** List coupons assigned to the current user (balance, validity, is_expired). */
+  async getMyCoupons() {
+    return this.request<{
+      coupons: Array<{
+        id: number;
+        code: string;
+        amount: string;
+        balance?: string;
+        valid_from: string | null;
+        valid_until: string | null;
+        is_expired?: boolean;
+        max_uses: number | null;
+        used_count: number;
+      }>;
+    }>('/coupons/my/');
+  }
+
+  /** Validate a coupon code for the current user. Returns valid + coupon info or error message. */
+  async validateCoupon(couponCode: string) {
+    return this.request<{
+      valid: boolean;
+      message?: string;
+      coupon?: {
+        id: number;
+        code: string;
+        amount: string;
+        balance?: string;
+        valid_from: string | null;
+        valid_until: string | null;
+      };
+    }>('/coupons/validate/', {
+      method: 'POST',
+      body: JSON.stringify({ coupon_code: (couponCode || '').trim() }),
+    });
+  }
+
+  /** List current user's coupon consumption history. */
+  async getMyCouponUsages() {
+    return this.request<{
+      usages: Array<{
+        id: number;
+        coupon_code: string;
+        discount_amount: string;
+        used_at: string | null;
+        booking_id: number;
+        virtual_booking_id: string | null;
+        equipment_name: string | null;
+        equipment_code: string | null;
+      }>;
+    }>('/coupons/my-usages/');
   }
 
   async updateBooking(bookingId: number | string, data: {
@@ -2924,6 +3273,162 @@ class ApiClient {
     });
   }
 
+  // ----- Student equipment operating nominations (semester-wise, supervisor nominates) -----
+
+  /** List semesters for dropdowns. Optional active_only=1 to restrict to active. */
+  async getSemesters(params?: { active_only?: boolean }) {
+    const sp = new URLSearchParams();
+    if (params?.active_only) sp.append('active_only', '1');
+    const q = sp.toString();
+    return this.request<{
+      semesters: Array<{
+        id: number;
+        code: string;
+        name: string;
+        start_date: string | null;
+        end_date: string | null;
+        is_active: boolean;
+      }>;
+    }>(q ? `/semesters/?${q}` : '/semesters/');
+  }
+
+  /** Supervisor: create nomination (student must be their supervised user). Optional ta_call_id to link to an open TA call. */
+  async createEquipmentNomination(data: { student_id: number; equipment_id: number; semester_id: number; remarks?: string; ta_call_id?: number }) {
+    return this.request<{ nomination: EquipmentNomination }>('/equipment-nominations/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Supervisor: list nominations created by current user. Optional filters: semester_id, status. */
+  async listMyNominationsAsSupervisor(params?: { semester_id?: number; status?: 'PENDING' | 'APPROVED' | 'REJECTED' }) {
+    const sp = new URLSearchParams();
+    if (params?.semester_id != null) sp.append('semester_id', String(params.semester_id));
+    if (params?.status) sp.append('status', params.status);
+    const q = sp.toString();
+    return this.request<{ nominations: EquipmentNomination[] }>(
+      q ? `/equipment-nominations/my-as-supervisor/?${q}` : '/equipment-nominations/my-as-supervisor/'
+    );
+  }
+
+  /** Student: list nominations where current user is the student. */
+  async listMyNominationsAsStudent() {
+    return this.request<{ nominations: EquipmentNomination[] }>('/equipment-nominations/my-as-student/');
+  }
+
+  /** Student: submit/upload resume for a nomination (multipart form key: resume or file). */
+  async submitNominationResume(nominationId: number, file: File) {
+    const formData = new FormData();
+    formData.append('resume', file);
+    const token = this.getToken();
+    const url = `${this.baseURL}/equipment-nominations/${nominationId}/submit-resume/`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', body: formData, headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    return { data: data as { nomination: EquipmentNomination } };
+  }
+
+  /** Download resume for a nomination (student, supervisor, or Admin/OIC). Returns blob for download. */
+  async getNominationResumeBlob(nominationId: number): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL}/equipment-nominations/${nominationId}/resume/`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
+  }
+
+  /** Supervisor: revoke (delete) a PENDING nomination they created. */
+  async revokeEquipmentNomination(nominationId: number) {
+    return this.request<{ message: string }>(`/equipment-nominations/${nominationId}/revoke/`, { method: 'DELETE' });
+  }
+
+  /** Admin/OIC: list all nominations. Filters: semester_id, equipment_id, supervisor_id, status, ta_call_id. OIC sees only their equipment. */
+  async listEquipmentNominationsAdmin(params?: {
+    semester_id?: number;
+    equipment_id?: number;
+    supervisor_id?: number;
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+    ta_call_id?: number;
+  }) {
+    const sp = new URLSearchParams();
+    if (params?.semester_id != null) sp.append('semester_id', String(params.semester_id));
+    if (params?.equipment_id != null) sp.append('equipment_id', String(params.equipment_id));
+    if (params?.supervisor_id != null) sp.append('supervisor_id', String(params.supervisor_id));
+    if (params?.status) sp.append('status', params.status);
+    if (params?.ta_call_id != null) sp.append('ta_call_id', String(params.ta_call_id));
+    const q = sp.toString();
+    return this.request<{ nominations: EquipmentNomination[] }>(
+      q ? `/equipment-nominations/admin/?${q}` : '/equipment-nominations/admin/'
+    );
+  }
+
+  /** Admin/OIC: approve a PENDING nomination. */
+  async approveEquipmentNomination(nominationId: number) {
+    return this.request<{ nomination: EquipmentNomination }>(`/equipment-nominations/${nominationId}/approve/`, {
+      method: 'POST',
+    });
+  }
+
+  /** Admin/OIC: reject a PENDING nomination. Optional body: { remarks: string }. */
+  async rejectEquipmentNomination(nominationId: number, data?: { remarks?: string }) {
+    return this.request<{ nomination: EquipmentNomination }>(`/equipment-nominations/${nominationId}/reject/`, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  // ----- TA nomination call (OIC/Admin initiates; email to all Faculty) -----
+
+  /** OIC/Admin: create a TA nomination call. OIC only for their equipment; Admin any. Sends email to all Faculty. */
+  async createTANominationCall(data: {
+    equipment_id: number;
+    semester_id: number;
+    number_of_operators_required: number;
+    eligibility_criteria?: string;
+    expected_duty_hours?: string;
+    expected_duty_time?: string;
+    benefits?: string;
+    nomination_deadline: string;
+  }) {
+    return this.request<{
+      ta_call: TANominationCall;
+      message: string;
+      emails_sent_count: number;
+    }>('/ta-nomination-calls/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** OIC/Admin: list TA nomination calls. Optional filters: semester_id, equipment_id, status. */
+  async listTANominationCalls(params?: {
+    semester_id?: number;
+    equipment_id?: number;
+    status?: 'OPEN' | 'CLOSED';
+  }) {
+    const sp = new URLSearchParams();
+    if (params?.semester_id != null) sp.append('semester_id', String(params.semester_id));
+    if (params?.equipment_id != null) sp.append('equipment_id', String(params.equipment_id));
+    if (params?.status) sp.append('status', params.status);
+    const q = sp.toString();
+    return this.request<{ ta_calls: TANominationCall[] }>(
+      q ? `/ta-nomination-calls/list/?${q}` : '/ta-nomination-calls/list/'
+    );
+  }
+
+  /** Faculty: list TA nomination calls that are open for nomination (OPEN, deadline not passed). */
+  async getOpenTANominationCallsForFaculty() {
+    return this.request<{ ta_calls: TANominationCall[] }>('/ta-nomination-calls/open-for-faculty/');
+  }
+
   // Notice Board endpoints (public)
   async getPublicNotices(limit?: number) {
     const params = new URLSearchParams();
@@ -3365,6 +3870,166 @@ class ApiClient {
     return this.request<T>(`${endpoint}${id}/`, { method: 'GET' });
   }
 
+  async adminPatch<T = unknown>(section: string, id: number | string, data: Record<string, unknown>) {
+    const endpoint = this.getAdminEndpoint(section);
+    return this.request<T>(`${endpoint}${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  /** Admin: list organization requests + standalone external departments (admin-added, status Approved). */
+  async listOrganizationRequests(): Promise<ApiResponse<{
+    results?: Array<{
+      id: number;
+      name: string;
+      approved_name: string;
+      state: string;
+      state_display: string;
+      external_subcategory: string;
+      email: string | null;
+      requester_name?: string;
+      web_page?: string;
+      notes: string;
+      status: string;
+      status_display: string;
+      created_department: number | null;
+      approved_by: number | null;
+      created_at: string;
+      updated_at: string;
+    }>;
+    standalone_departments?: Array<{
+      id: string;
+      type: 'standalone_department';
+      department_id: number;
+      name: string;
+      approved_name: string;
+      state: string;
+      state_display: string;
+      external_subcategory: string;
+      email: null;
+      requester_name?: string;
+      web_page?: string;
+      notes: string;
+      status: string;
+      status_display: string;
+      created_department: number;
+      approved_by: null;
+      created_at: string | null;
+      updated_at: string | null;
+    }>;
+  }>> {
+    return this.adminList('organizationRequests') as Promise<ApiResponse<{
+      results?: Array<{
+        id: number;
+        name: string;
+        approved_name: string;
+        state: string;
+        state_display: string;
+        external_subcategory: string;
+        email: string | null;
+        requester_name?: string;
+        web_page?: string;
+        notes: string;
+        status: string;
+        status_display: string;
+        created_department: number | null;
+        approved_by: number | null;
+        created_at: string;
+        updated_at: string;
+      }>;
+      standalone_departments?: Array<{
+        id: string;
+        type: 'standalone_department';
+        department_id: number;
+        name: string;
+        approved_name: string;
+        state: string;
+        state_display: string;
+        external_subcategory: string;
+        email: null;
+        requester_name?: string;
+        web_page?: string;
+        notes: string;
+        status: string;
+        status_display: string;
+        created_department: number;
+        approved_by: null;
+        created_at: string | null;
+        updated_at: string | null;
+      }>;
+    }>>;
+  }
+
+  /** Admin: update organization request name (name or approved_name). */
+  async updateOrganizationRequest(id: number, data: { name?: string; approved_name?: string }) {
+    return this.adminPatch<unknown>('organizationRequests', id, data);
+  }
+
+  /** Admin: approve organization request (creates external department and links users). */
+  async approveOrganizationRequest(id: number) {
+    const endpoint = this.getAdminEndpoint('organizationRequests');
+    return this.request<{ detail: string; created_department_id?: number }>(`${endpoint}${id}/approve/`, { method: 'POST' });
+  }
+
+  /** Admin: reject organization request. */
+  async rejectOrganizationRequest(id: number) {
+    const endpoint = this.getAdminEndpoint('organizationRequests');
+    return this.request<{ detail: string }>(`${endpoint}${id}/reject/`, { method: 'POST' });
+  }
+
+  /** Admin: create external department (name + state + type). Department is approved (no OrganizationRequest). */
+  async createExternalDepartment(data: { name: string; state: string; external_subcategory: string }) {
+    return this.adminCreate<{ id: number; name: string }>('departments', {
+      name: data.name.trim(),
+      department_type: 'external',
+      state: data.state || null,
+      external_subcategory: data.external_subcategory || null,
+    });
+  }
+
+  /** Admin: bulk upload external departments via Excel (.xlsx). Returns created count and per-row errors. */
+  async bulkUploadExternalDepartments(file: File): Promise<ApiResponse<{
+    created: number;
+    errors: Array<{ row: number; message: string }>;
+    message: string;
+  }>> {
+    const endpoint = `${this.getAdminEndpoint('departments')}bulk-upload-external/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    const url = `${this.baseURL}${endpoint}`;
+    const headers: HeadersInit = { ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || `HTTP ${res.status}`, data: undefined as never };
+    }
+    return { data: data as { created: number; errors: Array<{ row: number; message: string }>; message: string } };
+  }
+
+  /** Admin: download Excel template for bulk upload of external departments. Triggers browser download. */
+  async downloadExternalDepartmentsTemplate(): Promise<{ error?: string }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const endpoint = `${this.getAdminEndpoint('departments')}bulk-upload-external-template/`;
+    const url = `${this.baseURL}${endpoint}`;
+    const res = await fetch(url, { method: 'GET', headers: { Authorization: `Token ${token}` } });
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        return { error: (j as { error?: string }).error || `HTTP ${res.status}` };
+      } catch {
+        return { error: `HTTP ${res.status}` };
+      }
+    }
+    const blob = await res.blob();
+    const name = res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || 'external-departments-template.xlsx';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
   /** Admin: get calendar colors for weekly window (slot states + holiday + weekend). */
   async getAdminCalendarColors() {
     const endpoint = this.getAdminEndpoint('calendarColors');
@@ -3373,6 +4038,7 @@ class ApiClient {
       holiday_default: string;
       saturday_color?: string;
       sunday_color?: string;
+      external_gst_percent?: number;
     }>(endpoint, { method: 'GET' });
   }
 
@@ -3382,6 +4048,7 @@ class ApiClient {
     holiday_default?: string;
     saturday_color?: string;
     sunday_color?: string;
+    external_gst_percent?: number;
   }) {
     const endpoint = this.getAdminEndpoint('calendarColors');
     return this.request<{
@@ -3389,6 +4056,7 @@ class ApiClient {
       holiday_default: string;
       saturday_color?: string;
       sunday_color?: string;
+      external_gst_percent?: number;
     }>(`${endpoint}update/`, { method: 'PATCH', body: JSON.stringify(payload) });
   }
 
@@ -3700,6 +4368,61 @@ class ApiClient {
     return this.request<void>(`${this.getAdminEndpoint('notices')}${id}/`, { method: 'DELETE' });
   }
 
+  /** Admin: list coupons. */
+  async adminCouponsList(params?: { search?: string }) {
+    const p: Record<string, string> = {};
+    if (params?.search) p.search = params.search;
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
+    return this.request<Array<{
+      id: number;
+      code: string;
+      amount: string;
+      valid_from: string;
+      valid_until: string;
+      max_uses: number | null;
+      used_count: number;
+      is_active: boolean;
+      created_by: number | null;
+      created_by_email: string | null;
+      created_at: string;
+      updated_at: string;
+    }>>(`${this.getAdminEndpoint('coupons')}${q}`, { method: 'GET' });
+  }
+
+  /** Admin: create coupon. */
+  async adminCouponCreate(data: { amount: number; valid_from: string; valid_until: string; max_uses?: number | null; is_active?: boolean }) {
+    return this.request<Record<string, unknown>>(this.getAdminEndpoint('coupons'), {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Admin: assign coupon to user. */
+  async adminCouponAssign(couponId: number, userId: number) {
+    return this.request<{ message: string; user_id: number; user_email: string }>(
+      `${this.getAdminEndpoint('coupons')}${couponId}/assign/`,
+      { method: 'POST', body: JSON.stringify({ user_id: userId }) }
+    );
+  }
+
+  /** Admin: list coupon usages (consumption history). */
+  async adminCouponUsages(params?: { coupon_id?: number; page?: number }) {
+    const p: Record<string, string> = {};
+    if (params?.coupon_id != null) p.coupon_id = String(params.coupon_id);
+    if (params?.page != null) p.page = String(params.page);
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
+    return this.request<{ count: number; next: string | null; previous: string | null; results: Array<{
+      id: number;
+      coupon_code: string;
+      coupon_id: number;
+      booking_id: number;
+      virtual_booking_id: string;
+      user_email: string;
+      discount_amount: string;
+      used_at: string;
+    }> }>(`${this.getAdminEndpoint('coupons')}/usages/${q}`, { method: 'GET' });
+  }
+
   /** Create CMS menu item, optionally with document (PDF) upload via multipart. */
   async adminCmsMenuCreate(data: Record<string, unknown>, documentFile?: File | null) {
     const endpoint = this.getAdminEndpoint('cmsMenu');
@@ -3813,6 +4536,20 @@ class ApiClient {
     );
   }
 
+  /** Admin/OIC: list equipment "booking requesters" group recipients for an equipment. */
+  async adminEquipmentBookingRequesters(equipmentId: number | string) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      group_code: string | null;
+      group_name: string | null;
+      recipients: Array<{ user_id?: number | null; email: string; name: string }>;
+      count: number;
+    }>(`${endpoint}${equipmentId}/booking-requesters/`, { method: 'GET' });
+  }
+
   /** Returns stable proxy URL for equipment image (redirects to fresh S3 signed URL). Use as img src to avoid expired URLs. */
   getEquipmentImageUrl(equipmentId: number): string {
     const base = this.baseURL.replace(/\/$/, '');
@@ -3821,12 +4558,13 @@ class ApiClient {
 
   /** Upload equipment image (admin). */
   async uploadEquipmentImage(equipmentId: number, file: File) {
-    const endpoint = this.getAdminEndpoint('equipment');
+    const base = this.baseURL.replace(/\/$/, "");
+    const path = `admin/equipment/${equipmentId}/upload-image/`;
+    const url = `${base}/${path}`;
     const formData = new FormData();
-    formData.append('image', file);
-    const url = `${this.baseURL}/${endpoint}/${equipmentId}/upload-image/`;
+    formData.append("image", file);
     const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
-    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const res = await fetch(url, { method: "POST", headers, body: formData });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
     return { data };
@@ -3834,12 +4572,13 @@ class ApiClient {
 
   /** Upload equipment video (admin). */
   async uploadEquipmentVideo(equipmentId: number, file: File) {
-    const endpoint = this.getAdminEndpoint('equipment');
+    const base = this.baseURL.replace(/\/$/, "");
+    const path = `admin/equipment/${equipmentId}/upload-video/`;
+    const url = `${base}/${path}`;
     const formData = new FormData();
-    formData.append('video', file);
-    const url = `${this.baseURL}/${endpoint}/${equipmentId}/upload-video/`;
+    formData.append("video", file);
     const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
-    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const res = await fetch(url, { method: "POST", headers, body: formData });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
     return { data };
@@ -3861,6 +4600,24 @@ class ApiClient {
     const endpoint = this.getAdminEndpoint('equipment');
     return this.request<{ updated: number; message: string }>(
       `${endpoint}${equipmentId}/bulk-slot-status/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  /** Admin/OIC: bulk mark slots as Reserved for External Users (or unmark). Same slot selection as bulk-slot-status. */
+  async adminEquipmentBulkReserveExternal(
+    equipmentId: number | string,
+    payload: {
+      reserved_for_external: boolean;
+      dates?: string[];
+      start_date?: string;
+      end_date?: string;
+      slot_ids?: number[];
+    }
+  ) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{ updated: number; message: string }>(
+      `${endpoint}${equipmentId}/bulk-reserve-external/`,
       { method: 'POST', body: JSON.stringify(payload) }
     );
   }

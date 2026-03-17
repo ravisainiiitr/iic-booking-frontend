@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { apiClient, ADMIN_SECTION_ENDPOINTS } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +31,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, Pencil, Trash2, FileText, ExternalLink } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { EquipmentForm, type EquipmentFormData } from "@/components/admin/EquipmentForm";
 import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
@@ -143,13 +143,26 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "other", label: "Other" },
 ];
 
+/** User type filter options for manage/section/users (restricted list). */
+const USER_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "external", label: "External (Educational Institute)" },
+  { value: "RND", label: "Govt R&D Organizations" },
+  { value: "Industry", label: "Industry" },
+  { value: "other", label: "Other" },
+  { value: "student|IITR Post Doctoral Fellows", label: "IITR Post Doctoral Fellows" },
+  { value: "student|IITR Research Associates in Projects", label: "IITR Research Associates in Projects" },
+  { value: "individual_student|IITR Startups", label: "IITR Startups" },
+];
+
 export default function AdminSection() {
   const { section } = useParams<{ section: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [list, setList] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userActivateLoadingId, setUserActivateLoadingId] = useState<number | string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | string | null>(null);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -186,7 +199,7 @@ export default function AdminSection() {
   const [rejectRepeatNotes, setRejectRepeatNotes] = useState("");
   const [repeatActionLoading, setRepeatActionLoading] = useState(false);
   const [projectUsersList, setProjectUsersList] = useState<Array<{ id: number; name?: string; email?: string }>>([]);
-  const [userDepartmentsList, setUserDepartmentsList] = useState<Array<{ id: number; name: string; code?: string | null }>>([]);
+  const [userDepartmentsList, setUserDepartmentsList] = useState<Array<{ id: number; name: string; code?: string | null; department_type?: string | null }>>([]);
   const [userTypeFilter, setUserTypeFilter] = useState("");
   const [emailVerifiedFilter, setEmailVerifiedFilter] = useState("");
   const [adminApprovedFilter, setAdminApprovedFilter] = useState("");
@@ -202,11 +215,45 @@ export default function AdminSection() {
   const [subWalletCreditDebitAmount, setSubWalletCreditDebitAmount] = useState("");
   const [subWalletCreditDebitDescription, setSubWalletCreditDebitDescription] = useState("");
   const [subWalletCreditDebitLoading, setSubWalletCreditDebitLoading] = useState(false);
+  const [userDocumentsList, setUserDocumentsList] = useState<Array<{ id: number; document_type: string; file_url: string | null; description?: string; uploaded_at?: string }>>([]);
 
   const sectionKey = section || "";
   const title = SECTION_TITLES[sectionKey] || sectionKey;
   const idField = SECTION_ID_FIELD[sectionKey] ?? "id";
   const hasEndpoint = sectionKey && ADMIN_SECTION_ENDPOINTS[sectionKey];
+
+  // Allows other pages (e.g. External User Management) to open this page with filters pre-selected.
+  // We store them in a ref so the initial fetch can use them immediately.
+  const initialUserFiltersRef = useRef<{
+    userType?: string;
+    emailVerified?: string;
+    adminApproved?: string;
+    isActive?: string;
+  } | null>(null);
+
+  // Auto-refresh users list when any filter changes (no "Apply filters" needed).
+  const didInitialUsersFetchRef = useRef(false);
+
+  useEffect(() => {
+    if (sectionKey === "users") didInitialUsersFetchRef.current = false;
+  }, [sectionKey]);
+
+  useEffect(() => {
+    if (sectionKey !== "users") return;
+    const initialFilters = (location.state as any)?.initialFilters as
+      | { userType?: string; emailVerified?: string; adminApproved?: string; isActive?: string }
+      | undefined;
+    if (!initialFilters) return;
+    initialUserFiltersRef.current = {
+      userType: initialFilters.userType != null ? String(initialFilters.userType) : undefined,
+      emailVerified: initialFilters.emailVerified != null ? String(initialFilters.emailVerified) : undefined,
+      adminApproved: initialFilters.adminApproved != null ? String(initialFilters.adminApproved) : undefined,
+      isActive: initialFilters.isActive != null ? String(initialFilters.isActive) : undefined,
+    };
+    // Clear navigation state so reload/back doesn't keep reapplying it.
+    navigate(location.pathname, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionKey]);
 
   useEffect(() => {
     const check = async () => {
@@ -242,6 +289,15 @@ export default function AdminSection() {
     }
     loadList(sectionKey === "dailySlots" || sectionKey === "bookings" || sectionKey === "repeatSampleRequests" ? 1 : undefined);
   }, [authChecked, sectionKey, hasEndpoint]);
+
+  useEffect(() => {
+    if (!authChecked || !hasEndpoint) return;
+    if (sectionKey !== "users") return;
+    // Avoid double-fetch on initial load (including navigation-provided initial filters).
+    if (!didInitialUsersFetchRef.current) return;
+    loadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userTypeFilter, emailVerifiedFilter, adminApprovedFilter, isActiveFilter, authChecked, sectionKey, hasEndpoint]);
 
   useEffect(() => {
     if (sectionKey !== "dailySlots" && sectionKey !== "bookings" && sectionKey !== "repeatSampleRequests") setListPagination(null);
@@ -308,8 +364,15 @@ export default function AdminSection() {
     if (sectionKey === "users") {
       apiClient.adminList("departments").then((res) => {
         if (!res.error && Array.isArray(res.data)) {
-          const raw = res.data as Array<{ id?: number; name?: string; code?: string | null }>;
-          setUserDepartmentsList(raw.map((d) => ({ id: d.id ?? 0, name: String(d.name ?? ""), code: d.code ?? null })));
+          const raw = res.data as Array<{ id?: number; name?: string; code?: string | null; department_type?: string | null }>;
+          setUserDepartmentsList(
+            raw.map((d) => ({
+              id: d.id ?? 0,
+              name: String(d.name ?? ""),
+              code: d.code ?? null,
+              department_type: d.department_type ?? null,
+            }))
+          );
         } else setUserDepartmentsList([]);
       });
     }
@@ -330,6 +393,15 @@ export default function AdminSection() {
       });
     }
   }, [sectionKey]);
+
+  const getDepartmentTypeForUserType = (userTypeRaw: unknown): "internal" | "external" | null => {
+    const ut = String(userTypeRaw ?? "").trim();
+    if (!ut) return null;
+    const key = ut.toLowerCase();
+    // Backend user_type codes include: external, RND, Industry, other
+    const externalCodes = new Set(["external", "rnd", "industry", "other"]);
+    return externalCodes.has(key) ? "external" : "internal";
+  };
 
   useEffect(() => {
     if (sectionKey === "cmsMenu" && modalOpen) {
@@ -381,10 +453,35 @@ export default function AdminSection() {
       if (equipmentGroupFilter) params.equipment_group = equipmentGroupFilter;
     }
     if (sectionKey === "users") {
-      if (userTypeFilter) params.user_type = userTypeFilter;
-      if (emailVerifiedFilter) params.email_verified = emailVerifiedFilter;
-      if (adminApprovedFilter) params.admin_approved = adminApprovedFilter;
-      if (isActiveFilter) params.is_active = isActiveFilter;
+      const initial = initialUserFiltersRef.current;
+      const effectiveUserType = (userTypeFilter || initial?.userType || "").trim();
+      const effectiveEmailVerified = (emailVerifiedFilter || initial?.emailVerified || "").trim();
+      const effectiveAdminApproved = (adminApprovedFilter || initial?.adminApproved || "").trim();
+      const effectiveIsActive = (isActiveFilter || initial?.isActive || "").trim();
+
+      if (initial) {
+        if (initial.userType != null) setUserTypeFilter(initial.userType);
+        if (initial.emailVerified != null) setEmailVerifiedFilter(initial.emailVerified);
+        if (initial.adminApproved != null) setAdminApprovedFilter(initial.adminApproved);
+        if (initial.isActive != null) setIsActiveFilter(initial.isActive);
+        initialUserFiltersRef.current = null;
+      }
+
+      if (effectiveUserType) {
+        if (effectiveUserType.includes("|")) {
+          const [ut, alias] = effectiveUserType.split("|");
+          if (ut) params.user_type = ut;
+          if (alias) params.user_type_alias = alias;
+        } else {
+          params.user_type = effectiveUserType;
+        }
+      } else {
+        // Default "All" should only show the restricted set represented in the dropdown.
+        params.restricted = "1";
+      }
+      if (effectiveEmailVerified) params.email_verified = effectiveEmailVerified;
+      if (effectiveAdminApproved) params.admin_approved = effectiveAdminApproved;
+      if (effectiveIsActive) params.is_active = effectiveIsActive;
     }
     const res = await apiClient.adminList(sectionKey, Object.keys(params).length ? params : undefined);
     if (res.error) {
@@ -408,11 +505,15 @@ export default function AdminSection() {
         setListPagination(null);
       }
     }
+    if (sectionKey === "users" && !didInitialUsersFetchRef.current) {
+      didInitialUsersFetchRef.current = true;
+    }
     setLoading(false);
   };
 
   const openCreate = () => {
     setEditingId(null);
+    if (sectionKey === "users") setUserDocumentsList([]);
     setFormData(
       sectionKey === "departments"
         ? { name: "", code: "", department_type: "internal", description: "" }
@@ -472,7 +573,23 @@ export default function AdminSection() {
         department: u.department ?? "",
         email_verified: u.email_verified === true || u.email_verified === "true",
         admin_approved: u.admin_approved === true || u.admin_approved === "true",
+        force_inactive: u.force_inactive === true || u.force_inactive === "true",
+        is_active: u.is_active === true || u.is_active === "true",
       });
+      const docRes = await apiClient.adminList("userDocuments", { user: String(id) });
+      if (!docRes.error && docRes.data) {
+        const raw = docRes.data;
+        const docs = Array.isArray(raw) ? raw : (raw && typeof raw === "object" && "results" in raw ? (raw as { results: unknown[] }).results : []);
+        setUserDocumentsList((docs as Record<string, unknown>[]).map((d) => ({
+          id: Number(d.id),
+          document_type: String(d.document_type ?? ""),
+          file_url: d.file_url != null ? String(d.file_url) : null,
+          description: d.description != null ? String(d.description) : undefined,
+          uploaded_at: d.uploaded_at != null ? String(d.uploaded_at) : undefined,
+        })));
+      } else {
+        setUserDocumentsList([]);
+      }
     } else {
       setFormData(
         sectionKey === "holidays"
@@ -581,6 +698,7 @@ export default function AdminSection() {
         department: deptId,
         email_verified: formData.email_verified === true || formData.email_verified === "true",
         admin_approved: formData.admin_approved === true || formData.admin_approved === "true",
+        force_inactive: formData.force_inactive === true || formData.force_inactive === "true",
       };
     }
     setSaving(true);
@@ -924,7 +1042,7 @@ export default function AdminSection() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
-                        {USER_TYPE_OPTIONS.map((opt) => (
+                        {USER_TYPE_FILTER_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -978,15 +1096,6 @@ export default function AdminSection() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => loadList()}
-                    disabled={loading}
-                  >
-                    Apply filters
-                  </Button>
                   {(userTypeFilter || emailVerifiedFilter || adminApprovedFilter || isActiveFilter) && (
                     <Button
                       type="button"
@@ -997,7 +1106,6 @@ export default function AdminSection() {
                         setEmailVerifiedFilter("");
                         setAdminApprovedFilter("");
                         setIsActiveFilter("");
-                        loadList();
                       }}
                     >
                       Clear
@@ -1300,7 +1408,7 @@ export default function AdminSection() {
                           <TableHead>User Email</TableHead>
                           <TableHead>Name</TableHead>
                           <TableHead>User Type</TableHead>
-                          <TableHead>Dept Code</TableHead>
+                          <TableHead>Department</TableHead>
                           <TableHead>Email Verified</TableHead>
                           <TableHead>Admin Approved</TableHead>
                           <TableHead>Active</TableHead>
@@ -1481,12 +1589,49 @@ export default function AdminSection() {
                                 </button>
                               </TableCell>
                               <TableCell>{row.user_type_display != null ? String(row.user_type_display) : (row.user_type != null ? String(row.user_type) : "—")}</TableCell>
-                              <TableCell>{row.department_code != null && row.department_code !== "" ? String(row.department_code) : "—"}</TableCell>
+                              <TableCell>
+                                {row.department_name != null && row.department_name !== ""
+                                  ? String(row.department_name)
+                                  : row.department_code != null && row.department_code !== ""
+                                    ? String(row.department_code)
+                                    : "—"}
+                              </TableCell>
                               <TableCell>{row.email_verified === true || row.email_verified === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>{row.admin_approved === true || row.admin_approved === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>{row.is_active === true || row.is_active === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
+                                  {!(row.is_active === true || row.is_active === "true") && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={userActivateLoadingId === (row[idField] ?? row.id)}
+                                      onClick={async () => {
+                                        const id = (row[idField] ?? row.id) as number | string | undefined;
+                                        if (id == null) return;
+                                        setUserActivateLoadingId(id);
+                                        const res = await apiClient.adminPatch("users", id, {
+                                          admin_approved: true,
+                                          email_verified: true,
+                                          force_inactive: false,
+                                          send_activation_email: true,
+                                        });
+                                        if (res.error) {
+                                          toast({ title: "Error", description: res.error, variant: "destructive" });
+                                        } else {
+                                          toast({ title: "Activated", description: "User is now active." });
+                                          loadList();
+                                        }
+                                        setUserActivateLoadingId(null);
+                                      }}
+                                    >
+                                      {userActivateLoadingId === (row[idField] ?? row.id) ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        "Activate"
+                                      )}
+                                    </Button>
+                                  )}
                                   <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -1556,14 +1701,14 @@ export default function AdminSection() {
         <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) { setEditUserNewPassword(""); setEditUserNewPasswordConfirm(""); } setModalOpen(open); }}>
             <DialogContent className={
               sectionKey === "equipment"
-                ? "max-w-2xl max-h-[90vh] overflow-y-auto"
+                ? "max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col"
                 : sectionKey === "equipmentGroups"
                   ? "max-w-4xl max-h-[90vh] overflow-y-auto"
                   : sectionKey === "cmsPages"
                   ? "max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto"
                   : "max-w-lg max-h-[90vh] overflow-y-auto"
             }>
-            <DialogHeader>
+            <DialogHeader className={sectionKey === "equipment" ? "shrink-0 pb-3 border-b" : undefined}>
               <DialogTitle>{editingId !== null ? "Edit" : "Add"} {title}</DialogTitle>
               <DialogDescription>
                 {sectionKey === "equipment"
@@ -1582,13 +1727,15 @@ export default function AdminSection() {
               </DialogDescription>
             </DialogHeader>
             {sectionKey === "equipment" ? (
-              <EquipmentForm
-                initialData={editingId !== null ? (formData as EquipmentFormData) : undefined}
-                equipmentId={editingId !== null ? (editingId as number) : null}
-                onSave={handleEquipmentSave}
-                onCancel={() => setModalOpen(false)}
-                saving={saving}
-              />
+              <div className="flex-1 overflow-hidden">
+                <EquipmentForm
+                  initialData={editingId !== null ? (formData as EquipmentFormData) : undefined}
+                  equipmentId={editingId !== null ? (editingId as number) : null}
+                  onSave={handleEquipmentSave}
+                  onCancel={() => setModalOpen(false)}
+                  saving={saving}
+                />
+              </div>
             ) : sectionKey === "equipmentGroups" ? (
               <>
                 <div className="grid gap-4 py-4">
@@ -2588,7 +2735,20 @@ export default function AdminSection() {
                     <div className="col-span-3">
                       <Select
                         value={formData.user_type && String(formData.user_type).trim() !== "" ? String(formData.user_type) : "__none__"}
-                        onValueChange={(v) => setFormData((prev) => ({ ...prev, user_type: v === "__none__" ? "" : v }))}
+                        onValueChange={(v) =>
+                          setFormData((prev) => {
+                            const nextUserType = v === "__none__" ? "" : v;
+                            const desiredDeptType = getDepartmentTypeForUserType(nextUserType);
+                            const currentDeptId = prev.department;
+                            if (desiredDeptType && currentDeptId) {
+                              const dept = userDepartmentsList.find((d) => d.id === Number(currentDeptId));
+                              if (dept?.department_type && dept.department_type !== desiredDeptType) {
+                                return { ...prev, user_type: nextUserType, department: "" };
+                              }
+                            }
+                            return { ...prev, user_type: nextUserType };
+                          })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select user type" />
@@ -2640,22 +2800,30 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Department</Label>
                     <div className="col-span-3">
-                      <Select
-                        value={formData.department !== null && formData.department !== undefined && formData.department !== "" ? String(formData.department) : "__none__"}
-                        onValueChange={(v) => setFormData((prev) => ({ ...prev, department: v === "__none__" ? "" : Number(v) }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Optional" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— No department —</SelectItem>
-                          {userDepartmentsList.map((d) => (
-                            <SelectItem key={d.id} value={String(d.id)}>
-                              {d.name}{d.code ? ` (${d.code})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {(() => {
+                        const desiredDeptType = getDepartmentTypeForUserType(formData.user_type);
+                        const departmentsFiltered =
+                          desiredDeptType == null ? [] : userDepartmentsList.filter((d) => d.department_type === desiredDeptType);
+                        return (
+                          <Select
+                            value={formData.department !== null && formData.department !== undefined && formData.department !== "" ? String(formData.department) : "__none__"}
+                            onValueChange={(v) => setFormData((prev) => ({ ...prev, department: v === "__none__" ? "" : Number(v) }))}
+                            disabled={desiredDeptType == null}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={desiredDeptType == null ? "Select user type first" : "Optional"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— No department —</SelectItem>
+                              {departmentsFiltered.map((d) => (
+                                <SelectItem key={d.id} value={String(d.id)}>
+                                  {d.name}{d.code ? ` (${d.code})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -2682,6 +2850,38 @@ export default function AdminSection() {
                   Edit user (mirrors Django admin/users/user/[id]/change/). Name, user type, department, and verification flags can be updated. Email is read-only.
                 </DialogDescription>
                 <div className="grid gap-4 py-4">
+                  {userDocumentsList.length > 0 ? (
+                    <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Uploaded documents (KYC / registration)
+                      </Label>
+                      <ul className="space-y-2">
+                        {userDocumentsList.map((doc) => (
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span>
+                              {doc.document_type || "Document"}
+                              {doc.uploaded_at ? ` · ${new Date(doc.uploaded_at).toLocaleDateString()}` : ""}
+                              {doc.description ? ` — ${doc.description}` : ""}
+                            </span>
+                            {doc.file_url ? (
+                              <a
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-primary hover:underline"
+                              >
+                                View / Download
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No documents uploaded by this user.</p>
+                  )}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="user-edit-email">Email</Label>
                     <div className="col-span-3">
@@ -2711,7 +2911,20 @@ export default function AdminSection() {
                     <div className="col-span-3">
                       <Select
                         value={formData.user_type && String(formData.user_type).trim() !== "" ? String(formData.user_type) : "__none__"}
-                        onValueChange={(v) => setFormData((prev) => ({ ...prev, user_type: v === "__none__" ? "" : v }))}
+                        onValueChange={(v) =>
+                          setFormData((prev) => {
+                            const nextUserType = v === "__none__" ? "" : v;
+                            const desiredDeptType = getDepartmentTypeForUserType(nextUserType);
+                            const currentDeptId = prev.department;
+                            if (desiredDeptType && currentDeptId) {
+                              const dept = userDepartmentsList.find((d) => d.id === Number(currentDeptId));
+                              if (dept?.department_type && dept.department_type !== desiredDeptType) {
+                                return { ...prev, user_type: nextUserType, department: "" };
+                              }
+                            }
+                            return { ...prev, user_type: nextUserType };
+                          })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select user type" />
@@ -2763,22 +2976,30 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Department</Label>
                     <div className="col-span-3">
-                      <Select
-                        value={formData.department !== null && formData.department !== undefined && formData.department !== "" ? String(formData.department) : "__none__"}
-                        onValueChange={(v) => setFormData((prev) => ({ ...prev, department: v === "__none__" ? "" : Number(v) }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Optional" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— No department —</SelectItem>
-                          {userDepartmentsList.map((d) => (
-                            <SelectItem key={d.id} value={String(d.id)}>
-                              {d.name}{d.code ? ` (${d.code})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {(() => {
+                        const desiredDeptType = getDepartmentTypeForUserType(formData.user_type);
+                        const departmentsFiltered =
+                          desiredDeptType == null ? [] : userDepartmentsList.filter((d) => d.department_type === desiredDeptType);
+                        return (
+                          <Select
+                            value={formData.department !== null && formData.department !== undefined && formData.department !== "" ? String(formData.department) : "__none__"}
+                            onValueChange={(v) => setFormData((prev) => ({ ...prev, department: v === "__none__" ? "" : Number(v) }))}
+                            disabled={desiredDeptType == null}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={desiredDeptType == null ? "Select user type first" : "Optional"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— No department —</SelectItem>
+                              {departmentsFiltered.map((d) => (
+                                <SelectItem key={d.id} value={String(d.id)}>
+                                  {d.name}{d.code ? ` (${d.code})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -2799,6 +3020,28 @@ export default function AdminSection() {
                         onCheckedChange={(c) => setFormData((prev) => ({ ...prev, admin_approved: !!c }))}
                       />
                       <Label htmlFor="user-edit-admin_approved">Admin approved</Label>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <div className="col-span-4 flex items-center gap-2">
+                      <Checkbox
+                        id="user-edit-is_active"
+                        checked={formData.is_active === true || formData.is_active === "true"}
+                        onCheckedChange={(c) =>
+                          setFormData((prev) => {
+                            const nextActive = !!c;
+                            return {
+                              ...prev,
+                              // Active ON implies approved+verified (per business rule) and not force-inactive.
+                              admin_approved: nextActive ? true : prev.admin_approved,
+                              email_verified: nextActive ? true : prev.email_verified,
+                              force_inactive: nextActive ? false : true,
+                              is_active: nextActive,
+                            };
+                          })
+                        }
+                      />
+                      <Label htmlFor="user-edit-is_active">Active</Label>
                     </div>
                   </div>
                   <div className="space-y-3 rounded-lg border p-4 bg-muted/30">

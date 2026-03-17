@@ -15,6 +15,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -94,8 +95,14 @@ interface EquipmentProfile {
 const EquipmentProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
+  const hasEquipmentImage = !!(equipment?.image_url || (equipment as { s3_path?: string } | null)?.s3_path);
+  const equipmentImageUrl = useEquipmentImageUrl(equipment?.equipment_id ?? null, hasEquipmentImage, user?.id);
+  // Prefer backend-provided stable proxy URL (streams from S3). Fallback to authenticated fetch blob URL if needed.
+  const displayEquipmentImage =
+    equipmentImageUrl ??
+    (equipment?.image_url ? String(equipment.image_url) : hasEquipmentImage && equipment ? apiClient.getEquipmentImageUrl(equipment.equipment_id) : "/placeholder.svg");
   const [loading, setLoading] = useState(true);
   const [userType, setUserType] = useState<number | string | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -130,16 +137,25 @@ const EquipmentProfile = () => {
     slot_duration_minutes: number;
   }>({ slot_start_time: null, slot_end_time: null, slot_duration_minutes: 60 });
   const [slotMasterTimes, setSlotMasterTimes] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
+  const fetchingSlotsRef = useRef(false);
 
-  const fetchSlotsForWeek = useCallback(async (isAuto = false) => {
+  const fetchSlotsForWeek = useCallback(async (forceRefetch?: boolean) => {
     if (!equipment || !id) return;
 
     const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const startDateStr = format(weekStart, "yyyy-MM-dd");
     const endDateStr = format(weekEnd, "yyyy-MM-dd");
+    const weekKey = `${startDateStr}_${endDateStr}`;
+
+    if (!forceRefetch && (fetchingSlotsRef.current || loadingSlots)) return;
+    if (!forceRefetch && lastFetchedWeek === weekKey) return;
 
     try {
+      fetchingSlotsRef.current = true;
+      setLoadingSlots(true);
       const slotsResponse = await apiClient.getEquipmentSlots(id, startDateStr, endDateStr);
       if (slotsResponse.data) {
         setApiSlots(slotsResponse.data.slots || []);
@@ -152,26 +168,27 @@ const EquipmentProfile = () => {
             slot_duration_minutes: d.slot_duration_minutes ?? 60,
           });
         }
-        // Store Slot Master times (user-defined open_time values) for calendar time axis
         if (d.slot_master_times && Array.isArray(d.slot_master_times)) {
           setSlotMasterTimes(d.slot_master_times);
         }
-        if (d.calendar_colors && typeof d.calendar_colors === 'object') {
+        if (d.calendar_colors && typeof d.calendar_colors === "object") {
           setCalendarColors({
             slot_colors: d.calendar_colors.slot_colors || {},
-            holiday_default: d.calendar_colors.holiday_default || '#f59e0b',
+            holiday_default: d.calendar_colors.holiday_default || "#f59e0b",
             saturday_color: d.calendar_colors.saturday_color,
             sunday_color: d.calendar_colors.sunday_color,
           });
         }
+        setLastFetchedWeek(weekKey);
       }
     } catch (error: any) {
       console.error("Error calling slots API:", error);
-      if (!isAuto) {
-        toast.error("Failed to load available slots");
-      }
+      toast.error("Failed to load available slots");
+    } finally {
+      setLoadingSlots(false);
+      fetchingSlotsRef.current = false;
     }
-  }, [equipment, id, currentWeekStart]);
+  }, [equipment, id, currentWeekStart, loadingSlots, lastFetchedWeek]);
 
   useEffect(() => {
     if (id) {
@@ -259,7 +276,6 @@ const EquipmentProfile = () => {
       }
 
       setEquipment(response.data);
-      fetchSlotsForWeek(true);
     } catch (error: any) {
       toast.error(error.message || "Failed to load equipment profile");
       navigate("/book-equipment");
@@ -400,20 +416,18 @@ const EquipmentProfile = () => {
 
 
   const goToPreviousWeek = () => {
-    const newWeekStart = addWeeks(currentWeekStart, -1);
-    setCurrentWeekStart(newWeekStart);
-    fetchSlotsForWeek(true);
+    setCurrentWeekStart((prev) => addWeeks(prev, -1));
   };
 
   const goToNextWeek = () => {
-    const newWeekStart = addWeeks(currentWeekStart, 1);
-    setCurrentWeekStart(newWeekStart);
-    fetchSlotsForWeek(true);
+    setCurrentWeekStart((prev) => addWeeks(prev, 1));
   };
 
+  // Fetch slots when equipment is set or week changes (mirrors Step 3 booking flow)
   useEffect(() => {
-    fetchSlotsForWeek(true);
-  }, [fetchSlotsForWeek]);
+    if (!equipment || !id) return;
+    fetchSlotsForWeek();
+  }, [equipment, id, currentWeekStart, fetchSlotsForWeek]);
 
   if (loading) {
     return (
@@ -469,9 +483,9 @@ const EquipmentProfile = () => {
               <CardContent>
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
                   <img
-                    src={(equipment.image_url || equipment.s3_path) ? apiClient.getEquipmentImageUrl(equipment.equipment_id) : "/placeholder.svg"}
+                    src={displayEquipmentImage}
                     alt={equipment.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </div>
               </CardContent>
@@ -504,7 +518,21 @@ const EquipmentProfile = () => {
                     </Button>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {(() => {
+                    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+                    const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+                    const currentWeekKey = `${format(weekStart, "yyyy-MM-dd")}_${format(weekEnd, "yyyy-MM-dd")}`;
+                    const isLoadingThisWeek = loadingSlots && (lastFetchedWeek === null || currentWeekKey !== lastFetchedWeek);
+                    return (
+                  <div className="overflow-x-auto relative">
+                    {isLoadingThisWeek && (
+                      <div className="absolute inset-0 bg-background/80 z-10 flex items-center justify-center rounded-md min-h-[200px]">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <p className="text-sm text-muted-foreground">Loading weekly slots…</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="min-w-[800px]">
                       {/* Header with days */}
                       <div className="grid grid-cols-8 gap-2 mb-2">
@@ -555,6 +583,7 @@ const EquipmentProfile = () => {
                               if (!slotStatusLabel && slotStatus) {
                                 const statusMap: Record<string, string> = {
                                   "AVAILABLE": "Available",
+                                  "NOT_AVAILABLE": "Not Available",
                                   "BOOKED": "Booked",
                                   "BLOCKED": "Blocked",
                                   "UNDER_MAINTENANCE": "Under Maintenance",
@@ -587,7 +616,7 @@ const EquipmentProfile = () => {
                                 ? (hasBooking || slotData?.status !== "AVAILABLE"
                                     ? (slotDisplayLabel || slotStatusLabel || "Unavailable")
                                     : isPast
-                                      ? (slotDisplayLabel || slotStatusLabel || "Available")
+                                      ? "No Booking"
                                       : "Available")
                                 : (holidayLabel || "—");
 
@@ -600,6 +629,8 @@ const EquipmentProfile = () => {
                                 OPERATOR_ABSENT: "#eab308",
                                 BOOKING_NOT_UTILIZED: "#a855f7",
                                 HOLD: "#f59e0b",
+                                RESERVED_FOR_EXTERNAL: "#94a3b8",
+                                NOT_AVAILABLE: "#e2e8f0",
                               };
                               const holidayDefault = calendarColors?.holiday_default || "#f59e0b";
                               const saturdayColor = calendarColors?.saturday_color || "#c7d2fe";
@@ -613,10 +644,11 @@ const EquipmentProfile = () => {
                                 else cellBg = holidayColorProfile ?? holidayDefault;
                                 cellText = cellBg ? getContrastTextColor(cellBg) : undefined;
                               } else {
-                                // Use booking_status for color when slot is BOOKED (e.g. HOLD), else slot status
-                                const statusForColor = (slotData?.status === "BOOKED" && slotData?.booking_status)
+                                let statusForColor = (slotData?.status === "BOOKED" && slotData?.booking_status)
                                   ? String(slotData.booking_status).toUpperCase()
                                   : (slotData?.status ?? "AVAILABLE");
+                                if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
+                                else if (slotData?.status === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                                 cellBg = slotColors[statusForColor] ?? slotColors.AVAILABLE;
                                 cellText = getContrastTextColor(cellBg);
                                 if (isPast && statusForColor === "AVAILABLE") {
@@ -643,6 +675,8 @@ const EquipmentProfile = () => {
                         ))}
                     </div>
                   </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
           </div>
@@ -663,6 +697,43 @@ const EquipmentProfile = () => {
                     >
                       {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
                     </Button>
+                    {typeof userType === "string" &&
+                      ["external", "rnd", "industry", "other"].some((t) => userType.toLowerCase().includes(t)) && (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          size="lg"
+                          onClick={async () => {
+                            const baseChargeStr = window.prompt("Enter estimated base charge (₹) for proforma invoice");
+                            if (!baseChargeStr) return;
+                            const baseCharge = Number(baseChargeStr);
+                            if (Number.isNaN(baseCharge) || baseCharge <= 0) {
+                              toast.error("Please enter a valid positive amount.");
+                              return;
+                            }
+                            const description = window.prompt("Optional description (e.g. purpose / quantity)") || "";
+                            const res = await apiClient.getEquipmentProformaInvoicePdfBlob(equipment.equipment_id, {
+                              base_charge: baseCharge,
+                              description,
+                            });
+                            if ((res as { error?: string }).error) {
+                              toast.error((res as { error?: string }).error || "Failed to generate proforma invoice.");
+                              return;
+                            }
+                            const blob = (res as { blob?: Blob }).blob;
+                            if (blob) {
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `proforma_${equipment.code || equipment.equipment_id}.pdf`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }
+                          }}
+                        >
+                          Proforma invoice (PDF)
+                        </Button>
+                      )}
                     {canManageEquipment() && (
                       <Button
                         variant="outline"

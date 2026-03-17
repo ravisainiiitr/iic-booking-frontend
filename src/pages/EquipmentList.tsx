@@ -70,45 +70,94 @@ const EquipmentList = () => {
   const canBookForUser = ["admin", "manager", "operator"].includes(userTypeStr);
 
   useEffect(() => {
-    checkAuth();
-    fetchEquipment();
+    let cancelled = false;
+
+    const load = async () => {
+      const token = apiClient.getToken();
+      if (!token) {
+        setLoading(false);
+        navigate("/auth");
+        return;
+      }
+
+      const userResponse = await apiClient.getCurrentUser();
+      if (cancelled) return;
+      if (userResponse.error || !userResponse.data) {
+        setLoading(false);
+        navigate("/auth");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await apiClient.getEquipments();
+        if (cancelled) return;
+
+        if (response.error) {
+          toast.error(response.error || "Failed to load equipment");
+          setEquipment([]);
+          return;
+        }
+
+        const rawList = response.data?.equipments;
+        const list = Array.isArray(rawList) ? rawList : [];
+        if (list.length === 0) {
+          toast.info("No equipment available");
+          setEquipment([]);
+          return;
+        }
+
+        const ut = userResponse.data?.user_type;
+        const userTypeStrForFilter = ut != null ? String(ut).toLowerCase() : "";
+        const canChangeSlotStatusFilter = ["admin", "manager", "operator"].includes(userTypeStrForFilter);
+
+        const transformedEquipment: Equipment[] = list
+          .filter((eq: ApiEquipment) => {
+            if (canChangeSlotStatusFilter) return eq.status_display !== "Disposed";
+            return eq.status === "ACTIVE" && eq.status_display !== "Disposed";
+          })
+          .map((eq: ApiEquipment) => ({
+            id: eq.equipment_id,
+            name: eq.name,
+            category: eq.category_name || "",
+            description: eq.name,
+            image: (eq.image_url || (eq as any).s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+            video: "",
+            available: eq.status === "ACTIVE",
+            status: eq.status,
+            address: eq.location || "",
+            technicalPerson: "",
+            contactNumber: "",
+            internalRate: 0,
+            externalRate: 0,
+          }));
+
+        setEquipment(transformedEquipment);
+      } catch (error: any) {
+        if (!cancelled) {
+          toast.error(error.message || "Failed to load equipment");
+          setEquipment([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
   }, []);
-
-  const checkAuth = async () => {
-    const token = apiClient.getToken();
-    if (!token) {
-      navigate("/auth");
-      return;
-    }
-
-    const userResponse = await apiClient.getCurrentUser();
-    if (userResponse.error || !userResponse.data) {
-      navigate("/auth");
-      return;
-    }
-  };
 
   const fetchEquipment = async () => {
     try {
-      setLoading(true);
       const response = await apiClient.getEquipments();
-
       if (response.error) {
         toast.error(response.error || "Failed to load equipment");
-        setLoading(false);
         return;
       }
-
-      if (!response.data || !response.data.equipments || response.data.equipments.length === 0) {
-        toast.info("No equipment available");
-        setEquipment([]);
-        setLoading(false);
-        return;
-      }
-
-      const transformedEquipment: Equipment[] = response.data.equipments
+      const rawList = response.data?.equipments;
+      const list = Array.isArray(rawList) ? rawList : [];
+      const transformedEquipment: Equipment[] = list
         .filter((eq: ApiEquipment) => {
-          // Admin/OIC see all equipment (ACTIVE + INACTIVE); others see only ACTIVE
           if (canChangeSlotStatus) return eq.status_display !== "Disposed";
           return eq.status === "ACTIVE" && eq.status_display !== "Disposed";
         })
@@ -117,7 +166,7 @@ const EquipmentList = () => {
           name: eq.name,
           category: eq.category_name || "",
           description: eq.name,
-          image: (eq.image_url || eq.s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+          image: (eq.image_url || (eq as any).s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
           video: "",
           available: eq.status === "ACTIVE",
           status: eq.status,
@@ -127,13 +176,9 @@ const EquipmentList = () => {
           internalRate: 0,
           externalRate: 0,
         }));
-
       setEquipment(transformedEquipment);
     } catch (error: any) {
       toast.error(error.message || "Failed to load equipment");
-      setEquipment([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -347,9 +392,7 @@ const EquipmentList = () => {
                         className={`w-full ${accent.button} text-white`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(canBookForUser
-                            ? `/book-equipment?equipment_id=${item.id}&mode=book`
-                            : `/book-equipment?equipment_id=${item.id}`);
+                          navigate(`/equipment/${item.id}`);
                         }}
                       >
                         Book now

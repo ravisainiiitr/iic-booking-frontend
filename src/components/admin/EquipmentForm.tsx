@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,6 +87,7 @@ type Props = {
 };
 
 export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, saving }: Props) {
+  const { user } = useAuth();
   const [choices, setChoices] = useState<EquipmentFormChoices | null>(null);
   const [choicesLoading, setChoicesLoading] = useState(true);
   const [choicesError, setChoicesError] = useState<string | null>(null);
@@ -127,6 +130,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
+
+  const hasEquipmentImage = !!(formData.image_url ?? (initialData as { s3_path?: string } | null)?.s3_path) && equipmentId;
+  const equipmentImageUrl = useEquipmentImageUrl(equipmentId ?? null, !!hasEquipmentImage, user?.id);
+  const displayEquipmentImage = equipmentImageUrl ?? (equipmentId ? apiClient.getEquipmentImageUrl(equipmentId) : (formData.image_url ?? ""));
 
   useEffect(() => {
     let cancelled = false;
@@ -257,28 +264,34 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <h3 className="text-sm font-semibold border-b pb-2">Basic Information</h3>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="equipment-name">Name *</Label>
-          <Input
-            id="equipment-name"
-            value={formData.name ?? ""}
-            onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="equipment-code">Code *</Label>
-          <Input
-            id="equipment-code"
-            value={formData.code ?? ""}
-            onChange={(e) => setFormData((p) => ({ ...p, code: e.target.value }))}
-            required
-          />
-        </div>
-      </div>
+    <form onSubmit={handleSubmit} className="h-full flex flex-col">
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto pr-2 space-y-8 py-4 text-base">
+        <div className="rounded-lg border p-4 space-y-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Basic information</h3>
+            <p className="text-sm text-muted-foreground">Name, code, category, visibility and status.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="equipment-name">Name *</Label>
+              <Input
+                id="equipment-name"
+                value={formData.name ?? ""}
+                onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="equipment-code">Code *</Label>
+              <Input
+                id="equipment-code"
+                value={formData.code ?? ""}
+                onChange={(e) => setFormData((p) => ({ ...p, code: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -408,6 +421,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           onChange={(e) => setFormData((p) => ({ ...p, location: e.target.value }))}
         />
       </div>
+        </div>
 
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Important Instruction</h3>
       <p className="text-muted-foreground text-xs">Optional instructions shown prominently on the equipment page (above specifications).</p>
@@ -420,10 +434,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       />
 
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Image</h3>
-      <p className="text-muted-foreground text-xs">Upload a new image or view the current one.</p>
-      {formData.image_url && (
+      <p className="text-muted-foreground text-xs">Upload a new image or view the current one. Images are stored in S3 and displayed via a stable URL.</p>
+      {(formData.image_url || (initialData as { s3_path?: string } | null)?.s3_path) && (
         <div className="rounded border p-2">
-          <img src={formData.image_url} alt="Equipment" className="max-h-32 object-contain" />
+          <img
+            src={displayEquipmentImage}
+            alt="Equipment"
+            className="max-h-32 object-contain"
+          />
         </div>
       )}
       <div>
@@ -801,19 +819,30 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </div>
       </div>
 
-      {(formData.created_at != null || formData.updated_at != null) && (
-        <>
-          <h3 className="text-sm font-semibold border-b pb-2 pt-2">Timestamps</h3>
-          <p className="text-xs text-muted-foreground">Created: {formData.created_at != null ? String(formData.created_at).slice(0, 19).replace("T", " ") : "—"} · Updated: {formData.updated_at != null ? String(formData.updated_at).slice(0, 19).replace("T", " ") : "—"}</p>
-        </>
-      )}
+        {(formData.created_at != null || formData.updated_at != null) && (
+          <div className="rounded-lg border p-4 space-y-2">
+            <h3 className="text-base font-semibold">Timestamps</h3>
+            <p className="text-sm text-muted-foreground">
+              Created: {formData.created_at != null ? String(formData.created_at).slice(0, 19).replace("T", " ") : "—"} · Updated: {formData.updated_at != null ? String(formData.updated_at).slice(0, 19).replace("T", " ") : "—"}
+            </p>
+          </div>
+        )}
+      </div>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Save
-        </Button>
+      {/* Sticky action bar */}
+      <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">
+            {equipmentId ? `Editing equipment #${equipmentId}` : "Creating new equipment"}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </div>
+        </div>
       </div>
     </form>
   );

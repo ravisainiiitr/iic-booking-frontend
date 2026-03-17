@@ -169,6 +169,7 @@ export function BookingDetailCard({
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const [repeatEligibility, setRepeatEligibility] = useState<{ can_create_repeat: boolean } | null>(null);
   const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
+  const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
 
   const navigate = useNavigate();
 
@@ -465,6 +466,68 @@ export function BookingDetailCard({
           <div className="mt-4 pt-4 border-t no-print">
             <p className="text-base font-medium mb-2">Actions:</p>
             <div className="flex flex-wrap gap-2">
+              {currentUserId != null &&
+                booking.user === currentUserId &&
+                ["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase()) && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={downloadingDoc !== null}
+                      onClick={async () => {
+                        setDownloadingDoc("invoice");
+                        try {
+                          const res = await apiClient.getBookingInvoicePdfBlob(booking.booking_id);
+                          if (res.error) {
+                            toast.error(res.error);
+                            return;
+                          }
+                          if (res.blob) {
+                            const url = URL.createObjectURL(res.blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `invoice_${booking.virtual_booking_id || booking.booking_id}.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }
+                        } finally {
+                          setDownloadingDoc(null);
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {downloadingDoc === "invoice" ? "Preparing…" : "Invoice (PDF)"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={downloadingDoc !== null}
+                      onClick={async () => {
+                        setDownloadingDoc("label");
+                        try {
+                          const res = await apiClient.getBookingShippingLabelPdfBlob(booking.booking_id);
+                          if (res.error) {
+                            toast.error(res.error);
+                            return;
+                          }
+                          if (res.blob) {
+                            const url = URL.createObjectURL(res.blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `shipping_label_${booking.virtual_booking_id || booking.booking_id}.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }
+                        } finally {
+                          setDownloadingDoc(null);
+                        }
+                      }}
+                    >
+                      <FolderDown className="h-4 w-4 mr-2" />
+                      {downloadingDoc === "label" ? "Preparing…" : "Shipping label"}
+                    </Button>
+                  </>
+                )}
               {canPerformAction(booking, "complete", isOperator) && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("complete", booking)}>
                   <CheckCircle2 className="h-4 w-4 mr-2" />

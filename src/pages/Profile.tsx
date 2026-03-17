@@ -49,6 +49,26 @@ const Profile = () => {
   });
   const [addingProject, setAddingProject] = useState(false);
   const [updatingProject, setUpdatingProject] = useState(false);
+  const [externalBilling, setExternalBilling] = useState({
+    billing_name: "",
+    gstin: "",
+    billing_address_line1: "",
+    billing_address_line2: "",
+    billing_city: "",
+    billing_state: "",
+    billing_pincode: "",
+    billing_country: "India",
+    shipping_same_as_billing: true,
+    shipping_name: "",
+    shipping_phone: "",
+    shipping_address_line1: "",
+    shipping_address_line2: "",
+    shipping_city: "",
+    shipping_state: "",
+    shipping_pincode: "",
+    shipping_country: "India",
+  });
+  const [loadingExternalBilling, setLoadingExternalBilling] = useState(false);
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
@@ -183,6 +203,21 @@ const Profile = () => {
             ? Number(response.data.wallet_low_balance_alert_threshold)
             : null,
       });
+
+      // External users: prefill billing/shipping profile (invoice / shipping label)
+      const ut = response.data.user_type;
+      const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
+      const isExternal = ["external", "rnd", "industry", "other"].includes(utStr);
+      if (isExternal) {
+        setLoadingExternalBilling(true);
+        apiClient
+          .getExternalBillingProfileMe()
+          .then((r) => {
+            if (r.error || !r.data) return;
+            setExternalBilling((p) => ({ ...p, ...r.data }));
+          })
+          .finally(() => setLoadingExternalBilling(false));
+      }
     }
     setLoading(false);
   };
@@ -394,6 +429,19 @@ const Profile = () => {
     setSaving(true);
 
     try {
+      // Save external billing/shipping details first (if applicable)
+      const ut = profileData.user_type ?? user?.user_type;
+      const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
+      const isExternal = ["external", "rnd", "industry", "other"].includes(utStr);
+      if (isExternal) {
+        const resBilling = await apiClient.updateExternalBillingProfileMe(externalBilling);
+        if (resBilling.error) {
+          toast.error(resBilling.error);
+          setSaving(false);
+          return;
+        }
+      }
+
       if (!profileData.gender || !["male", "female", "other"].includes(profileData.gender)) {
         toast.error("Gender is required");
         setSaving(false);
@@ -681,6 +729,210 @@ const Profile = () => {
             </div>
 
             <Separator />
+
+            {/* External billing & shipping details (for invoice / shipping label) */}
+            {(() => {
+              const ut = profileData.user_type ?? user?.user_type;
+              const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
+              const isExternal = ["external", "rnd", "industry", "other"].includes(utStr);
+              if (!isExternal) return null;
+              return (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Billing & shipping (External users)</h3>
+                      <p className="text-sm text-muted-foreground">Used for invoice generation and prefilled shipping labels.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="billing_name">Billing name / company</Label>
+                      <Input
+                        id="billing_name"
+                        value={externalBilling.billing_name}
+                        onChange={(e) => setExternalBilling((p) => ({ ...p, billing_name: e.target.value }))}
+                        maxLength={255}
+                        placeholder="e.g. ABC Pvt Ltd / IIT XYZ"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="gstin">GSTIN</Label>
+                      <Input
+                        id="gstin"
+                        value={externalBilling.gstin}
+                        onChange={(e) => setExternalBilling((p) => ({ ...p, gstin: e.target.value }))}
+                        maxLength={30}
+                        placeholder="Optional"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_address_line1">Billing address line 1</Label>
+                        <Input
+                          id="billing_address_line1"
+                          value={externalBilling.billing_address_line1}
+                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_address_line1: e.target.value }))}
+                          maxLength={255}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_address_line2">Billing address line 2</Label>
+                        <Input
+                          id="billing_address_line2"
+                          value={externalBilling.billing_address_line2}
+                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_address_line2: e.target.value }))}
+                          maxLength={255}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_city">City</Label>
+                        <Input
+                          id="billing_city"
+                          value={externalBilling.billing_city}
+                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_city: e.target.value }))}
+                          maxLength={120}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_state">State</Label>
+                        <Input
+                          id="billing_state"
+                          value={externalBilling.billing_state}
+                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_state: e.target.value }))}
+                          maxLength={120}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_pincode">Pincode</Label>
+                        <Input
+                          id="billing_pincode"
+                          value={externalBilling.billing_pincode}
+                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_pincode: e.target.value }))}
+                          maxLength={20}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="billing_country">Country</Label>
+                      <Input
+                        id="billing_country"
+                        value={externalBilling.billing_country}
+                        onChange={(e) => setExternalBilling((p) => ({ ...p, billing_country: e.target.value }))}
+                        maxLength={120}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                      <div className="space-y-0.5">
+                        <Label>Shipping same as billing</Label>
+                        <p className="text-xs text-muted-foreground">If enabled, the shipping label will use billing address.</p>
+                      </div>
+                      <Switch
+                        checked={externalBilling.shipping_same_as_billing}
+                        onCheckedChange={(checked) => setExternalBilling((p) => ({ ...p, shipping_same_as_billing: !!checked }))}
+                      />
+                    </div>
+
+                    {!externalBilling.shipping_same_as_billing && (
+                      <>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_name">Shipping name / contact</Label>
+                            <Input
+                              id="shipping_name"
+                              value={externalBilling.shipping_name}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_name: e.target.value }))}
+                              maxLength={255}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_phone">Shipping phone</Label>
+                            <Input
+                              id="shipping_phone"
+                              value={externalBilling.shipping_phone}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_phone: e.target.value }))}
+                              maxLength={30}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_address_line1">Shipping address line 1</Label>
+                            <Input
+                              id="shipping_address_line1"
+                              value={externalBilling.shipping_address_line1}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_address_line1: e.target.value }))}
+                              maxLength={255}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_address_line2">Shipping address line 2</Label>
+                            <Input
+                              id="shipping_address_line2"
+                              value={externalBilling.shipping_address_line2}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_address_line2: e.target.value }))}
+                              maxLength={255}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_city">City</Label>
+                            <Input
+                              id="shipping_city"
+                              value={externalBilling.shipping_city}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_city: e.target.value }))}
+                              maxLength={120}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_state">State</Label>
+                            <Input
+                              id="shipping_state"
+                              value={externalBilling.shipping_state}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_state: e.target.value }))}
+                              maxLength={120}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_pincode">Pincode</Label>
+                            <Input
+                              id="shipping_pincode"
+                              value={externalBilling.shipping_pincode}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_pincode: e.target.value }))}
+                              maxLength={20}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="shipping_country">Country</Label>
+                          <Input
+                            id="shipping_country"
+                            value={externalBilling.shipping_country}
+                            onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_country: e.target.value }))}
+                            maxLength={120}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {loadingExternalBilling && (
+                      <p className="text-sm text-muted-foreground">Loading billing profile…</p>
+                    )}
+                  </div>
+
+                  <Separator />
+                </>
+              );
+            })()}
 
             {/* Account Status Section */}
             <div className="space-y-4">

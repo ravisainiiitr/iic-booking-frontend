@@ -6,6 +6,8 @@ import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, W
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import TicketForm from "@/components/TicketForm";
 import { Switch } from "@/components/ui/switch";
@@ -90,6 +92,9 @@ interface EquipmentDetail {
   }>;
 }
 
+const isEquipmentProxyImage = (url: string) =>
+  typeof url === "string" && url.includes("/equipments/") && url.includes("/image/");
+
 const EquipmentCard = ({ 
   name, 
   category, 
@@ -118,11 +123,16 @@ const EquipmentCard = ({
   onStatusChange,
   statusUpdatingId,
 }: EquipmentCardProps) => {
+  const { user } = useAuth();
   const [isPlaying, setIsPlaying] = useState(true); // Start as playing if video exists
   const videoRef = useRef<HTMLVideoElement>(null);
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const equipmentIdForImage = id != null && isEquipmentProxyImage(image) ? Number(id) : null;
+  const authImageUrl = useEquipmentImageUrl(equipmentIdForImage, !!equipmentIdForImage, user?.id);
+  const displayImage = authImageUrl ?? image;
 
   // Auto-play video when component mounts if video exists
   useEffect(() => {
@@ -193,7 +203,7 @@ const EquipmentCard = ({
               playsInline
               onEnded={() => setIsPlaying(true)}
               onClick={handlePauseVideo}
-              poster={image}
+              poster={displayImage}
             />
             {!isPlaying && (
               <button
@@ -209,7 +219,7 @@ const EquipmentCard = ({
           </>
         ) : (
           <img 
-            src={image} 
+            src={displayImage} 
             alt={name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
@@ -474,7 +484,7 @@ const EquipmentCard = ({
                   <div className="border-t pt-4">
                     <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      Managers
+                      Officers in Charge
                     </h4>
                     <div className="space-y-3">
                       {equipmentDetail.managers.map((manager) => (

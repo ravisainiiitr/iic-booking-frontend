@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Tag, Send, Receipt, Wrench, ChevronRight, FolderTree, Layers, CreditCard, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -88,7 +88,7 @@ const Dashboard = () => {
   const [loadingFacultyUrgentCount, setLoadingFacultyUrgentCount] = useState(false);
   const [myUrgentRequestsCount, setMyUrgentRequestsCount] = useState<number>(0);
   const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
-  
+
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
   const userTypeStr = userType ? String(userType).toLowerCase() : '';
@@ -105,6 +105,8 @@ const Dashboard = () => {
     userTypeStr === 'manager' ||
     userTypeStr === 'operator' ||
     userTypeStr === 'finance';
+
+  const canAccessAdminTools = apiClient.isAdminPanelUser(user?.user_type) || canAccessBookingAttemptLog;
 
   useEffect(() => {
     let isMounted = true;
@@ -567,8 +569,11 @@ const Dashboard = () => {
 
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
           <Card 
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
-            onClick={() => navigate("/equipments")}
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800 h-full"
+            onClick={() => { window.location.href = `${window.location.origin}/equipments`; }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/equipments`; } }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -585,7 +590,9 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Browse Equipment</Button>
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white ring-offset-background transition-colors">
+                Browse Equipment
+              </span>
             </CardContent>
           </Card>
 
@@ -610,6 +617,31 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">View Bookings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => navigate("/proforma-invoice")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Proforma Invoice</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Get cost estimate for equipments and samples/slots before booking
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Proforma Invoice</Button>
               </CardContent>
             </Card>
           )}
@@ -674,7 +706,7 @@ const Dashboard = () => {
           )}
 
           {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-            <Card 
+            <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
               onClick={() => navigate("/my-urgent-requests")}
             >
@@ -684,9 +716,9 @@ const Dashboard = () => {
                     <AlertCircle className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent request status</CardTitle>
+                    <CardTitle className="text-lg">Urgent booking request</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      View the status of your submitted urgent booking requests
+                      Submit an urgent request or view the status of your submitted requests
                     </CardDescription>
                   </div>
                 </div>
@@ -700,7 +732,34 @@ const Dashboard = () => {
                     {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
                   </p>
                 ) : null}
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View urgent request status</Button>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); navigate("/my-urgent-requests"); }}>
+                  Open urgent booking request
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => navigate("/my-nomination-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Nomination requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage TA/equipment operating nominations and submit your resume for review
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Manage nomination requests</Button>
               </CardContent>
             </Card>
           )}
@@ -735,9 +794,67 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {userTypeStr === "faculty" && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/coupons")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Tag className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Coupons</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Coupons available for use when booking. View balance and consumption history on the coupons page.
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); navigate("/coupons"); }}>
+                  View my coupons
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Coupons card for non-faculty users (students, etc.) */}
+          {userTypeStr !== "faculty" && userTypeStr !== "admin" && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/coupons")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Tag className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Coupons</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Coupons available for use when booking. View balance and consumption history on the coupons page.
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); navigate("/coupons"); }}>
+                  View my coupons
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Card 
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-            onClick={() => navigate("/reports")}
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { window.location.href = `${window.location.origin}/reports`; }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/reports`; } }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -754,7 +871,9 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View Reports</Button>
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors">
+                View Reports
+              </span>
             </CardContent>
           </Card>
 
@@ -848,6 +967,31 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => navigate("/ta-nomination-call")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-lg">
+                    <Send className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA nomination call</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Initiate a request for faculty to nominate students to operate an equipment (semester-wise)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Initiate TA nomination call</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {canAccessBookingAttemptLog && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
@@ -869,6 +1013,33 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canAccessAdminTools && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => navigate("/manage/external-user-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">External User Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Verify external departments/organizations and external users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Open verification
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -969,6 +1140,31 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white">Open settings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/admin/coupons")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Tag className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Coupons</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Create discount coupons, assign to users, and view usage history
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Create & manage coupons</Button>
               </CardContent>
             </Card>
           )}

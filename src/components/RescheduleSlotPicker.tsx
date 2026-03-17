@@ -26,6 +26,7 @@ export interface RescheduleSlot {
   booking_id?: number | null;
   booking_status?: string | null;
   booking_status_display?: string | null;
+  reserved_for_external?: boolean;
   slot_master?: number;
   slot_number?: number;
   slot_name?: string;
@@ -275,7 +276,12 @@ export default function RescheduleSlotPicker({
     if (currentBookingSlotIds.has(slot.id)) return true;
     // Admin: can select any slot that is not booked by someone else (including blocked/holiday/maintenance)
     if (isAdminUser()) return slot.status !== "BOOKED";
-    return slot.status === "AVAILABLE";
+    // External users: only AVAILABLE (reserved for external) slots are selectable
+    const ut = String(userType ?? "").toLowerCase();
+    const isExternal = ["external", "rnd", "industry", "other"].includes(ut);
+    if (isExternal) return slot.status === "AVAILABLE";
+    // Internal users: only AVAILABLE slots that are NOT reserved for external are selectable
+    return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
   };
 
   const isSelected = (slot: RescheduleSlot): boolean =>
@@ -532,6 +538,7 @@ export default function RescheduleSlotPicker({
                       if (!statusLabel && slot.status) {
                         const statusMap: Record<string, string> = {
                           "AVAILABLE": "Available",
+                          "NOT_AVAILABLE": "Not Available",
                           "BOOKED": "Booked",
                           "BLOCKED": "Blocked",
                           "UNDER_MAINTENANCE": "Under Maintenance",
@@ -550,23 +557,27 @@ export default function RescheduleSlotPicker({
                       label = statusLabel || "Unavailable";
                     }
                     else if (past) {
-                      let statusLabel = slot.booking_status_display || slot.status_display || "";
-                      if (!statusLabel && slot.status) {
-                        const statusMap: Record<string, string> = {
-                          "AVAILABLE": "Available",
-                          "BOOKED": "Booked",
-                          "BLOCKED": "Blocked",
-                          "UNDER_MAINTENANCE": "Under Maintenance",
-                          "OPERATOR_ABSENT": "Operator Absent",
-                          "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
-                        };
-                        statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
+                      const hasBooking = slot.status === "BOOKED" || slot.booking_id;
+                      if (hasBooking) {
+                        let statusLabel = slot.booking_status_display || slot.status_display || "";
+                        if (!statusLabel && slot.status) {
+                          const statusMap: Record<string, string> = {
+                            "AVAILABLE": "Available",
+                            "BOOKED": "Booked",
+                            "BLOCKED": "Blocked",
+                            "UNDER_MAINTENANCE": "Under Maintenance",
+                            "OPERATOR_ABSENT": "Operator Absent",
+                            "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
+                          };
+                          statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
+                        }
+                        if (slot.status === "BLOCKED") {
+                          statusLabel = slot.blocked_label || "Blocked";
+                        }
+                        label = statusLabel || "Unavailable";
+                      } else {
+                        label = "No Booking";
                       }
-                      // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
-                      if (slot.status === "BLOCKED") {
-                        statusLabel = slot.blocked_label || "Blocked";
-                      }
-                      label = statusLabel || "Available";
                     }
                     else if (available) label = "Available";
                     else {
@@ -574,6 +585,7 @@ export default function RescheduleSlotPicker({
                       if (!statusLabel && slot.status) {
                         const statusMap: Record<string, string> = {
                           "AVAILABLE": "Available",
+                          "NOT_AVAILABLE": "Not Available",
                           "BOOKED": "Booked",
                           "BLOCKED": "Blocked",
                           "UNDER_MAINTENANCE": "Under Maintenance",

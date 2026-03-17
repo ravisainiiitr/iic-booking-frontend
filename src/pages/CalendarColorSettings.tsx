@@ -18,6 +18,8 @@ const SLOT_KEYS: { key: string; label: string }[] = [
   { key: "UNDER_MAINTENANCE", label: "Under Maintenance" },
   { key: "OPERATOR_ABSENT", label: "Operator Absent" },
   { key: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
+  { key: "RESERVED_FOR_EXTERNAL", label: "Reserved for External User" },
+  { key: "NOT_AVAILABLE", label: "Not Available" },
 ];
 
 const DEFAULT_COLORS: Record<string, string> = {
@@ -28,6 +30,8 @@ const DEFAULT_COLORS: Record<string, string> = {
   UNDER_MAINTENANCE: "#f97316",
   OPERATOR_ABSENT: "#eab308",
   BOOKING_NOT_UTILIZED: "#a855f7",
+  RESERVED_FOR_EXTERNAL: "#94a3b8",
+  NOT_AVAILABLE: "#e2e8f0",
   HOLIDAY_DEFAULT: "#f59e0b",
   SATURDAY: "#c7d2fe",
   SUNDAY: "#fbcfe8",
@@ -45,6 +49,7 @@ export default function CalendarColorSettings() {
   const [holidayDefault, setHolidayDefault] = useState(DEFAULT_COLORS.HOLIDAY_DEFAULT);
   const [saturdayColor, setSaturdayColor] = useState(DEFAULT_COLORS.SATURDAY);
   const [sundayColor, setSundayColor] = useState(DEFAULT_COLORS.SUNDAY);
+  const [externalGstPercent, setExternalGstPercent] = useState<number>(18);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -63,6 +68,7 @@ export default function CalendarColorSettings() {
           if (res.data.holiday_default) setHolidayDefault(res.data.holiday_default);
           if (res.data.saturday_color) setSaturdayColor(res.data.saturday_color);
           if (res.data.sunday_color) setSundayColor(res.data.sunday_color);
+          if (res.data.external_gst_percent != null) setExternalGstPercent(Number(res.data.external_gst_percent));
         }
       } catch (e) {
         console.error("Failed to load calendar colors:", e);
@@ -89,7 +95,8 @@ export default function CalendarColorSettings() {
       const holiday_default = holidayDefault?.trim().startsWith("#") ? holidayDefault.trim() : undefined;
       const saturday_color = saturdayColor?.trim().startsWith("#") ? saturdayColor.trim() : undefined;
       const sunday_color = sundayColor?.trim().startsWith("#") ? sundayColor.trim() : undefined;
-      await apiClient.updateAdminCalendarColors({ slot_colors, holiday_default, saturday_color, sunday_color });
+      const external_gst_percent = typeof externalGstPercent === 'number' && externalGstPercent >= 0 && externalGstPercent <= 100 ? externalGstPercent : undefined;
+      await apiClient.updateAdminCalendarColors({ slot_colors, holiday_default, saturday_color, sunday_color, external_gst_percent });
       toast.success("Calendar colors updated. They will apply to the weekly window on equipment and booking pages.");
     } catch (e) {
       console.error("Failed to save calendar colors:", e);
@@ -272,6 +279,22 @@ export default function CalendarColorSettings() {
                 >
                   Preview
                 </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 pt-2 border-t">
+                <Label className="w-40 shrink-0">External user GST %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={externalGstPercent}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!Number.isNaN(v)) setExternalGstPercent(Math.max(0, Math.min(100, v)));
+                  }}
+                  className="font-mono w-24"
+                />
+                <span className="text-sm text-muted-foreground">Applied on top of base charge for external users. Internal students: 0%.</span>
               </div>
               <div className="flex gap-3 pt-4">
                 <Button onClick={handleSave} disabled={saving}>

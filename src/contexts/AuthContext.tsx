@@ -29,7 +29,7 @@ interface User {
   designation?: string | null;
   date_joined?: string | null;
   last_login?: string | null;
-  /** Set by backend from admin Auth settings; used for inactivity auto-logout timer. */
+  /** Set by backend from admin Auth settings (inactivity timeout is disabled; this is unused). */
   auth_inactivity_timeout_seconds?: number;
 }
 
@@ -41,6 +41,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
+  /** Set user after OAuth/OTP login when token is already set by apiClient. Avoids refreshUser() 401 race. */
+  setUserFromAuth: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -139,38 +141,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Inactivity logout: use admin-configured timeout from API, or fallback to 25 min (slightly less than backend default)
-  // Frontend logs out 5 minutes before backend so the session is cleared in time
-  const inactivityTimeoutSeconds = user?.auth_inactivity_timeout_seconds ?? 1800;
-  const INACTIVITY_MS = Math.max(
-    5 * 60 * 1000,
-    (inactivityTimeoutSeconds - 5 * 60) * 1000
-  );
-  useEffect(() => {
-    if (!user) return;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const resetTimer = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        apiClient.setToken(null);
-        localStorage.removeItem("user");
-        setUser(null);
-        if (window.location.pathname !== "/auth") {
-          window.location.replace("/auth?reason=inactivity");
-        }
-      }, INACTIVITY_MS);
-    };
-
-    resetTimer();
-    const events = ["mousedown", "mousemove", "keydown", "scroll", "touchstart"];
-    events.forEach((ev) => window.addEventListener(ev, resetTimer));
-    return () => {
-      events.forEach((ev) => window.removeEventListener(ev, resetTimer));
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [user]);
-
   // Periodic session check: when logged in and tab is visible, validate token so we detect
   // "logged in elsewhere" (single-session) quickly and redirect this tab to login
   const SESSION_CHECK_MS = 15 * 1000; // 15 seconds
@@ -239,6 +209,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
+  const setUserFromAuth = useCallback((userData: User) => {
+    setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData));
+  }, []);
+
   const isAuthenticated = !!user && !!apiClient.getToken();
 
   return (
@@ -251,6 +226,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         refreshUser,
         updateUser,
+        setUserFromAuth,
       }}
     >
       {children}
