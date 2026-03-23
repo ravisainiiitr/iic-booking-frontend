@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parseDisabledElementsFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api";
 
 export interface InputFieldDef {
   field_key: string;
@@ -31,6 +32,7 @@ export interface InputFieldDef {
   editing_required?: boolean;
   options?: (string | { value?: string; label?: string })[];
   help_text?: string;
+  source_element_field_key?: string | null;
 }
 
 interface BookingUserInputsProps {
@@ -117,6 +119,14 @@ export function BookingUserInputs({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editFormValues, setEditFormValues] = useState<Record<string, string | number | boolean | string[] | string[][]>>({});
+  const [icpmsStandardsByFieldKey, setIcpmsStandardsByFieldKey] = useState<
+    Record<
+      string,
+      {
+        standards: Array<{ id: number; s_no: string; name_of_std: string; list_of_elements?: string }>;
+      } | null
+    >
+  >({});
 
   const iv = inputValues || {};
   const keysToShow = Object.keys(iv).filter((k) => !k.endsWith("_elements"));
@@ -153,6 +163,85 @@ export function BookingUserInputs({
     (f) => String(f.field_type || "").toUpperCase() === "TABLE"
   );
 
+  // Compute "Standards covering selected elements" for ICPMS on view mode.
+  // This mirrors the logic used in `BookEquipment.tsx` but runs for booking details.
+  // Note: we only show results; charge recalculation still happens via Save/updateBookingInputValues.
+  const icpmsCoverageFields = (inputFields ?? []).filter(
+    (f) => String(f.field_type || "").toUpperCase() === "ICPMS_STANDARD_COVERAGE"
+  );
+  const periodicFields = (inputFields ?? []).filter(
+    (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"
+  );
+
+  // Keep effect lightweight: only depend on inputValues + inputFields identity.
+  const icpmsCoverageDeps = icpmsCoverageFields
+    .map((f) => `${f.field_key}:${String(f.source_element_field_key ?? "")}`)
+    .join("|");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const next: Record<
+        string,
+        {
+          standards: Array<{ id: number; s_no: string; name_of_std: string; list_of_elements?: string }>;
+        } | null
+      > = {};
+
+      for (const f of icpmsCoverageFields) {
+        let sourceKey = String(f.source_element_field_key ?? "").trim();
+        if (!sourceKey) {
+          // Booking details payload may miss source_element_field_key.
+          // Fallback to a periodic field that has selected elements.
+          const periodicWithElements = periodicFields.find((pf) =>
+            String(inputValues?.[`${pf.field_key}_elements`] ?? "").trim().length > 0
+          );
+          sourceKey = periodicWithElements?.field_key ?? "";
+        }
+        if (!sourceKey) {
+          next[f.field_key] = null;
+          continue;
+        }
+
+        const elementsStr = String(inputValues?.[`${sourceKey}_elements`] ?? "").trim();
+        const elements = elementsStr
+          ? elementsStr
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+
+        if (elements.length === 0) {
+          next[f.field_key] = null;
+          continue;
+        }
+
+        try {
+          const res = await apiClient.getIcpmsMinStandardsCover(elements);
+          if (cancelled) return;
+          if (res.error) {
+            next[f.field_key] = null;
+            continue;
+          }
+          const data = res.data;
+          const standards = Array.isArray(data?.standards) ? data.standards : [];
+          next[f.field_key] = { standards };
+        } catch {
+          next[f.field_key] = null;
+        }
+      }
+
+      if (!cancelled) setIcpmsStandardsByFieldKey(next);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [icpmsCoverageDeps, inputValues, periodicFields]);
+
   const openEditDialog = () => {
     const initial: Record<string, string | number | boolean | string[] | string[][]> = { ...iv };
     fields.forEach((f) => {
@@ -185,7 +274,99 @@ export function BookingUserInputs({
     if (!onUpdate) return;
     setSaving(true);
     try {
-      await onUpdate(editFormValues);
+      // ICPMS Standard Coverage auto-computation for "My Bookings" edit flow:
+      // replicate the same behavior as the booking page PeriodicTable "Apply" flow.
+      const nextValues: Record<string, string | boolean | string[] | number | string[][]> = { ...editFormValues };
+
+      const icpmsCoverageFields = (inputFields ?? []).filter(
+        (f) => String(f.field_type || "").toUpperCase() === "ICPMS_STANDARD_COVERAGE"
+      );
+
+      if (icpmsCoverageFields.length > 0) {
+        const getSelectedElements = (sourceKey: string) => {
+          const elementsStr = String(nextValues[`${sourceKey}_elements`] ?? "").trim();
+          if (!elementsStr) return [];
+          return elementsStr.split(",").map((s) => s.trim()).filter((s) => Boolean(s));
+        };
+
+        const setSelectedElements = (sourceKey: string, elements: string[]) => {
+          const cleaned = elements.map((e) => String(e).trim()).filter(Boolean);
+          nextValues[`${sourceKey}_elements`] = cleaned.join(",");
+
+          // For consistency with the booking apply flow:
+          // - A and B are treated as at-least-1 when non-empty
+          // - but can still be reset to 0 when empty.
+          const count =
+            sourceKey === "A" || sourceKey === "B"
+              ? cleaned.length > 0
+                ? Math.max(1, cleaned.length)
+                : 0
+              : cleaned.length;
+          nextValues[sourceKey] = count;
+        };
+
+        for (const icpmsField of icpmsCoverageFields) {
+          let sourceKey = String(icpmsField.source_element_field_key ?? "").trim();
+          if (!sourceKey) {
+            // Booking-details payload can miss source_element_field_key.
+            // Use a periodic field that currently has selected elements as fallback.
+            const periodicWithElements = periodicFields.find((pf) =>
+              String(nextValues[`${pf.field_key}_elements`] ?? "").trim().length > 0
+            );
+            sourceKey = periodicWithElements?.field_key ?? "";
+          }
+          if (!sourceKey) continue;
+
+          let selectedElements = getSelectedElements(sourceKey);
+
+          // Nothing selected => reset ICPMS min standards to 0
+          if (selectedElements.length === 0) {
+            nextValues[icpmsField.field_key] = 0;
+            continue;
+          }
+
+          // Recompute using uncovered-elements confirmation logic.
+          // The backend may return:
+          // - { count, standards, uncovered? } with status 200
+          // - or an "error" string plus "uncovered" list for impossible covers.
+          // For our UI behavior:
+          // - If uncovered exists, ask:
+          //   OK => exclude uncovered and recompute
+          //   Cancel => clear selection + reset ICPMS values
+          while (selectedElements.length > 0) {
+            const res = await apiClient.getIcpmsMinStandardsCover(selectedElements);
+            const data = res.data;
+
+            const uncovered: string[] = Array.isArray(data?.uncovered) ? data.uncovered : [];
+            if (uncovered.length > 0) {
+              const uncoveredStr = uncovered.join(", ");
+              const exclude = window.confirm(
+                `Some selected elements cannot be covered by available standards.\n\nUncovered elements:\n${uncoveredStr}\n\nDo you want to exclude these elements and recalculate?`
+              );
+
+              if (!exclude) {
+                // Reset element requirements and ICPMS values
+                setSelectedElements(sourceKey, []);
+                nextValues[icpmsField.field_key] = 0;
+                selectedElements = [];
+                break;
+              }
+
+              const uncoveredSet = new Set(uncovered.map((u) => String(u).toUpperCase()));
+              selectedElements = selectedElements.filter((e) => !uncoveredSet.has(String(e).toUpperCase()));
+              setSelectedElements(sourceKey, selectedElements);
+              continue; // recompute with reduced set
+            }
+
+            const minCount = data?.count ?? 0;
+            nextValues[icpmsField.field_key] = minCount;
+            break;
+          }
+        }
+      }
+
+      setEditFormValues(nextValues);
+      await onUpdate(nextValues);
       toast.success("User inputs updated");
       setEditDialogOpen(false);
     } catch (e) {
@@ -236,6 +417,8 @@ export function BookingUserInputs({
           const elementsVal = iv[`${f.field_key}_elements`];
           const isPeriodic = String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE";
           const isTable = String(f.field_type || "").toUpperCase() === "TABLE";
+          const isIcpmsCoverage = String(f.field_type || "").toUpperCase() === "ICPMS_STANDARD_COVERAGE";
+          const icpmsStandards = icpmsStandardsByFieldKey[f.field_key]?.standards;
           const displayVal =
             ["RADIO", "COMBO"].includes(String(f.field_type || "").toUpperCase())
               ? resolveRadioComboDisplay(val, f.options, f.field_type)
@@ -305,16 +488,65 @@ export function BookingUserInputs({
             <li
               key={f.field_key}
               className={cn(
-                "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4 px-5 py-4",
+                "flex flex-col sm:flex-row sm:justify-between gap-1.5 sm:gap-4 px-5 py-4",
+                isIcpmsCoverage && icpmsStandards && icpmsStandards.length > 0
+                  ? "sm:items-start"
+                  : "sm:items-center",
                 idx % 2 === 0 ? "bg-background/50 dark:bg-background/30" : "bg-background/30 dark:bg-background/10"
               )}
             >
               <span className="text-sm font-semibold text-muted-foreground shrink-0 min-w-0">
                 {f.field_label}
               </span>
-              <span className="text-base font-medium text-foreground sm:text-right break-words">
+              <span
+                className={cn(
+                  "text-base font-medium text-foreground break-words",
+                  isIcpmsCoverage && icpmsStandards && icpmsStandards.length > 0
+                    ? "sm:flex-1 sm:min-w-0 sm:text-left"
+                    : "sm:text-right"
+                )}
+              >
                 {displayVal}
                 {elementsSuffix}
+                {isIcpmsCoverage && f.help_text && (
+                  <span className="block text-sm font-normal text-muted-foreground mt-2 whitespace-pre-wrap">
+                    {f.help_text}
+                  </span>
+                )}
+                {isIcpmsCoverage && icpmsStandards && icpmsStandards.length > 0 && (
+                    <div className="block text-sm font-normal text-muted-foreground mt-3 w-full min-w-0 text-left">
+                      <span className="font-medium text-foreground">Standards covering selected elements</span>
+                      <div className="mt-2 rounded-lg border border-border/70 overflow-hidden shadow-sm">
+                        <table className="w-full text-base border-collapse">
+                          <thead>
+                            <tr className="bg-primary/10 dark:bg-primary/15 border-b border-border/70">
+                              <th className="text-left font-semibold text-foreground px-4 py-3 border-r border-border/50">S.NO.</th>
+                              <th className="text-left font-semibold text-foreground px-4 py-3 border-r border-border/50">Name of Std</th>
+                              <th className="text-left font-semibold text-foreground px-4 py-3">List of Element</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {icpmsStandards.map((s) => (
+                              <tr
+                                key={s.id}
+                                className="border-b border-border/40 last:border-0 bg-background/60 dark:bg-background/40"
+                              >
+                                <td className="px-4 py-3 text-foreground font-medium border-r border-border/40 align-top">
+                                  {s.s_no}
+                                </td>
+                                <td className="px-4 py-3 text-foreground border-r border-border/40 align-top">
+                                  {s.name_of_std}
+                                </td>
+                                <td className="px-4 py-3 text-foreground align-top break-words max-w-[min(100%,28rem)]">
+                                  {(s.list_of_elements && String(s.list_of_elements).trim()) || "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
               </span>
             </li>
           );
@@ -417,6 +649,21 @@ export function BookingUserInputs({
                       <Label htmlFor={`edit-${f.field_key}`} className="font-normal cursor-pointer">
                         {val ? "Yes" : "No"}
                       </Label>
+                    </div>
+                  )}
+                  {type === "ICPMS_STANDARD_COVERAGE" && (
+                    <div className="space-y-1.5">
+                      <Input
+                        id={`edit-${f.field_key}`}
+                        type="number"
+                        className="text-base h-10 bg-muted font-medium"
+                        value={typeof val === "number" ? val : Number(val) ?? ""}
+                        readOnly
+                        disabled
+                      />
+                      {f.help_text && (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.help_text}</p>
+                      )}
                     </div>
                   )}
                   {type === "PERIODIC_TABLE" && (() => {

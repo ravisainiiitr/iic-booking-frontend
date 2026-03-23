@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/table";
 import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Loader2, Star } from "lucide-react";
+import { type BookingRef } from "@/lib/bookingRef";
 
-interface BookingRow {
-  booking_id: number;
+interface BookingRow extends BookingRef {
   equipment_name: string;
   equipment_code: string;
   start_time: string;

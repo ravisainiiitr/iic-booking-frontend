@@ -19,9 +19,9 @@ import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Badge } from "@/components/ui/badge";
 import { TicketForm, TICKET_TYPE, QUALITY_IMPROVEMENT_SUBJECT } from "@/components/TicketForm";
+import { type BookingRef } from "@/lib/bookingRef";
 
-interface Booking {
-  booking_id: number;
+interface Booking extends BookingRef {
   user: number;
   user_email: string;
   user_name: string;
@@ -88,6 +88,7 @@ const Dashboard = () => {
   const [loadingFacultyUrgentCount, setLoadingFacultyUrgentCount] = useState(false);
   const [myUrgentRequestsCount, setMyUrgentRequestsCount] = useState<number>(0);
   const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
+  const [externalProfileNeedsAddress, setExternalProfileNeedsAddress] = useState(false);
 
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
@@ -151,6 +152,7 @@ const Dashboard = () => {
         const isCurrentUserOperatorOrManager =
           currentUserTypeStr === "operator" || currentUserTypeStr === "manager" || currentUserTypeStr === "admin";
         const isStudent = currentUserTypeStr === "student" || currentUserTypeStr === "individual_student";
+        const isExternalUser = ["external", "rnd", "industry", "other"].includes(currentUserTypeStr);
 
         // Determine what to show (before any await)
         const shouldShowWallet = userCanHaveWallet || (currentUserTypeStr === "student");
@@ -191,6 +193,46 @@ const Dashboard = () => {
         }
         if (isStudent) {
           tasks.push(fetchMyUrgentRequestsCount().then(() => {}));
+        }
+
+        if (isExternalUser) {
+          tasks.push(
+            apiClient
+              .getExternalBillingProfileMe()
+              .then((r) => {
+                if (!isMounted) return;
+                const d = r.data;
+                if (r.error || !d) {
+                  setExternalProfileNeedsAddress(true);
+                  return;
+                }
+
+                const missing = (v: unknown) => String(v ?? "").trim() === "";
+                const billingMissing =
+                  missing(d.billing_name) ||
+                  missing(d.billing_address_line1) ||
+                  missing(d.billing_city) ||
+                  missing(d.billing_state) ||
+                  missing(d.billing_pincode) ||
+                  missing(d.billing_country);
+
+                const shippingMissing = d.shipping_same_as_billing
+                  ? false
+                  : missing(d.shipping_name) ||
+                    missing(d.shipping_phone) ||
+                    missing(d.shipping_address_line1) ||
+                    missing(d.shipping_city) ||
+                    missing(d.shipping_state) ||
+                    missing(d.shipping_pincode) ||
+                    missing(d.shipping_country);
+
+                setExternalProfileNeedsAddress(billingMissing || shippingMissing);
+              })
+              .catch(() => {
+                if (!isMounted) return;
+                setExternalProfileNeedsAddress(true);
+              })
+          );
         }
 
         setLoading(false);
@@ -454,6 +496,27 @@ const Dashboard = () => {
       <DashboardHeader />
 
       <main className="container mx-auto px-4 py-8">
+        {externalProfileNeedsAddress && (
+          <Card className="mb-6 border-amber-200/70 bg-amber-50/60 dark:bg-amber-950/10">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                Complete billing & shipping details
+              </CardTitle>
+              <CardDescription>
+                To generate invoices and shipping labels for external bookings, please complete your Billing Address (GSTIN) and Shipping Address in your profile.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button
+                onClick={() => navigate("/profile#external-billing")}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Go to Profile
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {/* Profile card – image left, details right */}
         <div className={`mb-10 overflow-hidden rounded-2xl shadow-xl ${
           isAdmin 
@@ -581,7 +644,7 @@ const Dashboard = () => {
                   <Package className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Equipment</CardTitle>
+                  <CardTitle className="text-lg">Book Equipment</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     Browse and book available laboratory equipment
                   </CardDescription>

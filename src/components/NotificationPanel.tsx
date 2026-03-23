@@ -17,6 +17,19 @@ import { useNotifications, Notification } from "@/contexts/NotificationContext";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
+/** Same-origin absolute URLs from the API become in-app paths so React Router can navigate. */
+function toInAppPath(link: string): string {
+  try {
+    const u = new URL(link, typeof window !== "undefined" ? window.location.origin : undefined);
+    if (typeof window !== "undefined" && u.origin === window.location.origin) {
+      return `${u.pathname}${u.search}${u.hash}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return link;
+}
+
 const NotificationPanel = () => {
   const navigate = useNavigate();
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead, removeNotification, refreshNotifications } = useNotifications();
@@ -65,7 +78,7 @@ const NotificationPanel = () => {
       markAsRead(notification.id);
     }
     if (notification.link) {
-      navigate(notification.link);
+      navigate(toInAppPath(notification.link));
       setOpen(false);
     }
   };

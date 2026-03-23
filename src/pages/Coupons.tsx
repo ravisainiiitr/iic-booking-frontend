@@ -14,6 +14,7 @@ import {
 import { Loader2, ArrowLeft, Tag } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { format } from "date-fns";
+import { type BookingRef } from "@/lib/bookingRef";
 
 type CouponItem = {
   id: number;
@@ -27,12 +28,11 @@ type CouponItem = {
   used_count: number;
 };
 
-type CouponUsageItem = {
+type CouponUsageItem = BookingRef & {
   id: number;
   coupon_code: string;
   discount_amount: string;
   used_at: string | null;
-  booking_id: number;
   equipment_name: string | null;
   equipment_code: string | null;
 };

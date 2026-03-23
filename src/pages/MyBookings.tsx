@@ -38,6 +38,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { X, FolderDown, Download, Star, Filter, RotateCcw, Banknote } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import {
   Table,
   TableBody,
@@ -48,8 +49,7 @@ import {
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 
-interface Booking {
-  booking_id: number;
+interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
   user: number;
   user_email: string;
@@ -99,7 +99,8 @@ interface Booking {
     end_datetime: string;
     status: string;
     booking: number;
-    booking_id: number;
+    booking_id: string | number;
+    real_booking_id?: number | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -126,6 +127,10 @@ interface Booking {
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
+  waitlist_entry_id?: number;
+  waitlist_position?: number;
+  waitlist_code?: string;
+  is_waitlist_entry?: boolean;
 }
 
 const PAGE_SIZE = 50;
@@ -138,20 +143,20 @@ const MyBookings = () => {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [resultsCache, setResultsCache] = useState<Record<number, { exists: boolean; files: Array<{ name: string; download_url: string }> }>>({});
+  const [resultsCache, setResultsCache] = useState<Record<string, { exists: boolean; files: Array<{ name: string; download_url: string }> }>>({});
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
   const [resultsDialogFiles, setResultsDialogFiles] = useState<Array<{ name: string; download_url: string }>>([]);
   const [resultsDialogBookingId, setResultsDialogBookingId] = useState<number | null>(null);
-  const [resultsLoadingId, setResultsLoadingId] = useState<number | null>(null);
-  const [ratingLoadingId, setRatingLoadingId] = useState<number | null>(null);
-  const [ratingDraft, setRatingDraft] = useState<Record<number, { stars: number; feedback: string }>>({});
+  const [resultsLoadingId, setResultsLoadingId] = useState<string | number | null>(null);
+  const [ratingLoadingId, setRatingLoadingId] = useState<string | number | null>(null);
+  const [ratingDraft, setRatingDraft] = useState<Record<string, { stars: number; feedback: string }>>({});
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState("");
@@ -179,26 +184,32 @@ const MyBookings = () => {
 
   const handleResultsClick = async (booking: Booking) => {
     const bid = booking.booking_id;
-    const cached = resultsCache[bid];
+    const backendId = getRealBookingId(booking);
+    const cacheKey = getBookingKey(booking);
+    const cached = resultsCache[cacheKey];
     if (cached) {
       if (cached.exists && cached.files.length > 0) {
         setResultsDialogFiles(cached.files);
-        setResultsDialogBookingId(bid);
+        setResultsDialogBookingId(backendId);
         setResultsDialogOpen(true);
       } else {
         toast.info("No results folder found for this booking.");
       }
       return;
     }
+    if (backendId == null) {
+      toast.error("Result files are unavailable for this booking.");
+      return;
+    }
     setResultsLoadingId(bid);
-    const res = await apiClient.getBookingResults(bid);
+    const res = await apiClient.getBookingResults(backendId);
     setResultsLoadingId(null);
     const exists = res.data?.exists ?? false;
     const files = (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url }));
-    setResultsCache((prev) => ({ ...prev, [bid]: { exists, files } }));
+    setResultsCache((prev) => ({ ...prev, [cacheKey]: { exists, files } }));
     if (exists && files.length > 0) {
       setResultsDialogFiles(files);
-      setResultsDialogBookingId(bid);
+      setResultsDialogBookingId(backendId);
       setResultsDialogOpen(true);
     } else {
       toast.info("No results folder found for this booking.");
@@ -241,22 +252,27 @@ const MyBookings = () => {
   const bookingIdParam = searchParams.get("booking");
   useEffect(() => {
     if (!bookingIdParam) return;
-    const bid = parseInt(bookingIdParam, 10);
-    if (!Number.isInteger(bid)) return;
-    const inList = bookings.some((b) => b.booking_id === bid);
+    const inList = bookings.some((b) => getBookingKey(b) === bookingIdParam);
     if (inList) {
-      setSelectedBookingId(bid);
+      const row = bookings.find((b) => getBookingKey(b) === bookingIdParam);
+      setSelectedBookingId(bookingIdParam);
       setOverrideBooking(null);
+      const backendId = row ? getRealBookingId(row) : null;
+      if (backendId != null) {
+        apiClient.getBookings({ booking_id: backendId, limit: 1 }).then((res) => {
+          if (res.data?.bookings?.[0]) setOverrideBooking(res.data.bookings[0]);
+        });
+      }
       setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
       return;
     }
     let cancelled = false;
-    apiClient.getBookings({ booking_id: bid, limit: 1 }).then((res) => {
+    apiClient.getBookings({ search: bookingIdParam, limit: 1 }).then((res) => {
       if (cancelled || res.error) return;
       const b = res.data?.bookings?.[0];
       if (b) {
         setOverrideBooking(b);
-        setSelectedBookingId(bid);
+        setSelectedBookingId(b.booking_id);
         setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
       }
     });
@@ -282,7 +298,7 @@ const MyBookings = () => {
         list_view: true,
       };
       const status = overrides?.status ?? statusFilter;
-      if (status !== "all") params.status = status;
+      if (status !== "all" && status !== "WAITLISTED") params.status = status;
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (searchQuery.trim()) params.search = searchQuery.trim();
@@ -294,7 +310,21 @@ const MyBookings = () => {
         setBookings([]);
         setTotalCount(0);
       } else if (response.data && response.data.bookings) {
-        let list = response.data.bookings;
+        let list = response.data.bookings as unknown as Booking[];
+        if (status === "all" || status === "WAITLISTED") {
+          const waitlistRes = await apiClient.getMyWaitlistEntries();
+          if (!waitlistRes.error && Array.isArray(waitlistRes.data?.entries)) {
+            list = [...list, ...(waitlistRes.data?.entries as unknown as Booking[])];
+          }
+        }
+        if (status === "WAITLISTED") {
+          list = list.filter((b: Booking) => isWaitlistedEntry(b));
+        }
+        list = [...list].sort((a, b) => {
+          const aTs = a?.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTs = b?.created_at ? new Date(b.created_at).getTime() : 0;
+          return ordering === "created_at" ? aTs - bTs : bTs - aTs;
+        });
         if (overrides?.onlyShowUnrated) {
           list = list.filter(
             (b: Booking) =>
@@ -331,6 +361,7 @@ const MyBookings = () => {
       absent: "bg-orange-500",
       refunded: "bg-purple-500",
       booking_not_utilized: "bg-amber-600",
+      waitlisted: "bg-amber-500",
     };
     return colors[statusLower] || "bg-gray-500";
   };
@@ -342,16 +373,20 @@ const MyBookings = () => {
   };
 
   const formatDuration = (totalMinutes: number) => {
+    if (totalMinutes <= 0) return "—";
     if (totalMinutes < 60) return `${totalMinutes} min`;
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
     return m ? `${h}h ${m}m` : `${h}h`;
   };
 
-  const showBookingDetail = (bookingId: number) => {
+  const showBookingDetail = (booking: Booking) => {
+    const bookingId = booking.booking_id;
+    const backendId = getRealBookingId(booking);
     setSelectedBookingId(bookingId);
     setOverrideBooking(null);
-    apiClient.getBookings({ booking_id: bookingId, limit: 1 }).then((res) => {
+    if (backendId == null) return;
+    apiClient.getBookings({ booking_id: backendId, limit: 1 }).then((res) => {
       if (res.data?.bookings?.[0]) setOverrideBooking(res.data.bookings[0]);
     });
     setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
@@ -370,6 +405,12 @@ const MyBookings = () => {
     const statusLower = status.toLowerCase();
     return statusLower === "pending" || statusLower === "booked";
   };
+
+  const isWaitlistedEntry = (booking: Booking) =>
+    booking.status?.toUpperCase() === "WAITLISTED" || booking.is_waitlist_entry === true;
+
+  const canCancelBooking = (booking: Booking) =>
+    isWaitlistedEntry(booking) || canCancelOrReschedule(booking.status);
 
   const isRepeatBooking = (booking: Booking): boolean =>
     (booking.source_booking_id != null && booking.source_booking_id !== undefined) ||
@@ -397,13 +438,19 @@ const MyBookings = () => {
   };
 
   const handleSubmitRating = async (booking: Booking) => {
-    const draft = ratingDraft[booking.booking_id];
+    const bookingKey = getBookingKey(booking);
+    const draft = ratingDraft[bookingKey];
     if (!draft || draft.stars < 1) {
       toast.error("Please select a rating (1–5 stars).");
       return;
     }
+    const backendId = getRealBookingId(booking);
+    if (backendId == null) {
+      toast.error("This booking cannot be rated right now.");
+      return;
+    }
     setRatingLoadingId(booking.booking_id);
-    const res = await apiClient.rateBooking(booking.booking_id, draft.stars, draft.feedback.trim() || undefined);
+    const res = await apiClient.rateBooking(backendId, draft.stars, draft.feedback.trim() || undefined);
     setRatingLoadingId(null);
     if (res.error) {
       toast.error(res.error || "Failed to submit rating");
@@ -412,7 +459,7 @@ const MyBookings = () => {
     toast.success("Rating submitted.");
     setRatingDraft((prev) => {
       const next = { ...prev };
-      delete next[booking.booking_id];
+      delete next[bookingKey];
       return next;
     });
     await fetchBookings(undefined, page);
@@ -462,6 +509,12 @@ const MyBookings = () => {
       toast.error("Repeat sample bookings cannot be cancelled. Please contact admin if you need to cancel.");
       return;
     }
+    if (isWaitlistedEntry(booking)) {
+      setSelectedBooking(booking);
+      setCancelNotes("");
+      setCancelDialogOpen(true);
+      return;
+    }
     // Check if cancel is allowed based on time threshold
     if (!isWithinThresholdWindow(booking)) {
       if (booking.start_time) {
@@ -469,7 +522,7 @@ const MyBookings = () => {
         const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
         const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
         toast.error(
-          `Cancel is only available until ${cutoffTime.toLocaleString()}. Kindly contact the admin to cancel the booking.`
+          `Cancellation is only available until ${cutoffTime.toLocaleString()}. Kindly contact the admin to cancel the booking.`
         );
       } else {
         toast.error("Cannot cancel this booking. Start time is not available.");
@@ -490,7 +543,7 @@ const MyBookings = () => {
         const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
         const cutoffTime = new Date(startTime.getTime() - threshold * 60 * 60 * 1000);
         toast.error(
-          `Reschedule is only available until ${cutoffTime.toLocaleString()}. Kindly contact the admin to reschedule the booking.`
+          `Rescheduling is only available until ${cutoffTime.toLocaleString()}. Kindly contact the admin to reschedule the booking.`
         );
       } else {
         toast.error("Cannot reschedule this booking. Start time is not available.");
@@ -507,9 +560,39 @@ const MyBookings = () => {
 
     setActionLoading(true);
     try {
+      if (isWaitlistedEntry(selectedBooking)) {
+        const entryId = selectedBooking.waitlist_entry_id;
+        if (!entryId) {
+          toast.error("Waitlist entry id is missing.");
+          setActionLoading(false);
+          return;
+        }
+        const response = await apiClient.cancelMyWaitlistEntry(entryId);
+        if (response.error) {
+          toast.error(response.error || "Failed to cancel waitlisted booking");
+          setActionLoading(false);
+          return;
+        }
+        toast.success(response.data?.message || "Waitlisted booking cancelled successfully.");
+        setCancelDialogOpen(false);
+        setSelectedBooking(null);
+        setCancelNotes("");
+        setSelectedBookingId(null);
+        setOverrideBooking(null);
+        await fetchBookings(undefined, page);
+        setActionLoading(false);
+        return;
+      }
+
       // Cancel booking with refund (always refund)
+      const backendId = getRealBookingId(selectedBooking);
+      if (backendId == null) {
+        toast.error("This booking cannot be cancelled right now.");
+        setActionLoading(false);
+        return;
+      }
       const response = await apiClient.userCancelBooking(
-        selectedBooking.booking_id,
+        backendId,
         true, // Always refund
         cancelNotes || undefined
       );
@@ -546,8 +629,14 @@ const MyBookings = () => {
 
     setActionLoading(true);
     try {
+      const backendId = getRealBookingId(selectedBooking);
+      if (backendId == null) {
+        toast.error("This booking cannot be rescheduled right now.");
+        setActionLoading(false);
+        return;
+      }
       const response = await apiClient.userRescheduleBooking(
-        selectedBooking.booking_id,
+        backendId,
         startTimeISO,
         endTimeISO
       );
@@ -572,7 +661,12 @@ const MyBookings = () => {
   const handleProcessChargeRecalcRefund = async (b: Booking) => {
     setChargeRecalcActionLoading(true);
     try {
-      const res = await apiClient.processChargeRecalculationRefund(b.booking_id);
+      const backendId = getRealBookingId(b);
+      if (backendId == null) {
+        toast.error("This booking cannot be processed right now.");
+        return;
+      }
+      const res = await apiClient.processChargeRecalculationRefund(backendId);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -589,7 +683,12 @@ const MyBookings = () => {
   const handleProcessChargeRecalcPayNow = async (b: Booking) => {
     setChargeRecalcActionLoading(true);
     try {
-      const res = await apiClient.processChargeRecalculationPayNow(b.booking_id);
+      const backendId = getRealBookingId(b);
+      if (backendId == null) {
+        toast.error("This booking cannot be processed right now.");
+        return;
+      }
+      const res = await apiClient.processChargeRecalculationPayNow(backendId);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -648,6 +747,7 @@ const MyBookings = () => {
                     <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
                     <SelectItem value="REFUNDED">REFUNDED</SelectItem>
                     <SelectItem value="BOOKING_NOT_UTILIZED">Booking Not Utilized</SelectItem>
+                    <SelectItem value="WAITLISTED">WAITLISTED</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -812,24 +912,32 @@ const MyBookings = () => {
                       bookings.map((booking) => (
                       <TableRow key={booking.booking_id} className="group">
                         <TableCell className="font-medium">
-                          <button
-                            type="button"
-                            onClick={() => showBookingDetail(booking.booking_id)}
-                            className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
-                              booking.status.toUpperCase() === "COMPLETED"
-                                ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
-                                : "text-primary hover:text-primary/80"
-                            }`}
-                          >
-                            {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
-                            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                          </button>
+                          {isWaitlistedEntry(booking) ? (
+                            <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-500">
+                              {booking.virtual_booking_id || booking.waitlist_code || "Waitlisted"}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => showBookingDetail(booking)}
+                              className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+                                booking.status.toUpperCase() === "COMPLETED"
+                                  ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
+                                  : "text-primary hover:text-primary/80"
+                              }`}
+                            >
+                              {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+                              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                            </button>
+                          )}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {formatBookingStartDate(booking.start_time)}
+                          {isWaitlistedEntry(booking)
+                            ? (booking.created_at ? new Date(booking.created_at).toLocaleString() : "—")
+                            : formatBookingStartDate(booking.start_time)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {formatDuration(booking.total_time_minutes)}
@@ -858,14 +966,16 @@ const MyBookings = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => showBookingDetail(booking.booking_id)}
-                            >
-                              View
-                            </Button>
-                            {booking.status.toUpperCase() === "COMPLETED" && (
+                            {!isWaitlistedEntry(booking) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => showBookingDetail(booking)}
+                              >
+                                View
+                              </Button>
+                            )}
+                            {!isWaitlistedEntry(booking) && booking.status.toUpperCase() === "COMPLETED" && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -875,7 +985,10 @@ const MyBookings = () => {
                                 {resultsLoadingId === booking.booking_id ? "…" : "Results"}
                               </Button>
                             )}
-                            {canCancelOrReschedule(booking.status) && canReschedule(booking) && (
+                            {(!currentUserType ||
+                              !["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase())) &&
+                              canCancelOrReschedule(booking.status) &&
+                              canReschedule(booking) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -887,7 +1000,10 @@ const MyBookings = () => {
                                 Reschedule
                               </Button>
                             )}
-                            {canCancelOrReschedule(booking.status) && !isRepeatBooking(booking) && (
+                            {(!currentUserType ||
+                              !["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase())) &&
+                              canCancelBooking(booking) &&
+                              !isRepeatBooking(booking) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -902,8 +1018,8 @@ const MyBookings = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  showBookingDetail(booking.booking_id);
-                                  setRatingDraft((prev) => ({ ...prev, [booking.booking_id]: { stars: 0, feedback: "" } }));
+                                  showBookingDetail(booking);
+                                  setRatingDraft((prev) => ({ ...prev, [getBookingKey(booking)]: { stars: 0, feedback: "" } }));
                                 }}
                               >
                                 Rate
@@ -1033,24 +1149,32 @@ const MyBookings = () => {
         <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
+              <AlertDialogTitle>{selectedBooking && isWaitlistedEntry(selectedBooking) ? "Cancel Waitlisted Booking" : "Cancel Booking"}</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to cancel this booking? This action cannot be undone.
+                {selectedBooking && isWaitlistedEntry(selectedBooking)
+                  ? "Are you sure you want to cancel this waitlisted booking? This action cannot be undone."
+                  : "Are you sure you want to cancel this booking? This action cannot be undone."}
                 {selectedBooking && (
                   <div className="mt-2 text-sm">
                     <p><strong>Equipment:</strong> {selectedBooking.equipment_name}</p>
-                    <p><strong>{shouldShowTimeDisplay(selectedBooking) ? "Start Time:" : "Date:"}</strong>{" "}
-                      {shouldShowTimeDisplay(selectedBooking)
-                        ? new Date(selectedBooking.start_time).toLocaleString()
-                        : new Date(selectedBooking.start_time).toLocaleDateString()}
-                    </p>
-                    <p><strong>Total Charge:</strong> ₹{Number(selectedBooking.total_charge).toFixed(2)}</p>
+                    {isWaitlistedEntry(selectedBooking) ? (
+                      <p><strong>Queue Position:</strong> {selectedBooking.waitlist_code || `WL${selectedBooking.waitlist_position ?? "—"}`}</p>
+                    ) : (
+                      <>
+                        <p><strong>{shouldShowTimeDisplay(selectedBooking) ? "Start Time:" : "Date:"}</strong>{" "}
+                          {shouldShowTimeDisplay(selectedBooking)
+                            ? new Date(selectedBooking.start_time).toLocaleString()
+                            : new Date(selectedBooking.start_time).toLocaleDateString()}
+                        </p>
+                        <p><strong>Total Charge:</strong> ₹{Number(selectedBooking.total_charge).toFixed(2)}</p>
+                      </>
+                    )}
                   </div>
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-4 py-4">
-              {selectedBooking && (
+              {selectedBooking && !isWaitlistedEntry(selectedBooking) && (
                 <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
                   <p className="font-medium text-blue-900 mb-1">Refund Information</p>
                   <p className="text-blue-800">
@@ -1099,7 +1223,7 @@ const MyBookings = () => {
               <RescheduleSlotPicker
                 equipmentId={selectedBooking.equipment}
                 booking={{
-                  booking_id: selectedBooking.booking_id,
+                  booking_id: getRealBookingId(selectedBooking) ?? 0,
                   equipment: selectedBooking.equipment,
                   start_time: selectedBooking.start_time,
                   end_time: selectedBooking.end_time,

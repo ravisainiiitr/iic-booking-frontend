@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -23,17 +24,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Transaction {
   id: number;
   transaction_type: "credit" | "debit";
   amount: string;
   description: string;
+  /** Backend: description with Ref first, student suffix removed when redundant */
+  description_display?: string;
   created_at: string;
   department_name?: string;
   department_code?: string | null;
   balance_after?: string | null;
   equipment_name?: string | null;
+  virtual_booking_id?: string | null;
+  related_user_name?: string | null;
+  related_user_email?: string | null;
 }
 
 interface RazorpayOptions {
@@ -155,6 +167,28 @@ const Wallet = () => {
   const [rechargeDepartmentId, setRechargeDepartmentId] = useState<number | null>(null);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
 
+  // External user withdrawal (bank transfer)
+  const [isExternalUser, setIsExternalUser] = useState(false);
+  const [bankDetails, setBankDetails] = useState<any | null>(null);
+  const [loadingBankDetails, setLoadingBankDetails] = useState(false);
+  const [savingBankDetails, setSavingBankDetails] = useState(false);
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawNote, setWithdrawNote] = useState("");
+  const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
+  const [loadingWithdrawalRequests, setLoadingWithdrawalRequests] = useState(false);
+
+  const [bankForm, setBankForm] = useState({
+    account_holder_name: "",
+    bank_name: "",
+    account_number: "",
+    ifsc_code: "",
+    branch_name: "",
+    account_type: "",
+    upi_id: "",
+  });
+
   // Transaction history filters
   const [txTypeFilter, setTxTypeFilter] = useState<"all" | "credit" | "debit">("all");
   const [txDateFrom, setTxDateFrom] = useState("");
@@ -162,6 +196,7 @@ const Wallet = () => {
   const [txDepartmentFilter, setTxDepartmentFilter] = useState("");
   const [txSearchText, setTxSearchText] = useState("");
   const [txEquipmentFilter, setTxEquipmentFilter] = useState("");
+  const [txBookedByFilter, setTxBookedByFilter] = useState("");
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -280,6 +315,11 @@ const Wallet = () => {
 
     setUser(userResponse.data);
 
+    const userTypeRaw: any = userResponse.data?.user_type;
+    const userTypeStr = userTypeRaw != null ? String(userTypeRaw).toLowerCase() : "";
+    const isExternal = ["external", "rnd", "industry", "other"].includes(userTypeStr);
+    setIsExternalUser(isExternal);
+
     // Check if user can have wallet using the can_have_wallet field
     // Treat undefined/null as false (no wallet access)
     const userCanHaveWallet = userResponse.data?.can_have_wallet === true;
@@ -387,6 +427,11 @@ const Wallet = () => {
     // User has wallet access - fetch wallet data
     setUserId(userResponse.data.id);
     await fetchWalletData();
+
+    // External-only: load bank details + withdrawal requests
+    if (isExternal) {
+      await Promise.all([fetchBankDetails(), fetchWithdrawalRequests()]);
+    }
     
     // Fetch join requests:
     // - For faculty members: they see requests they received
@@ -396,6 +441,91 @@ const Wallet = () => {
       await fetchJoinRequests();
     }
     setLoading(false);
+  };
+
+  const fetchBankDetails = async () => {
+    try {
+      setLoadingBankDetails(true);
+      const res = await apiClient.getWalletBankDetails();
+      if (!res.error) {
+        setBankDetails(res.data?.bank_details ?? null);
+        const bd = res.data?.bank_details;
+        if (bd) {
+          setBankForm({
+            account_holder_name: bd.account_holder_name || "",
+            bank_name: bd.bank_name || "",
+            account_number: bd.account_number || "",
+            ifsc_code: bd.ifsc_code || "",
+            branch_name: bd.branch_name || "",
+            account_type: bd.account_type || "",
+            upi_id: bd.upi_id || "",
+          });
+        }
+      }
+    } finally {
+      setLoadingBankDetails(false);
+    }
+  };
+
+  const fetchWithdrawalRequests = async () => {
+    try {
+      setLoadingWithdrawalRequests(true);
+      const res = await apiClient.getWalletWithdrawalRequests();
+      if (!res.error) setWithdrawalRequests(res.data?.requests || []);
+    } finally {
+      setLoadingWithdrawalRequests(false);
+    }
+  };
+
+  const handleSaveBankDetails = async () => {
+    try {
+      setSavingBankDetails(true);
+      const res = await apiClient.upsertWalletBankDetails({
+        account_holder_name: bankForm.account_holder_name,
+        bank_name: bankForm.bank_name,
+        account_number: bankForm.account_number,
+        ifsc_code: bankForm.ifsc_code,
+        branch_name: bankForm.branch_name,
+        account_type: bankForm.account_type,
+        upi_id: bankForm.upi_id,
+      });
+      if (res.error) {
+        toast.error(res.error || "Failed to save bank details");
+        return;
+      }
+      setBankDetails(res.data?.bank_details ?? null);
+      toast.success("Bank details saved");
+    } finally {
+      setSavingBankDetails(false);
+    }
+  };
+
+  const handleCreateWithdrawalRequest = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (amount > balance) {
+      toast.error("Withdrawal amount cannot exceed wallet balance");
+      return;
+    }
+    try {
+      setSubmittingWithdraw(true);
+      const res = await apiClient.createWalletWithdrawalRequest(amount, withdrawNote);
+      if (res.error) {
+        toast.error(res.error || "Failed to create withdrawal request");
+        return;
+      }
+      toast.success("Withdrawal request submitted");
+      setShowWithdrawDialog(false);
+      setWithdrawAmount("");
+      setWithdrawNote("");
+      await fetchWalletData();
+      await fetchWithdrawalRequests();
+    } finally {
+      setSubmittingWithdraw(false);
+    }
   };
 
 
@@ -783,16 +913,24 @@ const Wallet = () => {
     if (txEquipmentFilter) {
       list = list.filter((t) => (t.equipment_name || "").trim() === txEquipmentFilter);
     }
+    if (txBookedByFilter === "__booked_by_unassigned__") {
+      list = list.filter((t) => !(t.related_user_name || "").trim());
+    } else if (txBookedByFilter) {
+      list = list.filter((t) => (t.related_user_name || "").trim() === txBookedByFilter);
+    }
     if (txSearchText.trim()) {
       const q = txSearchText.trim().toLowerCase();
       list = list.filter(
         (t) =>
           (t.description || "").toLowerCase().includes(q) ||
-          (t.equipment_name || "").toLowerCase().includes(q)
+          (t.description_display || "").toLowerCase().includes(q) ||
+          (t.virtual_booking_id || "").toLowerCase().includes(q) ||
+          (t.equipment_name || "").toLowerCase().includes(q) ||
+          (t.related_user_name || "").toLowerCase().includes(q)
       );
     }
     return list;
-  }, [transactions, txTypeFilter, txDateFrom, txDateTo, txDepartmentFilter, txEquipmentFilter, txSearchText]);
+  }, [transactions, txTypeFilter, txDateFrom, txDateTo, txDepartmentFilter, txEquipmentFilter, txBookedByFilter, txSearchText]);
 
   const uniqueDepartmentsForFilter = useMemo(() => {
     const names = new Set<string>();
@@ -810,6 +948,20 @@ const Wallet = () => {
     });
     return Array.from(names).sort();
   }, [transactions]);
+
+  const uniqueBookedByForFilter = useMemo(() => {
+    const names = new Set<string>();
+    transactions.forEach((t) => {
+      const n = (t.related_user_name || "").trim();
+      if (n) names.add(n);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [transactions]);
+
+  const hasUnassignedBookedBy = useMemo(
+    () => transactions.some((t) => !(t.related_user_name || "").trim()),
+    [transactions]
+  );
 
   // Load Razorpay script dynamically
   useEffect(() => {
@@ -1662,6 +1814,194 @@ const Wallet = () => {
           </CardContent>
         </Card>
 
+        {/* External users: Withdraw/transfer wallet balance to bank */}
+        {isExternalUser && !isShared && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Landmark className="h-5 w-5" />
+                Transfer wallet balance to bank
+              </CardTitle>
+              <CardDescription>
+                External users can request a bank transfer of their available wallet balance. Funds are held in the system when you submit the request.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingBankDetails ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Account holder name</Label>
+                      <Input value={bankForm.account_holder_name} onChange={(e) => setBankForm((p) => ({ ...p, account_holder_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bank name</Label>
+                      <Input value={bankForm.bank_name} onChange={(e) => setBankForm((p) => ({ ...p, bank_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Account number</Label>
+                      <Input value={bankForm.account_number} onChange={(e) => setBankForm((p) => ({ ...p, account_number: e.target.value }))} />
+                      {bankDetails?.masked_account_number && (
+                        <p className="text-xs text-muted-foreground">Saved: {bankDetails.masked_account_number}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>IFSC code</Label>
+                      <Input value={bankForm.ifsc_code} onChange={(e) => setBankForm((p) => ({ ...p, ifsc_code: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Branch (optional)</Label>
+                      <Input value={bankForm.branch_name} onChange={(e) => setBankForm((p) => ({ ...p, branch_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Account type (optional)</Label>
+                      <Input value={bankForm.account_type} onChange={(e) => setBankForm((p) => ({ ...p, account_type: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>UPI ID (optional)</Label>
+                      <Input value={bankForm.upi_id} onChange={(e) => setBankForm((p) => ({ ...p, upi_id: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={handleSaveBankDetails} disabled={savingBankDetails}>
+                      {savingBankDetails ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save bank details"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (!bankDetails && !bankForm.account_number.trim()) {
+                          toast.error("Please save bank details first");
+                          return;
+                        }
+                        setShowWithdrawDialog(true);
+                      }}
+                    >
+                      Request transfer
+                    </Button>
+                  </div>
+
+                  {showWithdrawDialog && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                      <Card className="w-full max-w-md mx-4">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle>Request bank transfer</CardTitle>
+                            <Button variant="ghost" size="sm" onClick={() => setShowWithdrawDialog(false)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <CardDescription>Enter amount to transfer from wallet to your saved bank details.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Amount (₹)</Label>
+                            <Input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={withdrawAmount}
+                              onChange={(e) => setWithdrawAmount(e.target.value)}
+                              disabled={submittingWithdraw}
+                            />
+                            <p className="text-xs text-muted-foreground">Available: ₹{balance.toFixed(2)}</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Note (optional)</Label>
+                            <Textarea value={withdrawNote} onChange={(e) => setWithdrawNote(e.target.value)} rows={3} />
+                          </div>
+                          <Button className="w-full" onClick={handleCreateWithdrawalRequest} disabled={submittingWithdraw}>
+                            {submittingWithdraw ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Submitting...
+                              </>
+                            ) : (
+                              "Submit request"
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-medium">My transfer requests</p>
+                      <Button variant="outline" size="sm" onClick={fetchWithdrawalRequests} disabled={loadingWithdrawalRequests}>
+                        {loadingWithdrawalRequests ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Refresh
+                          </>
+                        ) : (
+                          "Refresh"
+                        )}
+                      </Button>
+                    </div>
+                    {loadingWithdrawalRequests ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    ) : withdrawalRequests.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-4">No transfer requests yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {withdrawalRequests.map((r) => (
+                          <div key={r.id} className="flex items-center justify-between p-4 border rounded-lg">
+                            <div className="space-y-1">
+                              <p className="font-medium">₹{Number(r.amount).toFixed(2)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {r.status_display || r.status} • {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
+                              </p>
+                              {r.response_message && <p className="text-sm text-muted-foreground">Response: {r.response_message}</p>}
+                              {r.utr_reference && <p className="text-sm text-muted-foreground">UTR: {r.utr_reference}</p>}
+                            </div>
+                            {r.status === "PENDING" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  const ok = await new Promise<boolean>((resolve) =>
+                                    confirm("Cancel this transfer request?", () => resolve(true), { title: "Cancel request" }) || resolve(false)
+                                  );
+                                  if (!ok) return;
+                                  const res = await apiClient.cancelWalletWithdrawalRequest(r.id);
+                                  if (res.error) toast.error(res.error || "Failed to cancel");
+                                  else {
+                                    toast.success("Request cancelled");
+                                    await fetchWalletData();
+                                    await fetchWithdrawalRequests();
+                                  }
+                                }}
+                                className="text-orange-600 hover:text-orange-700 border-orange-600 hover:border-orange-700"
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Department Sub-Wallets */}
         <Card className="mb-8">
           <CardHeader>
@@ -2098,10 +2438,57 @@ const Wallet = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Transaction History</CardTitle>
-            <CardDescription>
-              All credit and debit transactions across department sub-wallets. Net balance after each transaction is shown.
-            </CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1.5 min-w-0">
+                <CardTitle>Transaction History</CardTitle>
+                <CardDescription>
+                  All credit and debit transactions across department sub-wallets. Net balance after each transaction is shown.
+                </CardDescription>
+              </div>
+              {!loading && transactions.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-2">
+                      <Download className="h-4 w-4" />
+                      Download
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (filteredTransactions.length === 0) {
+                          toast.error("No transactions match the current filters.");
+                          return;
+                        }
+                        exportWalletTransactionsExcel(filteredTransactions, {
+                          sheetTitle: "Transactions",
+                        });
+                        toast.success("Excel file downloaded.");
+                      }}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Excel (.xlsx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (filteredTransactions.length === 0) {
+                          toast.error("No transactions match the current filters.");
+                          return;
+                        }
+                        exportWalletTransactionsPdf(filteredTransactions, {
+                          title: "Wallet transaction history",
+                        });
+                        toast.success("PDF downloaded.");
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -2179,6 +2566,28 @@ const Wallet = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Booked by</Label>
+                    <Select
+                      value={txBookedByFilter || "__all__"}
+                      onValueChange={(v) => setTxBookedByFilter(v === "__all__" ? "" : v)}
+                    >
+                      <SelectTrigger className="w-[180px] h-9">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All</SelectItem>
+                        {hasUnassignedBookedBy && (
+                          <SelectItem value="__booked_by_unassigned__">Unassigned</SelectItem>
+                        )}
+                        {uniqueBookedByForFilter.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex items-center gap-2 flex-1 min-w-[180px]">
                     <Search className="h-4 w-4 text-muted-foreground shrink-0" />
                     <Input
@@ -2188,7 +2597,7 @@ const Wallet = () => {
                       onChange={(e) => setTxSearchText(e.target.value)}
                     />
                   </div>
-                  {(txTypeFilter !== "all" || txDateFrom || txDateTo || txDepartmentFilter || txEquipmentFilter || txSearchText.trim()) && (
+                  {(txTypeFilter !== "all" || txDateFrom || txDateTo || txDepartmentFilter || txEquipmentFilter || txBookedByFilter || txSearchText.trim()) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2199,6 +2608,7 @@ const Wallet = () => {
                         setTxDateTo("");
                         setTxDepartmentFilter("");
                         setTxEquipmentFilter("");
+                        setTxBookedByFilter("");
                         setTxSearchText("");
                       }}
                     >
@@ -2211,9 +2621,10 @@ const Wallet = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
                       <TableHead className="font-semibold text-foreground min-w-[180px]">Equipment Name</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[140px]">Booked by</TableHead>
                       <TableHead className="font-semibold text-foreground w-[160px]">Date &amp; Time</TableHead>
                       <TableHead className="font-semibold text-foreground w-[100px]">Type</TableHead>
-                      <TableHead className="font-semibold text-foreground min-w-[200px]">Description</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[220px]">Description</TableHead>
                       <TableHead className="font-semibold text-foreground text-right w-[120px]">Amount</TableHead>
                       <TableHead className="font-semibold text-foreground text-right w-[130px]">Balance Remaining</TableHead>
                     </TableRow>
@@ -2221,7 +2632,7 @@ const Wallet = () => {
                   <TableBody>
                     {filteredTransactions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No transactions match the current filters.
                         </TableCell>
                       </TableRow>
@@ -2235,6 +2646,15 @@ const Wallet = () => {
                           {transaction.equipment_name ? (
                             <span className="font-medium text-foreground" title={transaction.equipment_name}>
                               {transaction.equipment_name}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/70">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground align-middle min-w-[140px]">
+                          {transaction.related_user_name ? (
+                            <span className="text-foreground" title={transaction.related_user_email || undefined}>
+                              {transaction.related_user_name}
                             </span>
                           ) : (
                             <span className="text-muted-foreground/70">—</span>
@@ -2259,9 +2679,9 @@ const Wallet = () => {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-foreground/90 align-middle max-w-[320px]">
-                          <span className="line-clamp-2" title={transaction.description || ""}>
-                            {transaction.description || "—"}
+                        <TableCell className="text-sm text-foreground/90 align-middle max-w-[360px]">
+                          <span className="line-clamp-2" title={(transaction.description_display || transaction.description) || ""}>
+                            {transaction.description_display || transaction.description || "—"}
                           </span>
                           {transaction.department_name && (
                             <span className="text-xs text-muted-foreground block mt-0.5">
@@ -2278,7 +2698,7 @@ const Wallet = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-foreground align-middle">
-                          {transaction.balance_after != null && transaction.balance_after !== "" ? (
+                          {transaction.balance_after != null && String(transaction.balance_after) !== "" ? (
                             <span>₹{Number(transaction.balance_after).toFixed(2)}</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>

@@ -84,7 +84,8 @@ type UrgentRequestRow = {
   }>;
   hold_booking_id: number | null;
   hold_booking_summary: {
-    booking_id: number;
+    booking_id: string | number;
+    real_booking_id?: number;
     total_charge: string | null;
     total_time_minutes: number;
     slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
@@ -705,9 +706,9 @@ const UrgentRequests = () => {
                         {chargeBreakdown
                           .filter((c) => String(c.description || "").trim().toLowerCase() !== "total")
                           .map((charge, index) => (
-                            <li key={index} className="text-base text-muted-foreground flex justify-between">
-                              <span>{charge.description}</span>
-                              <span>{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
+                            <li key={index} className="text-base text-muted-foreground flex justify-between gap-4 items-start">
+                              <span className="whitespace-pre-line min-w-0 shrink">{charge.description}</span>
+                              <span className="shrink-0 tabular-nums">{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
                             </li>
                           ))}
                         <li className="text-base font-medium flex justify-between pt-2 mt-2 border-t border-border/60">

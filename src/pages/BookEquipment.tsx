@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, Tag, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, Tag, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import {
@@ -36,13 +37,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { periodicTableElements, getCategoryColor, parseDisabledElementsFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
+import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
 
 interface Equipment extends EquipmentData {}
+
+function splitCsvElements(raw: string): string[] {
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/** Map arbitrary element strings (e.g. from standards CSV) to periodic-table symbols. */
+function normalizeToPeriodicSymbols(rawSymbols: string[]): string[] {
+  const seen = new Set<string>();
+  for (const s of rawSymbols) {
+    const t = String(s).trim();
+    if (!t) continue;
+    const el = periodicTableElements.find((e) => e.symbol.toUpperCase() === t.toUpperCase());
+    if (el) seen.add(el.symbol);
+  }
+  return Array.from(seen);
+}
 
 interface DailySlot {
   id: number;
@@ -110,6 +134,9 @@ interface EquipmentDetail {
   slot_window_reference_time?: string | null;
   /** Peak window in minutes after slot window time for urgent log; configurable by Admin/OIC. */
   urgent_peak_window_minutes?: number | null;
+  waitlist_queue_depth?: number;
+  waitlist_current_count?: number;
+  waitlist_has_room?: boolean;
   input_fields?: Array<any>;
   charge_profiles?: Array<any>;
   [key: string]: any;
@@ -258,6 +285,32 @@ const BookEquipment = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [inputFieldValues, setInputFieldValues] = useState<Record<string, string | boolean | string[] | number>>({});
+  const [icpmsCoverageByFieldKey, setIcpmsCoverageByFieldKey] = useState<
+    Record<
+      string,
+      | {
+          count: number;
+          standards: Array<{ id: number; s_no: string; name_of_std: string; list_of_elements?: string }>;
+        }
+      | null
+    >
+  >({});
+  const [availableIcpmsStandardsDialogOpen, setAvailableIcpmsStandardsDialogOpen] = useState(false);
+  const [loadingAvailableIcpmsStandards, setLoadingAvailableIcpmsStandards] = useState(false);
+  const [fullIcpmsStandards, setFullIcpmsStandards] = useState<
+    Array<{
+      id: number;
+      s_no: string;
+      part_no: string;
+      name_of_std: string;
+      list_of_elements: string;
+      concentration: string;
+      status: number;
+      created_at: string | null;
+      updated_at: string | null;
+    }>
+  >([]);
+  const [selectedIcpmsStandardIds, setSelectedIcpmsStandardIds] = useState<number[]>([]);
   const [periodicTableFieldKey, setPeriodicTableFieldKey] = useState<string | null>(null);
   const [selectedPeriodicSymbols, setSelectedPeriodicSymbols] = useState<Set<string>>(new Set());
   const [chargeCalculated, setChargeCalculated] = useState(false);
@@ -273,8 +326,25 @@ const BookEquipment = () => {
   const [showSlots, setShowSlots] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
+
+  /** Week key for Step 3 grid (Mon–Sun range); used to detect stale slot data vs. visible week. */
+  const step3WeekKey = useMemo(() => {
+    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+    const weekEnd = addDays(weekStart, 7);
+    return `${format(weekStart, "yyyy-MM-dd")}_${format(weekEnd, "yyyy-MM-dd")}`;
+  }, [currentWeekStart]);
+
+  /**
+   * True while the weekly grid must not be trusted: navigating weeks updates `currentWeekStart` before
+   * `lastFetchedWeek` / `loadingSlots` catch up, which caused a brief misleading grid. Show full overlay until sync.
+   */
+  const isSlotsWeekViewLoading = useMemo(
+    () => lastFetchedWeek !== step3WeekKey || loadingSlots,
+    [lastFetchedWeek, step3WeekKey, loadingSlots]
+  );
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
   const [autoSlotSelection, setAutoSlotSelection] = useState<boolean>(true);
+  const autoSlotSelectionRef = useRef<boolean>(true);
   const lastCalculatedValuesRef = useRef<string>('');
   // Admin manage-equipment: 'book' = book for user, 'status' = change slot status, null = show mode selector
   const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(null);
@@ -330,9 +400,17 @@ const BookEquipment = () => {
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookAnyAvailableSlots, setBookAnyAvailableSlots] = useState(false);
   const [bookEvenIfSingleSlotAvailable, setBookEvenIfSingleSlotAvailable] = useState(false);
-  const [bookingResultDialog, setBookingResultDialog] = useState<{ open: boolean; success: boolean; message: string }>({ open: false, success: false, message: "" });
+  // When enabled, failed booking attempts (e.g. no slots / selected slots already occupied)
+  // are pushed to waitlist queue (FCFS) up to configured waitlist depth.
+  const [waitlistIntentMode, setWaitlistIntentMode] = useState(true);
+  const [bookingResultDialog, setBookingResultDialog] = useState<{
+    open: boolean;
+    success: boolean;
+    variant: "success" | "waitlist" | "failure";
+    message: string;
+  }>({ open: false, success: false, variant: "failure", message: "" });
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
-  const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
+  const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
   const [expandedSlotBooking, setExpandedSlotBooking] = useState<BookingDetailCardBooking | null>(null);
   const [expandedSlotBookingLoading, setExpandedSlotBookingLoading] = useState(false);
   const [urgentDialogOpen, setUrgentDialogOpen] = useState(false);
@@ -411,7 +489,9 @@ const BookEquipment = () => {
 
   /** When repeatOf is in URL, this holds the source booking for repeat-sample flow (params prefilled, no change allowed, user picks slots). */
   const [repeatSourceBooking, setRepeatSourceBooking] = useState<{
-    booking_id: number;
+    booking_id: string | number;
+    /** Numeric PK for `/bookings/<id>/create-repeat-booking/` (display-only booking_id cannot be used in URL). */
+    real_booking_id: number;
     equipment: number;
     virtual_booking_id?: string | null;
     input_values: Record<string, string | boolean | string[] | number>;
@@ -927,6 +1007,12 @@ const BookEquipment = () => {
       lastCalculatedValuesRef.current = '';
       fetchingSlotsRef.current = false;
 
+      // If any Step 1 parameter is required (backend), deselect slots and turn off auto-select and confirm flow
+      const hasRequiredParam = eq.input_fields?.some((f: { is_required?: boolean }) => f.is_required === true);
+      if (hasRequiredParam) {
+        setAutoSlotSelection(false);
+      }
+
       // Internal users: default to current week when switching equipment (before ref = last+current, after ref = current+next)
       const uVal: any = userType;
       let nType: string | null = null;
@@ -950,15 +1036,24 @@ const BookEquipment = () => {
             const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
             initialValues[field.field_key] = isNaN(count) ? 0 : count;
             initialValues[field.field_key + '_elements'] = (field.options && Array.isArray(field.options) ? field.options.join(',') : '') || '';
+          } else if (fieldType === 'ICPMS_STANDARD_COVERAGE') {
+            initialValues[field.field_key] = 0;
           } else if (fieldType === 'TABLE') {
             const cols = Array.isArray(field.options) ? field.options.length : 0;
             initialValues[field.field_key] = cols ? [Array(cols).fill('')] : [];
           } else {
             // TEXT, NUMERIC, RADIO, COMBO - all use string values
-            initialValues[field.field_key] = field.default_value || '';
+            // A and B (when present) must be at least 1
+            if ((field.field_key === 'A' || field.field_key === 'B') && fieldType === 'NUMERIC') {
+              const num = Number(field.default_value);
+              initialValues[field.field_key] = String(Number.isNaN(num) || num < 1 ? 1 : num);
+            } else {
+              initialValues[field.field_key] = field.default_value || '';
+            }
           }
         });
         setInputFieldValues(initialValues);
+        setIcpmsCoverageByFieldKey({});
       }
       
       // Get pricing from charge_profiles (use first active profile or student profile)
@@ -974,7 +1069,7 @@ const BookEquipment = () => {
         name: eq.name,
         category: eq.category_name || "",
         description: eq.description || eq.name,
-        image: (eq.image_url || eq.s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+        image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
         video: "", // API doesn't provide video_url in detail response
         available: eq.status === "ACTIVE",
         address: eq.location || "",
@@ -1051,13 +1146,8 @@ const BookEquipment = () => {
 
   // Repeat-sample flow: when repeatOf is in URL, load that booking and prefill form (read-only params, zero charge, user picks slots)
   useEffect(() => {
-    const repeatOf = searchParams.get("repeatOf");
-    if (!repeatOf || !selectedEquipment) {
-      setRepeatSourceBooking(null);
-      return;
-    }
-    const bid = parseInt(repeatOf, 10);
-    if (Number.isNaN(bid)) {
+    const repeatOfRaw = (searchParams.get("repeatOf") || "").trim();
+    if (!repeatOfRaw || !selectedEquipment) {
       setRepeatSourceBooking(null);
       return;
     }
@@ -1065,6 +1155,21 @@ const BookEquipment = () => {
     setRepeatSourceLoading(true);
     setRepeatSourceBooking(null);
     (async () => {
+      let bid: number | null = null;
+      if (/^\d+$/.test(repeatOfRaw)) {
+        bid = parseInt(repeatOfRaw, 10);
+      } else {
+        const searchRes = await apiClient.getBookings({ search: repeatOfRaw, limit: 1 });
+        const row = searchRes.data?.bookings?.[0] as BookingRef | undefined;
+        if (!searchRes.error && row) bid = getRealBookingId(row);
+      }
+      if (bid == null) {
+        if (!cancelled) {
+          setRepeatSourceLoading(false);
+          toast.error("Repeat source booking not found.");
+        }
+        return;
+      }
       const [bookingsRes, eligibilityRes] = await Promise.all([
         apiClient.getBookings({ booking_id: bid, limit: 1 }),
         apiClient.getRepeatSampleEligibility(bid),
@@ -1084,33 +1189,35 @@ const BookEquipment = () => {
         toast.error(eligibilityRes.data?.reason || "You cannot create a repeat for this booking.");
         return;
       }
-      const origCharge = Number(b.total_charge) || 0;
-      const origVid = b.virtual_booking_id || String(b.booking_id);
-      const equipCode = selectedEquipment.code || String(selectedEquipment.id);
-      const discountRemark = `Repeat of ${origVid} for ${equipCode}`;
-      const breakdown = Array.isArray(b.charge_breakdown) ? [...b.charge_breakdown] : [];
-      breakdown.push({ description: discountRemark, amount: -origCharge });
+      const zeroBreakdown = [{ description: "Repeat sample (complimentary — no charge)", amount: 0 }];
       setRepeatSourceBooking({
         booking_id: b.booking_id,
+        /** Backend URLs use numeric PK only (not virtual/display id). */
+        real_booking_id: bid,
         equipment: b.equipment,
         virtual_booking_id: b.virtual_booking_id,
         input_values: b.input_values || {},
-        total_charge: b.total_charge,
+        total_charge: 0,
         total_time_minutes: b.total_time_minutes || 0,
-        charge_breakdown: breakdown,
+        charge_breakdown: zeroBreakdown,
       });
       setInputFieldValues(b.input_values || {});
       setChargeCalculated(true);
       setCalculatedCharge({
         total_charge: "0",
         total_time_minutes: b.total_time_minutes || 0,
-        charge_breakdown: breakdown,
+        charge_breakdown: zeroBreakdown,
         base_charge: "0",
         gst_percent: 0,
         gst_amount: "0",
       });
       setShowSlots(true);
       setChargeCalculationFailed(false);
+      setSelectedSlots([]);
+      setAutoSlotSelection(false);
+      setSelectedCouponId(null);
+      setValidatedCouponFromCode(null);
+      setCouponCodeInput("");
     })();
     return () => { cancelled = true; };
   }, [searchParams, selectedEquipment?.id]);
@@ -1140,6 +1247,9 @@ const BookEquipment = () => {
     if (!selectedEquipment || !equipmentDetail) {
       return;
     }
+    if (repeatSourceBooking) {
+      return;
+    }
 
     // Skip if already loading to prevent concurrent calls
     if (loadingCharge) {
@@ -1164,8 +1274,22 @@ const BookEquipment = () => {
           return;
         }
       }
+      // Parameters A and B (when present) must be at least 1
+      const abKeys = ['A', 'B'];
+      for (const key of abKeys) {
+        const field = equipmentDetail.input_fields.find((f: any) => f.field_key === key);
+        if (field) {
+          const raw = inputFieldValues[key];
+          const num = typeof raw === 'number' ? raw : Number(raw);
+          if (Number.isNaN(num) || num < 1) {
+            const label = field.field_label || key;
+            toast.error(`"${label}" must be at least 1.`);
+            return;
+          }
+        }
+      }
     }
-    
+
     // If no input fields, we still need to call the API with empty values
     // This ensures slots only appear after successful charge calculation
 
@@ -1193,6 +1317,20 @@ const BookEquipment = () => {
       }
 
       if (response.data) {
+        const totalMinutes = response.data.total_time_minutes ?? 0;
+        const abFields = equipmentDetail.input_fields?.filter(
+          (f: any) => f.field_key === 'A' || f.field_key === 'B'
+        ) ?? [];
+        if (abFields.length > 0 && totalMinutes < 1) {
+          const labels = abFields.map((f: any) => f.field_label || f.field_key).join(' and ');
+          toast.error(`"${labels}" must be at least 1. Please update Step 1 and recalculate charge.`);
+          setChargeCalculationFailed(true);
+          setChargeCalculated(false);
+          setCalculatedCharge(null);
+          setShowSlots(false);
+          lastCalculatedValuesRef.current = '';
+          return;
+        }
         setCalculatedCharge({
           total_charge: response.data.total_charge,
           total_time_minutes: response.data.total_time_minutes,
@@ -1204,6 +1342,14 @@ const BookEquipment = () => {
         setChargeCalculated(true);
         setShowSlots(true);
         setChargeCalculationFailed(false); // Reset failed state on success
+        // When charge is (re)calculated, deselect all slots and turn off auto-select
+        const wasAutoSelectOn = autoSlotSelectionRef.current;
+        setSelectedSlots([]);
+        setAutoSlotSelection(false);
+        // If auto-select was on, turn it back on after state settles so the effect re-runs and selects the new desired number of slots
+        if (wasAutoSelectOn) {
+          setTimeout(() => setAutoSlotSelection(true), 0);
+        }
         // Store the hash of values we just calculated for
         lastCalculatedValuesRef.current = currentValuesHash;
       }
@@ -1219,7 +1365,7 @@ const BookEquipment = () => {
     } finally {
       setLoadingCharge(false);
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking]);
 
   // Auto-calculate charge when input fields change
   useEffect(() => {
@@ -1230,6 +1376,11 @@ const BookEquipment = () => {
 
     // Don't calculate if equipment is not loaded
     if (!selectedEquipment || !equipmentDetail) {
+      return;
+    }
+
+    // Repeat-sample URL: wait until repeat booking is loaded (avoids full charge flashing before repeat state applies)
+    if (searchParams.get("repeatOf")?.trim() && repeatSourceLoading) {
       return;
     }
 
@@ -1302,7 +1453,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking]);
+  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status)
   const fetchSlotsForWeek = useCallback(async (forceRefetch?: boolean) => {
@@ -1323,14 +1474,15 @@ const BookEquipment = () => {
       const slotsResponse = await apiClient.getEquipmentSlots(
         selectedEquipment.id,
         startDateStr,
-        endDateStr
+        endDateStr,
+        { urgentWeekExtension: isUrgentHoldMode }
       );
 
-      if (slotsResponse.data && slotsResponse.data.slots) {
+      if (slotsResponse.data) {
         const data = slotsResponse.data;
+        const newSlots = data.slots ?? [];
         setEquipmentDetail(prev => {
           if (!prev) return prev;
-          const newSlots = data.slots;
           const newHolidays = data.holidays ?? {};
           const currentSlots = prev.daily_slots || [];
           const slotWindow = {
@@ -1390,14 +1542,20 @@ const BookEquipment = () => {
           };
         });
         setLastFetchedWeek(weekKey);
+      } else {
+        setLastFetchedWeek(weekKey);
+        setEquipmentDetail((prev) => (prev ? { ...prev, daily_slots: [] } : prev));
       }
     } catch (error: any) {
       console.error("Error fetching slots:", error);
+      toast.error("Could not load slots for this week. Please try again or pick another week.");
+      setLastFetchedWeek(weekKey);
+      setEquipmentDetail((prev) => (prev ? { ...prev, daily_slots: [] } : prev));
     } finally {
       setLoadingSlots(false);
       fetchingSlotsRef.current = false;
     }
-  }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek]);
+  }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, isUrgentHoldMode]);
 
   const processDailySlots = useCallback(() => {
     if (!equipmentDetail?.daily_slots) {
@@ -1451,6 +1609,10 @@ const BookEquipment = () => {
   useEffect(() => {
     if (calculatedCharge && selectedSlots.length > 0) {
       const totalLimit = calculatedCharge.total_time_minutes;
+      const abFields = equipmentDetail?.input_fields?.filter(
+        (f: any) => f.field_key === 'A' || f.field_key === 'B'
+      ) ?? [];
+      const hasABFields = abFields.length > 0;
       let currentTotal = 0;
       let fitCount = 0;
       for (const slot of selectedSlots) {
@@ -1471,25 +1633,26 @@ const BookEquipment = () => {
             validSlots.push(slot);
             total += contribution;
           }
-          toast.error(
-            `Selected slots exceeded the limit. Reduced to ${validSlots.length} slot(s) (${total} minutes / ${totalLimit} minutes).`
-          );
+          if (totalLimit === 0 && hasABFields) {
+            const labels = abFields.map((f: any) => f.field_label || f.field_key).join(' and ');
+            toast.error(
+              `"${labels}" must be at least 1. Please update Step 1 and recalculate charge.`
+            );
+          } else {
+            toast.error(
+              `Selected slots exceeded the limit. Reduced to ${validSlots.length} slot(s) (${total} minutes / ${totalLimit} minutes).`
+            );
+          }
           return validSlots;
         });
       }
     }
-  }, [selectedSlots, calculatedCharge]);
+  }, [selectedSlots, calculatedCharge, equipmentDetail?.input_fields]);
 
-  // When Step 3 (Select Time Slots) is shown, default to current week for internal users
+  // Keep ref updated when Step 3 is shown (used elsewhere). Do not reset calendar week here so that after booking reset + recalculate the same week stays visible.
   useEffect(() => {
-    const justEnteredStep3 = showSlots && !prevShowSlotsRef.current;
     prevShowSlotsRef.current = !!showSlots;
-    if (!justEnteredStep3 || !selectedEquipment) return;
-    const nType = userType != null ? normalizeUserType(userType) : null;
-    if (nType === 'student' || nType === 'faculty') {
-      setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
-    }
-  }, [showSlots, selectedEquipment, userType]);
+  }, [showSlots]);
 
   // Fetch slots when charge is calculated and slots should be shown, or when week changes
   useEffect(() => {
@@ -1517,7 +1680,19 @@ const BookEquipment = () => {
 
     // Fetch slots
     fetchSlotsForWeek();
-  }, [showSlots, chargeCalculated, selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, fetchSlotsForWeek, userType]);
+  }, [
+    showSlots,
+    chargeCalculated,
+    selectedEquipment,
+    currentWeekStart,
+    loadingSlots,
+    lastFetchedWeek,
+    fetchSlotsForWeek,
+    userType,
+    isUrgentHoldMode,
+    equipmentDetail?.slot_window_min_date,
+    equipmentDetail?.slot_window_max_date,
+  ]);
 
   // When Step 3 slot grid is visible, refetch on window focus so status changes (e.g. from another tab) are reflected
   useEffect(() => {
@@ -1773,6 +1948,11 @@ const BookEquipment = () => {
       );
     }
   }, [chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots]);
+
+  // Keep ref in sync so async charge recalculation can read current value
+  useEffect(() => {
+    autoSlotSelectionRef.current = autoSlotSelection;
+  }, [autoSlotSelection]);
 
   const checkAuth = async () => {
     const token = apiClient.getToken();
@@ -2422,38 +2602,72 @@ const BookEquipment = () => {
     return t === 'student' || t === 'faculty' || t === 'individual_student';
   };
 
-  // Check if a week is allowed for the current user (admin can pick any week when booking for someone)
+  // Check if a week is allowed (must align with getAllowedWeeks() so slot fetch runs for every navigable week, including urgent extension)
   const isWeekAllowed = (weekStart: Date): boolean => {
     if (isAdminUser()) return true;
     if (!userType) return false;
-    
+
     const normalizedType = normalizeUserType(userType);
     if (!normalizedType) return false;
-    
+
     const now = new Date();
     const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
-    
-    // For other users: 15 days from current date, then one week window
     const fifteenDaysFromNow = addDays(now, 15);
     const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
-    
-    // Normalize week starts for comparison
+
     const weekStartNormalized = startOfWeek(weekStart, { weekStartsOn: 1 });
     const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 1 });
     const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 1 });
     const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 1 });
-    
-    if (normalizedType === 'student' || normalizedType === 'faculty') {
-      // Students/Faculty: Can select current week OR next week only
-      return (
-        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
-        weekStartNormalized.getTime() === nextWeekNormalized.getTime()
-      );
-    } else {
-      // Other users: Can select one week window starting 15 days from current date
-      return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
+
+    if (normalizedType === "student" || normalizedType === "faculty") {
+      const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
+      const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
+      if (!minDateStr || !maxDateStr) {
+        if (isUrgentHoldMode) {
+          const weekAfterNext = addWeeks(nextWeek, 1);
+          return (
+            weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+            weekStartNormalized.getTime() === nextWeekNormalized.getTime() ||
+            weekStartNormalized.getTime() === startOfWeek(weekAfterNext, { weekStartsOn: 1 }).getTime()
+          );
+        }
+        return (
+          weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+          weekStartNormalized.getTime() === nextWeekNormalized.getTime()
+        );
+      }
+      const minDate = parseISO(minDateStr);
+      const maxDate = parseISO(maxDateStr);
+      const previousWeek = subWeeks(currentWeek, 1);
+      const nextWeekSunday = addDays(nextWeek, 6);
+      const nextWeekAvailable = nextWeekSunday <= maxDate;
+      if (!nextWeekAvailable) {
+        return (
+          weekStartNormalized.getTime() === currentWeekNormalized.getTime() &&
+          addDays(currentWeek, 6) >= minDate &&
+          currentWeek <= maxDate
+        );
+      }
+      const candidateWeeks = isUrgentHoldMode
+        ? [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)]
+        : [previousWeek, currentWeek, nextWeek];
+      return candidateWeeks.some((w) => {
+        if (startOfWeek(w, { weekStartsOn: 1 }).getTime() !== weekStartNormalized.getTime()) return false;
+        const weekSunday = addDays(w, 6);
+        return weekSunday >= minDate && w <= maxDate;
+      });
     }
+
+    if (isUrgentHoldMode) {
+      const second = addWeeks(allowedWeekStart, 1);
+      return (
+        weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime() ||
+        weekStartNormalized.getTime() === startOfWeek(second, { weekStartsOn: 1 }).getTime()
+      );
+    }
+    return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
   };
 
   // Get allowed weeks for navigation (admin or repeat-sample: any week; others restricted)
@@ -2488,6 +2702,9 @@ const BookEquipment = () => {
       const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
       const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
       if (!minDateStr || !maxDateStr) {
+        if (isUrgentHoldMode) {
+          return [currentWeek, nextWeek, addWeeks(nextWeek, 1)];
+        }
         return [currentWeek, nextWeek];
       }
       const minDate = parseISO(minDateStr);
@@ -2499,13 +2716,19 @@ const BookEquipment = () => {
         return [currentWeek];
       }
       const weeks: Date[] = [];
-      for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
+      const candidateWeeks = isUrgentHoldMode
+        ? [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)]
+        : [previousWeek, currentWeek, nextWeek];
+      for (const weekStart of candidateWeeks) {
         const weekSunday = addDays(weekStart, 6);
         if (weekSunday >= minDate && weekStart <= maxDate) {
           weeks.push(weekStart);
         }
       }
       return weeks;
+    }
+    if (isUrgentHoldMode) {
+      return [allowedWeekStart, addWeeks(allowedWeekStart, 1)];
     }
     return [allowedWeekStart];
   };
@@ -2554,26 +2777,14 @@ const BookEquipment = () => {
   useEffect(() => {
     const nType = userType != null ? normalizeUserType(userType) : null;
     if (nType !== 'student' && nType !== 'faculty') return;
-    const minStr = equipmentDetail?.slot_window_min_date;
-    const maxStr = equipmentDetail?.slot_window_max_date;
-    if (!minStr || !maxStr) return;
-    const minDate = parseISO(minStr);
-    const maxDate = parseISO(maxStr);
-    const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
-    const previousWeek = subWeeks(currentWeek, 1);
-    const nextWeek = addWeeks(currentWeek, 1);
-    const allowed: Date[] = [];
-    for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
-      const weekSunday = addDays(weekStart, 6);
-      if (weekSunday >= minDate && weekStart <= maxDate) allowed.push(weekStart);
-    }
+    const allowed = getAllowedWeeks();
+    if (allowed.length === 0) return;
     const selected = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const isAllowed = allowed.some(w => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime());
     if (!isAllowed) {
-      setCurrentWeekStart(currentWeek);
+      setCurrentWeekStart(startOfWeek(allowed[0], { weekStartsOn: 1 }));
     }
-  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart]);
+  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart, isUrgentHoldMode]);
 
   // Default to current week whenever an equipment is selected for booking (internal users)
   useEffect(() => {
@@ -2627,14 +2838,303 @@ const BookEquipment = () => {
 
   // Handle input field changes - charge will auto-calculate via useEffect
   const handleInputFieldChange = (fieldKey: string, value: string | boolean | string[] | number) => {
+    if (repeatSourceBooking) return;
+    // Field keys A and B must not be less than 1 (enforce minimum in UI)
+    if (fieldKey === 'A' || fieldKey === 'B') {
+      if (typeof value === 'number') {
+        if (value < 1 || Number.isNaN(value)) value = 1;
+      } else if (typeof value === 'string') {
+        const num = Number(value);
+        if (value.trim() !== '' && (Number.isNaN(num) || num < 1)) value = '1';
+      }
+    }
     setInputFieldValues(prev => ({
       ...prev,
       [fieldKey]: value
     }));
   };
 
+  /** Prefer admin-configured source; otherwise first PERIODIC_TABLE field on this equipment. */
+  const resolvePeriodicFieldKey = useCallback(
+    (explicitSourceKey: string) => {
+      const ex = String(explicitSourceKey || "").trim();
+      if (ex) return ex;
+      const pf = (equipmentDetail?.input_fields ?? []).find(
+        (f: any) => String(f.field_type || "").toUpperCase().trim() === "PERIODIC_TABLE"
+      );
+      return String(pf?.field_key ?? "").trim();
+    },
+    [equipmentDetail?.input_fields]
+  );
+
+  /** Same logic as "Apply" in the periodic-table dialog; used by both that dialog and the ICPMS standards picker. */
+  const applyPeriodicSelectionFromElementSymbols = useCallback(
+    async (
+      periodicFieldKeyParam: string,
+      rawSymbols: string[],
+      options?: { openPeriodicDialogAfter?: boolean }
+    ) => {
+      const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicFieldKeyParam);
+      const disabledSet = parseDisabledElementsFromHelpText(field?.help_text);
+      let allowed = normalizeToPeriodicSymbols(rawSymbols).filter((s) => !disabledSet.has(s));
+
+      const icpmsAllCoverageFields = (equipmentDetail?.input_fields ?? []).filter((f: any) => {
+        const ft = String(f?.field_type || "").toUpperCase().trim();
+        return ft === "ICPMS_STANDARD_COVERAGE";
+      });
+
+      const icpmsMatchingCoverageFields = icpmsAllCoverageFields.filter((f: any) => {
+        const sourceKey = String(f?.source_element_field_key || "").trim();
+        return sourceKey === periodicFieldKeyParam && !!sourceKey;
+      });
+
+      const icpmsCoverageFields =
+        icpmsMatchingCoverageFields.length > 0 ? icpmsMatchingCoverageFields : icpmsAllCoverageFields;
+
+      const nextInputUpdates: Record<string, string | boolean | string[] | number> = {};
+
+      const enforceMinForKey = (k: string) =>
+        k === "A" || k === "B"
+          ? allowed.length > 0
+            ? Math.max(1, allowed.length)
+            : 0
+          : allowed.length;
+
+      nextInputUpdates[periodicFieldKeyParam] = enforceMinForKey(periodicFieldKeyParam);
+      nextInputUpdates[periodicFieldKeyParam + "_elements"] = allowed.join(",");
+
+      for (const f of icpmsCoverageFields) {
+        const srcKey = String(f?.source_element_field_key || "").trim();
+        if (!srcKey) continue;
+        nextInputUpdates[srcKey] = enforceMinForKey(srcKey);
+        nextInputUpdates[srcKey + "_elements"] = allowed.join(",");
+      }
+
+      setSelectedPeriodicSymbols(new Set(allowed));
+
+      if (icpmsCoverageFields.length > 0) {
+        if (allowed.length > 0) {
+          try {
+            let minCount = 0;
+            let standards: Array<{ id: number; s_no: string; name_of_std: string }> = [];
+
+            while (allowed.length > 0) {
+              const res = await apiClient.getIcpmsMinStandardsCover(allowed);
+              const data = (res as any)?.data;
+              const uncovered = Array.isArray(data?.uncovered) ? data?.uncovered : [];
+
+              if (uncovered.length > 0) {
+                const uncoveredStr = uncovered.join(", ");
+                const exclude = window.confirm(
+                  `Some selected elements cannot be covered by available standards.\n\nUncovered elements:\n${uncoveredStr}\n\nDo you want to exclude these elements and recalculate?`
+                );
+
+                if (!exclude) {
+                  setSelectedPeriodicSymbols(new Set());
+
+                  nextInputUpdates[periodicFieldKeyParam] = 0;
+                  nextInputUpdates[periodicFieldKeyParam + "_elements"] = "";
+
+                  for (const f of icpmsCoverageFields) {
+                    const srcKey = String(f?.source_element_field_key || "").trim();
+                    if (!srcKey) continue;
+                    nextInputUpdates[srcKey] = 0;
+                    nextInputUpdates[srcKey + "_elements"] = "";
+                  }
+
+                  for (const f of icpmsCoverageFields) {
+                    nextInputUpdates[f.field_key] = 0;
+                  }
+
+                  setIcpmsCoverageByFieldKey((prev) => {
+                    const next = { ...prev };
+                    for (const f of icpmsCoverageFields) {
+                      next[f.field_key] = null;
+                    }
+                    return next;
+                  });
+
+                  setInputFieldValues((prev) => ({ ...prev, ...nextInputUpdates }));
+                  setPeriodicTableFieldKey(null);
+                  return;
+                }
+
+                const uncoveredSet = new Set(uncovered.map((u: string) => String(u).toUpperCase()));
+                allowed = allowed.filter((s) => !uncoveredSet.has(String(s).toUpperCase()));
+                setSelectedPeriodicSymbols(new Set(allowed));
+
+                nextInputUpdates[periodicFieldKeyParam] = enforceMinForKey(periodicFieldKeyParam);
+                nextInputUpdates[periodicFieldKeyParam + "_elements"] = allowed.join(",");
+
+                for (const f of icpmsCoverageFields) {
+                  const srcKey = String(f?.source_element_field_key || "").trim();
+                  if (!srcKey) continue;
+                  nextInputUpdates[srcKey] = enforceMinForKey(srcKey);
+                  nextInputUpdates[srcKey + "_elements"] = allowed.join(",");
+                }
+
+                if (allowed.length === 0) {
+                  for (const f of icpmsCoverageFields) {
+                    nextInputUpdates[f.field_key] = 0;
+                  }
+                  setIcpmsCoverageByFieldKey((prev) => {
+                    const next = { ...prev };
+                    for (const f of icpmsCoverageFields) {
+                      next[f.field_key] = null;
+                    }
+                    return next;
+                  });
+                  setInputFieldValues((prev) => ({ ...prev, ...nextInputUpdates }));
+                  setPeriodicTableFieldKey(null);
+                  return;
+                }
+
+                continue;
+              }
+
+              minCount = data?.count ?? 0;
+              standards = Array.isArray(data?.standards) ? data.standards : [];
+              break;
+            }
+
+            for (const f of icpmsCoverageFields) {
+              nextInputUpdates[f.field_key] = minCount;
+            }
+
+            setIcpmsCoverageByFieldKey((prev) => {
+              const next = { ...prev };
+              for (const f of icpmsCoverageFields) {
+                next[f.field_key] = { count: minCount, standards };
+              }
+              return next;
+            });
+          } catch {
+            for (const f of icpmsCoverageFields) {
+              nextInputUpdates[f.field_key] = 0;
+            }
+            setIcpmsCoverageByFieldKey((prev) => {
+              const next = { ...prev };
+              for (const f of icpmsCoverageFields) {
+                next[f.field_key] = null;
+              }
+              return next;
+            });
+          }
+        } else {
+          for (const f of icpmsCoverageFields) {
+            nextInputUpdates[f.field_key] = 0;
+          }
+          setIcpmsCoverageByFieldKey((prev) => {
+            const next = { ...prev };
+            for (const f of icpmsCoverageFields) {
+              next[f.field_key] = null;
+            }
+            return next;
+          });
+        }
+      }
+
+      setInputFieldValues((prev) => ({ ...prev, ...nextInputUpdates }));
+      if (options?.openPeriodicDialogAfter) {
+        setPeriodicTableFieldKey(periodicFieldKeyParam);
+      } else {
+        setPeriodicTableFieldKey(null);
+      }
+    },
+    [equipmentDetail]
+  );
+
+  // Recompute ICPMS Standard Coverage (field C) whenever source element field (e.g. B) changes
+  useEffect(() => {
+    const fields = equipmentDetail?.input_fields;
+    if (!fields?.length) return;
+    const icpmsFields = fields.filter(
+      (f: any) => String(f.field_type || '').toUpperCase().trim() === 'ICPMS_STANDARD_COVERAGE'
+    );
+    if (icpmsFields.length === 0) return;
+
+    let cancelled = false;
+    icpmsFields.forEach((field: any) => {
+      let sourceKey = (field.source_element_field_key || '').trim();
+      if (!sourceKey) {
+        const pf = fields.find(
+          (x: any) => String(x.field_type || '').toUpperCase().trim() === 'PERIODIC_TABLE'
+        );
+        sourceKey = (pf?.field_key || '').trim();
+      }
+      if (!sourceKey) return;
+
+      const elementsStr = (inputFieldValues[sourceKey + '_elements'] as string) ?? '';
+      const elements = elementsStr ? elementsStr.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+
+      if (elements.length === 0) {
+        setInputFieldValues(prev => (prev[field.field_key] === 0 ? prev : { ...prev, [field.field_key]: 0 }));
+        setIcpmsCoverageByFieldKey(prev => (prev[field.field_key] === null ? prev : { ...prev, [field.field_key]: null }));
+        return;
+      }
+
+      apiClient.getIcpmsMinStandardsCover(elements).then((res) => {
+        if (cancelled) return;
+        const count = res?.data?.count ?? 0;
+        const standards = res?.data?.standards ?? [];
+        setInputFieldValues(prev => (prev[field.field_key] === count ? prev : { ...prev, [field.field_key]: count }));
+        setIcpmsCoverageByFieldKey(prev => ({
+          ...prev,
+          [field.field_key]: { count, standards },
+        }));
+      }).catch(() => {
+        if (cancelled) return;
+        setInputFieldValues(prev => (prev[field.field_key] === 0 ? prev : { ...prev, [field.field_key]: 0 }));
+        setIcpmsCoverageByFieldKey(prev => (prev[field.field_key] === null ? prev : { ...prev, [field.field_key]: null }));
+      });
+    });
+
+    return () => { cancelled = true; };
+  }, [equipmentDetail?.input_fields, inputFieldValues]);
+
+  /** Reset booking page to default state (slots cleared, auto-select off, charge cleared, input fields to defaults, booking options unchecked). Calendar week is left unchanged (same as at time of confirming booking). Call after booking success or failure. */
+  const resetBookingPageToDefaults = useCallback(() => {
+    setSelectedSlots([]);
+    setAutoSlotSelection(false);
+    setChargeCalculated(false);
+    setCalculatedCharge(null);
+    setShowSlots(false);
+    lastCalculatedValuesRef.current = '';
+    setBookAnyAvailableSlots(false);
+    setBookEvenIfSingleSlotAvailable(false);
+    if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
+      const initialValues: Record<string, string | boolean | string[]> = {};
+      equipmentDetail.input_fields.forEach((field: any) => {
+        const fieldType = String(field.field_type || '').toUpperCase().trim();
+        if (fieldType === 'TOGGLE') {
+          initialValues[field.field_key] = field.default_value === 'true' || field.default_value === true;
+        } else if (fieldType === 'MULTI_SELECT') {
+          initialValues[field.field_key] = field.default_value ? field.default_value.split(',') : [];
+        } else if (fieldType === 'PERIODIC_TABLE') {
+          const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
+          initialValues[field.field_key] = isNaN(count) ? 0 : count;
+          initialValues[field.field_key + '_elements'] = (field.options && Array.isArray(field.options) ? field.options.join(',') : '') || '';
+        } else if (fieldType === 'ICPMS_STANDARD_COVERAGE') {
+          initialValues[field.field_key] = 0;
+        } else if (fieldType === 'TABLE') {
+          const cols = Array.isArray(field.options) ? field.options.length : 0;
+          initialValues[field.field_key] = cols ? [Array(cols).fill('')] : [];
+        } else {
+          if ((field.field_key === 'A' || field.field_key === 'B') && fieldType === 'NUMERIC') {
+            const num = Number(field.default_value);
+            initialValues[field.field_key] = String(Number.isNaN(num) || num < 1 ? 1 : num);
+          } else {
+            initialValues[field.field_key] = field.default_value || '';
+          }
+        }
+      });
+      setInputFieldValues(initialValues);
+      setIcpmsCoverageByFieldKey({});
+    }
+  }, [equipmentDetail?.input_fields]);
+
   const handleBooking = async () => {
-    if (!userId || !selectedEquipment || selectedSlots.length === 0) {
+    if (!userId || !selectedEquipment || (selectedSlots.length === 0 && !waitlistIntentMode)) {
       toast.error("Please select at least one time slot");
       return;
     }
@@ -2650,30 +3150,28 @@ const BookEquipment = () => {
       }
       setIsSubmittingBooking(true);
       try {
-        const res = await apiClient.createRepeatBooking(repeatSourceBooking.booking_id, slotIds);
+        const res = await apiClient.createRepeatBooking(repeatSourceBooking.real_booking_id, slotIds);
         if (res.error) {
           toast.error(res.error);
           return;
         }
         toast.success((res.data as { message?: string })?.message || "Repeat booking created successfully.");
-        setBookingResultDialog({ open: true, success: true, message: "Repeat booking created. This booking does not count toward your weekly or monthly limit." });
+        resetBookingPageToDefaults();
+        setBookingResultDialog({ open: true, success: true, variant: "success", message: "Repeat booking created. This booking does not count toward your weekly or monthly limit." });
         setRepeatSourceBooking(null);
-        setSelectedSlots([]);
-        setShowSlots(false);
-        setChargeCalculated(false);
-        setCalculatedCharge(null);
         navigate("/my-bookings");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to create repeat booking");
-        setBookingResultDialog({ open: true, success: false, message: e instanceof Error ? e.message : "Failed to create repeat booking" });
+        resetBookingPageToDefaults();
+        setBookingResultDialog({ open: true, success: false, variant: "failure", message: e instanceof Error ? e.message : "Failed to create repeat booking" });
       } finally {
         setIsSubmittingBooking(false);
       }
       return;
     }
 
-    // Validate selection per business rules (single slot when required <= one slot; multiple until covered; 10% tail allowed)
-    if (calculatedCharge && !isSelectionValidForBooking()) {
+    // Validate selection per business rules (skip this for explicit waitlist mode)
+    if (!waitlistIntentMode && calculatedCharge && !isSelectionValidForBooking()) {
       const required = calculatedCharge.total_time_minutes;
       const selected = getTotalSelectedMinutes();
       const oneSlot = getOneSlotDurationMinutes(selectedSlots[0]);
@@ -2716,6 +3214,35 @@ const BookEquipment = () => {
         return;
       }
 
+      // No-slots visible flow: user explicitly confirmed waitlist booking.
+      if (waitlistIntentMode && !canUseSlotIds) {
+        const res = await apiClient.bookEquipment(selectedEquipment.id, {
+          input_values: inputFieldValues,
+          status: "pending",
+          waitlist_on_failure: waitlistIntentMode,
+          request_waitlist_without_slot_selection: true,
+          ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
+        });
+        const errRes = res as { error?: string; waitlist_position?: number; waitlist_code?: string };
+        if (res.error || errRes.waitlist_position != null || errRes.waitlist_code) {
+          const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
+          const backendSaysWaitlisted = String(errRes.error || "").toLowerCase().includes("booking waitlisted");
+          const msg = waitlistLabel
+            ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}.`
+            : (errRes.error || "Booking unsuccessful.");
+          toast.error(msg);
+          resetBookingPageToDefaults();
+          setBookingResultDialog({
+            open: true,
+            success: false,
+            variant: (waitlistLabel || backendSaysWaitlisted) ? "waitlist" : "failure",
+            message: msg,
+          });
+          return;
+        }
+      }
+
       // Resolve final slot IDs and charge: when "Book any available slots" is on, use selected if available else pick any available run in the window
       let finalSlotIds = slotIds;
       let totalHours = calculatedCharge ? calculatedCharge.total_time_minutes / 60 : 0;
@@ -2734,7 +3261,7 @@ const BookEquipment = () => {
         const startStr = format(windowStart, "yyyy-MM-dd");
         const endStr = format(windowEnd, "yyyy-MM-dd");
         try {
-          const res = await apiClient.getEquipmentSlots(selectedEquipment.id, startStr, endStr);
+          const res = await apiClient.getEquipmentSlots(selectedEquipment.id, startStr, endStr, { urgentWeekExtension: isUrgentHoldMode });
           const slots = (res as { data?: { slots?: Array<{ id: number; status?: string; start_datetime?: string; end_datetime?: string }> } })?.data?.slots ?? [];
           const statusById = new Map(slots.map((s) => [s.id, (s.status || "").toUpperCase()]));
           const allSelectedAvailable = slotIds.every((id) => statusById.get(id) === "AVAILABLE");
@@ -2795,6 +3322,8 @@ const BookEquipment = () => {
           const returnToPage = searchParams.get("return_to") === "my-urgent-requests" || searchParams.get("return_to") === "dashboard";
           if (returnToPage) {
             // Create hold and redirect to dashboard to complete urgent request form
+            const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+            const weekEnd = addDays(weekStart, 6);
             const res = await apiClient.bookEquipment(selectedEquipment.id, {
               slot_ids: finalSlotIds,
               total_hours: totalHours,
@@ -2802,17 +3331,27 @@ const BookEquipment = () => {
               status: "pending",
               input_values: inputFieldValues,
               create_as_hold: true,
+              waitlist_on_failure: waitlistIntentMode,
+              book_any_available_slots: bookAnyAvailableSlots,
+              book_even_if_single_slot_available: bookEvenIfSingleSlotAvailable,
+              ...(bookAnyAvailableSlots ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
               ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
             });
             if (res.error) {
               toast.error((res as { error: string }).error);
               return;
             }
-            const resData = (res as { data?: { booking_id?: number; id?: number } }).data;
+            const resData = (res as { data?: { booking_id?: number; id?: number; virtual_booking_id?: string | null } }).data;
             const holdId = resData?.booking_id ?? resData?.id;
+            const holdVirtualId = resData?.virtual_booking_id ?? null;
             setSelectedSlots([]);
             if (holdId != null) {
-              navigate(`/my-urgent-requests?urgent_equipment_id=${selectedEquipment.id}&hold_booking_id=${holdId}`, { replace: true });
+              const qs = new URLSearchParams({
+                urgent_equipment_id: String(selectedEquipment.id),
+                hold_booking_id: String(holdId),
+              });
+              if (holdVirtualId) qs.set("hold_virtual_booking_id", holdVirtualId);
+              navigate(`/my-urgent-requests?${qs.toString()}`, { replace: true });
               toast.success("Slots held. Complete and submit your urgent request on the page.");
             } else {
               toast.error("Could not create hold.");
@@ -2836,26 +3375,48 @@ const BookEquipment = () => {
           toast.success("Slot selection saved. Complete and submit your urgent request below to hold the slots. If you close without submitting, slots stay available.");
           return;
         }
+        const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+        const weekEnd = addDays(weekStart, 6);
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           slot_ids: finalSlotIds,
           total_hours: totalHours,
           total_cost: totalCost,
           status: "pending",
           input_values: inputFieldValues,
+          waitlist_on_failure: waitlistIntentMode,
+          book_any_available_slots: bookAnyAvailableSlots,
+          book_even_if_single_slot_available: bookEvenIfSingleSlotAvailable,
+          ...(bookAnyAvailableSlots ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
           ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...(selectedCouponId != null ? { coupon_id: selectedCouponId } : validatedCouponFromCode ? { coupon_id: validatedCouponFromCode.id } : couponCodeInput.trim() ? { coupon_code: couponCodeInput.trim() } : {}),
         });
         if (res.error) {
-          const errRes = res as { error: string; waitlist_position?: number };
-          const msg = errRes.waitlist_position != null
-            ? `${errRes.error} You have been added to the waitlist at position ${errRes.waitlist_position}. You will be notified by email when slots become available so you can book on a first-come, first-served basis.`
+          const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string };
+          const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
+          const backendSaysWaitlisted = String(errRes.error || "").toLowerCase().includes("booking waitlisted");
+          const msg = waitlistLabel
+            ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}. You will be notified by email about your queue status and booking confirmation/failure.`
             : errRes.error;
           toast.error(msg);
-          setBookingResultDialog({ open: true, success: false, message: msg });
+          resetBookingPageToDefaults();
+          setBookingResultDialog({
+            open: true,
+            success: false,
+            variant: (waitlistLabel || backendSaysWaitlisted) ? "waitlist" : "failure",
+            message: msg,
+          });
           return;
         }
-        // Success: API returns { data: { booking_id, daily_slots, ... } }
-        const resData = (res as { data?: { booking_id?: number; id?: number; daily_slots?: DailySlot[] } }).data;
+        // Success: API returns { data: { booking_id, daily_slots, input_values_adjusted?, input_values? } }
+        const resData = (res as {
+          data?: {
+            booking_id?: number;
+            id?: number;
+            daily_slots?: DailySlot[];
+            input_values_adjusted?: boolean;
+            input_values?: Record<string, string | boolean | string[] | number>;
+          };
+        }).data;
         // Merge returned slots into equipment detail so grid shows booked state immediately
         const updatedSlots = resData?.daily_slots;
         if (equipmentDetail && updatedSlots && Array.isArray(updatedSlots) && updatedSlots.length > 0) {
@@ -2866,8 +3427,19 @@ const BookEquipment = () => {
             daily_slots: Array.from(byId.values()).sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
           });
         }
-        setSelectedSlots([]);
-        setBookingResultDialog({ open: true, success: true, message: "Booking created successfully!" });
+        if (resData?.input_values_adjusted && resData?.input_values && typeof resData.input_values === "object") {
+          setInputFieldValues((prev) => ({ ...prev, ...resData.input_values }));
+          toast.info("Booking created with reduced parameters (1 slot) as requested. Input values have been updated.");
+        }
+        resetBookingPageToDefaults();
+        setBookingResultDialog({
+          open: true,
+          success: true,
+          variant: "success",
+          message: resData?.input_values_adjusted
+            ? "Booking created successfully with reduced parameters (1 slot) as requested."
+            : "Booking created successfully!",
+        });
         return;
       }
 
@@ -2963,11 +3535,13 @@ const BookEquipment = () => {
       const firstRes = results[0] as { booking_id?: number; id?: number };
       const firstBookingId = firstRes?.booking_id ?? firstRes?.id;
       // Success is logged server-side per booking; no need to call logBookingAttempt here
-      setBookingResultDialog({ open: true, success: true, message: `${bookings.length} booking(s) created successfully!` });
+      resetBookingPageToDefaults();
+      setBookingResultDialog({ open: true, success: true, variant: "success", message: `${bookings.length} booking(s) created successfully!` });
     } catch (error: any) {
       const errMsg = error.message || "Failed to create booking";
       toast.error(errMsg);
-      setBookingResultDialog({ open: true, success: false, message: errMsg });
+      resetBookingPageToDefaults();
+      setBookingResultDialog({ open: true, success: false, variant: "failure", message: errMsg });
       // Failure is already logged server-side in submit_booking / book_equipment; do not call logBookingAttempt here to avoid duplicate entries.
       // No-slot log for internal users (urgent request eligibility)
       if (selectedEquipment && isInternalUser() && !isAdminUser()) {
@@ -3673,6 +4247,7 @@ const BookEquipment = () => {
                       if (statusChangePopupWeekStart) fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
                     }}
                     isOperator={String(userType).toLowerCase() === "operator"}
+                    isManagerOrAdmin={["admin", "manager"].includes(String(userType).toLowerCase())}
                     currentUserId={userId ? parseInt(userId, 10) : null}
                     backLabel="Close booking details"
                     showPrintButton={false}
@@ -3964,7 +4539,7 @@ const BookEquipment = () => {
                   <h3 className="text-lg font-semibold mb-4">Step 1: Provide Additional Information</h3>
                   {repeatSourceBooking && (
                     <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
-                      Repeat sample: parameters are fixed from the original booking. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
+                      Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
                     </div>
                   )}
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
@@ -3990,7 +4565,11 @@ const BookEquipment = () => {
                                   />
                                 );
                               
-                              case 'NUMERIC':
+                              case 'NUMERIC': {
+                                const isAB = field.field_key === 'A' || field.field_key === 'B';
+                                const effectiveMin = isAB
+                                  ? Math.max(1, Number(field.options?.min) || 1)
+                                  : (field.options?.min ?? undefined);
                                 return (
                                   <Input
                                     id={field.field_key}
@@ -4000,17 +4579,20 @@ const BookEquipment = () => {
                                     onBlur={(e) => {
                                       const value = e.target.value;
                                       if (value && isNaN(Number(value))) {
-                                        handleInputFieldChange(field.field_key, '');
+                                        handleInputFieldChange(field.field_key, isAB ? '1' : '');
+                                      } else if (isAB && value !== '' && Number(value) < 1) {
+                                        handleInputFieldChange(field.field_key, '1');
                                       }
                                     }}
                                     required={field.is_required}
-                                    min={field.options?.min || undefined}
+                                    min={effectiveMin}
                                     max={field.options?.max || undefined}
                                     step={field.options?.step || '1'}
-                                    placeholder={field.default_value || '0'}
+                                    placeholder={field.default_value || (isAB ? '1' : '0')}
                                     disabled={!!repeatSourceBooking}
                                   />
                                 );
+                              }
                               
                               case 'RADIO':
                                 return (
@@ -4143,6 +4725,7 @@ const BookEquipment = () => {
                                       type="button"
                                       variant="outline"
                                       size="sm"
+                                      disabled={!!repeatSourceBooking}
                                       onClick={() => {
                                         setPeriodicTableFieldKey(field.field_key);
                                         setSelectedPeriodicSymbols(new Set(allowedList));
@@ -4154,6 +4737,205 @@ const BookEquipment = () => {
                                       <p className="text-sm text-muted-foreground">
                                         {allowedList.length} element(s) selected{allowedList.length ? `: ${allowedList.join(', ')}` : ''}
                                       </p>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              case 'ICPMS_STANDARD_COVERAGE': {
+                                const value = Number(inputFieldValues[field.field_key]) ?? 0;
+                                const coverage = icpmsCoverageByFieldKey[field.field_key];
+                                const resolvedPeriodicKey = resolvePeriodicFieldKey(String(field.source_element_field_key || ""));
+                                return (
+                                  <div className="space-y-2">
+                                    <Input
+                                      id={field.field_key}
+                                      type="number"
+                                      value={String(value)}
+                                      readOnly
+                                      disabled
+                                      className="bg-muted font-medium"
+                                    />
+                                    {field.help_text && (
+                                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{field.help_text}</p>
+                                    )}
+                                    <Button
+                                      type="button"
+                                      variant="default"
+                                      size="sm"
+                                      disabled={loadingAvailableIcpmsStandards || !!repeatSourceBooking}
+                                      onClick={async () => {
+                                        try {
+                                          setAvailableIcpmsStandardsDialogOpen(true);
+                                          setSelectedIcpmsStandardIds([]);
+                                          setLoadingAvailableIcpmsStandards(true);
+                                          const res = await apiClient.getIcpmsStandardsFullList();
+                                          setFullIcpmsStandards(res?.data?.standards ?? []);
+                                        } catch (e) {
+                                          toast.error(e instanceof Error ? e.message : "Failed to load standards.");
+                                        } finally {
+                                          setLoadingAvailableIcpmsStandards(false);
+                                        }
+                                      }}
+                                    >
+                                      {loadingAvailableIcpmsStandards ? "Loading..." : "See available standards"}
+                                    </Button>
+                                    <Dialog
+                                      open={availableIcpmsStandardsDialogOpen}
+                                      onOpenChange={(open) => {
+                                        setAvailableIcpmsStandardsDialogOpen(open);
+                                        if (!open) setSelectedIcpmsStandardIds([]);
+                                      }}
+                                    >
+                                      <DialogContent className="max-w-[min(96vw,1200px)] w-full max-h-[90vh] overflow-y-auto flex flex-col">
+                                        <DialogHeader>
+                                          <DialogTitle>ICPMS standards (database)</DialogTitle>
+                                          <DialogDescription>
+                                            Select one or more <span className="font-medium text-foreground">Available</span> rows to
+                                            apply all elements to &quot;Select elements&quot;. Rows marked Not Available cannot be selected.
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        {loadingAvailableIcpmsStandards ? (
+                                          <div className="text-sm text-muted-foreground py-6">Loading...</div>
+                                        ) : (
+                                          <div className="rounded-md border overflow-x-auto min-h-0 flex-1">
+                                            <table className="w-full text-xs sm:text-sm border-collapse min-w-[800px]">
+                                              <thead>
+                                                <tr className="bg-muted/50 border-b">
+                                                  <th className="text-left font-medium p-2 border-r w-10"> </th>
+                                                  <th className="text-left font-medium p-2 border-r">S.NO.</th>
+                                                  <th className="text-left font-medium p-2 border-r">Part No.</th>
+                                                  <th className="text-left font-medium p-2 border-r">Name of Std</th>
+                                                  <th className="text-left font-medium p-2 border-r">List of Element</th>
+                                                  <th className="text-left font-medium p-2 border-r">Concentration</th>
+                                                  <th className="text-left font-medium p-2 border-r">Availability</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {fullIcpmsStandards.length === 0 ? (
+                                                  <tr>
+                                                    <td colSpan={7} className="p-3 text-center text-muted-foreground">
+                                                      —
+                                                    </td>
+                                                  </tr>
+                                                ) : (
+                                                  fullIcpmsStandards.map((row) => {
+                                                    const isSelectable = Number(row.status) === 1;
+                                                    const availability = isSelectable ? "Available" : "Not Available";
+                                                    return (
+                                                      <tr
+                                                        key={row.id}
+                                                        className={cn(
+                                                          "border-b last:border-0 bg-background/60",
+                                                          !isSelectable && "opacity-70"
+                                                        )}
+                                                      >
+                                                        <td className="p-2 border-r align-middle">
+                                                          <Checkbox
+                                                            checked={selectedIcpmsStandardIds.includes(row.id)}
+                                                            disabled={!isSelectable}
+                                                            onCheckedChange={(c) => {
+                                                              setSelectedIcpmsStandardIds((prev) => {
+                                                                if (c === true) return [...prev, row.id];
+                                                                return prev.filter((x) => x !== row.id);
+                                                              });
+                                                            }}
+                                                            aria-label={`Select standard ${row.s_no}`}
+                                                          />
+                                                        </td>
+                                                        <td className="p-2 border-r align-top font-medium text-foreground whitespace-nowrap">
+                                                          {row.s_no}
+                                                        </td>
+                                                        <td className="p-2 border-r align-top">{row.part_no || "—"}</td>
+                                                        <td className="p-2 border-r align-top">{row.name_of_std}</td>
+                                                        <td className="p-2 border-r align-top break-words max-w-[14rem]">
+                                                          {(row.list_of_elements && String(row.list_of_elements).trim()) || "—"}
+                                                        </td>
+                                                        <td className="p-2 border-r align-top">{row.concentration || "—"}</td>
+                                                        <td className="p-2 border-r align-top whitespace-nowrap">
+                                                          <span
+                                                            className={cn(
+                                                              "font-medium",
+                                                              isSelectable ? "text-green-700 dark:text-green-400" : "text-muted-foreground"
+                                                            )}
+                                                          >
+                                                            {availability}
+                                                          </span>
+                                                        </td>
+                                                      </tr>
+                                                    );
+                                                  })
+                                                )}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        )}
+                                        <DialogFooter className="gap-2 sm:gap-0 flex-col sm:flex-row sm:justify-end">
+                                          <Button variant="outline" onClick={() => setAvailableIcpmsStandardsDialogOpen(false)}>
+                                            Close
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            onClick={async () => {
+                                              if (!resolvedPeriodicKey) {
+                                                toast.error(
+                                                  "No periodic table field found on this equipment. Add a Periodic Table input field in equipment settings."
+                                                );
+                                                return;
+                                              }
+                                              if (selectedIcpmsStandardIds.length === 0) {
+                                                toast.error("Select at least one Available standard.");
+                                                return;
+                                              }
+                                              const merged: string[] = [];
+                                              for (const id of selectedIcpmsStandardIds) {
+                                                const row = fullIcpmsStandards.find((r) => r.id === id);
+                                                if (!row || Number(row.status) !== 1) continue;
+                                                merged.push(...splitCsvElements(row.list_of_elements || ""));
+                                              }
+                                              if (merged.length === 0) {
+                                                toast.error("No elements found on the selected standards.");
+                                                return;
+                                              }
+                                              setAvailableIcpmsStandardsDialogOpen(false);
+                                              setSelectedIcpmsStandardIds([]);
+                                              await applyPeriodicSelectionFromElementSymbols(resolvedPeriodicKey, merged, {
+                                                openPeriodicDialogAfter: true,
+                                              });
+                                              toast.success("Elements applied — review selection in the periodic table.");
+                                            }}
+                                          >
+                                            Apply to element selection
+                                          </Button>
+                                        </DialogFooter>
+                                      </DialogContent>
+                                    </Dialog>
+                                    {coverage?.standards && coverage.standards.length > 0 && (
+                                      <div className="text-sm text-muted-foreground mt-2 space-y-2">
+                                        <span className="font-medium text-foreground">Standards covering selected elements</span>
+                                        <div className="rounded-md border overflow-x-auto">
+                                          <table className="w-full text-sm border-collapse">
+                                            <thead>
+                                              <tr className="bg-muted/50 border-b">
+                                                <th className="text-left font-medium p-2 border-r last:border-r-0">S.NO.</th>
+                                                <th className="text-left font-medium p-2 border-r last:border-r-0">Name of Std</th>
+                                                <th className="text-left font-medium p-2">List of Element</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {coverage.standards.map((s) => (
+                                                <tr key={s.id} className="border-b last:border-0 bg-background/60">
+                                                  <td className="p-2 border-r align-top font-medium text-foreground">{s.s_no}</td>
+                                                  <td className="p-2 border-r align-top text-foreground">{s.name_of_std}</td>
+                                                  <td className="p-2 align-top break-words max-w-[min(100%,28rem)]">
+                                                    {(s.list_of_elements && String(s.list_of_elements).trim()) || "—"}
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
                                 );
@@ -4210,6 +4992,7 @@ const BookEquipment = () => {
                                                       value={row[ci] ?? ''}
                                                       onChange={(e) => setCell(ri, ci, e.target.value)}
                                                       placeholder=""
+                                                      disabled={!!repeatSourceBooking}
                                                     />
                                                   </td>
                                                 ))}
@@ -4221,6 +5004,7 @@ const BookEquipment = () => {
                                                     className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                                     onClick={() => deleteRow(ri)}
                                                     title="Delete row"
+                                                    disabled={!!repeatSourceBooking}
                                                   >
                                                     <Trash2 className="h-4 w-4" />
                                                   </Button>
@@ -4232,7 +5016,7 @@ const BookEquipment = () => {
                                       </table>
                                     </div>
                                     <div className="flex gap-2">
-                                      <Button type="button" variant="outline" size="sm" onClick={addRow}>
+                                      <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={!!repeatSourceBooking}>
                                         <Plus className="h-4 w-4 mr-1" />
                                         Add row
                                       </Button>
@@ -4243,14 +5027,14 @@ const BookEquipment = () => {
                               
                               default:
                                 // Fallback for unknown field types - show error message
-                                console.error(`Unsupported field type "${field.field_type}" (normalized: "${fieldType}") for field "${field.field_key}". Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, TABLE`);
+                                console.error(`Unsupported field type "${field.field_type}" (normalized: "${fieldType}") for field "${field.field_key}". Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, ICPMS_STANDARD_COVERAGE, TABLE`);
                                 return (
                                   <div className="p-3 border border-destructive rounded-md bg-destructive/10">
                                     <p className="text-sm text-destructive font-medium">
                                       Unsupported field type: {field.field_type}
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                      Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, TABLE
+                                      Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, ICPMS_STANDARD_COVERAGE, TABLE
                                     </p>
                                   </div>
                                 );
@@ -4367,15 +5151,12 @@ const BookEquipment = () => {
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setPeriodicTableFieldKey(null)}>Cancel</Button>
                         <Button
-                          onClick={() => {
-                            if (periodicTableFieldKey) {
-                              const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicTableFieldKey);
-                              const disabledSet = parseDisabledElementsFromHelpText(field?.help_text);
-                              const allowed = Array.from(selectedPeriodicSymbols).filter((s) => !disabledSet.has(s));
-                              handleInputFieldChange(periodicTableFieldKey, allowed.length);
-                              handleInputFieldChange(periodicTableFieldKey + "_elements", allowed.join(","));
-                              setPeriodicTableFieldKey(null);
-                            }
+                          onClick={async () => {
+                            if (!periodicTableFieldKey) return;
+                            await applyPeriodicSelectionFromElementSymbols(
+                              periodicTableFieldKey,
+                              Array.from(selectedPeriodicSymbols)
+                            );
                           }}
                         >
                           Apply
@@ -4403,10 +5184,12 @@ const BookEquipment = () => {
                   )}
                 </div>
 
-                {/* Step 2: Calculated Charge Display */}
+                {/* Step 2: Calculated Charge Display (repeat sample: complimentary only) */}
                 {chargeCalculated && calculatedCharge && !chargeCalculationFailed && (
                   <div className="mb-6 p-6 bg-primary/10 rounded-lg border-2 border-primary">
-                    <h3 className="text-lg font-semibold mb-4">Step 2: Charge Calculation</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
+                    </h3>
                     <div className="space-y-2">
                       {getEffectiveWeeklyViewDisplay() !== 'SLOT_ID' && (
                         <div className="flex justify-between items-center">
@@ -4420,34 +5203,20 @@ const BookEquipment = () => {
                         <div className="mt-4 space-y-1">
                           <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
                           {calculatedCharge.charge_breakdown.map((item, index) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">{item.description}</span>
-                              <span>₹{Number(item.amount).toFixed(2)}</span>
+                            <div key={index} className="flex justify-between gap-4 text-sm items-start">
+                              <span className="text-muted-foreground whitespace-pre-line shrink min-w-0">{item.description}</span>
+                              <span className="shrink-0 tabular-nums">₹{Number(item.amount).toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
                       )}
                       <div className="mt-4 pt-3 border-t space-y-1.5">
-                        {calculatedCharge.base_charge != null && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Base amount</span>
-                            <span>₹{Number(calculatedCharge.base_charge).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {(calculatedCharge.gst_percent ?? 0) > 0 && (
-                          <>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">GST ({calculatedCharge.gst_percent}%)</span>
-                              <span>₹{Number(calculatedCharge.gst_amount ?? 0).toFixed(2)}</span>
-                            </div>
-                          </>
-                        )}
                         <div className="flex justify-between font-semibold text-base pt-1">
                           <span>Final amount</span>
                           <span>₹{Number(calculatedCharge.total_charge).toFixed(2)}</span>
                         </div>
                       </div>
-                      {canAccessManageEquipmentModes() && adminManageMode === "book" && hasValidCoupons && (
+                      {!repeatSourceBooking && canAccessManageEquipmentModes() && adminManageMode === "book" && hasValidCoupons && (
                         <div className="mt-4 rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 p-4 space-y-4">
                           <div className="flex items-center gap-2">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400">
@@ -4526,7 +5295,7 @@ const BookEquipment = () => {
                           )}
                         </div>
                       )}
-                      {!canAccessManageEquipmentModes() && hasValidCoupons && (
+                      {!repeatSourceBooking && !canAccessManageEquipmentModes() && hasValidCoupons && (
                         <div className="mt-4 rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 p-4 space-y-4">
                           <div className="flex items-center gap-2">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400">
@@ -4657,12 +5426,27 @@ const BookEquipment = () => {
                       )}
                     </div>
 
-                {/* Show loading while slots are being fetched (avoids grid full of disabled cells) */}
-                {loadingSlots && (!equipmentDetail?.daily_slots || equipmentDetail.daily_slots.length === 0) && (
-                  <div className="flex items-center justify-center py-12 text-muted-foreground">
-                    <span className="animate-pulse">Loading slots for this week…</span>
-                  </div>
-                )}
+                {/* Week nav + grid: full overlay until API data matches visible week (avoids misleading stale grid when changing weeks, e.g. urgent extension). */}
+                <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-4 sm:p-6 min-h-[min(520px,70vh)]">
+                  {isSlotsWeekViewLoading && (
+                    <div
+                      className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 rounded-lg bg-background/95 dark:bg-background/95 backdrop-blur-sm px-6 py-10"
+                      aria-busy="true"
+                      aria-live="polite"
+                    >
+                      <Loader2 className="h-10 w-10 animate-spin text-primary shrink-0" />
+                      <p className="text-sm font-medium text-foreground text-center max-w-md">
+                        Loading slot availability for this week…
+                      </p>
+                      <p className="text-xs text-muted-foreground text-center max-w-md">
+                        Please wait until all cells show the correct status.
+                      </p>
+                      <Progress
+                        value={100}
+                        className="h-2 w-full max-w-md [&>div]:w-full [&>div]:animate-pulse [&>div]:origin-left"
+                      />
+                    </div>
+                  )}
 
                 {/* Week Navigation */}
                 <div className="flex justify-between items-center mb-6">
@@ -4722,22 +5506,10 @@ const BookEquipment = () => {
                   </Button>
                 </div>
 
-                {/* Slot Grid - show loading overlay when fetching a different week */}
+                {/* Slot Grid */}
                 {(() => {
-                  const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-                  const weekEnd = addDays(weekStart, 7);
-                  const currentWeekKey = `${format(weekStart, "yyyy-MM-dd")}_${format(weekEnd, "yyyy-MM-dd")}`;
-                  const isLoadingThisWeek = loadingSlots && (lastFetchedWeek === null || currentWeekKey !== lastFetchedWeek);
                   return (
                 <div className="overflow-x-auto relative">
-                  {isLoadingThisWeek && (
-                    <div className="absolute inset-0 bg-background/80 z-10 flex items-center justify-center rounded-md min-h-[200px]">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                        <p className="text-sm text-muted-foreground">Loading weekly slots…</p>
-                      </div>
-                    </div>
-                  )}
                   <div className="min-w-[800px]">
                     {/* Header with days */}
                     <div className="grid grid-cols-8 gap-2 mb-2">
@@ -4777,6 +5549,9 @@ const BookEquipment = () => {
                       }
 
                       if (fetchedButEmpty) {
+                        const waitlistDepth = Number(equipmentDetail?.waitlist_queue_depth || 0);
+                        const waitlistCount = Number(equipmentDetail?.waitlist_current_count || 0);
+                        const waitlistHasRoom = !!equipmentDetail?.waitlist_has_room;
                         const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
                         const refWeekday = equipmentDetail?.slot_window_reference_weekday;
                         const refTime = equipmentDetail?.slot_window_reference_time;
@@ -4803,6 +5578,19 @@ const BookEquipment = () => {
                                     Till then, stay tuned.
                                   </p>
                                 </div>
+                                {waitlistDepth > 0 && (
+                                  <div className="rounded-lg border bg-background px-5 py-4">
+                                    {waitlistHasRoom ? (
+                                      <>
+                                        <p className="text-sm text-foreground">No slots are available now. You can place this request in waitlist queue.</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Queue: {waitlistCount}/{waitlistDepth}</p>
+                                        <Button className="mt-3" size="sm" onClick={() => setWaitlistIntentMode(true)}>Go for Waitlisted Booking</Button>
+                                      </>
+                                    ) : (
+                                      <p className="text-sm font-medium text-destructive">Booking unsuccessful. No more room in the waitlist queue.</p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -4815,6 +5603,15 @@ const BookEquipment = () => {
                                 ? "Try the next week using the button above."
                                 : "Try another week using the buttons above, or contact support if the issue continues."}
                             </p>
+                            {Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && (
+                              <div className="mt-3">
+                                {equipmentDetail?.waitlist_has_room ? (
+                                  <Button size="sm" onClick={() => setWaitlistIntentMode(true)}>Go for Waitlisted Booking</Button>
+                                ) : (
+                                  <p className="text-sm font-medium text-destructive">Booking unsuccessful. No more room in the waitlist queue.</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       }
@@ -5053,6 +5850,7 @@ const BookEquipment = () => {
                 </div>
                   );
                 })()}
+                </div>
 
                     {/* Booking Summary */}
                     {selectedSlots.length > 0 && (
@@ -5099,8 +5897,23 @@ const BookEquipment = () => {
                       <div className="space-y-3">
                         <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
                           <Checkbox
+                            id="waitlisted-booking"
+                            checked={waitlistIntentMode}
+                            onCheckedChange={(c) => setWaitlistIntentMode(c === true)}
+                            className="mt-0.5 h-4 w-4"
+                          />
+                          <span className="text-sm text-foreground group-hover:text-foreground">
+                            Waitlisted Booking
+                          </span>
+                        </label>
+                        <p className="text-xs text-muted-foreground pl-7">
+                          If your booking cannot be completed due to occupied/unavailable slots, your request is added to waitlist queue (if queue has space). Turn off to show booking failure without waitlisting.
+                        </p>
+                        <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
+                          <Checkbox
                             id="book-any-available-slots"
                             checked={bookAnyAvailableSlots}
+                            disabled={waitlistIntentMode}
                             onCheckedChange={(c) => {
                               const v = c === true;
                               setBookAnyAvailableSlots(v);
@@ -5119,6 +5932,7 @@ const BookEquipment = () => {
                               <Checkbox
                                 id="book-even-if-single-slot-available"
                                 checked={bookEvenIfSingleSlotAvailable}
+                                disabled={waitlistIntentMode}
                                 onCheckedChange={(c) => setBookEvenIfSingleSlotAvailable(c === true)}
                                 className="mt-0.5 h-4 w-4"
                               />
@@ -5137,8 +5951,8 @@ const BookEquipment = () => {
                       <Button
                         variant="outline"
                         className="flex-1 min-w-[140px]"
-                        onClick={() => setSelectedSlots([])}
-                        disabled={selectedSlots.length === 0}
+                        onClick={() => { setSelectedSlots([]); }}
+                        disabled={selectedSlots.length === 0 && !waitlistIntentMode}
                       >
                         Clear Selection
                       </Button>
@@ -5152,7 +5966,7 @@ const BookEquipment = () => {
                       <Button
                         className="flex-1 min-w-[140px]"
                         onClick={handleBooking}
-                        disabled={selectedSlots.length === 0 || isSubmittingBooking}
+                        disabled={(selectedSlots.length === 0 && !waitlistIntentMode) || isSubmittingBooking}
                       >
                         {isSubmittingBooking ? (
                           <>
@@ -5160,7 +5974,15 @@ const BookEquipment = () => {
                             Confirming…
                           </>
                         ) : (
-                          <>{isUrgentHoldMode ? ((searchParams.get("return_to") === "my-urgent-requests" || searchParams.get("return_to") === "dashboard") ? <>Hold slots and return ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</> : <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>) : <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>}</>
+                          <>
+                            {isUrgentHoldMode
+                              ? ((searchParams.get("return_to") === "my-urgent-requests" || searchParams.get("return_to") === "dashboard")
+                                  ? <>Hold slots and return ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>
+                                  : <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>)
+                              : (waitlistIntentMode && selectedSlots.length === 0
+                                  ? <>Confirm Waitlisted Booking</>
+                                  : <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>)}
+                          </>
                         )}
                       </Button>
                     </div>
@@ -5436,8 +6258,20 @@ const BookEquipment = () => {
         <Dialog open={bookingResultDialog.open} onOpenChange={(open) => !open && setBookingResultDialog((p) => ({ ...p, open: false }))}>
           <DialogContent className="max-w-2xl min-w-[min(92vw,640px)] sm:min-w-[640px]">
             <DialogHeader>
-              <DialogTitle className={bookingResultDialog.success ? "text-green-600 dark:text-green-500" : "text-destructive"}>
-                {bookingResultDialog.success ? "Booking successful" : "Booking unsuccessful"}
+              <DialogTitle
+                className={
+                  bookingResultDialog.variant === "success"
+                    ? "text-green-600 dark:text-green-500"
+                    : bookingResultDialog.variant === "waitlist"
+                      ? "text-amber-600 dark:text-amber-500"
+                      : "text-destructive"
+                }
+              >
+                {bookingResultDialog.variant === "success"
+                  ? "Booking successful"
+                  : bookingResultDialog.variant === "waitlist"
+                    ? "Booking Waitlisted"
+                    : "Booking unsuccessful"}
               </DialogTitle>
               <DialogDescription asChild>
                 <div className="space-y-3">
@@ -5494,10 +6328,49 @@ const BookEquipment = () => {
         <Dialog open={userTransactionHistoryDialog.open} onOpenChange={(open) => !open && setUserTransactionHistoryDialog((p) => ({ ...p, open: false }))}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle>Transaction history — {userTransactionHistoryDialog.userDisplayName}</DialogTitle>
-              <DialogDescription>
-                Verify that the correct amount was debited from the user&apos;s wallet after the booking.
-              </DialogDescription>
+              <div className="flex flex-wrap items-start justify-between gap-2 pr-8">
+                <div className="space-y-1.5 min-w-0">
+                  <DialogTitle>Transaction history — {userTransactionHistoryDialog.userDisplayName}</DialogTitle>
+                  <DialogDescription>
+                    Verify that the correct amount was debited from the user&apos;s wallet after the booking.
+                  </DialogDescription>
+                </div>
+                {!userTransactionHistory.loading && userTransactionHistory.transactions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="shrink-0 gap-2">
+                        <Download className="h-4 w-4" />
+                        Download
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          exportWalletTransactionsExcel(userTransactionHistory.transactions, {
+                            sheetTitle: "Transactions",
+                          });
+                          toast.success("Excel file downloaded.");
+                        }}
+                      >
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel (.xlsx)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          exportWalletTransactionsPdf(userTransactionHistory.transactions, {
+                            title: `Transaction history — ${userTransactionHistoryDialog.userDisplayName}`,
+                          });
+                          toast.success("PDF downloaded.");
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             </DialogHeader>
             <div className="flex-1 overflow-auto rounded-xl border border-border/80">
               {userTransactionHistory.loading ? (
@@ -5513,9 +6386,10 @@ const BookEquipment = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
                       <TableHead className="font-semibold text-foreground w-[120px]">Equipment</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[120px]">Booked by</TableHead>
                       <TableHead className="font-semibold text-foreground w-[150px]">Date &amp; Time</TableHead>
                       <TableHead className="font-semibold text-foreground w-[90px]">Type</TableHead>
-                      <TableHead className="font-semibold text-foreground min-w-[180px]">Description</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[200px]">Description</TableHead>
                       <TableHead className="font-semibold text-foreground text-right w-[100px]">Amount</TableHead>
                       <TableHead className="font-semibold text-foreground text-right w-[120px]">Balance Remaining</TableHead>
                     </TableRow>
@@ -5525,6 +6399,13 @@ const BookEquipment = () => {
                       <TableRow key={tx.id} className="border-b border-border/60 last:border-b-0">
                         <TableCell className="text-sm text-muted-foreground">
                           {tx.equipment_name ? <span className="font-medium text-foreground">{tx.equipment_name}</span> : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {tx.related_user_name ? (
+                            <span className="text-foreground" title={tx.related_user_email || undefined}>{tx.related_user_name}</span>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                           {new Date(tx.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
@@ -5540,8 +6421,8 @@ const BookEquipment = () => {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm max-w-[280px]">
-                          <span className="line-clamp-2" title={tx.description || ""}>{tx.description || "—"}</span>
+                        <TableCell className="text-sm max-w-[300px]">
+                          <span className="line-clamp-2" title={(tx.description_display || tx.description) || ""}>{tx.description_display || tx.description || "—"}</span>
                           {tx.department_name && (
                             <span className="text-xs text-muted-foreground block mt-0.5">
                               {tx.department_name}{tx.department_code ? ` (${tx.department_code})` : ""}
@@ -5556,7 +6437,7 @@ const BookEquipment = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          {tx.balance_after != null && tx.balance_after !== "" ? `₹${Number(tx.balance_after).toFixed(2)}` : "—"}
+                          {tx.balance_after != null && String(tx.balance_after) !== "" ? `₹${Number(tx.balance_after).toFixed(2)}` : "—"}
                         </TableCell>
                       </TableRow>
                     ))}

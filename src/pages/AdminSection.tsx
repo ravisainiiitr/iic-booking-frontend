@@ -145,6 +145,13 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
 
 /** User type filter options for manage/section/users (restricted list). */
 const USER_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "admin", label: "Admin" },
+  { value: "manager", label: "Officer In Charge" },
+  { value: "operator", label: "Lab Incharge" },
+  { value: "finance", label: "Accounts In Charge" },
+  { value: "faculty", label: "Faculty" },
+  { value: "student", label: "Student" },
+  { value: "individual_student", label: "Individual Student" },
   { value: "external", label: "External (Educational Institute)" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
@@ -216,6 +223,26 @@ export default function AdminSection() {
   const [subWalletCreditDebitDescription, setSubWalletCreditDebitDescription] = useState("");
   const [subWalletCreditDebitLoading, setSubWalletCreditDebitLoading] = useState(false);
   const [userDocumentsList, setUserDocumentsList] = useState<Array<{ id: number; document_type: string; file_url: string | null; description?: string; uploaded_at?: string }>>([]);
+
+  // Faculty wallet student bulk discounted charge profile support.
+  const [facultyWalletStudents, setFacultyWalletStudents] = useState<
+    Array<{
+      id: number;
+      email: string;
+      name: string;
+      user_type: string;
+      use_discounted_charge_profile: boolean;
+    }>
+  >([]);
+  const [facultyWalletStudentsLoading, setFacultyWalletStudentsLoading] = useState(false);
+  const [applyDiscountedChargeProfileToAllWalletStudents, setApplyDiscountedChargeProfileToAllWalletStudents] = useState(false);
+
+  // Equipment scope for discounted charge profile.
+  const [discountedEquipmentScopeAll, setDiscountedEquipmentScopeAll] = useState(true);
+  const [discountedEquipmentScopeIds, setDiscountedEquipmentScopeIds] = useState<number[]>([]);
+  const [discountedEquipmentScopeLoading, setDiscountedEquipmentScopeLoading] = useState(false);
+  const [equipmentSimpleList, setEquipmentSimpleList] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
+  const [equipmentSimpleListLoading, setEquipmentSimpleListLoading] = useState(false);
 
   const sectionKey = section || "";
   const title = SECTION_TITLES[sectionKey] || sectionKey;
@@ -476,8 +503,7 @@ export default function AdminSection() {
           params.user_type = effectiveUserType;
         }
       } else {
-        // Default "All" should only show the restricted set represented in the dropdown.
-        params.restricted = "1";
+        // Default "All" should include everyone (do not send `restricted` param).
       }
       if (effectiveEmailVerified) params.email_verified = effectiveEmailVerified;
       if (effectiveAdminApproved) params.admin_approved = effectiveAdminApproved;
@@ -513,7 +539,17 @@ export default function AdminSection() {
 
   const openCreate = () => {
     setEditingId(null);
-    if (sectionKey === "users") setUserDocumentsList([]);
+    if (sectionKey === "users") {
+      setUserDocumentsList([]);
+      setFacultyWalletStudents([]);
+      setApplyDiscountedChargeProfileToAllWalletStudents(false);
+      setFacultyWalletStudentsLoading(false);
+      setDiscountedEquipmentScopeAll(true);
+      setDiscountedEquipmentScopeIds([]);
+      setDiscountedEquipmentScopeLoading(false);
+      setEquipmentSimpleList([]);
+      setEquipmentSimpleListLoading(false);
+    }
     setFormData(
       sectionKey === "departments"
         ? { name: "", code: "", department_type: "internal", description: "" }
@@ -522,7 +558,7 @@ export default function AdminSection() {
         : sectionKey === "projects"
         ? { faculty: "", name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true }
         : sectionKey === "users"
-        ? { email: "", name: "", password: "", password2: "", user_type: "", user_type_alias: "", emp_id: "", phone_number: "", department: "" }
+        ? { email: "", name: "", password: "", password2: "", user_type: "", user_type_alias: "", emp_id: "", phone_number: "", department: "", use_discounted_charge_profile: false }
         : sectionKey === "holidays"
         ? { date: "", reason: "", is_active: true, color: "#fef3c7" }
         : sectionKey === "cmsMenu"
@@ -575,7 +611,81 @@ export default function AdminSection() {
         admin_approved: u.admin_approved === true || u.admin_approved === "true",
         force_inactive: u.force_inactive === true || u.force_inactive === "true",
         is_active: u.is_active === true || u.is_active === "true",
+          use_discounted_charge_profile: u.use_discounted_charge_profile === true || u.use_discounted_charge_profile === "true",
       });
+
+        // Load per-equipment scope for Discounted Charge Profile.
+        const openedUserTypeStr = String(u.user_type ?? "").trim().toLowerCase();
+        setDiscountedEquipmentScopeLoading(true);
+        setDiscountedEquipmentScopeAll(true);
+        setDiscountedEquipmentScopeIds([]);
+        setEquipmentSimpleList([]);
+        try {
+          const scopeRes = await apiClient.adminGetDiscountedChargeEquipment(id as number | string);
+          if (!scopeRes.error && scopeRes.data) {
+            const d = scopeRes.data;
+            const useDiscounted = !!d.use_discounted_charge_profile;
+            setFormData((prev) => ({ ...prev, use_discounted_charge_profile: useDiscounted }));
+            if (!useDiscounted && openedUserTypeStr === "faculty") {
+              // For faculty bulk-apply UI: default student discount equipment scope to ALL.
+              setDiscountedEquipmentScopeAll(true);
+              setDiscountedEquipmentScopeIds([]);
+            } else {
+              setDiscountedEquipmentScopeAll(!!d.apply_all_equipment);
+              setDiscountedEquipmentScopeIds(Array.isArray(d.equipment_ids) ? d.equipment_ids.map((x: any) => Number(x)).filter((x: number) => x > 0) : []);
+            }
+            if (useDiscounted && !d.apply_all_equipment) {
+              setEquipmentSimpleListLoading(true);
+              const eqRes = await apiClient.adminEquipmentSimpleList();
+              if (!eqRes.error && Array.isArray(eqRes.data)) {
+                setEquipmentSimpleList(eqRes.data.map((e: any) => ({
+                  equipment_id: Number(e.equipment_id),
+                  code: String(e.code ?? ""),
+                  name: String(e.name ?? ""),
+                })));
+              }
+              setEquipmentSimpleListLoading(false);
+            }
+          }
+        } catch (e: any) {
+          toast({ title: "Error", description: e?.message ?? "Failed to load discounted charge equipment scope", variant: "destructive" });
+        } finally {
+          setDiscountedEquipmentScopeLoading(false);
+        }
+
+        // Faculty wallet student list (for discounted profile bulk actions)
+        const userTypeStr = String(u.user_type ?? "").trim().toLowerCase();
+        if (userTypeStr === "faculty") {
+          setFacultyWalletStudentsLoading(true);
+          setFacultyWalletStudents([]);
+          setApplyDiscountedChargeProfileToAllWalletStudents(false);
+          try {
+            const studsRes = await apiClient.adminWalletStudentsList(id as number | string);
+            if (studsRes.error) {
+              toast({ title: "Error", description: studsRes.error, variant: "destructive" });
+            } else {
+              const students = Array.isArray(studsRes.data?.students) ? studsRes.data?.students : Array.isArray((studsRes as any)?.students) ? (studsRes as any).students : [];
+              const mapped = (students as any[]).map((s) => ({
+                id: Number(s.id),
+                email: String(s.email ?? ""),
+                name: String(s.name ?? ""),
+                user_type: String(s.user_type ?? ""),
+                use_discounted_charge_profile: !!s.use_discounted_charge_profile,
+              }));
+              setFacultyWalletStudents(mapped);
+              setApplyDiscountedChargeProfileToAllWalletStudents(mapped.length > 0 && mapped.every((x) => x.use_discounted_charge_profile));
+            }
+          } catch (e: any) {
+            toast({ title: "Error", description: e?.message ?? "Failed to load wallet students", variant: "destructive" });
+          } finally {
+            setFacultyWalletStudentsLoading(false);
+          }
+        } else {
+          setFacultyWalletStudents([]);
+          setApplyDiscountedChargeProfileToAllWalletStudents(false);
+          setFacultyWalletStudentsLoading(false);
+        }
+
       const docRes = await apiClient.adminList("userDocuments", { user: String(id) });
       if (!docRes.error && docRes.data) {
         const raw = docRes.data;
@@ -699,6 +809,7 @@ export default function AdminSection() {
         email_verified: formData.email_verified === true || formData.email_verified === "true",
         admin_approved: formData.admin_approved === true || formData.admin_approved === "true",
         force_inactive: formData.force_inactive === true || formData.force_inactive === "true",
+        use_discounted_charge_profile: formData.use_discounted_charge_profile === true || formData.use_discounted_charge_profile === "true",
       };
     }
     setSaving(true);
@@ -751,6 +862,90 @@ export default function AdminSection() {
     }
     setSaving(false);
     return result;
+  };
+
+  const handleUsersUpdateWithDiscountedProfiles = async () => {
+    if (editingId == null || sectionKey !== "users") return;
+    const userTypeStr = String(formData.user_type ?? "").trim().toLowerCase();
+    const useDiscounted = formData.use_discounted_charge_profile === true || formData.use_discounted_charge_profile === "true";
+    if (useDiscounted && !discountedEquipmentScopeAll && discountedEquipmentScopeIds.length === 0) {
+      toast({ title: "Error", description: "Select at least one equipment or enable “All equipment”.", variant: "destructive" });
+      return;
+    }
+    if (userTypeStr === "faculty") {
+      const anyStudentEnabled = facultyWalletStudents.some((s) => s.use_discounted_charge_profile);
+      if (anyStudentEnabled && !discountedEquipmentScopeAll && discountedEquipmentScopeIds.length === 0) {
+        toast({ title: "Error", description: "Select at least one equipment or enable “All equipment” for student bulk apply.", variant: "destructive" });
+        return;
+      }
+    }
+
+    const deptId = formData.department !== "" && formData.department != null && formData.department !== undefined ? Number(formData.department) : null;
+    const userData = {
+      name: String(formData.name ?? "").trim(),
+      user_type: formData.user_type && String(formData.user_type).trim() !== "" ? String(formData.user_type).trim() : null,
+      user_type_alias: String(formData.user_type ?? "").toLowerCase() === "student"
+        ? (formData.user_type_alias != null && String(formData.user_type_alias).trim() !== "" ? String(formData.user_type_alias).trim() : null)
+        : null,
+      emp_id: formData.emp_id != null && String(formData.emp_id).trim() !== "" ? String(formData.emp_id).trim() : null,
+      phone_number: formData.phone_number != null && String(formData.phone_number).trim() !== "" ? String(formData.phone_number).trim() : null,
+      department: deptId,
+      email_verified: formData.email_verified === true || formData.email_verified === "true",
+      admin_approved: formData.admin_approved === true || formData.admin_approved === "true",
+      force_inactive: formData.force_inactive === true || formData.force_inactive === "true",
+      use_discounted_charge_profile: formData.use_discounted_charge_profile === true || formData.use_discounted_charge_profile === "true",
+    };
+
+    setSaving(true);
+    try {
+      const res = await apiClient.adminUpdate("users", editingId, userData);
+      if (res.error) {
+        toast({ title: "Error", description: res.error, variant: "destructive" });
+        return;
+      }
+
+      // Persist per-equipment discounted scope.
+      const scopeRes = await apiClient.adminSetDiscountedChargeEquipment(editingId, {
+        use_discounted_charge_profile: useDiscounted,
+        apply_all_equipment: discountedEquipmentScopeAll,
+        equipment_ids: discountedEquipmentScopeIds,
+      });
+      if (scopeRes.error) {
+        toast({ title: "Error", description: scopeRes.error, variant: "destructive" });
+        return;
+      }
+
+      // If editing internal faculty: apply per-student discounted flag for students on their wallet.
+      if (userTypeStr === "faculty") {
+        if (facultyWalletStudentsLoading) {
+          toast({ title: "Please wait", description: "Loading wallet students...", variant: "destructive" });
+          return;
+        }
+
+        const student_updates = facultyWalletStudents.map((s) => ({
+          student_id: s.id,
+          use_discounted_charge_profile: s.use_discounted_charge_profile,
+        }));
+
+        if (student_updates.length > 0) {
+          const bulkRes = await apiClient.adminApplyDiscountedChargeProfileToWalletStudents(editingId, {
+            student_updates,
+            apply_all_equipment: discountedEquipmentScopeAll,
+            equipment_ids: discountedEquipmentScopeIds,
+          });
+          if (bulkRes.error) {
+            toast({ title: "Error", description: bulkRes.error, variant: "destructive" });
+            return;
+          }
+        }
+      }
+
+      toast({ title: "Saved", description: "Record updated successfully." });
+      setModalOpen(false);
+      loadList();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleEquipmentSave = async (
@@ -3044,6 +3239,177 @@ export default function AdminSection() {
                       <Label htmlFor="user-edit-is_active">Active</Label>
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <div className="col-span-4 flex items-center gap-2">
+                      <Checkbox
+                        id="user-edit-use_discounted_charge_profile"
+                        checked={formData.use_discounted_charge_profile === true || formData.use_discounted_charge_profile === "true"}
+                        onCheckedChange={(c) => setFormData((prev) => ({ ...prev, use_discounted_charge_profile: !!c }))}
+                      />
+                      <Label htmlFor="user-edit-use_discounted_charge_profile">
+                        Use Discounted Charge Profile
+                      </Label>
+                    </div>
+                  </div>
+
+                  {(formData.use_discounted_charge_profile === true || formData.use_discounted_charge_profile === "true") ||
+                  String(formData.user_type ?? "").trim().toLowerCase() === "faculty" ? (
+                    <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+                      <Label className="text-sm font-medium">Equipment scope</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Choose which equipment should use discounted charge pricing for this user.
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="discounted-scope-all-eq"
+                          checked={discountedEquipmentScopeAll}
+                          onCheckedChange={(c) => {
+                            const next = !!c;
+                            setDiscountedEquipmentScopeAll(next);
+                            if (!next && equipmentSimpleList.length === 0) {
+                              setEquipmentSimpleListLoading(true);
+                              apiClient
+                                .adminEquipmentSimpleList()
+                                .then((eqRes) => {
+                                  if (!eqRes.error && Array.isArray(eqRes.data)) {
+                                    setEquipmentSimpleList(
+                                      eqRes.data.map((e: any) => ({
+                                        equipment_id: Number(e.equipment_id),
+                                        code: String(e.code ?? ""),
+                                        name: String(e.name ?? ""),
+                                      }))
+                                    );
+                                  }
+                                })
+                                .catch(() => {
+                                  toast({ title: "Error", description: "Failed to load equipment list.", variant: "destructive" });
+                                })
+                                .finally(() => setEquipmentSimpleListLoading(false));
+                            }
+                          }}
+                        />
+                        <Label htmlFor="discounted-scope-all-eq">All equipment</Label>
+                      </div>
+
+                      {!discountedEquipmentScopeAll && (
+                        <div className="max-h-56 overflow-y-auto rounded-md border bg-background/60 p-2">
+                          {discountedEquipmentScopeLoading ? (
+                            <div className="text-sm text-muted-foreground">Loading scope...</div>
+                          ) : equipmentSimpleListLoading ? (
+                            <div className="text-sm text-muted-foreground">Loading equipment...</div>
+                          ) : equipmentSimpleList.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {equipmentSimpleList.map((eq) => {
+                                const isChecked = discountedEquipmentScopeIds.includes(eq.equipment_id);
+                                return (
+                                  <div key={eq.equipment_id} className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`discounted-eq-${eq.equipment_id}`}
+                                      checked={isChecked}
+                                      onCheckedChange={(c) => {
+                                        const next = !!c;
+                                        setDiscountedEquipmentScopeIds((prev) => {
+                                          const set = new Set(prev);
+                                          if (next) set.add(eq.equipment_id);
+                                          else set.delete(eq.equipment_id);
+                                          return Array.from(set.values());
+                                        });
+                                      }}
+                                    />
+                                    <Label htmlFor={`discounted-eq-${eq.equipment_id}`} className="font-normal">
+                                      {eq.code || eq.name}
+                                    </Label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              No equipment loaded. Turn on “All equipment” or try again.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {String(formData.user_type ?? "").trim().toLowerCase() === "faculty" && (
+                    <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+                      <Label className="text-sm font-medium">
+                        Faculty wallet students
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Tick to apply the Discounted Charge Profile for these students on this faculty wallet.
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="faculty-apply-discounted-to-all"
+                          checked={applyDiscountedChargeProfileToAllWalletStudents}
+                          onCheckedChange={(c) => {
+                            const next = !!c;
+                            setApplyDiscountedChargeProfileToAllWalletStudents(next);
+                            setFacultyWalletStudents((prev) => prev.map((s) => ({ ...s, use_discounted_charge_profile: next })));
+                          }}
+                        />
+                        <Label htmlFor="faculty-apply-discounted-to-all">
+                          Apply to all wallet students
+                        </Label>
+                      </div>
+
+                      {facultyWalletStudentsLoading ? (
+                        <div className="text-sm text-muted-foreground">Loading wallet students...</div>
+                      ) : facultyWalletStudents.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Student</TableHead>
+                              <TableHead className="w-64">Discounted charge profile</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {facultyWalletStudents.map((s) => (
+                              <TableRow key={s.id}>
+                                <TableCell>
+                                  <div className="font-medium">{s.name || s.email}</div>
+                                  <div className="text-xs text-muted-foreground">{s.email}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`student-discount-${s.id}`}
+                                      checked={s.use_discounted_charge_profile}
+                                      onCheckedChange={(c) => {
+                                        const next = !!c;
+                                        setFacultyWalletStudents((prev) => {
+                                          const updated = prev.map((x) =>
+                                            x.id === s.id ? { ...x, use_discounted_charge_profile: next } : x
+                                          );
+                                          const all = updated.length > 0 && updated.every((x) => x.use_discounted_charge_profile);
+                                          setApplyDiscountedChargeProfileToAllWalletStudents(all);
+                                          return updated;
+                                        });
+                                      }}
+                                    />
+                                    <Label htmlFor={`student-discount-${s.id}`} className="font-normal">
+                                      {s.use_discounted_charge_profile ? "Enabled" : "Disabled"}
+                                    </Label>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          No approved wallet students found for this faculty.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
                     <Label className="text-sm font-medium">Reset password</Label>
                     <p className="text-xs text-muted-foreground">
@@ -3111,7 +3477,7 @@ export default function AdminSection() {
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
                   <Button
-                    onClick={() => handleSave()}
+                    onClick={() => handleUsersUpdateWithDiscountedProfiles()}
                     disabled={saving || !String(formData.name ?? "").trim()}
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

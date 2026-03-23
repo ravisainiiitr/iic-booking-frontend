@@ -27,6 +27,15 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Loader2, AlertCircle, Clock, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type MyUrgentRequestRow = {
   id: number;
@@ -83,27 +92,32 @@ const MyUrgentRequests = () => {
   const [urgentEquipmentList, setUrgentEquipmentList] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
   const [loadingUrgentEquipments, setLoadingUrgentEquipments] = useState(false);
   const [urgentSelectedEquipmentId, setUrgentSelectedEquipmentId] = useState<string>("");
-  const [urgentRequestType, setUrgentRequestType] = useState<"NO_SLOT" | "REVIEWER_URGENT">("NO_SLOT");
+  const [urgentRequestType, setUrgentRequestType] = useState<"NO_SLOT" | "REVIEWER_URGENT">("REVIEWER_URGENT");
   const [urgentDisclaimerAccepted, setUrgentDisclaimerAccepted] = useState(false);
   const [urgentEvidenceFile, setUrgentEvidenceFile] = useState<File | null>(null);
   const [urgentSubmitting, setUrgentSubmitting] = useState(false);
   const [urgentHoldBookingId, setUrgentHoldBookingId] = useState<number | null>(null);
+  const [urgentHoldVirtualBookingId, setUrgentHoldVirtualBookingId] = useState<string | null>(null);
   const [myUnsuccessfulAttempts, setMyUnsuccessfulAttempts] = useState<Array<{ id: number; requested_at: string | null; outcome: string; failure_reason: string; number_of_samples: number; slots_requested: number }>>([]);
   const [myUnsuccessfulAttemptsLoading, setMyUnsuccessfulAttemptsLoading] = useState(false);
   const [slotsAvailableThisWeek, setSlotsAvailableThisWeek] = useState<boolean | null>(null);
   const [loadingSlotsAvailable, setLoadingSlotsAvailable] = useState(false);
+  const [noAttemptsDialogOpen, setNoAttemptsDialogOpen] = useState(false);
 
   // Pre-fill from URL when returning from book-equipment (Hold slots and return)
   useEffect(() => {
     const eqId = searchParams.get("urgent_equipment_id");
     const holdId = searchParams.get("hold_booking_id");
+    const holdVirtualId = searchParams.get("hold_virtual_booking_id");
     if (eqId) setUrgentSelectedEquipmentId(eqId);
     if (holdId) setUrgentHoldBookingId(parseInt(holdId, 10) || null);
-    if (eqId || holdId) {
+    if (holdVirtualId) setUrgentHoldVirtualBookingId(holdVirtualId);
+    if (eqId || holdId || holdVirtualId) {
       setSearchParams((prev) => {
         const p = new URLSearchParams(prev);
         p.delete("urgent_equipment_id");
         p.delete("hold_booking_id");
+        p.delete("hold_virtual_booking_id");
         return p;
       }, { replace: true });
     }
@@ -151,6 +165,15 @@ const MyUrgentRequests = () => {
 
   const noSlotNoAttempts = urgentRequestType === "NO_SLOT" && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length === 0;
 
+  // When "Unable to get slot…" is selected and the past-2-weeks check finds no attempts, show a clear modal (after loading finishes).
+  useEffect(() => {
+    if (urgentRequestType !== "NO_SLOT") return;
+    if (!urgentSelectedEquipmentId) return;
+    if (myUnsuccessfulAttemptsLoading) return;
+    if (myUnsuccessfulAttempts.length > 0) return;
+    setNoAttemptsDialogOpen(true);
+  }, [urgentRequestType, urgentSelectedEquipmentId, myUnsuccessfulAttemptsLoading, myUnsuccessfulAttempts.length]);
+
   // Check if slots are available in the current week for the selected equipment (urgent request not allowed if yes)
   useEffect(() => {
     if (!urgentSelectedEquipmentId) {
@@ -165,16 +188,42 @@ const MyUrgentRequests = () => {
     setLoadingSlotsAvailable(true);
     setSlotsAvailableThisWeek(null);
     const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-    const startStr = format(weekStart, "yyyy-MM-dd");
+    const startStr = format(now, "yyyy-MM-dd");
     const endStr = format(weekEnd, "yyyy-MM-dd");
     apiClient
       .getEquipmentSlots(id, startStr, endStr)
       .then((res) => {
-        const slots = (res as { data?: { slots?: Array<{ status?: string }> } })?.data?.slots ?? [];
-        const hasAvailable = slots.some((s) => (s.status || "").toUpperCase() === "AVAILABLE");
-        setSlotsAvailableThisWeek(hasAvailable);
+        const data = (res as { data?: { slots?: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }>; slot_window_max_date?: string | null } })?.data;
+        const firstPassSlots = data?.slots ?? [];
+        const maxDate = data?.slot_window_max_date;
+        const currentWeekEndStr = endStr;
+        const nowMs = Date.now();
+        const currentUserType = String(user?.user_type || "").toLowerCase();
+        const isExternalUser = ["external", "rnd", "industry", "other"].includes(currentUserType);
+        const hasAvailableIn = (slots: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }>) =>
+          slots.some((s) => {
+            if ((s.status || "").toUpperCase() !== "AVAILABLE") return false;
+            if (isExternalUser) {
+              if (!(s.available_for_external === true || s.reserved_for_external === true)) return false;
+            } else {
+              if (s.reserved_for_external === true) return false;
+            }
+            if (!s.start_datetime) return false;
+            const slotStartMs = new Date(s.start_datetime).getTime();
+            if (Number.isNaN(slotStartMs)) return false;
+            return slotStartMs >= nowMs;
+          });
+
+        // If booking navigation allows a later end date, re-check availability until that end date.
+        if (maxDate && maxDate > currentWeekEndStr) {
+          return apiClient.getEquipmentSlots(id, startStr, maxDate).then((res2) => {
+            const secondSlots = (res2 as { data?: { slots?: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }> } })?.data?.slots ?? [];
+            setSlotsAvailableThisWeek(hasAvailableIn(secondSlots));
+          });
+        }
+
+        setSlotsAvailableThisWeek(hasAvailableIn(firstPassSlots));
       })
       .catch(() => setSlotsAvailableThisWeek(null))
       .finally(() => setLoadingSlotsAvailable(false));
@@ -283,6 +332,29 @@ const MyUrgentRequests = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <AlertDialog
+        open={noAttemptsDialogOpen}
+        onOpenChange={(open) => {
+          setNoAttemptsDialogOpen(open);
+          if (!open) {
+            setUrgentRequestType("REVIEWER_URGENT");
+            setUrgentDisclaimerAccepted(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Not eligible for this reason</AlertDialogTitle>
+            <AlertDialogDescription className="text-left">
+              No booking attempts were found in the last two weeks for this equipment. You are not entitled to raise an urgent
+              request under this category.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
@@ -312,10 +384,11 @@ const MyUrgentRequests = () => {
                 value={urgentSelectedEquipmentId || "__none__"}
                 onValueChange={(v) => {
                   setUrgentSelectedEquipmentId(v === "__none__" ? "" : v);
-                  setUrgentRequestType("NO_SLOT");
+                  setUrgentRequestType("REVIEWER_URGENT");
                   setUrgentDisclaimerAccepted(false);
                   setUrgentEvidenceFile(null);
                   setUrgentHoldBookingId(null);
+                  setNoAttemptsDialogOpen(false);
                 }}
               >
                 <SelectTrigger className="w-full max-w-md">
@@ -361,22 +434,28 @@ const MyUrgentRequests = () => {
                   <RadioGroup
                     value={urgentRequestType}
                     onValueChange={(v) => {
-                      setUrgentRequestType(v as "NO_SLOT" | "REVIEWER_URGENT");
+                      const next = v as "NO_SLOT" | "REVIEWER_URGENT";
+                      setUrgentRequestType(next);
                       setUrgentDisclaimerAccepted(false);
                       setUrgentEvidenceFile(null);
+                      if (next === "NO_SLOT") {
+                        setMyUnsuccessfulAttemptsLoading(true);
+                      } else {
+                        setNoAttemptsDialogOpen(false);
+                      }
                     }}
                     className="flex flex-col gap-2"
                   >
                     <div className="flex items-center space-x-3 rounded-lg border p-3">
-                      <RadioGroupItem value="NO_SLOT" id="urgent-no-slot-page" className="h-4 w-4" />
-                      <Label htmlFor="urgent-no-slot-page" className="flex-1 cursor-pointer text-sm">
-                        Unable to get slot despite repeated trials (reviewed by Admin/OIC)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-3 rounded-lg border p-3">
                       <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer-page" className="h-4 w-4" />
                       <Label htmlFor="urgent-reviewer-page" className="flex-1 cursor-pointer text-sm">
                         Urgent comment from reviewer (upload evidence; Supervisor then Admin/OIC)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3 rounded-lg border p-3">
+                      <RadioGroupItem value="NO_SLOT" id="urgent-no-slot-page" className="h-4 w-4" />
+                      <Label htmlFor="urgent-no-slot-page" className="flex-1 cursor-pointer text-sm">
+                        Unable to get slot despite repeated trials (reviewed by Admin/OIC)
                       </Label>
                     </div>
                   </RadioGroup>
@@ -394,7 +473,9 @@ const MyUrgentRequests = () => {
                   </Button>
                   <p className="text-xs text-muted-foreground">Pick slot(s) on the booking page, then return here to submit. Slots are held when you submit below.</p>
                   {urgentHoldBookingId != null && (
-                    <p className="text-xs text-green-600 dark:text-green-500 font-medium">Slot held (Booking #{urgentHoldBookingId}).</p>
+                    <p className="text-xs text-green-600 dark:text-green-500 font-medium">
+                      Slot held ({urgentHoldVirtualBookingId || `Booking #${urgentHoldBookingId}`}).
+                    </p>
                   )}
                 </div>
 
@@ -443,7 +524,9 @@ const MyUrgentRequests = () => {
                           </table>
                         </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground italic">No unsuccessful attempts in the past 2 weeks.</p>
+                        <p className="text-xs text-muted-foreground italic">
+                          No unsuccessful booking attempts were found in the last two weeks.
+                        </p>
                       )}
                     </div>
                   </div>
@@ -512,7 +595,8 @@ const MyUrgentRequests = () => {
                       }
                       toast.success(res.data?.message || "Urgent request submitted.");
                       setUrgentHoldBookingId(null);
-                      setUrgentRequestType("NO_SLOT");
+                    setUrgentHoldVirtualBookingId(null);
+                      setUrgentRequestType("REVIEWER_URGENT");
                       setUrgentDisclaimerAccepted(false);
                       setUrgentEvidenceFile(null);
                       setLoading(true);

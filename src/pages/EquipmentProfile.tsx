@@ -97,12 +97,12 @@ const EquipmentProfile = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
-  const hasEquipmentImage = !!(equipment?.image_url || (equipment as { s3_path?: string } | null)?.s3_path);
+  const hasEquipmentImage = !!equipment?.image_url;
   const equipmentImageUrl = useEquipmentImageUrl(equipment?.equipment_id ?? null, hasEquipmentImage, user?.id);
-  // Prefer backend-provided stable proxy URL (streams from S3). Fallback to authenticated fetch blob URL if needed.
+  // Always use proxy URL for display (never presigned image_url — it expires). Prefer blob URL when available for auth.
   const displayEquipmentImage =
     equipmentImageUrl ??
-    (equipment?.image_url ? String(equipment.image_url) : hasEquipmentImage && equipment ? apiClient.getEquipmentImageUrl(equipment.equipment_id) : "/placeholder.svg");
+    (hasEquipmentImage && equipment ? apiClient.getEquipmentImageUrl(equipment.equipment_id) : "/placeholder.svg");
   const [loading, setLoading] = useState(true);
   const [userType, setUserType] = useState<number | string | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -474,7 +474,7 @@ const EquipmentProfile = () => {
                     <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
-                        <span>{equipment.location}</span>
+                        <span className="whitespace-pre-line">{equipment.location}</span>
                       </div>
                     </div>
                   </div>
@@ -697,43 +697,6 @@ const EquipmentProfile = () => {
                     >
                       {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
                     </Button>
-                    {typeof userType === "string" &&
-                      ["external", "rnd", "industry", "other"].some((t) => userType.toLowerCase().includes(t)) && (
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          size="lg"
-                          onClick={async () => {
-                            const baseChargeStr = window.prompt("Enter estimated base charge (₹) for proforma invoice");
-                            if (!baseChargeStr) return;
-                            const baseCharge = Number(baseChargeStr);
-                            if (Number.isNaN(baseCharge) || baseCharge <= 0) {
-                              toast.error("Please enter a valid positive amount.");
-                              return;
-                            }
-                            const description = window.prompt("Optional description (e.g. purpose / quantity)") || "";
-                            const res = await apiClient.getEquipmentProformaInvoicePdfBlob(equipment.equipment_id, {
-                              base_charge: baseCharge,
-                              description,
-                            });
-                            if ((res as { error?: string }).error) {
-                              toast.error((res as { error?: string }).error || "Failed to generate proforma invoice.");
-                              return;
-                            }
-                            const blob = (res as { blob?: Blob }).blob;
-                            if (blob) {
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `proforma_${equipment.code || equipment.equipment_id}.pdf`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                            }
-                          }}
-                        >
-                          Proforma invoice (PDF)
-                        </Button>
-                      )}
                     {canManageEquipment() && (
                       <Button
                         variant="outline"

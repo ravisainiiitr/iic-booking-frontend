@@ -553,7 +553,7 @@ export default function ProformaInvoice() {
                                 {row.charge_breakdown && row.charge_breakdown.length > 0 && (
                                   <ul className="list-none space-y-0.5 text-muted-foreground">
                                     {row.charge_breakdown.map((b, i) => (
-                                      <li key={i}>
+                                      <li key={i} className="whitespace-pre-line">
                                         {b.description}: ₹{b.amount.toFixed(2)}
                                       </li>
                                     ))}

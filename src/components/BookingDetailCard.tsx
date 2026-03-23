@@ -15,6 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import BookingUserInputs from "@/components/BookingUserInputs";
@@ -22,9 +32,10 @@ import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck } from "lucide-react";
 import SampleTraceTimeline from "@/components/SampleTraceTimeline";
+import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
+import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 
-export interface BookingDetailCardBooking {
-  booking_id: number;
+export interface BookingDetailCardBooking extends BookingRef {
   virtual_booking_id?: string | null;
   user: number;
   user_email: string;
@@ -68,7 +79,8 @@ export interface BookingDetailCardBooking {
     end_datetime: string;
     status: string;
     booking: number;
-    booking_id: number;
+    booking_id: string | number;
+    real_booking_id?: number;
     created_at: string;
     updated_at: string;
   }>;
@@ -92,15 +104,44 @@ export interface BookingDetailCardBooking {
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
   repeat_booking_already_created?: boolean;
+  /** Latest repeat sample request (legacy flow), if any */
+  repeat_sample_request_status?: string | null;
+  equipment_repeat_sample_request_days?: number | null;
+  equipment_repeat_sample_disclaimer?: string | null;
+  accounts_in_charge?: {
+    user_id: number;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    user_type?: string | null;
+  } | null;
+  lab_in_charge?: {
+    user_id: number;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    user_type?: string | null;
+  } | null;
+  oic_contacts?: Array<{
+    user_id: number;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    user_type?: string | null;
+  }> | null;
 }
 
 type ActionType = "complete" | "refund" | "absent" | "reschedule" | "not_utilized" | null;
+type ConfirmActionType = ActionType | "charge_recalc_refund" | "charge_recalc_pay";
 
 interface BookingDetailCardProps {
   booking: BookingDetailCardBooking;
   onClose: () => void;
   onUpdated: () => void;
+  /** True only for operator role (not manager/admin). */
   isOperator: boolean;
+  /** True for admin/manager (Officer In Charge). */
+  isManagerOrAdmin?: boolean;
   currentUserId?: number | null;
   backLabel?: string;
   showPrintButton?: boolean;
@@ -142,43 +183,71 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
 }
 
 export function BookingDetailCard({
-  booking,
+  booking: initialBooking,
   onClose,
   onUpdated,
   isOperator,
+  isManagerOrAdmin = false,
   currentUserId,
   backLabel = "Back to list",
   showPrintButton = false,
   onUserCancelClick,
 }: BookingDetailCardProps) {
+  const [booking, setBooking] = useState<BookingDetailCardBooking>(initialBooking);
   const [actionDialog, setActionDialog] = useState<{ open: boolean; type: ActionType; booking: BookingDetailCardBooking | null }>({
     open: false,
     type: null,
     booking: null,
   });
+  const [confirmAction, setConfirmAction] = useState<{
+    open: boolean;
+    type: ConfirmActionType | null;
+    rescheduleStart?: string;
+    rescheduleEnd?: string;
+    chargeRecalcBooking?: BookingDetailCardBooking;
+  }>({ open: false, type: null });
   const [actionNotes, setActionNotes] = useState("");
   const [sendEmailToSupervisor, setSendEmailToSupervisor] = useState(true);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
   const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
   const [completeLoading, setCompleteLoading] = useState(false);
-  const [expandedBookings, setExpandedBookings] = useState<Set<number>>(new Set([booking.booking_id]));
+  const [expandedBookings, setExpandedBookings] = useState<Set<string | number>>(new Set([booking.booking_id]));
+  const bookingPk = getRealBookingId(booking);
   const [resultsData, setResultsData] = useState<{ exists: boolean; files: Array<{ name: string; download_url: string }> } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
+  const [actionSubmitLoading, setActionSubmitLoading] = useState(false);
   const [repeatEligibility, setRepeatEligibility] = useState<{ can_create_repeat: boolean } | null>(null);
   const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
+  const [ratingDraft, setRatingDraft] = useState<number>(booking.rating ?? 0);
+  const [ratingFeedbackDraft, setRatingFeedbackDraft] = useState<string>(booking.rating_feedback ?? "");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [legacyRepeatInfo, setLegacyRepeatInfo] = useState<{
+    can_request: boolean;
+    disclaimer: string;
+    days_left: number | null;
+    reason: string | null;
+  } | null>(null);
+  const [legacyRepeatDialogOpen, setLegacyRepeatDialogOpen] = useState(false);
+  const [legacyRepeatNotes, setLegacyRepeatNotes] = useState("");
+  const [legacyRepeatSubmitLoading, setLegacyRepeatSubmitLoading] = useState(false);
 
   const navigate = useNavigate();
+
+  // Keep local booking in sync when parent passes a newer object.
+  useEffect(() => {
+    setBooking(initialBooking);
+  }, [initialBooking]);
 
   useEffect(() => {
     let cancelled = false;
     setResultsLoading(true);
     setResultsData(null);
     apiClient
-      .getBookingResults(booking.booking_id)
+      .getBookingResults(bookingPk)
       .then((res) => {
         if (cancelled || res.error) return;
         setResultsData({
@@ -192,7 +261,7 @@ export function BookingDetailCard({
     return () => {
       cancelled = true;
     };
-  }, [booking.booking_id]);
+  }, [booking.booking_id, bookingPk]);
 
   useEffect(() => {
     if (
@@ -202,7 +271,8 @@ export function BookingDetailCard({
       booking.status.toUpperCase() === "COMPLETED" &&
       booking.repeat_sample_enabled
     ) {
-      apiClient.getRepeatSampleEligibility(booking.booking_id).then((res) => {
+      if (bookingPk == null) return;
+      apiClient.getRepeatSampleEligibility(bookingPk).then((res) => {
         if (!res.error && res.data)
           setRepeatEligibility({ can_create_repeat: (res.data as { can_create_repeat?: boolean }).can_create_repeat ?? false });
         else setRepeatEligibility({ can_create_repeat: false });
@@ -210,12 +280,57 @@ export function BookingDetailCard({
     } else {
       setRepeatEligibility(null);
     }
-  }, [booking.booking_id, booking.user, booking.status, booking.repeat_sample_enabled, isOperator, currentUserId]);
+  }, [booking.booking_id, booking.user, booking.status, booking.repeat_sample_enabled, isOperator, currentUserId, bookingPk]);
+
+  useEffect(() => {
+    const externalSelf =
+      !(isOperator || isManagerOrAdmin) &&
+      currentUserId != null &&
+      booking.user === currentUserId &&
+      ["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase());
+    if (
+      isOperator ||
+      externalSelf ||
+      currentUserId == null ||
+      booking.user !== currentUserId ||
+      booking.status.toUpperCase() !== "COMPLETED" ||
+      booking.repeat_sample_enabled ||
+      booking.repeat_booking_already_created ||
+      booking.source_booking_id ||
+      bookingPk == null
+    ) {
+      setLegacyRepeatInfo(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient.getRepeatSampleInfo(bookingPk).then((res) => {
+      if (cancelled || res.error) return;
+      setLegacyRepeatInfo(res.data ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOperator,
+    isManagerOrAdmin,
+    currentUserId,
+    booking.user,
+    booking.user_type_snapshot,
+    booking.status,
+    booking.repeat_sample_enabled,
+    booking.repeat_booking_already_created,
+    booking.source_booking_id,
+    bookingPk,
+  ]);
 
   const handleEnableRepeatSample = async () => {
     setEnableRepeatLoading(true);
     try {
-      const res = await apiClient.enableRepeatSample(booking.booking_id);
+      if (bookingPk == null) {
+        toast.error("This booking cannot be updated right now.");
+        return;
+      }
+      const res = await apiClient.enableRepeatSample(bookingPk);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -231,8 +346,35 @@ export function BookingDetailCard({
 
   const handleCreateRepeatBooking = () => {
     if (!booking?.equipment || !booking?.booking_id) return;
+    const rid = getRealBookingId(booking);
+    if (rid == null) {
+      toast.error("This booking cannot be used for repeat sample right now.");
+      return;
+    }
     onClose();
-    navigate(`/book-equipment?equipment_id=${booking.equipment}&repeatOf=${booking.booking_id}`);
+    navigate(`/book-equipment?equipment_id=${booking.equipment}&repeatOf=${rid}`);
+  };
+
+  const handleSubmitLegacyRepeatRequest = async () => {
+    if (bookingPk == null) return;
+    setLegacyRepeatSubmitLoading(true);
+    try {
+      const res = await apiClient.requestRepeatSample(bookingPk, legacyRepeatNotes.trim() || undefined);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success((res.data as { message?: string })?.message || "Repeat sample request submitted.");
+      setLegacyRepeatDialogOpen(false);
+      setLegacyRepeatNotes("");
+      const info = await apiClient.getRepeatSampleInfo(bookingPk);
+      if (!info.error && info.data) setLegacyRepeatInfo(info.data);
+      onUpdated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to submit request");
+    } finally {
+      setLegacyRepeatSubmitLoading(false);
+    }
   };
 
   const openActionDialog = (type: ActionType, b: BookingDetailCardBooking) => {
@@ -248,7 +390,9 @@ export function BookingDetailCard({
     setCompleteLoading(true);
     try {
       const filesToSend = completeResultFiles.length > 0 ? completeResultFiles : undefined;
-      const response = await apiClient.completeBooking(actionDialog.booking.booking_id, filesToSend);
+      const bookingPk = getRealBookingId(actionDialog.booking);
+      if (bookingPk == null) throw new Error("Invalid booking reference.");
+      const response = await apiClient.completeBooking(bookingPk, filesToSend);
       if (response.error) {
         toast.error(response.error);
         return;
@@ -256,6 +400,7 @@ export function BookingDetailCard({
       const uploaded = (response.data as { uploaded_files?: string[] })?.uploaded_files ?? [];
       setCompleteUploadedFiles(uploaded);
       toast.success((response.data as { message?: string })?.message || "Booking marked as completed");
+      setConfirmAction({ open: false, type: null });
       closeActionDialog();
       onClose();
       onUpdated();
@@ -268,52 +413,70 @@ export function BookingDetailCard({
 
   const handleRefund = async () => {
     if (!actionDialog.booking) return;
+    setActionSubmitLoading(true);
     try {
-      const response = await apiClient.refundBooking(actionDialog.booking.booking_id, actionNotes || undefined);
+      const bookingPk = getRealBookingId(actionDialog.booking);
+      if (bookingPk == null) throw new Error("Invalid booking reference.");
+      const response = await apiClient.refundBooking(bookingPk, actionNotes || undefined);
       if (response.error) {
         toast.error(response.error);
         return;
       }
       toast.success((response.data as { message?: string })?.message || "Booking refunded successfully");
+      setConfirmAction({ open: false, type: null });
       closeActionDialog();
       onClose();
       onUpdated();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to refund booking");
+    } finally {
+      setActionSubmitLoading(false);
     }
   };
 
   const handleMarkNotUtilized = async () => {
     if (!actionDialog.booking) return;
+    setActionSubmitLoading(true);
     try {
-      const response = await apiClient.markBookingNotUtilized(actionDialog.booking.booking_id, sendEmailToSupervisor);
+      const bookingPk = getRealBookingId(actionDialog.booking);
+      if (bookingPk == null) throw new Error("Invalid booking reference.");
+      const response = await apiClient.markBookingNotUtilized(bookingPk, sendEmailToSupervisor);
       if (response.error) {
         toast.error(response.error);
         return;
       }
       toast.success((response.data as { message?: string })?.message || "Booking marked as Not Utilized.");
+      setConfirmAction({ open: false, type: null });
       closeActionDialog();
       onClose();
       onUpdated();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to mark booking as not utilized");
+    } finally {
+      setActionSubmitLoading(false);
     }
   };
 
   const handleAbsent = async () => {
     if (!actionDialog.booking) return;
+    setActionSubmitLoading(true);
     try {
-      const response = await apiClient.absentBooking(actionDialog.booking.booking_id, actionNotes || undefined);
+      const bookingPk = getRealBookingId(actionDialog.booking);
+      if (bookingPk == null) throw new Error("Invalid booking reference.");
+      const response = await apiClient.absentBooking(bookingPk, actionNotes || undefined);
       if (response.error) {
         toast.error(response.error);
         return;
       }
       toast.success((response.data as { message?: string })?.message || "Booking marked as Operator Unavailable. Full refund issued.");
+      setConfirmAction({ open: false, type: null });
       closeActionDialog();
       onClose();
       onUpdated();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to mark booking as operator unavailable");
+    } finally {
+      setActionSubmitLoading(false);
     }
   };
 
@@ -321,15 +484,18 @@ export function BookingDetailCard({
     if (!actionDialog.booking) return;
     setRescheduleLoading(true);
     try {
+      const bookingPk = getRealBookingId(actionDialog.booking);
+      if (bookingPk == null) throw new Error("Invalid booking reference.");
       const response = isOperator
-        ? await apiClient.rescheduleBooking(actionDialog.booking.booking_id, startTimeISO, endTimeISO)
-        : await apiClient.userRescheduleBooking(actionDialog.booking.booking_id, startTimeISO, endTimeISO);
+        ? await apiClient.rescheduleBooking(bookingPk, startTimeISO, endTimeISO)
+        : await apiClient.userRescheduleBooking(bookingPk, startTimeISO, endTimeISO);
       if (response.error) {
         toast.error(response.error);
         return;
       }
       toast.success((response.data as { message?: string })?.message || "Booking rescheduled successfully");
       closeActionDialog();
+      setConfirmAction({ open: false, type: null });
       onClose();
       onUpdated();
     } catch (error: unknown) {
@@ -337,6 +503,47 @@ export function BookingDetailCard({
     } finally {
       setRescheduleLoading(false);
     }
+  };
+
+  const handleConfirmActionProceed = async () => {
+    const { type } = confirmAction;
+    if (!type) return;
+    if (type === "complete" && actionDialog.booking) {
+      setConfirmAction({ open: false, type: null });
+      await handleComplete();
+      return;
+    }
+    if (type === "refund" && actionDialog.booking) {
+      setConfirmAction({ open: false, type: null });
+      await handleRefund();
+      return;
+    }
+    if (type === "absent" && actionDialog.booking) {
+      setConfirmAction({ open: false, type: null });
+      await handleAbsent();
+      return;
+    }
+    if (type === "not_utilized" && actionDialog.booking) {
+      setConfirmAction({ open: false, type: null });
+      await handleMarkNotUtilized();
+      return;
+    }
+    if (type === "reschedule" && confirmAction.rescheduleStart != null && confirmAction.rescheduleEnd != null && actionDialog.booking) {
+      setConfirmAction({ open: false, type: null });
+      await handleRescheduleConfirm(confirmAction.rescheduleStart, confirmAction.rescheduleEnd);
+      return;
+    }
+    if (type === "charge_recalc_refund" && confirmAction.chargeRecalcBooking) {
+      setConfirmAction({ open: false, type: null });
+      await handleProcessChargeRecalcRefund(confirmAction.chargeRecalcBooking);
+      return;
+    }
+    if (type === "charge_recalc_pay" && confirmAction.chargeRecalcBooking) {
+      setConfirmAction({ open: false, type: null });
+      await handleProcessChargeRecalcPayNow(confirmAction.chargeRecalcBooking);
+      return;
+    }
+    setConfirmAction({ open: false, type: null });
   };
 
   const handleProcessChargeRecalcRefund = async (b: BookingDetailCardBooking) => {
@@ -373,7 +580,27 @@ export function BookingDetailCard({
     }
   };
 
-  const isOperatorOrManager = true;
+  const isOperatorOrManager = isOperator || isManagerOrAdmin;
+  const bookingUserTypeLower = (booking.user_type_snapshot || "").toLowerCase();
+  const isExternalBookingType = ["external", "rnd", "industry", "other"].includes(bookingUserTypeLower);
+  const isExternalSelfView = !isOperatorOrManager && currentUserId != null && booking.user === currentUserId && isExternalBookingType;
+
+  const canSubmitRating =
+    booking.equipment_user_rating_enabled === true &&
+    !isOperatorOrManager &&
+    currentUserId != null &&
+    booking.user === currentUserId &&
+    booking.status.toUpperCase() === "COMPLETED" &&
+    booking.rating == null &&
+    (booking.rating_feedback == null || booking.rating_feedback === "");
+
+  const ratingDraftColor =
+    ratingDraft >= 1 && ratingDraft <= 5 ? `hsl(${Math.round(((ratingDraft - 1) / 4) * 120)}, 85%, 45%)` : null;
+
+  const isCompleted = booking.status.toUpperCase() === "COMPLETED";
+  const isRefunded = booking.status.toUpperCase() === "REFUNDED";
+  const isHold = booking.status.toUpperCase() === "HOLD";
+  const oicContacts = Array.isArray(booking.oic_contacts) ? booking.oic_contacts : [];
 
   return (
     <div id="booking-detail-section" className="mt-6 scroll-mt-6">
@@ -439,6 +666,70 @@ export function BookingDetailCard({
             </div>
           </div>
 
+          {/* Invoice + technical contacts: all booking statuses and viewer roles (internal/external/student/faculty/operator/OIC). */}
+          <div className="mt-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border rounded-md p-3">
+                <p className="text-base font-semibold text-foreground mb-2">
+                  For Invoice Related Query Please Contact the Undersigned
+                </p>
+                {booking.accounts_in_charge ? (
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <div>
+                      <span className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</span>
+                    </div>
+                    {booking.accounts_in_charge.phone ? <div>Contact Number: {booking.accounts_in_charge.phone}</div> : null}
+                    {booking.accounts_in_charge.email ? <div>Email: {booking.accounts_in_charge.email}</div> : null}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Not available.</div>
+                )}
+              </div>
+
+              <div className="border rounded-md p-3">
+                <p className="text-base font-semibold text-foreground mb-2">
+                  For Any Other Technical Query Please Contact the Undersigned-
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Level 1: Lab Incharge</p>
+                    {booking.lab_in_charge ? (
+                      <div className="text-sm text-muted-foreground space-y-1 mt-1">
+                        <div>
+                          <span className="font-medium text-emerald-700 dark:text-emerald-300">{booking.lab_in_charge.name}</span>
+                        </div>
+                        {booking.lab_in_charge.phone ? <div>Contact Number: {booking.lab_in_charge.phone}</div> : null}
+                        {booking.lab_in_charge.email ? <div>Email: {booking.lab_in_charge.email}</div> : null}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground mt-1">Not available.</div>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Level 2: Officer In-Charge</p>
+                    {oicContacts.length > 0 ? (
+                      <div className="space-y-2 mt-1">
+                        {oicContacts.map((c) => (
+                          <div key={c.user_id} className="text-sm text-muted-foreground space-y-1">
+                            <div>
+                              <span className="font-medium text-violet-700 dark:text-violet-300">{c.name}</span>
+                            </div>
+                            {c.phone ? <div>Contact Number: {c.phone}</div> : null}
+                            {c.email ? <div>Email: {c.email}</div> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground mt-1">Not available.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {(booking.rating != null || booking.rating_feedback != null) && (
             <div className="mt-4 pt-4 border-t">
               <p className="text-base font-medium mb-2">User rating</p>
@@ -463,21 +754,137 @@ export function BookingDetailCard({
             </div>
           )}
 
+          {canSubmitRating && (
+            <div className="mt-4 pt-4 border-t no-print">
+              <p className="text-base font-medium mb-2">Rate this booking</p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className="inline-flex"
+                      onClick={() => setRatingDraft(s)}
+                      aria-label={`Rate ${s} out of 5`}
+                      disabled={ratingSubmitting}
+                    >
+                      <Star
+                        className={`h-6 w-6 ${s <= ratingDraft ? "" : "text-muted-foreground"}`}
+                        style={
+                          s <= ratingDraft && ratingDraftColor
+                            ? { color: ratingDraftColor, fill: ratingDraftColor }
+                            : undefined
+                        }
+                      />
+                    </button>
+                  ))}
+                  <span className="text-sm text-muted-foreground ml-2">{ratingDraft ? `${ratingDraft}/5` : ""}</span>
+                </div>
+
+                <div>
+                  <Label htmlFor="booking-rating-feedback">Feedback (optional)</Label>
+                  <Textarea
+                    id="booking-rating-feedback"
+                    value={ratingFeedbackDraft}
+                    onChange={(e) => setRatingFeedbackDraft(e.target.value)}
+                    placeholder="Share your experience..."
+                    className="mt-1"
+                    disabled={ratingSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <Button
+                    size="sm"
+                    disabled={ratingSubmitting || ratingDraft < 1 || ratingDraft > 5}
+                    onClick={async () => {
+                      if (ratingDraft < 1 || ratingDraft > 5) {
+                        toast.error("Please select a rating (1 to 5).");
+                        return;
+                      }
+                      setRatingSubmitting(true);
+                      try {
+                        if (bookingPk == null) {
+                          toast.error("This booking cannot be rated right now.");
+                          return;
+                        }
+                        const res = await apiClient.rateBooking(bookingPk, ratingDraft, ratingFeedbackDraft);
+                        if (res.error) {
+                          toast.error(res.error);
+                          return;
+                        }
+                        toast.success((res.data as any)?.message || "Rating submitted.");
+                        onUpdated();
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : "Failed to submit rating");
+                      } finally {
+                        setRatingSubmitting(false);
+                      }
+                    }}
+                  >
+                    Submit rating
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 pt-4 border-t no-print">
             <p className="text-base font-medium mb-2">Actions:</p>
+            {isRefunded && (
+              <p className="text-sm text-muted-foreground mb-2">
+                Actions are disabled for refunded bookings.
+              </p>
+            )}
+            {isHold && (
+              <p className="text-sm text-muted-foreground mb-2">
+                Actions are disabled while booking is in hold state.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              {currentUserId != null &&
+              {isOperatorOrManager &&
+              currentUserId != null &&
                 booking.user === currentUserId &&
                 ["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase()) && (
                   <>
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={downloadingDoc !== null}
+                      disabled={isRefunded}
+                      onClick={async () => {
+                        try {
+                          const blob = await generateExternalEquipmentRequisitionFormPdf(booking);
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `equipment_requisition_${booking.virtual_booking_id || booking.booking_id}.pdf`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e: any) {
+                          toast.error(e?.message || "Failed to generate form.");
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Equipment requisition form
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        isRefunded ||
+                        downloadingDoc !== null ||
+                        !(Array.isArray(booking.sample_trace) &&
+                          booking.sample_trace.some((e: any) => e.status === "COMPLETED"))
+                      }
                       onClick={async () => {
                         setDownloadingDoc("invoice");
                         try {
-                          const res = await apiClient.getBookingInvoicePdfBlob(booking.booking_id);
+                          if (bookingPk == null) {
+                            toast.error("Invoice is unavailable for this booking.");
+                            return;
+                          }
+                          const res = await apiClient.getBookingInvoicePdfBlob(bookingPk);
                           if (res.error) {
                             toast.error(res.error);
                             return;
@@ -501,11 +908,15 @@ export function BookingDetailCard({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={downloadingDoc !== null}
+                      disabled={isRefunded || downloadingDoc !== null}
                       onClick={async () => {
                         setDownloadingDoc("label");
                         try {
-                          const res = await apiClient.getBookingShippingLabelPdfBlob(booking.booking_id);
+                          if (bookingPk == null) {
+                            toast.error("Shipping label is unavailable for this booking.");
+                            return;
+                          }
+                          const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);
                           if (res.error) {
                             toast.error(res.error);
                             return;
@@ -528,71 +939,81 @@ export function BookingDetailCard({
                     </Button>
                   </>
                 )}
-              {canPerformAction(booking, "complete", isOperator) && (
+              {onUserCancelClick &&
+                !isHold &&
+                (booking.status.toUpperCase() === "PENDING" || booking.status.toUpperCase() === "BOOKED") &&
+                !booking.source_booking_id &&
+                (currentUserId != null && booking.user === currentUserId && !["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase()) || (!isOperator && !isExternalSelfView)) && (
+                  <Button size="sm" variant="destructive" onClick={() => onUserCancelClick(booking)}>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel booking
+                  </Button>
+                )}
+              {!isHold && isOperatorOrManager && canPerformAction(booking, "complete", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("complete", booking)}>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Complete
                 </Button>
               )}
-              {canPerformAction(booking, "refund", isOperator) && (
+              {!isHold && isOperatorOrManager && canPerformAction(booking, "refund", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("refund", booking)}>
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Refund
                 </Button>
               )}
-              {canPerformAction(booking, "absent", isOperator) && (
+              {!isHold && isOperatorOrManager && canPerformAction(booking, "absent", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("absent", booking)}>
                   <XCircle className="h-4 w-4 mr-2" />
                   Operator Unavailable
                 </Button>
               )}
-              {canPerformAction(booking, "reschedule", isOperator) && (
+              {!isHold && canPerformAction(booking, "reschedule", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("reschedule", booking)}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Reschedule
                 </Button>
               )}
-              {canPerformAction(booking, "not_utilized", isOperator) && (
+              {!isHold && isOperatorOrManager && canPerformAction(booking, "not_utilized", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("not_utilized", booking)}>
                   <AlertCircle className="h-4 w-4 mr-2" />
                   Booking Not Utilized
                 </Button>
               )}
-              {isOperator && booking.status.toUpperCase() === "COMPLETED" && !booking.repeat_sample_enabled && !booking.repeat_booking_already_created && (
+              {isOperatorOrManager && booking.status.toUpperCase() === "COMPLETED" && !booking.repeat_sample_enabled && !booking.repeat_booking_already_created && (
                 <Button size="sm" variant="outline" onClick={handleEnableRepeatSample} disabled={enableRepeatLoading}>
                   <CopyPlus className="h-4 w-4 mr-2" />
                   {enableRepeatLoading ? "Enabling…" : "Enable repeat sample"}
                 </Button>
               )}
-              {isOperator && booking.status.toUpperCase() === "COMPLETED" && booking.repeat_sample_enabled && !booking.repeat_booking_already_created && (
+              {isOperatorOrManager && booking.status.toUpperCase() === "COMPLETED" && booking.repeat_sample_enabled && !booking.repeat_booking_already_created && (
                 <span className="inline-flex items-center gap-1.5 rounded-md bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-sm font-medium text-green-800 dark:text-green-200">
                   <BadgeCheck className="h-4 w-4" />
                   Repeat sample enabled
                 </span>
               )}
-              {isOperator && booking.status.toUpperCase() === "COMPLETED" && booking.repeat_booking_already_created && (
+              {isOperatorOrManager && booking.status.toUpperCase() === "COMPLETED" && booking.repeat_booking_already_created && (
                 <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-sm font-medium text-slate-600 dark:text-slate-300">
                   <BadgeCheck className="h-4 w-4" />
                   Repeat sample used
                 </span>
               )}
-              {!isOperator && repeatEligibility?.can_create_repeat && (
-                <Button size="sm" variant="outline" onClick={handleCreateRepeatBooking}>
-                  <CopyPlus className="h-4 w-4 mr-2" />
-                  Repeat sample
-                </Button>
-              )}
-              {!isOperator && onUserCancelClick && (booking.status.toUpperCase() === "PENDING" || booking.status.toUpperCase() === "BOOKED") && !booking.source_booking_id && (
-                <Button size="sm" variant="destructive" onClick={() => onUserCancelClick(booking)}>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancel booking
-                </Button>
-              )}
+              {!isOperator &&
+                currentUserId != null &&
+                booking.user === currentUserId &&
+                booking.status.toUpperCase() === "COMPLETED" &&
+                !booking.source_booking_id &&
+                !isExternalSelfView &&
+                repeatEligibility?.can_create_repeat && (
+                  <Button size="sm" variant="outline" onClick={handleCreateRepeatBooking}>
+                    <CopyPlus className="h-4 w-4 mr-2" />
+                    Repeat sample
+                  </Button>
+                )}
               <Button
                 size="sm"
                 variant={resultsData?.exists ? "default" : "outline"}
                 className={resultsData?.exists ? "bg-green-600 hover:bg-green-700 text-white" : ""}
-                disabled={resultsLoading}
+                disabled={isRefunded || resultsLoading}
                 onClick={() => {
                   if (resultsData?.exists && resultsData.files.length > 0) setResultsDialogOpen(true);
                   else if (resultsData && !resultsData.exists && !resultsLoading) toast.info("No results folder found for this booking in S3.");
@@ -602,19 +1023,81 @@ export function BookingDetailCard({
                 {resultsLoading ? "Checking…" : "Results"}
               </Button>
             </div>
+            {!isOperator &&
+              currentUserId != null &&
+              booking.user === currentUserId &&
+              isCompleted &&
+              !booking.source_booking_id &&
+              !isExternalSelfView &&
+              !booking.repeat_sample_enabled &&
+              ((booking.repeat_sample_request_status || "").toUpperCase() === "PENDING" ||
+                legacyRepeatInfo?.can_request ||
+                (legacyRepeatInfo && !legacyRepeatInfo.can_request && legacyRepeatInfo.reason)) && (
+                <div className="w-full mt-3 rounded-lg border bg-muted/30 px-3 py-3 text-sm no-print">
+                  <p className="font-medium text-foreground mb-1">Repeat sample request</p>
+                  {(booking.repeat_sample_request_status || "").toUpperCase() === "PENDING" && (
+                    <p className="text-amber-800 dark:text-amber-200">
+                      Your repeat sample request is pending review. You will be notified when it is processed.
+                    </p>
+                  )}
+                  {legacyRepeatInfo?.can_request && (
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      {legacyRepeatInfo.days_left != null && (
+                        <span className="text-muted-foreground">
+                          {legacyRepeatInfo.days_left} day{legacyRepeatInfo.days_left === 1 ? "" : "s"} left to request
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setLegacyRepeatNotes("");
+                          setLegacyRepeatDialogOpen(true);
+                        }}
+                      >
+                        <CopyPlus className="h-4 w-4 mr-2" />
+                        Request repeat sample
+                      </Button>
+                    </div>
+                  )}
+                  {legacyRepeatInfo &&
+                    !legacyRepeatInfo.can_request &&
+                    legacyRepeatInfo.reason &&
+                    (booking.repeat_sample_request_status || "").toUpperCase() !== "PENDING" && (
+                      <p className="text-muted-foreground mt-1">{legacyRepeatInfo.reason}</p>
+                    )}
+                </div>
+              )}
           </div>
 
           <div className="mt-4 pt-4 border-t no-print">
+            {isHold && (
+              <p className="text-sm text-muted-foreground mb-2">
+                Sample/Slot Status is disabled while booking is in hold state.
+              </p>
+            )}
             <SampleTraceTimeline
-              bookingId={booking.booking_id}
+              bookingId={bookingPk ?? 0}
               sampleTrace={booking.sample_trace ?? []}
-              canSetSampleSent={currentUserId != null && booking.user === currentUserId}
-              canSetStaffStatus={isOperatorOrManager}
+              canSetSampleSent={!isHold && currentUserId != null && booking.user === currentUserId}
+              canSetStaffStatus={!isHold && isOperatorOrManager}
               onUpdated={onUpdated}
-              bookingComplete={booking.status.toUpperCase() === "COMPLETED"}
+              bookingComplete={booking.status.toUpperCase() === "COMPLETED" || isRefunded}
               hideHeldForwardedStep={(() => {
                 const ut = (booking.user_type_snapshot || "").toLowerCase();
                 return ut === "student" || ut === "faculty";
+              })()}
+              hideSampleStatusActions={(() => {
+                if (isRefunded || isHold) return true;
+                // Admin/OIC/Lab staff see all staff status actions. Other users see only Sample Sent.
+                if (isOperatorOrManager) return false;
+                return true;
+              })()}
+              restrictBookingUserActionsToSampleSent={(() => {
+                if (isRefunded || isHold) return true;
+                // Admin/OIC/Lab staff see all actions. Other users see only Sample Sent in sample/slot status section.
+                if (isOperatorOrManager) return false;
+                return true;
               })()}
             />
           </div>
@@ -631,7 +1114,11 @@ export function BookingDetailCard({
                 <Button
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={async () => {
-                    const err = await apiClient.downloadBookingResultsZip(booking.booking_id);
+                    if (bookingPk == null) {
+                      toast.error("Result files are unavailable for this booking.");
+                      return;
+                    }
+                    const err = await apiClient.downloadBookingResultsZip(bookingPk);
                     if (err.error) toast.error(err.error);
                     else toast.success("Download started.");
                   }}
@@ -654,17 +1141,65 @@ export function BookingDetailCard({
             </DialogContent>
           </Dialog>
 
+          <Dialog open={legacyRepeatDialogOpen} onOpenChange={setLegacyRepeatDialogOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Request repeat sample</DialogTitle>
+                <DialogDescription>
+                  Submit a request for a complimentary repeat sample. Staff will review and approve or reject.
+                </DialogDescription>
+              </DialogHeader>
+              {legacyRepeatInfo?.disclaimer ? (
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto rounded-md border p-3">
+                  {legacyRepeatInfo.disclaimer}
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="legacy-repeat-notes">Notes (optional)</Label>
+                <Textarea
+                  id="legacy-repeat-notes"
+                  rows={3}
+                  value={legacyRepeatNotes}
+                  onChange={(e) => setLegacyRepeatNotes(e.target.value)}
+                  placeholder="Any details for the lab…"
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setLegacyRepeatDialogOpen(false)}
+                  disabled={legacyRepeatSubmitLoading}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmitLegacyRepeatRequest} disabled={legacyRepeatSubmitLoading}>
+                  {legacyRepeatSubmitLoading ? "Submitting…" : "Submit request"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           {booking.input_values && Object.keys(booking.input_values).length > 0 && (
             <BookingUserInputs
               inputValues={booking.input_values}
               inputFields={booking.input_fields ?? undefined}
               status={booking.status}
-              enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation}
+              enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation && !booking.source_booking_id}
               sampleTrace={booking.sample_trace ?? undefined}
               isAdminUser={true}
+              disabled={!!booking.source_booking_id}
               onUpdate={async (newInputValues) => {
-                const res = await apiClient.updateBookingInputValues(booking.booking_id, newInputValues as Record<string, string | number | boolean | string[]>);
+                if (bookingPk == null) {
+                  toast.error("This booking cannot be updated right now.");
+                  return;
+                }
+                const res = await apiClient.updateBookingInputValues(bookingPk, newInputValues as Record<string, string | number | boolean | string[]>);
                 if (res.error) throw new Error(res.error);
+                // Reflect edits immediately in booking details without requiring page refresh.
+                const updatedBooking = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
+                if (updatedBooking) {
+                  setBooking(updatedBooking);
+                }
                 onUpdated();
               }}
             />
@@ -675,9 +1210,9 @@ export function BookingDetailCard({
               <p className="text-base font-medium mb-2">Charge Breakdown:</p>
               <ul className="space-y-1">
                 {booking.charge_breakdown.map((charge, index) => (
-                  <li key={index} className="text-base text-muted-foreground flex justify-between">
-                    <span>{charge.description}</span>
-                    <span>{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
+                  <li key={index} className="text-base text-muted-foreground flex justify-between gap-4 items-start">
+                    <span className="whitespace-pre-line min-w-0 shrink">{charge.description}</span>
+                    <span className="shrink-0 tabular-nums">{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
                   </li>
                 ))}
               </ul>
@@ -740,7 +1275,7 @@ export function BookingDetailCard({
                       <span>₹{Math.abs(Number(booking.charge_recalculation_pending_amount)).toFixed(2)}</span>
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">Click Refund to credit this amount to the associated wallet.</p>
-                    <Button size="sm" className="mt-2" onClick={() => handleProcessChargeRecalcRefund(booking)} disabled={chargeRecalcActionLoading}>
+                    <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
                       <RotateCcw className="h-4 w-4 mr-2" />
                       {chargeRecalcActionLoading ? "Processing…" : "Refund"}
                     </Button>
@@ -752,7 +1287,7 @@ export function BookingDetailCard({
                       <span>₹{Number(booking.charge_recalculation_pending_amount).toFixed(2)}</span>
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">Click Pay Now to debit this amount from the associated wallet.</p>
-                    <Button size="sm" className="mt-2" onClick={() => handleProcessChargeRecalcPayNow(booking)} disabled={chargeRecalcActionLoading}>
+                    <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_pay", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
                       <Banknote className="h-4 w-4 mr-2" />
                       {chargeRecalcActionLoading ? "Processing…" : "Pay Now"}
                     </Button>
@@ -788,7 +1323,9 @@ export function BookingDetailCard({
             </Button>
             {expandedBookings.has(booking.booking_id) && (
               <div className="mt-4">
-                <BookingEventHistory bookingId={booking.booking_id} onEventAdded={onUpdated} />
+                {bookingPk != null ? (
+                  <BookingEventHistory bookingId={bookingPk} onEventAdded={onUpdated} />
+                ) : null}
               </div>
             )}
           </div>
@@ -836,6 +1373,7 @@ export function BookingDetailCard({
               equipmentId={actionDialog.booking.equipment}
               booking={{
                 booking_id: actionDialog.booking.booking_id,
+                real_booking_id: actionDialog.booking.real_booking_id,
                 equipment: actionDialog.booking.equipment,
                 start_time: actionDialog.booking.start_time,
                 end_time: actionDialog.booking.end_time,
@@ -846,7 +1384,7 @@ export function BookingDetailCard({
                   date: s.date,
                 })),
               }}
-              onConfirm={handleRescheduleConfirm}
+              onConfirm={(startTimeISO, endTimeISO) => handleRescheduleConfirm(startTimeISO, endTimeISO)}
               onCancel={closeActionDialog}
               confirmLoading={rescheduleLoading}
             />
@@ -931,7 +1469,7 @@ export function BookingDetailCard({
 
           {actionDialog.type !== "reschedule" && (
             <DialogFooter>
-              <Button variant="outline" onClick={closeActionDialog}>
+              <Button variant="outline" onClick={closeActionDialog} disabled={actionSubmitLoading || completeLoading}>
                 {actionDialog.type === "complete" && completeUploadedFiles.length > 0 ? "Close" : "Cancel"}
               </Button>
               <Button
@@ -943,14 +1481,50 @@ export function BookingDetailCard({
                   else if (actionDialog.type === "absent") handleAbsent();
                   else if (actionDialog.type === "not_utilized") handleMarkNotUtilized();
                 }}
-                disabled={actionDialog.type === "complete" && completeLoading}
+                disabled={actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)}
               >
-                {actionDialog.type === "complete" && completeUploadedFiles.length > 0 ? "Done" : actionDialog.type === "complete" && completeLoading ? "Completing..." : "Confirm"}
+                {actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)
+                  ? "Request under process…"
+                  : actionDialog.type === "complete" && completeUploadedFiles.length > 0
+                    ? "Done"
+                    : "Confirm"}
               </Button>
             </DialogFooter>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation popup before executing booking actions */}
+      <AlertDialog open={confirmAction.open} onOpenChange={(open) => !open && setConfirmAction((p) => ({ ...p, open: false }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction.type === "complete" && "Confirm Complete"}
+              {confirmAction.type === "refund" && "Confirm Refund"}
+              {confirmAction.type === "absent" && "Confirm Operator Unavailable"}
+              {confirmAction.type === "reschedule" && "Confirm Reschedule"}
+              {confirmAction.type === "not_utilized" && "Confirm Booking Not Utilized"}
+              {confirmAction.type === "charge_recalc_refund" && "Confirm Refund (charge recalculation)"}
+              {confirmAction.type === "charge_recalc_pay" && "Confirm Pay Now (charge recalculation)"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction.type === "complete" && "Are you sure you want to mark this booking as completed? This action cannot be undone."}
+              {confirmAction.type === "refund" && "Are you sure you want to refund this booking? The amount will be credited to the user's wallet. This action cannot be undone."}
+              {confirmAction.type === "absent" && "Are you sure you want to mark this booking as Operator Unavailable? A full refund will be issued to the user's wallet. This action cannot be undone."}
+              {confirmAction.type === "reschedule" && "Are you sure you want to reschedule this booking to the selected slot(s)? This will update the booking time."}
+              {confirmAction.type === "not_utilized" && "Are you sure you want to mark this booking as Not Utilized? No refund will be issued. The user and optionally the supervisor will be notified by email. This action cannot be undone."}
+              {confirmAction.type === "charge_recalc_refund" && "Are you sure you want to process this refund? The amount will be credited to the user's wallet."}
+              {confirmAction.type === "charge_recalc_pay" && "Are you sure you want to debit this amount from the user's wallet? This will complete the charge recalculation payment."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmActionProceed}>
+              Yes, proceed
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

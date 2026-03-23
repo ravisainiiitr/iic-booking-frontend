@@ -111,6 +111,15 @@ const Profile = () => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!mounted) return;
+    if (window.location.hash === "#external-billing") {
+      setTimeout(() => {
+        document.getElementById("external-billing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  }, [mounted]);
+
   const checkAuthAndLoadProfile = async () => {
     // Check authentication using AuthContext
     if (!isAuthenticated) {
@@ -738,7 +747,7 @@ const Profile = () => {
               if (!isExternal) return null;
               return (
                 <>
-                  <div className="space-y-4">
+                  <div id="external-billing" className="space-y-4 scroll-mt-24">
                     <div>
                       <h3 className="text-lg font-semibold">Billing & shipping (External users)</h3>
                       <p className="text-sm text-muted-foreground">Used for invoice generation and prefilled shipping labels.</p>
@@ -851,7 +860,7 @@ const Profile = () => {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="shipping_phone">Shipping phone</Label>
+                            <Label htmlFor="shipping_phone">MOB</Label>
                             <Input
                               id="shipping_phone"
                               value={externalBilling.shipping_phone}

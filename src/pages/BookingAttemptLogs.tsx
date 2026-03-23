@@ -66,7 +66,8 @@ type LogRow = {
   number_of_samples: number;
   slots_requested: number;
   duration_minutes: number | null;
-  booking_id: number | null;
+  booking_id: string | number | null;
+  real_booking_id?: number | null;
   /** Display ID: virtual_booking_id (e.g. SEM202600001) or equipment_code-booking_id */
   display_booking_id?: string | null;
   additional_info?: {
@@ -119,7 +120,8 @@ const BookingAttemptLogs = () => {
     summary_message: string;
     events: Array<{
       date: string;
-      booking_id: number;
+      booking_id: string | number;
+      real_booking_id?: number;
       equipment_name: string;
       equipment_code: string;
       total_time_minutes: number;
@@ -989,7 +991,8 @@ const BookingAttemptLogs = () => {
                   booking={bookingDetailPopup}
                   onClose={() => setBookingDetailPopup(null)}
                   onUpdated={() => setBookingDetailPopup(null)}
-                  isOperator={canAccess}
+                  isOperator={userTypeStr === "operator"}
+                  isManagerOrAdmin={userTypeStr === "admin" || userTypeStr === "manager"}
                   currentUserId={user?.id ?? null}
                   backLabel="Close"
                 />

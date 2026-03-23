@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft, Plus, Tag, UserPlus, History } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { format } from "date-fns";
+import { type BookingRef } from "@/lib/bookingRef";
 
 type CouponRow = {
   id: number;
@@ -46,10 +47,9 @@ type CouponRow = {
   created_at: string;
 };
 
-type UsageRow = {
+type UsageRow = BookingRef & {
   id: number;
   coupon_code: string;
-  booking_id: number;
   virtual_booking_id: string;
   user_email: string;
   discount_amount: string;

@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
+import { toast } from "sonner";
 import instrument1 from "@/assets/instrument-1.jpeg";
 import instrument2 from "@/assets/instrument-2.jpeg";
 import instrument3 from "@/assets/instrument-3.jpg";
@@ -33,6 +35,30 @@ const Hero = () => {
   const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
   const [fontSizes, setFontSizes] = useState<Record<string, string>>({});
+  const [channeliLoading, setChanneliLoading] = useState(false);
+
+  const handleChanneliLogin = async () => {
+    setChanneliLoading(true);
+    try {
+      const response = await apiClient.getOmniportAuthUrl();
+      if (response.error) {
+        toast.error(response.error || `Failed to start ${CHANNEL_I_DISPLAY_NAME} login`);
+        return;
+      }
+      if (response.data?.auth_url) {
+        if (response.data.state) {
+          localStorage.setItem("omniport_state", response.data.state);
+        }
+        window.location.href = response.data.auth_url;
+        return;
+      }
+      toast.error("No login URL received");
+    } catch (error: any) {
+      toast.error(error?.message || `Failed to start ${CHANNEL_I_DISPLAY_NAME} login`);
+    } finally {
+      setChanneliLoading(false);
+    }
+  };
 
   const [heroSlides, setHeroSlides] = useState<Array<{ src: string; alt: string }>>([]);
 
@@ -126,10 +152,20 @@ const Hero = () => {
               <Button 
                 size="lg" 
                 className="gap-2 text-base sm:text-lg px-7 sm:px-8 py-5 sm:py-6 h-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                onClick={() => navigate("/auth")}
+                onClick={handleChanneliLogin}
+                disabled={channeliLoading}
               >
-                <LogIn className="h-5 w-5" />
-                Login with Channeli (IIT Roorkee)
+                {channeliLoading ? (
+                  <>
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    {`Redirecting to ${CHANNEL_I_DISPLAY_NAME}…`}
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="h-5 w-5" />
+                    {`Login with ${CHANNEL_I_DISPLAY_NAME} (IIT Roorkee)`}
+                  </>
+                )}
               </Button>
             )}
             <Button 

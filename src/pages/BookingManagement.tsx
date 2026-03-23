@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import {
   Table,
   TableBody,
@@ -35,10 +36,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { ExternalLink, ChevronLeft, ChevronRight, Star, Loader2 } from "lucide-react";
 
-interface Booking {
-  booking_id: number;
+interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
   user: number;
   user_email: string;
@@ -85,7 +85,8 @@ interface Booking {
     end_datetime: string;
     status: string;
     booking: number;
-    booking_id: number;
+    booking_id: string | number;
+    real_booking_id?: number | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -108,15 +109,15 @@ interface Booking {
   charge_recalculation_pending_amount?: string | null;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10;
 
 const BookingManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingBookings, setLoadingBookings] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("BOOKED");
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,6 +130,8 @@ const BookingManagement = () => {
   const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
+  const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [resultsData, setResultsData] = useState<{ exists: boolean; files: Array<{ name: string; download_url: string }> } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
 
@@ -143,27 +146,22 @@ const BookingManagement = () => {
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
 
   useEffect(() => {
-    // Wait for auth to finish loading
-    if (authLoading) {
-      return;
-    }
+    if (authLoading) return;
 
-    // Check authentication
     if (!isAuthenticated || !user) {
       navigate("/auth");
       return;
     }
 
-    // Check permissions
     if (!isOperatorOrManager) {
       toast.error("Access denied. Only operators and managers can access this page.");
       navigate("/dashboard");
       return;
     }
 
-    // If user has permission, fetch bookings
-    checkAuthAndFetchBookings();
-  }, [navigate, authLoading, isAuthenticated, user, isOperatorOrManager]);
+    fetchBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, navigate, authLoading, isAuthenticated, user, isOperatorOrManager]);
 
   // Fetch S3 results for the selected booking when detail view is shown
   useEffect(() => {
@@ -174,8 +172,14 @@ const BookingManagement = () => {
     let cancelled = false;
     setResultsLoading(true);
     setResultsData(null);
+    const selected = overrideBooking ?? detailBooking ?? bookings.find((b) => b.booking_id === selectedBookingId);
+    const backendId = getRealBookingId(selected);
+    if (backendId == null) {
+      setResultsLoading(false);
+      return;
+    }
     apiClient
-      .getBookingResults(selectedBookingId)
+      .getBookingResults(backendId)
       .then((res) => {
         if (cancelled || res.error) return;
         setResultsData({
@@ -189,20 +193,20 @@ const BookingManagement = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedBookingId]);
+  }, [selectedBookingId, overrideBooking, detailBooking, bookings]);
 
   // When landing with ?expand=booking_id (e.g. from Change slot status page), fetch that booking and show detail
   useEffect(() => {
     if (!expandId || !isAuthenticated || !user || !isOperatorOrManager) return;
-    const id = parseInt(expandId, 10);
-    if (Number.isNaN(id)) return;
+    const id = expandId;
     let cancelled = false;
-    apiClient.getBookings({ booking_id: id, limit: 1 }).then((res) => {
+    apiClient.getBookings({ search: id, limit: 1 }).then((res) => {
       if (cancelled || res.error) return;
       const b = res.data?.bookings?.[0];
       if (b) {
         setOverrideBooking(b);
-        setSelectedBookingId(id);
+        setDetailBooking(null);
+        setSelectedBookingId(b.booking_id);
         setTimeout(() => {
           document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 200);
@@ -211,29 +215,45 @@ const BookingManagement = () => {
     return () => { cancelled = true; };
   }, [expandId, isAuthenticated, user, isOperatorOrManager]);
 
-  const checkAuthAndFetchBookings = async () => {
-    const token = apiClient.getToken();
-    if (!token) {
-      navigate("/auth");
+  // When a row is clicked, fetch full booking for the detail card (list_view data is lightweight and missing daily_slots, etc.)
+  useEffect(() => {
+    if (selectedBookingId == null) {
+      setDetailBooking(null);
+      setDetailLoading(false);
       return;
     }
-
-    // User data should already be available from AuthContext
-    if (!user) {
-      navigate("/auth");
+    if (overrideBooking?.booking_id === selectedBookingId) {
+      setDetailBooking(null);
+      setDetailLoading(false);
       return;
     }
-
-    fetchBookings();
-  };
+    let cancelled = false;
+    setDetailLoading(true);
+    setDetailBooking(null);
+    const selected = bookings.find((b) => b.booking_id === selectedBookingId);
+    const backendId = getRealBookingId(selected);
+    if (backendId == null) {
+      setDetailLoading(false);
+      return;
+    }
+    apiClient.getBookings({ booking_id: backendId, limit: 1 }).then((res) => {
+      if (cancelled || res.error) return;
+      const b = res.data?.bookings?.[0];
+      if (b) setDetailBooking(b as Booking);
+    }).finally(() => {
+      if (!cancelled) setDetailLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [selectedBookingId, overrideBooking?.booking_id, bookings]);
 
   const fetchBookings = async (pageOverride?: number) => {
     try {
-      setLoading(true);
+      setLoadingBookings(true);
       const currentPage = pageOverride ?? page;
       const params: any = {
         limit: PAGE_SIZE,
         offset: (currentPage - 1) * PAGE_SIZE,
+        list_view: true,
       };
       if (statusFilter !== "all") {
         params.status = statusFilter;
@@ -260,15 +280,9 @@ const BookingManagement = () => {
       console.error("Error fetching bookings:", error);
       toast.error("Failed to fetch bookings");
     } finally {
-      setLoading(false);
+      setLoadingBookings(false);
     }
   };
-
-  useEffect(() => {
-    if (isOperatorOrManager && !authLoading) {
-      fetchBookings();
-    }
-  }, [page, isOperatorOrManager, authLoading]);
 
   useEffect(() => {
     if (!isOperatorOrManager || !isAuthenticated) return;
@@ -297,7 +311,8 @@ const BookingManagement = () => {
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PAGE_SIZE, totalCount);
 
-  const showBookingDetail = (bookingId: number) => {
+  const showBookingDetail = (booking: Booking) => {
+    const bookingId = booking.booking_id;
     setSelectedBookingId(bookingId);
     setTimeout(() => {
       document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -320,13 +335,14 @@ const BookingManagement = () => {
   const closeDetail = () => {
     setSelectedBookingId(null);
     setOverrideBooking(null);
+    setDetailBooking(null);
     setSearchParams((prev) => {
       prev.delete("expand");
       return prev;
     });
   };
 
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -481,7 +497,16 @@ const BookingManagement = () => {
           </Card>
         </div>
 
-        {bookings.length === 0 ? (
+        {loadingBookings ? (
+          <Card>
+            <CardContent className="py-12">
+              <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span>Loading bookings…</span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : bookings.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">No bookings found</p>
@@ -516,7 +541,7 @@ const BookingManagement = () => {
                         <TableCell className="font-medium">
                           <button
                             type="button"
-                            onClick={() => showBookingDetail(booking.booking_id)}
+                            onClick={() => showBookingDetail(booking)}
                             className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
                               booking.status.toUpperCase() === "COMPLETED"
                                 ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
@@ -557,7 +582,7 @@ const BookingManagement = () => {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      ))}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -601,14 +626,27 @@ const BookingManagement = () => {
 
             {/* Detailed view – shown only when a booking ID is clicked */}
             {selectedBookingId != null && (() => {
-              const booking = overrideBooking ?? bookings.find((b) => b.booking_id === selectedBookingId);
+              if (detailLoading) {
+                return (
+                  <Card id="booking-detail-section" className="border shadow-sm">
+                    <CardContent className="py-12">
+                      <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <span>Loading booking details…</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              const booking = overrideBooking ?? detailBooking ?? bookings.find((b) => b.booking_id === selectedBookingId);
               if (!booking) return null;
               return (
                 <BookingDetailCard
                   booking={booking as BookingDetailCardBooking}
                   onClose={closeDetail}
                   onUpdated={fetchBookings}
-                  isOperator={isOperatorOrManager}
+                  isOperator={isOperator}
+                  isManagerOrAdmin={isManagerOrAdmin}
                   currentUserId={user?.id}
                   backLabel="Back to list"
                   showPrintButton

@@ -131,7 +131,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
 
-  const hasEquipmentImage = !!(formData.image_url ?? (initialData as { s3_path?: string } | null)?.s3_path) && equipmentId;
+  const hasEquipmentImage = !!formData.image_url && equipmentId;
   const equipmentImageUrl = useEquipmentImageUrl(equipmentId ?? null, !!hasEquipmentImage, user?.id);
   const displayEquipmentImage = equipmentImageUrl ?? (equipmentId ? apiClient.getEquipmentImageUrl(equipmentId) : (formData.image_url ?? ""));
 
@@ -435,7 +435,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
 
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Image</h3>
       <p className="text-muted-foreground text-xs">Upload a new image or view the current one. Images are stored in S3 and displayed via a stable URL.</p>
-      {(formData.image_url || (initialData as { s3_path?: string } | null)?.s3_path) && (
+      {formData.image_url && (
         <div className="rounded border p-2">
           <img
             src={displayEquipmentImage}

@@ -79,7 +79,8 @@ type UrgentRequestDetail = {
   }>;
   hold_booking_id: number | null;
   hold_booking_summary: {
-    booking_id: number;
+    booking_id: string | number;
+    real_booking_id?: number;
     total_charge: string | null;
     total_time_minutes: number;
     slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
@@ -94,6 +95,14 @@ const WALLET_DISCLAIMER =
   "After your approval, the request will be forwarded to Admin/OIC for final decision.";
 
 type TabValue = "pending" | "approved" | "rejected";
+
+/** Safe download filename for evidence (PDF etc.). */
+function sanitizeEvidenceFilename(name: string | undefined, requestId: number): string {
+  const raw = (name || "").trim();
+  const cleaned = raw.replace(/[/\\?%*:|"<>]/g, "_");
+  if (cleaned) return cleaned;
+  return `evidence-${requestId}.pdf`;
+}
 
 const UrgentRequestsWallet = () => {
   const navigate = useNavigate();
@@ -176,8 +185,16 @@ const UrgentRequestsWallet = () => {
           setEvidenceLoading(true);
           try {
             const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(row.id);
-            window.open(blobUrl, "_blank", "noopener");
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+            const filename = sanitizeEvidenceFilename(row.evidence_original_name, row.id);
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = filename;
+            a.target = "_blank";
+            a.rel = "noopener";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Failed to open evidence");
           } finally {
@@ -379,8 +396,16 @@ const UrgentRequestsWallet = () => {
                               setEvidenceLoading(true);
                               try {
                                 const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(detailRow.id);
-                                window.open(blobUrl, "_blank", "noopener");
-                                setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                                const filename = sanitizeEvidenceFilename(detailRow.evidence_original_name, detailRow.id);
+                                const a = document.createElement("a");
+                                a.href = blobUrl;
+                                a.download = filename;
+                                a.target = "_blank";
+                                a.rel = "noopener";
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : "Failed to open evidence");
                               } finally {
@@ -523,9 +548,9 @@ const UrgentRequestsWallet = () => {
                         {chargeBreakdown
                           .filter((c) => String(c.description || "").trim().toLowerCase() !== "total")
                           .map((charge, index) => (
-                            <li key={index} className="text-base text-muted-foreground flex justify-between">
-                              <span>{charge.description}</span>
-                              <span>{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
+                            <li key={index} className="text-base text-muted-foreground flex justify-between gap-4 items-start">
+                              <span className="whitespace-pre-line min-w-0 shrink">{charge.description}</span>
+                              <span className="shrink-0 tabular-nums">{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
                             </li>
                           ))}
                         <li className="text-base font-medium flex justify-between pt-2 mt-2 border-t border-border/60">

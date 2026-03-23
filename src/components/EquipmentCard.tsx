@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, IndianRupee } from "lucide-react";
+import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, IndianRupee, Star, StarHalf } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -43,6 +43,9 @@ interface EquipmentCardProps {
   onStatusChange?: (equipmentId: number, equipmentName: string, newStatus: "ACTIVE" | "INACTIVE") => void | Promise<void>;
   /** Equipment id that is currently updating (disables its switch). */
   statusUpdatingId?: number;
+  avgRating?: number | null;
+  ratingCount?: number | null;
+  ratingDist?: Record<string, number> | null;
 }
 
 interface EquipmentDetail {
@@ -95,6 +98,25 @@ interface EquipmentDetail {
 const isEquipmentProxyImage = (url: string) =>
   typeof url === "string" && url.includes("/equipments/") && url.includes("/image/");
 
+type EquipmentRatingsResponse = {
+  equipment_id: number;
+  avg_rating: number | null;
+  rating_count: number;
+  distribution: Record<string, number>;
+  reviews: Array<{
+    booking_id: string | number;
+    rating: number;
+    feedback: string;
+    rated_at: string | null;
+    user_id: number;
+    user_name: string;
+  }>;
+  total_reviews: number;
+  offset: number;
+  limit: number;
+  is_admin_panel_user: boolean;
+};
+
 const EquipmentCard = ({ 
   name, 
   category, 
@@ -122,6 +144,9 @@ const EquipmentCard = ({
   showStatusToggle,
   onStatusChange,
   statusUpdatingId,
+  avgRating,
+  ratingCount,
+  ratingDist,
 }: EquipmentCardProps) => {
   const { user } = useAuth();
   const [isPlaying, setIsPlaying] = useState(true); // Start as playing if video exists
@@ -129,10 +154,22 @@ const EquipmentCard = ({
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [ratingData, setRatingData] = useState<EquipmentRatingsResponse | null>(null);
+  const [ratingOffset, setRatingOffset] = useState(0);
+  const [ratingHasMore, setRatingHasMore] = useState(false);
 
   const equipmentIdForImage = id != null && isEquipmentProxyImage(image) ? Number(id) : null;
   const authImageUrl = useEquipmentImageUrl(equipmentIdForImage, !!equipmentIdForImage, user?.id);
   const displayImage = authImageUrl ?? image;
+
+  const ratingSummaryCount = Number(ratingCount ?? 0);
+  const ratingSummaryAvg = avgRating != null ? Number(avgRating) : null;
+  const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
+  const isAdminOrOIC = ["admin", "manager", "operator"].includes(userTypeStr);
+  const ratingSummaryFullStars = ratingSummaryAvg != null ? Math.floor(ratingSummaryAvg) : 0;
+  const ratingSummaryHasHalfStar = ratingSummaryAvg != null ? ratingSummaryAvg - ratingSummaryFullStars >= 0.5 : false;
 
   // Auto-play video when component mounts if video exists
   useEffect(() => {
@@ -150,6 +187,44 @@ const EquipmentCard = ({
       fetchEquipmentDetail();
     }
   }, [dialogOpen, id]);
+
+  const fetchEquipmentRatings = async (opts?: { reset?: boolean }) => {
+    if (!id) return;
+    const reset = opts?.reset === true;
+    const nextOffset = reset ? 0 : ratingOffset;
+    try {
+      setRatingLoading(true);
+      const res = await apiClient.getEquipmentRatings(Number(id), nextOffset, 10);
+      if (res.error) {
+        toast.error(res.error || "Failed to load ratings");
+        return;
+      }
+      const data = res.data as EquipmentRatingsResponse;
+      setRatingData((prev) => {
+        if (reset || !prev) return data;
+        return { ...data, reviews: [...prev.reviews, ...data.reviews] };
+      });
+      const total = data.total_reviews ?? 0;
+      const got = data.reviews?.length ?? 0;
+      const next = nextOffset + got;
+      setRatingOffset(next);
+      setRatingHasMore(next < total);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load ratings");
+    } finally {
+      setRatingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (ratingDialogOpen) {
+      setRatingOffset(0);
+      setRatingData(null);
+      setRatingHasMore(false);
+      fetchEquipmentRatings({ reset: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratingDialogOpen, id]);
 
   const fetchEquipmentDetail = async () => {
     if (!id) return;
@@ -228,7 +303,35 @@ const EquipmentCard = ({
       
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
+          <div className="min-w-0">
+            <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
+            {ratingSummaryCount > 0 && (
+              <div className="mt-1">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => setRatingDialogOpen(true)}
+                >
+                  <span className="inline-flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => {
+                      if (ratingSummaryAvg == null) {
+                        return <Star key={s} className="h-4 w-4 text-muted-foreground" />;
+                      }
+                      if (s <= ratingSummaryFullStars) {
+                        return <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-500" />;
+                      }
+                      if (s === ratingSummaryFullStars + 1 && ratingSummaryHasHalfStar) {
+                        return <StarHalf key={s} className="h-4 w-4 fill-amber-400 text-amber-500" />;
+                      }
+                      return <Star key={s} className="h-4 w-4 text-muted-foreground" />;
+                    })}
+                  </span>
+                  <span className="font-medium">{ratingSummaryAvg != null ? ratingSummaryAvg.toFixed(1) : "—"}</span>
+                  <span className="text-muted-foreground">({ratingSummaryCount})</span>
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             {showStatusToggle && onStatusChange && id != null ? (
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -322,7 +425,7 @@ const EquipmentCard = ({
                       <MapPin className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-foreground mb-1">Location</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">
                           {equipmentDetail?.location || address}
                         </p>
                       </div>
@@ -369,7 +472,7 @@ const EquipmentCard = ({
                         </table>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">{chargeBasis}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Charges are inclusive of GST @ 18%.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Charges are exclusive of GST @ 18%.</p>
                     </div>
                   ) : null;
                 })()}
@@ -532,6 +635,147 @@ const EquipmentCard = ({
                     }}
                   />
                 </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Ratings & reviews</DialogTitle>
+              <DialogDescription>{name}</DialogDescription>
+            </DialogHeader>
+
+            {ratingLoading && !ratingData ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="space-y-5 py-2">
+                <div className="flex items-center justify-between gap-4 border rounded-md p-3">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-0.5">
+                      {(() => {
+                        const avg = ratingData?.avg_rating != null ? Number(ratingData.avg_rating) : null;
+                        const full = avg != null ? Math.floor(avg) : 0;
+                        const half = avg != null ? avg - full >= 0.5 : false;
+                        return [1, 2, 3, 4, 5].map((s) => {
+                          if (avg == null) return <Star key={s} className="h-5 w-5 text-muted-foreground" />;
+                          if (s <= full) return <Star key={s} className="h-5 w-5 fill-amber-400 text-amber-500" />;
+                          if (s === full + 1 && half) return <StarHalf key={s} className="h-5 w-5 fill-amber-400 text-amber-500" />;
+                          return <Star key={s} className="h-5 w-5 text-muted-foreground" />;
+                        });
+                      })()}
+                    </span>
+                    <div className="leading-tight">
+                      <div className="text-lg font-semibold">
+                        {ratingData?.avg_rating != null ? Number(ratingData.avg_rating).toFixed(1) : "—"}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {ratingData?.rating_count ?? 0} rating(s)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Distribution</div>
+                  {[5, 4, 3, 2, 1].map((s) => {
+                    const dist = ratingData?.distribution || {};
+                    const count = Number(dist[String(s)] ?? 0);
+                    const total = Number(ratingData?.rating_count ?? 0) || 1;
+                    const pct = Math.round((count / total) * 100);
+                    return (
+                      <div key={s} className="flex items-center gap-3">
+                        <div className="w-14 text-sm text-muted-foreground">{s}★</div>
+                        <div className="flex-1 h-2 rounded bg-muted overflow-hidden">
+                          <div className="h-2 bg-primary" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="w-10 text-right text-sm text-muted-foreground">{count}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold">Reviews</div>
+                  {(ratingData?.reviews || []).length === 0 ? (
+                    <div className="text-sm text-muted-foreground">No reviews yet.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(ratingData?.reviews || []).map((r) => (
+                        <div key={r.booking_id} className="border rounded-md p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <Star
+                                    key={s}
+                                    className={`h-4 w-4 ${
+                                      s <= r.rating ? "fill-amber-400 text-amber-500" : "text-muted-foreground"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <div className="text-sm font-medium mt-1">{r.user_name}</div>
+                              {r.rated_at && (
+                                <div className="text-xs text-muted-foreground">{new Date(r.rated_at).toLocaleString()}</div>
+                              )}
+                            </div>
+
+                            {isAdminOrOIC && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={async () => {
+                                  const ok = window.confirm("Remove this rating? This will hide it from users and exclude it from averages.");
+                                  if (!ok) return;
+                                  const reason = window.prompt("Reason (optional):") || "";
+                                  const res = await apiClient.removeBookingRating(r.booking_id, reason);
+                                  if (res.error) {
+                                    toast.error(res.error || "Failed to remove rating");
+                                    return;
+                                  }
+                                  toast.success("Rating removed.");
+                                  setRatingOffset(0);
+                                  setRatingData(null);
+                                  setRatingHasMore(false);
+                                  await fetchEquipmentRatings({ reset: true });
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
+                          {r.feedback ? (
+                            <div className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{r.feedback}</div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {ratingHasMore && (
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      disabled={ratingLoading}
+                      onClick={() => fetchEquipmentRatings({ reset: false })}
+                    >
+                      {ratingLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        "Load more"
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>

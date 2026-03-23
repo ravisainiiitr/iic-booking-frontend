@@ -83,6 +83,10 @@ interface SampleTraceTimelineProps {
   bookingComplete?: boolean;
   /** When true (internal users: students/faculty), the Held at Office / Forwarded to Lab step is hidden from the timeline. */
   hideHeldForwardedStep?: boolean;
+  /** When true, staff sample status action buttons (Accepted/Rejected/Processing) are hidden (e.g. for external users). */
+  hideSampleStatusActions?: boolean;
+  /** When true, booking-user interactions other than "Sample Sent" are hidden (e.g. external users shouldn't reply/upload). */
+  restrictBookingUserActionsToSampleSent?: boolean;
 }
 
 export default function SampleTraceTimeline({
@@ -93,12 +97,15 @@ export default function SampleTraceTimeline({
   onUpdated,
   bookingComplete = false,
   hideHeldForwardedStep = false,
+  hideSampleStatusActions = false,
+  restrictBookingUserActionsToSampleSent = false,
 }: SampleTraceTimelineProps) {
   const steps = hideHeldForwardedStep ? STEPS_INTERNAL : STEPS_FULL;
   const [loading, setLoading] = useState<string | null>(null);
   const [sampleSentOpen, setSampleSentOpen] = useState(false);
   const [sampleIdentifiers, setSampleIdentifiers] = useState("");
   const [trackingId, setTrackingId] = useState("");
+  const [courierCompany, setCourierCompany] = useState("");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [heldDialogOpen, setHeldDialogOpen] = useState(false);
@@ -109,6 +116,7 @@ export default function SampleTraceTimeline({
   const [replySaving, setReplySaving] = useState(false);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
   const isBookingUser = canSetSampleSent && !canSetStaffStatus;
+  const canBookingUserReply = isBookingUser && !restrictBookingUserActionsToSampleSent;
   useEffect(() => {
     setReplyText(detailEvent?.user_reply ?? "");
     setReplyFiles([]);
@@ -144,7 +152,15 @@ export default function SampleTraceTimeline({
   const setStatus = async (status: string, sampleIdentifiers?: string, trackingIdVal?: string, reason?: string) => {
     setLoading(status);
     try {
-      const res = await apiClient.setBookingSampleStatus(bookingId, status as any, sampleIdentifiers, trackingIdVal, reason);
+      const combinedTracking =
+        trackingIdVal && courierCompany ? `${courierCompany} | ${trackingIdVal}` : trackingIdVal ?? "";
+      const res = await apiClient.setBookingSampleStatus(
+        bookingId,
+        status as any,
+        sampleIdentifiers,
+        combinedTracking,
+        reason
+      );
       if (res.error) {
         toast.error(res.error);
         return;
@@ -154,6 +170,7 @@ export default function SampleTraceTimeline({
       setSampleSentOpen(false);
       setSampleIdentifiers("");
       setTrackingId("");
+      setCourierCompany("");
       setRejectDialogOpen(false);
       setRejectReason("");
       setHeldDialogOpen(false);
@@ -271,7 +288,7 @@ export default function SampleTraceTimeline({
               {(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (
                 <div className="space-y-2 pt-2 border-t">
                   <Label className="text-muted-foreground text-xs">Your reply</Label>
-                  {isBookingUser ? (
+                  {canBookingUserReply ? (
                     <>
                       <Textarea
                         value={replyText}
@@ -385,7 +402,9 @@ export default function SampleTraceTimeline({
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Mark Sample Sent</DialogTitle>
-                  <DialogDescription>Optionally add sample identifiers and courier tracking (company name and tracking ID) for your records.</DialogDescription>
+                  <DialogDescription>
+                    Optionally add sample identifiers, courier company name, and tracking ID for your records.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2">
                   <Label htmlFor="sample-identifiers">Sample identifiers (optional)</Label>
@@ -395,12 +414,19 @@ export default function SampleTraceTimeline({
                     onChange={(e) => setSampleIdentifiers(e.target.value)}
                     placeholder="e.g. ID-001, Batch 2"
                   />
+                  <Label htmlFor="courier-company">Courier company name (optional)</Label>
+                  <Input
+                    id="courier-company"
+                    value={courierCompany}
+                    onChange={(e) => setCourierCompany(e.target.value)}
+                    placeholder="e.g. DTDC, Blue Dart"
+                  />
                   <Label htmlFor="tracking-id">Tracking ID (optional)</Label>
                   <Input
                     id="tracking-id"
                     value={trackingId}
                     onChange={(e) => setTrackingId(e.target.value)}
-                    placeholder="Courier company name and tracking ID"
+                    placeholder="e.g. AWB123456789"
                   />
                 </div>
                 <DialogFooter>
@@ -414,8 +440,8 @@ export default function SampleTraceTimeline({
             </Dialog>
           </>
         )}
-        {/* Held at Office / Forwarded to Lab: staff only, and only when step is shown (external bookings) */}
-        {canSetStaffStatus && !bookingComplete && !hideHeldForwardedStep && (
+        {/* Held at Office / Forwarded to Lab: staff only, and only when step is shown (hidden when hideSampleStatusActions is true, e.g. for external users) */}
+        {canSetStaffStatus && !bookingComplete && !hideHeldForwardedStep && !hideSampleStatusActions && (
           <>
             <Button
               size="sm"
@@ -464,8 +490,8 @@ export default function SampleTraceTimeline({
             </Button>
           </>
         )}
-        {/* Sample Accepted, Sample Rejected, Processing: only admin, officer in charge, lab in charge */}
-        {canSetStaffStatus && !bookingComplete && (
+        {/* Sample Accepted, Sample Rejected, Processing: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
+        {canSetStaffStatus && !bookingComplete && !hideSampleStatusActions && (
           <>
             <Button
               size="sm"

@@ -32,6 +32,9 @@ interface ApiEquipment {
   category?: number | null;
   category_name?: string | null;
   category_code?: string | null;
+  avg_rating?: number | null;
+  rating_count?: number | null;
+  rating_dist?: Record<string, number> | null;
 }
 
 const EquipmentGrid = () => {
@@ -133,11 +136,14 @@ const EquipmentGrid = () => {
       name: eq.name,
       category: eq.category_name || "",
       description: `${eq.name}`,
-      image: (eq.image_url || eq.s3_path) ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+      image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
       video: eq.video_url || undefined, // Use video_url if available, otherwise undefined
       available: eq.status === "ACTIVE",
       status: eq.status,
       statusDisplay: eq.status_display,
+      avgRating: eq.avg_rating ?? null,
+      ratingCount: eq.rating_count ?? null,
+      ratingDist: eq.rating_dist ?? null,
       address: eq.location || "Institute Instrumentation Centre, IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",

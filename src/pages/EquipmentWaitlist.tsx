@@ -32,6 +32,12 @@ type WaitlistEntry = {
   user_email: string;
   user_name: string;
   created_at: string | null;
+  booking_attempt_requested_at?: string | null;
+  booking_attempt_failure_reason?: string | null;
+  booking_attempt_number_of_samples?: number | null;
+  booking_attempt_slots_requested?: number | null;
+  booking_attempt_duration_minutes?: number | null;
+  booking_attempt_additional_info?: any;
 };
 type WaitlistData = {
   equipment_id: number;
@@ -124,6 +130,20 @@ export default function EquipmentWaitlist() {
     }
   };
 
+  const formatAttemptInputs = (additionalInfo: any) => {
+    if (!additionalInfo || typeof additionalInfo !== "object") return "";
+    const inputValues = additionalInfo.input_values ?? additionalInfo.inputValues ?? null;
+    const selectedParams = additionalInfo.selected_parameters ?? additionalInfo.selectedParameters ?? null;
+
+    const parts: string[] = [];
+    if (inputValues && typeof inputValues === "object") {
+      const entries = Object.entries(inputValues);
+      if (entries.length) parts.push(`inputs: ${entries.map(([k, v]) => `${k}=${String(v)}`).slice(0, 6).join(", ")}${entries.length > 6 ? "…" : ""}`);
+    }
+    if (selectedParams != null) parts.push(`selected: ${typeof selectedParams === "string" ? selectedParams : JSON.stringify(selectedParams).slice(0, 80)}${JSON.stringify(selectedParams).length > 80 ? "…" : ""}`);
+    return parts.join(" | ");
+  };
+
   if (!canView) return null;
 
   return (
@@ -200,6 +220,7 @@ export default function EquipmentWaitlist() {
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Joined</TableHead>
+                        <TableHead>Last Attempt</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -210,6 +231,36 @@ export default function EquipmentWaitlist() {
                           <TableCell>{e.user_email}</TableCell>
                           <TableCell>
                             {e.created_at ? format(new Date(e.created_at), "PPp") : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <div className="text-sm font-medium">
+                                {e.booking_attempt_requested_at
+                                  ? format(new Date(e.booking_attempt_requested_at), "PPp")
+                                  : "—"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {e.booking_attempt_failure_reason || "—"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {[
+                                  e.booking_attempt_number_of_samples != null ? `samples=${e.booking_attempt_number_of_samples}` : null,
+                                  e.booking_attempt_slots_requested != null ? `slots=${e.booking_attempt_slots_requested}` : null,
+                                  e.booking_attempt_duration_minutes != null ? `duration=${e.booking_attempt_duration_minutes}m` : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" • ") || "—"}
+                              </div>
+                              {(() => {
+                                const details = formatAttemptInputs(e.booking_attempt_additional_info);
+                                if (!details) return null;
+                                return (
+                                  <div className="text-xs text-muted-foreground" title={details}>
+                                    {details}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

@@ -1,3 +1,5 @@
+import { type BookingRef } from "@/lib/bookingRef";
+
 // API client for Django REST API
 // Support runtime configuration via window.__RUNTIME_CONFIG__ (for Docker/production)
 // Falls back to VITE_API_URL env var (for build-time) or default
@@ -18,6 +20,8 @@ const getApiBaseUrl = (): string => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+type NullableBookingRef = Omit<BookingRef, "booking_id"> & { booking_id: BookingRef["booking_id"] | null };
 
 /** Base URL for Django Admin (same origin as API, path /admin/). Used for admin dashboard links. */
 export const getAdminBaseUrl = (): string => {
@@ -70,6 +74,10 @@ interface ApiResponse<T> {
   error?: string;
   message?: string;
   fieldErrors?: Record<string, string[] | string>; // For field-specific errors like {"email": ["..."]}
+  // Booking waitlist extras (may be returned with non-2xx responses).
+  waitlist_position?: number;
+  waitlist_code?: string;
+  waitlist_full?: boolean;
 }
 
 interface User {
@@ -481,8 +489,13 @@ class ApiClient {
           };
         }
         
+        const maybeWaitlist = (data as any) || {};
         return {
-          error: data.detail || data.message || data.error || `HTTP error! status: ${response.status}`,
+          error: maybeWaitlist.detail || maybeWaitlist.message || maybeWaitlist.error || `HTTP error! status: ${response.status}`,
+          // Preserve waitlist info from backend error responses so UI can show WL number.
+          waitlist_position: maybeWaitlist.waitlist_position,
+          waitlist_code: maybeWaitlist.waitlist_code,
+          waitlist_full: maybeWaitlist.waitlist_full,
           fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
         };
       }
@@ -1133,7 +1146,6 @@ class ApiClient {
       status: string;
       status_display: string;
       location: string;
-      s3_path: string;
       image_url: string;
       slot_duration_minutes: number;
       slots_per_day: number;
@@ -1322,7 +1334,8 @@ class ApiClient {
   async getEquipmentSlots(
     equipmentId: number | string, 
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    options?: { urgentWeekExtension?: boolean }
   ) {
     const params = new URLSearchParams();
 
@@ -1333,6 +1346,9 @@ class ApiClient {
     if (endDate) {
       const dateOnly = endDate.includes('T') ? endDate.split('T')[0] : endDate;
       params.append('end_date', dateOnly);
+    }
+    if (options?.urgentWeekExtension) {
+      params.append('urgent_week_extension', '1');
     }
     
     const queryString = params.toString();
@@ -1423,6 +1439,74 @@ class ApiClient {
         profile_picture?: string | null;
       } | null;
     }>('/wallet/');
+  }
+
+  async getWalletBankDetails() {
+    return this.request<{
+      bank_details: {
+        account_holder_name: string;
+        bank_name: string;
+        account_number: string;
+        masked_account_number: string;
+        ifsc_code: string;
+        branch_name: string;
+        account_type: string;
+        upi_id: string;
+        updated_at: string;
+      } | null;
+    }>("/wallet/bank-details/");
+  }
+
+  async upsertWalletBankDetails(payload: {
+    account_holder_name: string;
+    bank_name: string;
+    account_number: string;
+    ifsc_code: string;
+    branch_name?: string;
+    account_type?: string;
+    upi_id?: string;
+  }) {
+    return this.request<{
+      bank_details: {
+        account_holder_name: string;
+        bank_name: string;
+        account_number: string;
+        masked_account_number: string;
+        ifsc_code: string;
+        branch_name: string;
+        account_type: string;
+        upi_id: string;
+        updated_at: string;
+      };
+    }>("/wallet/bank-details/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createWalletWithdrawalRequest(amount: number, user_note?: string) {
+    return this.request<{
+      request: any;
+    }>("/wallet/withdrawal-request/", {
+      method: "POST",
+      body: JSON.stringify({ amount, user_note }),
+    });
+  }
+
+  async getWalletWithdrawalRequests() {
+    return this.request<{
+      requests: any[];
+      count: number;
+    }>("/wallet/withdrawal-requests/");
+  }
+
+  async cancelWalletWithdrawalRequest(requestId: number) {
+    return this.request<{
+      request: any;
+      message: string;
+    }>(`/wallet/withdrawal-requests/${requestId}/cancel/`, {
+      method: "POST",
+    });
   }
 
   async getWalletBalance() {
@@ -1726,7 +1810,7 @@ class ApiClient {
   /** Search IITR Internal Faculty (faculty with internal department) for supervisor selection during signup (public, no auth). Returns name, email, department for verification. */
   async searchFacultyForSignup(query: string, limit: number = 20) {
     return this.request<{
-      results: Array<{
+      results: Array<NullableBookingRef & {
         id: number;
         name: string;
         email: string;
@@ -2409,7 +2493,8 @@ class ApiClient {
 
   async getBookingEvents(bookingId: number) {
     return this.request<{
-      booking_id: number;
+      booking_id: BookingRef["booking_id"];
+      real_booking_id?: BookingRef["real_booking_id"];
       events: BookingEvent[];
       count: number;
     }>(`/bookings/${bookingId}/events/`);
@@ -2568,8 +2653,7 @@ class ApiClient {
     const endpoint = queryString ? `/bookings/?${queryString}` : '/bookings/';
     
     return this.request<{
-      bookings: Array<{
-        booking_id: number;
+      bookings: Array<BookingRef & {
         user: number;
         user_email: string;
         user_name: string;
@@ -2604,7 +2688,8 @@ class ApiClient {
           end_datetime: string;
           status: string;
           booking: number;
-          booking_id: number;
+          booking_id: BookingRef["booking_id"];
+          real_booking_id?: BookingRef["real_booking_id"];
           created_at: string;
           updated_at: string;
         }>;
@@ -2663,6 +2748,18 @@ class ApiClient {
     coupon_code?: string;
     /** When true, create booking in HOLD status (no wallet debit); used for urgent request "Select Slot" flow */
     create_as_hold?: boolean;
+    /** When true and slot_ids are taken, backend may allocate any other available slots (e.g. distributed) for the same duration */
+    book_any_available_slots?: boolean;
+    /** When book_any_available_slots is true: restrict alternative slots to this week (YYYY-MM-DD, Monday). */
+    visible_week_start?: string;
+    /** When book_any_available_slots is true: restrict alternative slots to this week (YYYY-MM-DD, Sunday). */
+    visible_week_end?: string;
+    /** When true with book_any_available_slots, if no alternatives: try reduce requirement to 1 slot (adjust A/B by profile) and book one slot if available. */
+    book_even_if_single_slot_available?: boolean;
+    /** Explicitly request waitlist push when no slot is selected/available in current weekly window. */
+    request_waitlist_without_slot_selection?: boolean;
+    /** When false, backend will not push failed booking attempts to waitlist queue. */
+    waitlist_on_failure?: boolean;
   }) {
     return this.request<{
       id: number;
@@ -2726,7 +2823,8 @@ class ApiClient {
         coupon_code: string;
         discount_amount: string;
         used_at: string | null;
-        booking_id: number;
+        booking_id: BookingRef["booking_id"];
+        real_booking_id?: BookingRef["real_booking_id"];
         virtual_booking_id: string | null;
         equipment_name: string | null;
         equipment_code: string | null;
@@ -2787,6 +2885,87 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ rating, feedback: feedback ?? '' }),
     });
+  }
+
+  async getEquipmentRatings(equipmentId: number, offset = 0, limit = 20) {
+    const params = new URLSearchParams();
+    params.set('offset', String(offset));
+    params.set('limit', String(limit));
+    return this.request<{
+      equipment_id: number;
+      avg_rating: number | null;
+      rating_count: number;
+      distribution: Record<string, number>;
+      reviews: Array<{
+        booking_id: BookingRef["booking_id"];
+        real_booking_id?: BookingRef["real_booking_id"];
+        rating: number;
+        feedback: string;
+        rated_at: string | null;
+        user_id: number;
+        user_name: string;
+        rating_removed?: boolean;
+        rating_removed_at?: string | null;
+        rating_removed_reason?: string | null;
+      }>;
+      total_reviews: number;
+      offset: number;
+      limit: number;
+      is_admin_panel_user: boolean;
+    }>(`/equipments/${equipmentId}/ratings/?${params.toString()}`);
+  }
+
+  async removeBookingRating(bookingId: number, reason?: string) {
+    return this.request<{ message: string; booking_id: BookingRef["booking_id"]; real_booking_id?: BookingRef["real_booking_id"] }>(`/bookings/${bookingId}/rating/remove/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason ?? '' }),
+    });
+  }
+
+  async getIcpmsMinStandardsCover(elements: string[]) {
+    return this.request<{
+      count: number;
+      standards: Array<{ id: number; s_no: string; name_of_std: string; list_of_elements?: string }>;
+      elements?: string[];
+      uncovered?: string[];
+      error?: string;
+    }>(`/icpms/standards/min-cover/`, {
+      method: "POST",
+      body: JSON.stringify({ elements }),
+    });
+  }
+
+  async getIcpmsAvailableStandards(elements?: string[]) {
+    return this.request<{
+      count: number;
+      standards: Array<{
+        id: number;
+        s_no: string;
+        name_of_std: string;
+        list_of_elements?: string;
+      }>;
+    }>(`/icpms/standards/available/`, {
+      method: "POST",
+      body: JSON.stringify({ elements: elements ?? [] }),
+    });
+  }
+
+  /** Full ICPMS standards table (all DB columns). */
+  async getIcpmsStandardsFullList() {
+    return this.request<{
+      count: number;
+      standards: Array<{
+        id: number;
+        s_no: string;
+        part_no: string;
+        name_of_std: string;
+        list_of_elements: string;
+        concentration: string;
+        status: number;
+        created_at: string | null;
+        updated_at: string | null;
+      }>;
+    }>(`/icpms/standards/full/`, { method: "GET" });
   }
 
   /** Get repeat sample eligibility (new flow): can_create_repeat, reason. */
@@ -2926,7 +3105,6 @@ class ApiClient {
         number_of_samples: number;
         slots_requested: number;
         duration_minutes: number | null;
-        booking_id: number | null;
         display_booking_id?: string | null;
       }>;
       total_count: number;
@@ -2952,7 +3130,8 @@ class ApiClient {
       summary_message: string;
       events: Array<{
         date: string;
-        booking_id: number;
+        booking_id: BookingRef["booking_id"];
+        real_booking_id?: BookingRef["real_booking_id"];
         equipment_name: string;
         equipment_code: string;
         display_booking_id?: string;
@@ -2976,6 +3155,49 @@ class ApiClient {
       }>;
       equipment_id: number;
     }>(`/booking-attempt-logs/my-unsuccessful/?equipment_id=${encodeURIComponent(equipmentId)}`);
+  }
+
+  /** Current user's active waitlist entries (shown in My Bookings history). */
+  async getMyWaitlistEntries() {
+    return this.request<{
+      entries: Array<{
+        booking_id: BookingRef["booking_id"];
+        real_booking_id?: BookingRef["real_booking_id"];
+        virtual_booking_id: string;
+        user: number;
+        user_email: string;
+        user_name: string;
+        equipment: number;
+        equipment_code: string;
+        equipment_name: string;
+        total_time_minutes: number;
+        total_hours: number;
+        total_charge: string;
+        input_values: Record<string, unknown>;
+        selected_parameters: unknown[];
+        charge_breakdown: Array<{ amount: number; description: string }>;
+        status: "WAITLISTED";
+        status_display: "Waitlisted";
+        notes: string;
+        start_time: string;
+        end_time: string;
+        daily_slots: unknown[];
+        created_at: string | null;
+        updated_at: string | null;
+        waitlist_entry_id: number;
+        waitlist_position: number;
+        waitlist_code: string;
+        is_waitlist_entry: true;
+      }>;
+      count: number;
+    }>("/waitlist/my/", { method: "GET" });
+  }
+
+  /** Cancel current user's waitlist entry by id. */
+  async cancelMyWaitlistEntry(entryId: number) {
+    return this.request<{ message: string }>(`/waitlist/${entryId}/cancel/`, {
+      method: "POST",
+    });
   }
 
   /** Create an urgent booking request (internal users). request_type: NO_SLOT | REVIEWER_URGENT. For REVIEWER_URGENT pass evidence_file. Optional hold_booking_id from "Select Slot" flow. */
@@ -3062,7 +3284,8 @@ class ApiClient {
         no_slot_log_entries: Array<{ requested_at: string; number_of_samples: number; slots_requested: number; duration_minutes: number | null }>;
         hold_booking_id: number | null;
         hold_booking_summary: {
-          booking_id: number;
+          booking_id: BookingRef["booking_id"];
+          real_booking_id?: BookingRef["real_booking_id"];
           total_charge: string | null;
           total_time_minutes: number;
           slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
@@ -3116,7 +3339,8 @@ class ApiClient {
       no_slot_log_entries: Array<{ requested_at: string; number_of_samples: number; slots_requested: number; duration_minutes: number | null }>;
       hold_booking_id: number | null;
       hold_booking_summary: {
-        booking_id: number;
+        booking_id: BookingRef["booking_id"];
+        real_booking_id?: BookingRef["real_booking_id"];
         total_charge: string | null;
         total_time_minutes: number;
         slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
@@ -3224,8 +3448,11 @@ class ApiClient {
     const token = this.getToken();
     const res = await fetch(url, {
       method: 'GET',
-      headers: token ? { Authorization: `Token ${token}` } : {},
-      credentials: 'same-origin',
+      headers: {
+        ...(token ? { Authorization: `Token ${token}` } : {}),
+        Accept: 'application/pdf,application/octet-stream,*/*',
+      },
+      credentials: 'omit',
     });
     if (!res.ok) {
       let message = `Failed to load evidence: ${res.status}`;
@@ -3237,7 +3464,9 @@ class ApiClient {
       }
       throw new Error(message);
     }
-    const blob = await res.blob();
+    const ct = res.headers.get('content-type')?.split(';')[0]?.trim() || 'application/octet-stream';
+    const buf = await res.arrayBuffer();
+    const blob = new Blob([buf], { type: ct });
     return URL.createObjectURL(blob);
   }
 
@@ -4231,6 +4460,64 @@ class ApiClient {
     }>(`${endpoint}${userId}/transaction-history/?${params}`, { method: 'GET' });
   }
 
+  /** Admin: list students on a faculty's wallet (for wallet-owner bulk actions). */
+  async adminWalletStudentsList(facultyId: number | string) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{ students: Array<{ id: number; email: string; name: string; user_type: string; use_discounted_charge_profile: boolean }> }>(
+      `${endpoint}${facultyId}/wallet-students/`,
+      { method: 'GET' }
+    );
+  }
+
+  /** Admin: bulk update discounted charge profile for students on a faculty wallet. */
+  async adminApplyDiscountedChargeProfileToWalletStudents(
+    facultyId: number | string,
+    payload: {
+      apply_all?: boolean;
+      use_discounted_charge_profile?: boolean;
+      student_updates?: Array<{ student_id: number; use_discounted_charge_profile: boolean }>;
+      apply_all_equipment?: boolean;
+      equipment_ids?: number[];
+    },
+  ) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{ detail: string; updated_count: number }>(
+      `${endpoint}${facultyId}/apply-discounted-charge-profile-to-wallet-students/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  /** Admin: lightweight equipment list for multi-select scopes. */
+  async adminEquipmentSimpleList() {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<Array<{ equipment_id: number; code: string; name: string }>>(
+      `${endpoint}simple-list/`,
+      { method: 'GET' }
+    );
+  }
+
+  /** Admin: get per-user discounted charge equipment scope. */
+  async adminGetDiscountedChargeEquipment(userId: number | string) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{
+      use_discounted_charge_profile: boolean;
+      apply_all_equipment: boolean;
+      equipment_ids: number[];
+    }>(`${endpoint}${userId}/discounted-charge-equipment/`, { method: 'GET' });
+  }
+
+  /** Admin: set per-user discounted charge equipment scope. */
+  async adminSetDiscountedChargeEquipment(
+    userId: number | string,
+    payload: { use_discounted_charge_profile: boolean; apply_all_equipment: boolean; equipment_ids: number[] },
+  ) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{ detail?: string }>(`${endpoint}${userId}/set-discounted-charge-equipment/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async adminCreate<T = unknown>(section: string, data: Record<string, unknown>) {
     const endpoint = this.getAdminEndpoint(section);
     return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(data) });
@@ -4415,7 +4702,8 @@ class ApiClient {
       id: number;
       coupon_code: string;
       coupon_id: number;
-      booking_id: number;
+      booking_id: BookingRef["booking_id"];
+      real_booking_id?: BookingRef["real_booking_id"];
       virtual_booking_id: string;
       user_email: string;
       discount_amount: string;
@@ -4550,7 +4838,7 @@ class ApiClient {
     }>(`${endpoint}${equipmentId}/booking-requesters/`, { method: 'GET' });
   }
 
-  /** Returns stable proxy URL for equipment image (redirects to fresh S3 signed URL). Use as img src to avoid expired URLs. */
+  /** Stable API URL that streams the equipment image from storage (no expiring signed URLs). Use as img src. */
   getEquipmentImageUrl(equipmentId: number): string {
     const base = this.baseURL.replace(/\/$/, '');
     return `${base}/equipments/${equipmentId}/image/`;
@@ -4630,7 +4918,20 @@ class ApiClient {
       equipment_code: string;
       equipment_name: string;
       waitlist_queue_depth: number;
-      entries: Array<{ id: number; position: number; user_id: number; user_email: string; user_name: string; created_at: string | null }>;
+      entries: Array<{
+        id: number;
+        position: number;
+        user_id: number;
+        user_email: string;
+        user_name: string;
+        created_at: string | null;
+        booking_attempt_requested_at?: string | null;
+        booking_attempt_failure_reason?: string | null;
+        booking_attempt_number_of_samples?: number | null;
+        booking_attempt_slots_requested?: number | null;
+        booking_attempt_duration_minutes?: number | null;
+        booking_attempt_additional_info?: any;
+      }>;
       count: number;
     }>(`${endpoint}${equipmentId}/waitlist/`, { method: 'GET' });
   }

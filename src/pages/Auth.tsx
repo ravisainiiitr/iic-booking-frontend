@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +77,7 @@ interface Department {
 interface PendingOrganizationRequest {
   id: number;
   name: string;
-  verified: false;
+  verified: boolean;
 }
 
 interface UserType {
@@ -382,7 +383,7 @@ const Auth = () => {
       }
     } catch (error: any) {
       console.error('Omniport login error:', error);
-      toast.error(error.message || "Failed to initiate login with Omniport");
+      toast.error(error.message || `Failed to initiate login with ${CHANNEL_I_DISPLAY_NAME}`);
       setLoading(false);
     }
   };
@@ -892,11 +893,11 @@ const Auth = () => {
                       <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" />
                     </svg>
                   </span>
-                  {loading ? "Connecting..." : "Sign in with Channel i IITR"}
+                  {loading ? "Connecting..." : `Sign in with ${CHANNEL_I_DISPLAY_NAME} IITR`}
                 </span>
               </Button>
               <p className="mt-3 text-xs text-muted-foreground text-center leading-relaxed">
-                Official IIT Roorkee authentication. You will be redirected to Channel i to sign in.
+                Official IIT Roorkee authentication. You will be redirected to {CHANNEL_I_DISPLAY_NAME} to sign in.
               </p>
             </div>
 
@@ -1213,7 +1214,7 @@ const Auth = () => {
                     External users and IITR Post Doctoral Fellows, Research Associates in Projects, and IITR Startups can register here.
                   </p>
                   <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary dark:text-primary">
-                    IITR Students, Faculty, and Officer in Charge / Lab in charge → sign in with Channel i IITR above.
+                    IITR Students, Faculty, and Officer in Charge / Lab in charge → sign in with {CHANNEL_I_DISPLAY_NAME} IITR above.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/80 bg-muted/20 dark:bg-muted/30 overflow-hidden">
