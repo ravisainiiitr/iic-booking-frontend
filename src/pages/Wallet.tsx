@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
@@ -104,10 +104,13 @@ const Wallet = () => {
     emp_id?: string | null;
   }>>([]);
   const [isSearchingFaculty, setIsSearchingFaculty] = useState(false);
+  const [isFacultySelectionLocked, setIsFacultySelectionLocked] = useState(false);
+  const facultySearchRequestSeq = useRef(0);
   const [requestMessage, setRequestMessage] = useState("");
   const [requesting, setRequesting] = useState(false);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [resendingJoinRequestId, setResendingJoinRequestId] = useState<number | null>(null);
   const [isFaculty, setIsFaculty] = useState(false);
   const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
   const [isShared, setIsShared] = useState(false);
@@ -531,6 +534,11 @@ const Wallet = () => {
 
   // Debounced function to search faculty by name
   useEffect(() => {
+    if (isFacultySelectionLocked) {
+      setFacultySearchResults([]);
+      setIsSearchingFaculty(false);
+      return;
+    }
     const timeoutId = setTimeout(() => {
       if (facultySearchQuery.trim().length >= 2) {
         searchFacultyByName(facultySearchQuery.trim());
@@ -541,12 +549,16 @@ const Wallet = () => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [facultySearchQuery]);
+  }, [facultySearchQuery, isFacultySelectionLocked]);
 
   const searchFacultyByName = async (query: string) => {
+    const requestSeq = ++facultySearchRequestSeq.current;
     try {
       setIsSearchingFaculty(true);
       const response = await apiClient.searchFacultyByName(query, 10);
+      if (requestSeq !== facultySearchRequestSeq.current || isFacultySelectionLocked) {
+        return;
+      }
       if (response.error) {
         setFacultySearchResults([]);
       } else if (response.data) {
@@ -570,6 +582,8 @@ const Wallet = () => {
     department?: string | null;
     emp_id?: string | null;
   }) => {
+    setIsFacultySelectionLocked(true);
+    facultySearchRequestSeq.current += 1; // invalidate in-flight search responses
     setFacultyEmail(faculty.email);
     setFacultyName(faculty.name);
     setFacultySearchQuery(faculty.name);
@@ -582,6 +596,7 @@ const Wallet = () => {
     });
     setFacultyProfileError(null);
     setFacultySearchResults([]);
+    setIsSearchingFaculty(false);
   };
 
   const fetchJoinRequests = async () => {
@@ -680,6 +695,22 @@ const Wallet = () => {
         variant: isApproved ? "destructive" : "default",
       }
     );
+  };
+
+  const handleResendJoinRequest = async (requestId: number) => {
+    try {
+      setResendingJoinRequestId(requestId);
+      const response = await apiClient.resendWalletJoinRequestNotification(requestId);
+      if (response.error) {
+        toast.error(response.error || "Failed to resend wallet join request.");
+        return;
+      }
+      toast.success(response.data?.message || "Wallet join request resent successfully.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resend wallet join request.");
+    } finally {
+      setResendingJoinRequestId(null);
+    }
   };
 
   const handleApproveRequest = async (requestId: number) => {
@@ -1196,6 +1227,7 @@ const Wallet = () => {
                         placeholder="Type faculty name to search..."
                         value={facultySearchQuery}
                         onChange={(e) => {
+                          setIsFacultySelectionLocked(false);
                           setFacultySearchQuery(e.target.value);
                           if (e.target.value.trim().length < 2) {
                             setFacultyProfile(null);
@@ -1239,6 +1271,11 @@ const Wallet = () => {
                               key={faculty.id}
                               value={faculty.name}
                               onSelect={() => handleFacultySelect(faculty)}
+                              onMouseDown={(e) => {
+                                // Prevent cmdk focus-change from requiring a second click.
+                                e.preventDefault();
+                                handleFacultySelect(faculty);
+                              }}
                               className="cursor-pointer data-[selected='true']:text-white data-[selected=true]:text-white [&[data-selected='true']_p]:!text-white [&[data-selected='true']_span]:!text-white/90 [&[data-selected='true']_svg]:!text-white"
                             >
                               <div className="flex items-center gap-3 w-full py-1">
@@ -1412,14 +1449,25 @@ const Wallet = () => {
                         </p>
                       </div>
                       {request.status === "PENDING" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCancelRequest(request.id)}
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Cancel
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResendJoinRequest(request.id)}
+                            disabled={resendingJoinRequestId === request.id}
+                          >
+                            <Send className="h-4 w-4 mr-1" />
+                            {resendingJoinRequestId === request.id ? "Resending..." : "Resend Request"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancelRequest(request.id)}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Cancel
+                          </Button>
+                        </div>
                       )}
                       {request.status === "APPROVED" && (
                         <Button
@@ -2113,6 +2161,13 @@ const Wallet = () => {
               ) : (
                 <div className="space-y-3">
                   {joinRequests.map((request) => (
+                    (() => {
+                      const status = String(request.status || "").toUpperCase();
+                      const isPending = status === "PENDING";
+                      const isApproved = status === "APPROVED";
+                      const isRejected = status === "REJECTED";
+                      const isCancelled = status === "CANCELLED";
+                      return (
                     <div
                       key={request.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -2128,25 +2183,25 @@ const Wallet = () => {
                           />
                         </div>
                         <div className="flex items-center gap-2 mb-1">
-                          {request.status === "PENDING" && (
+                          {isPending && (
                             <Badge variant="secondary" className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {request.status_display || "Pending"}
                             </Badge>
                           )}
-                          {request.status === "APPROVED" && (
+                          {isApproved && (
                             <Badge variant="default" className="flex items-center gap-1 bg-green-600">
                               <CheckCircle className="h-3 w-3" />
                               {request.status_display || "Approved"}
                             </Badge>
                           )}
-                          {request.status === "REJECTED" && (
+                          {isRejected && (
                             <Badge variant="destructive" className="flex items-center gap-1">
                               <XCircle className="h-3 w-3" />
                               {request.status_display || "Rejected"}
                             </Badge>
                           )}
-                          {request.status === "CANCELLED" && (
+                          {isCancelled && (
                             <Badge variant="outline" className="flex items-center gap-1">
                               <X className="h-3 w-3" />
                               {request.status_display || "Cancelled"}
@@ -2164,7 +2219,18 @@ const Wallet = () => {
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        {(request.status === "PENDING" || request.status === "APPROVED") && (
+                        {isPending && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResendJoinRequest(request.id)}
+                            disabled={resendingJoinRequestId === request.id}
+                          >
+                            <Send className="h-4 w-4 mr-1" />
+                            {resendingJoinRequestId === request.id ? "Resending..." : "Resend Request"}
+                          </Button>
+                        )}
+                        {(isPending || isApproved) && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -2172,11 +2238,13 @@ const Wallet = () => {
                             className="text-orange-600 hover:text-orange-700 border-orange-600 hover:border-orange-700"
                           >
                             <X className="h-4 w-4 mr-1" />
-                            {request.status === "APPROVED" ? "Leave Wallet" : "Cancel Request"}
+                            {isApproved ? "Leave Wallet" : "Cancel Request"}
                           </Button>
                         )}
                       </div>
                     </div>
+                      );
+                    })()
                   ))}
                 </div>
               )}

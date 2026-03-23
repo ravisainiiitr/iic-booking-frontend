@@ -89,6 +89,7 @@ const Dashboard = () => {
   const [myUrgentRequestsCount, setMyUrgentRequestsCount] = useState<number>(0);
   const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
   const [externalProfileNeedsAddress, setExternalProfileNeedsAddress] = useState(false);
+  const [showWalletLinkPrompt, setShowWalletLinkPrompt] = useState(false);
 
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
@@ -108,6 +109,38 @@ const Dashboard = () => {
     userTypeStr === 'finance';
 
   const canAccessAdminTools = apiClient.isAdminPanelUser(user?.user_type) || canAccessBookingAttemptLog;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const userTypeLower = String(user.user_type || "").toLowerCase();
+    const shouldShowWelcome = userTypeLower === "student" || userTypeLower === "faculty";
+    if (!shouldShowWelcome) return;
+
+    const welcomeKey = `dashboard_welcome_shown_${user.id}`;
+    if (localStorage.getItem(welcomeKey)) return;
+
+    const displayName = (user.name || "").trim() || "User";
+    toast.success(`Welcome ${displayName}!`, {
+      description: "Great to have you on the IIC Booking Portal.",
+    });
+    localStorage.setItem(welcomeKey, "1");
+  }, [user?.id, user?.name, user?.user_type]);
+
+  useEffect(() => {
+    if (!showWalletLinkPrompt || !user?.id) return;
+    const promptKey = `wallet_link_prompt_shown_${user.id}`;
+    if (sessionStorage.getItem(promptKey)) return;
+
+    toast.warning("Wallet not linked yet", {
+      description: "Link your faculty wallet to continue with bookings that require wallet access.",
+      action: {
+        label: "Link wallet",
+        onClick: () => navigate("/wallet"),
+      },
+      duration: 10000,
+    });
+    sessionStorage.setItem(promptKey, "1");
+  }, [showWalletLinkPrompt, user?.id, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -152,6 +185,7 @@ const Dashboard = () => {
         const isCurrentUserOperatorOrManager =
           currentUserTypeStr === "operator" || currentUserTypeStr === "manager" || currentUserTypeStr === "admin";
         const isStudent = currentUserTypeStr === "student" || currentUserTypeStr === "individual_student";
+        const isIitrStudent = currentUserTypeStr === "student";
         const isExternalUser = ["external", "rnd", "industry", "other"].includes(currentUserTypeStr);
 
         // Determine what to show (before any await)
@@ -166,15 +200,24 @@ const Dashboard = () => {
             tasks.push(
               apiClient.getWalletJoinRequests().then((requestsResponse) => {
                 if (!isMounted) return;
-                if (requestsResponse.data?.requests?.some((req: any) => req.status === "APPROVED")) {
+                const hasApprovedWalletJoin = requestsResponse.data?.requests?.some((req: any) => req.status === "APPROVED");
+                if (hasApprovedWalletJoin) {
                   setHasWallet(true);
+                  setShowWalletLinkPrompt(false);
                   fetchWalletBalance().catch(() => setHasWallet(false));
+                } else if (isIitrStudent) {
+                  setHasWallet(false);
+                  setShowWalletLinkPrompt(true);
                 }
-              }).catch(() => {})
+              }).catch(() => {
+                if (!isMounted) return;
+                if (isIitrStudent) setShowWalletLinkPrompt(true);
+              })
             );
           } else if (userCanHaveWallet) {
             tasks.push(fetchWalletBalance().then(() => {}).catch(() => setHasWallet(false)));
             setHasWallet(true);
+            setShowWalletLinkPrompt(false);
           }
         }
 
@@ -233,6 +276,9 @@ const Dashboard = () => {
                 setExternalProfileNeedsAddress(true);
               })
           );
+        }
+        if (!isIitrStudent) {
+          setShowWalletLinkPrompt(false);
         }
 
         setLoading(false);
@@ -513,6 +559,27 @@ const Dashboard = () => {
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 Go to Profile
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        {showWalletLinkPrompt && userTypeStr === "student" && (
+          <Card className="mb-6 border-2 border-blue-500/80 bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 dark:from-blue-950/60 dark:via-indigo-950/50 dark:to-purple-950/40 shadow-lg shadow-blue-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                <AlertCircle className="h-5 w-5 text-blue-700 dark:text-blue-300" />
+                Link your wallet to continue booking
+              </CardTitle>
+              <CardDescription className="text-sm font-medium text-blue-900/90 dark:text-blue-100/90">
+                Your IITR student account does not have a linked faculty wallet yet. Click below to go to Wallet and send a link request.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button
+                onClick={() => navigate("/wallet")}
+                className="bg-blue-700 hover:bg-blue-800 text-white font-bold px-6 py-2.5 ring-2 ring-blue-300 dark:ring-blue-700"
+              >
+                Go to Wallet
               </Button>
             </CardContent>
           </Card>

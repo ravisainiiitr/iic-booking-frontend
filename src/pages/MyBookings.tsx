@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
@@ -166,10 +167,24 @@ const MyBookings = () => {
   const [ordering, setOrdering] = useState<string>("-created_at");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [currentUserType, setCurrentUserType] = useState<string | null>(null);
+  const [cancelProgress, setCancelProgress] = useState(0);
 
   useEffect(() => {
     if (user?.user_type != null) setCurrentUserType(String(user.user_type));
   }, [user?.user_type]);
+
+  // Show a smooth progress bar while cancellation is being processed.
+  useEffect(() => {
+    if (!(cancelDialogOpen && actionLoading)) {
+      setCancelProgress(0);
+      return;
+    }
+    setCancelProgress(12);
+    const timer = window.setInterval(() => {
+      setCancelProgress((prev) => (prev >= 92 ? prev : Math.min(92, prev + 8)));
+    }, 220);
+    return () => window.clearInterval(timer);
+  }, [cancelDialogOpen, actionLoading]);
 
   const isAdminOrOIC = (): boolean => {
     if (!currentUserType) return false;
@@ -557,6 +572,13 @@ const MyBookings = () => {
 
   const handleCancelConfirm = async () => {
     if (!selectedBooking) return;
+    if (selectedBooking.source_booking_id != null) {
+      toast.error("Repeat sample bookings cannot be cancelled. Please contact admin if you need to cancel.");
+      setCancelDialogOpen(false);
+      setSelectedBooking(null);
+      setCancelNotes("");
+      return;
+    }
 
     setActionLoading(true);
     try {
@@ -1146,7 +1168,14 @@ const MyBookings = () => {
         </Dialog>
 
         {/* Cancel Booking Dialog */}
-        <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialog
+          open={cancelDialogOpen}
+          onOpenChange={(open) => {
+            // Keep dialog open while cancellation request is in progress so progress bar stays visible.
+            if (actionLoading) return;
+            setCancelDialogOpen(open);
+          }}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>{selectedBooking && isWaitlistedEntry(selectedBooking) ? "Cancel Waitlisted Booking" : "Cancel Booking"}</AlertDialogTitle>
@@ -1154,6 +1183,15 @@ const MyBookings = () => {
                 {selectedBooking && isWaitlistedEntry(selectedBooking)
                   ? "Are you sure you want to cancel this waitlisted booking? This action cannot be undone."
                   : "Are you sure you want to cancel this booking? This action cannot be undone."}
+                {actionLoading && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Processing cancellation request...</span>
+                      <span>{cancelProgress}%</span>
+                    </div>
+                    <Progress value={cancelProgress} className="h-2" />
+                  </div>
+                )}
                 {selectedBooking && (
                   <div className="mt-2 text-sm">
                     <p><strong>Equipment:</strong> {selectedBooking.equipment_name}</p>
@@ -1198,7 +1236,11 @@ const MyBookings = () => {
             <AlertDialogFooter>
               <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleCancelConfirm}
+                onClick={(e) => {
+                  // Prevent AlertDialogAction's default auto-close behavior.
+                  e.preventDefault();
+                  handleCancelConfirm();
+                }}
                 disabled={actionLoading}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >

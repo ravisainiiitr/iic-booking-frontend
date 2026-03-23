@@ -2277,6 +2277,12 @@ class ApiClient {
     });
   }
 
+  async resendWalletJoinRequestNotification(requestId: number) {
+    return this.request<{ message: string }>(`/wallet/join-requests/${requestId}/resend-notification/`, {
+      method: 'POST',
+    });
+  }
+
   async removeStudentFromWallet(requestId: number, responseMessage?: string) {
     return this.request<{ message: string }>(`/wallet/join-requests/${requestId}/remove/`, {
       method: 'POST',
