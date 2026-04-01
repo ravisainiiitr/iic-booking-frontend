@@ -28,6 +28,7 @@ import TemporaryOIC from "./pages/TemporaryOIC";
 import TANominationCall from "./pages/TANominationCall";
 import TANominationsLog from "./pages/TANominationsLog";
 import MyNominationRequests from "./pages/MyNominationRequests";
+import TAAssignments from "./pages/TAAssignments";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Wallet from "./pages/Wallet";
 import Reports from "./pages/Reports";
@@ -39,13 +40,14 @@ import ContentManagement from "./pages/ContentManagement";
 import AdminSettings from "./pages/AdminSettings";
 import AdminSettingsAuth from "./pages/AdminSettingsAuth";
 import AdminCommunication from "./pages/AdminCommunication";
-import AdminCoupons from "./pages/AdminCoupons";
-import Coupons from "./pages/Coupons";
 import InboxEmail from "./pages/InboxEmail";
 import AdminSettingsEquipment from "./pages/AdminSettingsEquipment";
 import AdminSettingsSupport from "./pages/AdminSettingsSupport";
 import AdminSettingsQualityImprovement from "./pages/AdminSettingsQualityImprovement";
+import AdminRewardsConfig from "./pages/AdminRewardsConfig";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
+import InventoryManagement from "./pages/InventoryManagement";
+import ProcurementWorkflow from "./pages/ProcurementWorkflow";
 import UserManagement from "./pages/UserManagement";
 import SetupTestUsers from "./pages/SetupTestUsers";
 import Profile from "./pages/Profile";
@@ -60,18 +62,23 @@ import ExternalUserManagement from "./pages/ExternalUserManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
 import ChatWidget from "./components/ChatWidget";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
+        <BrowserRouter>
           <AuthProvider>
             <NotificationProvider>
               <Toaster />
@@ -98,6 +105,7 @@ const App = () => (
                 <Route path="/equipment-waitlist" element={<ErrorBoundary fallbackTitle="Equipment Waitlist" backPath="/dashboard"><EquipmentWaitlist /></ErrorBoundary>} />
                 <Route path="/temporary-oic" element={<ErrorBoundary fallbackTitle="Temporary OIC" backPath="/dashboard"><TemporaryOIC /></ErrorBoundary>} />
                 <Route path="/ta-nomination-call" element={<TANominationCall />} />
+                <Route path="/ta-assignments" element={<TAAssignments />} />
                 <Route path="/ta-nominations-log" element={<TANominationsLog />} />
                 <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
                 <Route path="/wallet" element={<Wallet />} />
@@ -117,14 +125,15 @@ const App = () => (
                 <Route path="/admin-settings" element={<AdminSettings />} />
                 <Route path="/admin-settings/auth" element={<AdminSettingsAuth />} />
                 <Route path="/admin-settings/communication" element={<AdminCommunication />} />
-                <Route path="/admin/coupons" element={<AdminCoupons />} />
-                <Route path="/coupons" element={<Coupons />} />
                 <Route path="/admin-settings/inbox-email" element={<InboxEmail />} />
                 <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
+                <Route path="/inventory-management" element={<InventoryManagement />} />
+                <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
                 <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
+                <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
                 <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/setup-test-users" element={<SetupTestUsers />} />
                 <Route path="/profile" element={<Profile />} />

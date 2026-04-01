@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -141,6 +141,7 @@ const BookingAttemptLogs = () => {
   });
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
+  const isLabInchargeUser = userTypeStr === "operator";
   // Admin, manager, operator, finance can access (match backend check_operator_permission + finance)
   const canAccess =
     apiClient.isAdminPanelUser(user?.user_type) ||
@@ -168,6 +169,12 @@ const BookingAttemptLogs = () => {
   // Backend restricts equipment list to OIC's/operator's mapped equipments for managers/operators
   useEffect(() => {
     if (!canAccess || !user) return;
+    if (isLabInchargeUser) {
+      setUserOptions([]);
+      setInternalDepartments([]);
+      setExternalDepartments([]);
+      return;
+    }
     let cancelled = false;
     setLoadingOptions(true);
     Promise.all([
@@ -218,15 +225,15 @@ const BookingAttemptLogs = () => {
         if (!cancelled) setLoadingOptions(false);
       });
     return () => { cancelled = true; };
-  }, [canAccess, user]);
+  }, [canAccess, user, isLabInchargeUser]);
 
   const fetchList = async () => {
     setLoading(true);
     try {
       const res = await apiClient.listBookingAttemptLogs({
         equipment_id: filters.equipment_id ? Number(filters.equipment_id) : undefined,
-        user_id: filters.user_id ? Number(filters.user_id) : undefined,
-        department_id: filters.department_id ? Number(filters.department_id) : undefined,
+        user_id: !isLabInchargeUser && filters.user_id ? Number(filters.user_id) : undefined,
+        department_id: !isLabInchargeUser && filters.department_id ? Number(filters.department_id) : undefined,
         outcome: filters.outcome !== "ALL" ? filters.outcome : undefined,
         date_from: filters.date_from || undefined,
         date_to: filters.date_to || undefined,
@@ -335,35 +342,51 @@ const BookingAttemptLogs = () => {
     }
   };
 
-  const selectedUser = filters.user_id
-    ? userOptions.find((u) => String(u.id) === filters.user_id) ?? null
-    : null;
+  const selectedUser = useMemo(
+    () => (filters.user_id ? userOptions.find((u) => String(u.id) === filters.user_id) ?? null : null),
+    [filters.user_id, userOptions]
+  );
   const searchLower = userSearchText.trim().toLowerCase();
-  const filteredUsers = searchLower
-    ? userOptions.filter(
-        (u) =>
-          (u.name && u.name.toLowerCase().includes(searchLower)) ||
-          (u.email && u.email.toLowerCase().includes(searchLower))
-      )
-    : userOptions;
+  const filteredUsers = useMemo(
+    () =>
+      searchLower
+        ? userOptions.filter(
+            (u) =>
+              (u.name && u.name.toLowerCase().includes(searchLower)) ||
+              (u.email && u.email.toLowerCase().includes(searchLower))
+          )
+        : userOptions,
+    [searchLower, userOptions]
+  );
 
-  const departmentOptionsByType =
-    departmentType === "INTERNAL"
-      ? internalDepartments
-      : departmentType === "EXTERNAL"
-        ? externalDepartments
-        : [];
-  const selectedDepartment = filters.department_id
-    ? [...internalDepartments, ...externalDepartments].find((d) => String(d.id) === filters.department_id) ?? null
-    : null;
+  const departmentOptionsByType = useMemo(
+    () =>
+      departmentType === "INTERNAL"
+        ? internalDepartments
+        : departmentType === "EXTERNAL"
+          ? externalDepartments
+          : [],
+    [departmentType, internalDepartments, externalDepartments]
+  );
+  const selectedDepartment = useMemo(
+    () =>
+      filters.department_id
+        ? [...internalDepartments, ...externalDepartments].find((d) => String(d.id) === filters.department_id) ?? null
+        : null,
+    [filters.department_id, internalDepartments, externalDepartments]
+  );
   const deptSearchLower = departmentSearchText.trim().toLowerCase();
-  const filteredDepartments = deptSearchLower
-    ? departmentOptionsByType.filter(
-        (d) =>
-          (d.name && d.name.toLowerCase().includes(deptSearchLower)) ||
-          (d.code && d.code.toLowerCase().includes(deptSearchLower))
-      )
-    : departmentOptionsByType;
+  const filteredDepartments = useMemo(
+    () =>
+      deptSearchLower
+        ? departmentOptionsByType.filter(
+            (d) =>
+              (d.name && d.name.toLowerCase().includes(deptSearchLower)) ||
+              (d.code && d.code.toLowerCase().includes(deptSearchLower))
+          )
+        : departmentOptionsByType,
+    [deptSearchLower, departmentOptionsByType]
+  );
 
   // Access denied: only when we're done loading auth and user is set but cannot access
   const showAccessDenied = !authLoading && user !== null && !canAccess;
@@ -450,7 +473,7 @@ const BookingAttemptLogs = () => {
                   ))}
                 </select>
               </div>
-              <div className="relative">
+              {!isLabInchargeUser && (<div className="relative">
                 <Label htmlFor="user_search">User name</Label>
                 <div className="mt-1 relative">
                   <Input
@@ -516,8 +539,8 @@ const BookingAttemptLogs = () => {
                     )}
                   </div>
                 )}
-              </div>
-              <div className="relative">
+              </div>)}
+              {!isLabInchargeUser && (<div className="relative">
                 <Label>User department</Label>
                 <div className="mt-1 flex flex-wrap gap-4 items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -627,7 +650,7 @@ const BookingAttemptLogs = () => {
                     )}
                   </div>
                 )}
-              </div>
+              </div>)}
               <div>
                 <Label>Outcome</Label>
                 <select
@@ -993,6 +1016,7 @@ const BookingAttemptLogs = () => {
                   onUpdated={() => setBookingDetailPopup(null)}
                   isOperator={userTypeStr === "operator"}
                   isManagerOrAdmin={userTypeStr === "admin" || userTypeStr === "manager"}
+                  currentUserType={userTypeStr}
                   currentUserId={user?.id ?? null}
                   backLabel="Close"
                 />

@@ -61,6 +61,7 @@ type UrgentRequestRow = {
   duration_minutes: number | null;
   evidence_file_url: string | null;
   evidence_original_name: string;
+  reviewer_comment?: string;
   wallet_approved_at: string | null;
   wallet_approved_by_name: string | null;
   wallet_notes: string;
@@ -111,13 +112,6 @@ const UrgentRequests = () => {
   const [validityDaysEditing, setValidityDaysEditing] = useState(false);
   const [validityDaysSaving, setValidityDaysSaving] = useState(false);
   const [validityDaysInput, setValidityDaysInput] = useState("1");
-  const [tick, setTick] = useState(0);
-
-  // Update every second for Time remaining countdown
-  useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const userType = user?.user_type ? String(user.user_type).toLowerCase() : "";
   const canAccess = userType === "admin" || userType === "manager" || userType === "operator";
@@ -534,6 +528,12 @@ const UrgentRequests = () => {
                           "—"
                         )}
                       </div>
+                      {detailRow.reviewer_comment ? (
+                        <div className="col-span-2 space-y-1">
+                          <span className="text-muted-foreground text-sm">Reviewer comment:</span>
+                          <p className="text-sm whitespace-pre-wrap rounded-md border bg-muted/20 p-2">{detailRow.reviewer_comment}</p>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </div>

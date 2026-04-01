@@ -132,8 +132,6 @@ const BookingManagement = () => {
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [resultsData, setResultsData] = useState<{ exists: boolean; files: Array<{ name: string; download_url: string }> } | null>(null);
-  const [resultsLoading, setResultsLoading] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const expandId = searchParams.get("expand");
@@ -142,6 +140,7 @@ const BookingManagement = () => {
   const userType: any = user?.user_type;
   const userTypeStr = userType ? String(userType).toLowerCase() : '';
   const isOperator = userTypeStr === 'operator';
+  const isLabInchargeUser = isOperator;
   const isManagerOrAdmin = userTypeStr === 'manager' || userTypeStr === 'admin';
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
 
@@ -162,38 +161,6 @@ const BookingManagement = () => {
     fetchBookings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, navigate, authLoading, isAuthenticated, user, isOperatorOrManager]);
-
-  // Fetch S3 results for the selected booking when detail view is shown
-  useEffect(() => {
-    if (selectedBookingId == null) {
-      setResultsData(null);
-      return;
-    }
-    let cancelled = false;
-    setResultsLoading(true);
-    setResultsData(null);
-    const selected = overrideBooking ?? detailBooking ?? bookings.find((b) => b.booking_id === selectedBookingId);
-    const backendId = getRealBookingId(selected);
-    if (backendId == null) {
-      setResultsLoading(false);
-      return;
-    }
-    apiClient
-      .getBookingResults(backendId)
-      .then((res) => {
-        if (cancelled || res.error) return;
-        setResultsData({
-          exists: res.data?.exists ?? false,
-          files: (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url })),
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setResultsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedBookingId, overrideBooking, detailBooking, bookings]);
 
   // When landing with ?expand=booking_id (e.g. from Change slot status page), fetch that booking and show detail
   useEffect(() => {
@@ -264,9 +231,9 @@ const BookingManagement = () => {
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
-      if (userNameFilter.trim()) params.user_name = userNameFilter.trim();
-      if (supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
-      if (userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
+      if (!isLabInchargeUser && userNameFilter.trim()) params.user_name = userNameFilter.trim();
+      if (!isLabInchargeUser && supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
+      if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
       if (ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
       const response = await apiClient.getBookings(params);
       if (response.data && response.data.bookings) {
@@ -360,16 +327,15 @@ const BookingManagement = () => {
               <h1 className="text-3xl font-bold">Booking Management</h1>
               <p className="text-muted-foreground mt-1">Manage all bookings as operator or manager</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => navigate("/urgent-requests")}>
-              Urgent requests
-            </Button>
           </div>
 
           <Card className="border shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-base">Search &amp; filters</CardTitle>
               <CardDescription>
-                Search by Booking ID, Equipment Name, User Name, Supervisor Name, User Mobile, or Email. Set filters and click Apply.
+                {isLabInchargeUser
+                  ? "Search by Booking ID, Equipment Name, User Mobile, or Email. Set filters and click Apply."
+                  : "Search by Booking ID, Equipment Name, User Name, Supervisor Name, User Mobile, or Email. Set filters and click Apply."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -394,6 +360,7 @@ const BookingManagement = () => {
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="BOOKED">Booked</SelectItem>
+                      <SelectItem value="DISRUPTION_PENDING">Awaiting your choice (disruption)</SelectItem>
                       <SelectItem value="COMPLETED">Completed</SelectItem>
                       <SelectItem value="CANCELLED">Cancelled</SelectItem>
                       <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
@@ -422,7 +389,7 @@ const BookingManagement = () => {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
-                <div className="space-y-2">
+                {!isLabInchargeUser && (<div className="space-y-2">
                   <Label htmlFor="user_name">User name</Label>
                   <Input
                     id="user_name"
@@ -431,8 +398,8 @@ const BookingManagement = () => {
                     value={userNameFilter}
                     onChange={(e) => setUserNameFilter(e.target.value)}
                   />
-                </div>
-                <div className="space-y-2">
+                </div>)}
+                {!isLabInchargeUser && (<div className="space-y-2">
                   <Label htmlFor="supervisor_name">Supervisor name</Label>
                   <Input
                     id="supervisor_name"
@@ -441,8 +408,8 @@ const BookingManagement = () => {
                     value={supervisorNameFilter}
                     onChange={(e) => setSupervisorNameFilter(e.target.value)}
                   />
-                </div>
-                <div className="space-y-2">
+                </div>)}
+                {!isLabInchargeUser && (<div className="space-y-2">
                   <Label>User type</Label>
                   <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
                     <SelectTrigger>
@@ -454,7 +421,7 @@ const BookingManagement = () => {
                       <SelectItem value="external">External</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                </div>)}
                 <div className="space-y-2">
                   <Label>Rating</Label>
                   <Select value={ratingFilter} onValueChange={setRatingFilter}>
@@ -647,6 +614,7 @@ const BookingManagement = () => {
                   onUpdated={fetchBookings}
                   isOperator={isOperator}
                   isManagerOrAdmin={isManagerOrAdmin}
+                  currentUserType={userTypeStr}
                   currentUserId={user?.id}
                   backLabel="Back to list"
                   showPrintButton

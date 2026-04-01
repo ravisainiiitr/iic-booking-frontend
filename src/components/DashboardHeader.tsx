@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
+
+const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
+const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
 const DashboardHeader = () => {
   const navigate = useNavigate();
@@ -182,6 +185,25 @@ const DashboardHeader = () => {
     balanceFetchingRef.current = true;
     
     try {
+      const cached = localStorage.getItem(WALLET_BALANCE_CACHE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as { balance?: number; ts?: number };
+          if (
+            typeof parsed?.balance === "number" &&
+            typeof parsed?.ts === "number" &&
+            Date.now() - parsed.ts < WALLET_BALANCE_CACHE_TTL_MS
+          ) {
+            setWalletBalance(parsed.balance);
+            setHasWallet(true);
+            balanceFetchingRef.current = false;
+            return;
+          }
+        } catch {
+          // Ignore malformed cache.
+        }
+      }
+
       const response = await apiClient.getWalletBalance();
       
       // Check if response.data exists and has balance
@@ -190,6 +212,10 @@ const DashboardHeader = () => {
         setWalletBalance(balance);
         // Set hasWallet to true when balance is successfully fetched
         setHasWallet(true);
+        localStorage.setItem(
+          WALLET_BALANCE_CACHE_KEY,
+          JSON.stringify({ balance, ts: Date.now() })
+        );
       } else if (response.data && typeof response.data === 'object' && 'balance' in response.data) {
         // Handle case where balance might be directly in response.data
         const balance = Number(response.data.balance);
@@ -203,6 +229,10 @@ const DashboardHeader = () => {
           setWalletBalance(balance);
           // Set hasWallet to true when balance is successfully fetched
           setHasWallet(true);
+          localStorage.setItem(
+            WALLET_BALANCE_CACHE_KEY,
+            JSON.stringify({ balance, ts: Date.now() })
+          );
         } else {
           // No wallet found
           setHasWallet(false);
@@ -220,6 +250,18 @@ const DashboardHeader = () => {
   const handleSignOut = async () => {
     await logout();
     navigate("/auth");
+  };
+
+  const safeNavigate = (path: string) => {
+    if (!path) return;
+    if (window.location.pathname === path) return;
+    navigate(path);
+    // Fallback: if route render is blocked, force navigation.
+    window.setTimeout(() => {
+      if (window.location.pathname !== path) {
+        window.location.assign(path);
+      }
+    }, 80);
   };
 
   return (
@@ -256,7 +298,9 @@ const DashboardHeader = () => {
           )}
           {showWalletOption && !hasWallet && (
             <div className="text-sm text-muted-foreground">
-              Request Wallet Access
+              <Link to="/wallet" className="underline hover:text-foreground transition-colors">
+                Request Wallet Access
+              </Link>
             </div>
           )}
           <DropdownMenu>
@@ -276,40 +320,40 @@ const DashboardHeader = () => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+              <DropdownMenuItem onClick={() => safeNavigate("/dashboard")}>
                 <Home className="mr-2 h-4 w-4" />
                 <span>Dashboard</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/equipments")}>
+              <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
                 <Package className="mr-2 h-4 w-4" />
                 <span>Browse Equipment</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(canManageBookings ? "/booking-management" : "/my-bookings")}>
+              <DropdownMenuItem onClick={() => safeNavigate(canManageBookings ? "/booking-management" : "/my-bookings")}>
                 <ClipboardList className="mr-2 h-4 w-4" />
                 <span>{canManageBookings ? "Manage booking" : "My Booking"}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/profile")}>
+              <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                 <UserIcon className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/tickets")}>
+              <DropdownMenuItem onClick={() => safeNavigate("/tickets")}>
                 <HelpCircle className="mr-2 h-4 w-4" />
                 <span>Support Tickets</span>
               </DropdownMenuItem>
               {showWalletOption && (
-                <DropdownMenuItem onClick={() => navigate("/wallet")}>
+                <DropdownMenuItem onClick={() => safeNavigate("/wallet")}>
                   <Wallet className="mr-2 h-4 w-4" />
                   <span>Wallet</span>
                 </DropdownMenuItem>
               )}
               {isFaculty && (
-                <DropdownMenuItem onClick={() => navigate("/urgent-requests-wallet")}>
+                <DropdownMenuItem onClick={() => safeNavigate("/urgent-requests-wallet")}>
                   <FileCheck className="mr-2 h-4 w-4" />
                   <span>Urgent requests (approve)</span>
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem onSelect={handleSignOut} className="text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Logout</span>
               </DropdownMenuItem>

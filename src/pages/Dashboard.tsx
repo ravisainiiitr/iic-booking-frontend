@@ -13,13 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Tag, Send, Receipt, Wrench, ChevronRight, FolderTree, Layers, CreditCard, Banknote } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, FolderTree, Layers, CreditCard, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Badge } from "@/components/ui/badge";
 import { TicketForm, TICKET_TYPE, QUALITY_IMPROVEMENT_SUBJECT } from "@/components/TicketForm";
-import { type BookingRef } from "@/lib/bookingRef";
+import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 
 interface Booking extends BookingRef {
   user: number;
@@ -62,6 +62,9 @@ function getUserCategoryLabel(userType: number | string | undefined | null, user
   return map[t] || String(userType);
 }
 
+const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
+const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated, refreshUser, logout } = useAuth();
@@ -94,11 +97,13 @@ const Dashboard = () => {
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
   const userTypeStr = userType ? String(userType).toLowerCase() : '';
+  const isLabInchargeUser = userTypeStr === "operator";
   const isOperatorOrManager = 
     userTypeStr === 'operator' || userTypeStr === 'manager' || userTypeStr === 'admin';
   
   // Admin Settings section is only visible to admins (not managers, operators, or finance)
   const isAdmin = userTypeStr === 'admin';
+  const isFacultyUser = userTypeStr === "faculty";
 
   // Admin and OIC (manager, operator, finance) can see booking attempt log
   const canAccessBookingAttemptLog =
@@ -120,9 +125,15 @@ const Dashboard = () => {
     if (localStorage.getItem(welcomeKey)) return;
 
     const displayName = (user.name || "").trim() || "User";
-    toast.success(`Welcome ${displayName}!`, {
-      description: "Great to have you on the IIC Booking Portal.",
-    });
+    if (userTypeLower === "faculty") {
+      toast.success(`Welcome, ${displayName}.`, {
+        description: "You are signed in to the IIC Booking Portal. Please review your dashboard for booking updates and pending actions.",
+      });
+    } else {
+      toast.success(`Welcome ${displayName}!`, {
+        description: "Great to have you on the IIC Booking Portal.",
+      });
+    }
     localStorage.setItem(welcomeKey, "1");
   }, [user?.id, user?.name, user?.user_type]);
 
@@ -189,7 +200,7 @@ const Dashboard = () => {
         const isExternalUser = ["external", "rnd", "industry", "other"].includes(currentUserTypeStr);
 
         // Determine what to show (before any await)
-        const shouldShowWallet = userCanHaveWallet || (currentUserTypeStr === "student");
+        const shouldShowWallet = userCanHaveWallet || isStudent;
         setShowWalletOption(!!shouldShowWallet);
 
         // Run all data fetches in parallel (no await chain)
@@ -306,14 +317,42 @@ const Dashboard = () => {
 
   const fetchWalletBalance = async () => {
     try {
+      const cached = localStorage.getItem(WALLET_BALANCE_CACHE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as { balance?: number; ts?: number };
+          if (
+            typeof parsed?.balance === "number" &&
+            typeof parsed?.ts === "number" &&
+            Date.now() - parsed.ts < WALLET_BALANCE_CACHE_TTL_MS
+          ) {
+            setWalletBalance(parsed.balance);
+            setHasWallet(true);
+            return;
+          }
+        } catch {
+          // Ignore malformed cache.
+        }
+      }
+
       const response = await apiClient.getWalletBalance();
       if (response.data) {
-        setWalletBalance(Number(response.data.balance));
+        const balance = Number(response.data.balance);
+        setWalletBalance(balance);
+        localStorage.setItem(
+          WALLET_BALANCE_CACHE_KEY,
+          JSON.stringify({ balance, ts: Date.now() })
+        );
       } else {
         // Fallback to full wallet endpoint if balance endpoint fails
         const walletResponse = await apiClient.getWallet();
         if (walletResponse.data?.balance) {
-          setWalletBalance(Number(walletResponse.data.balance));
+          const balance = Number(walletResponse.data.balance);
+          setWalletBalance(balance);
+          localStorage.setItem(
+            WALLET_BALANCE_CACHE_KEY,
+            JSON.stringify({ balance, ts: Date.now() })
+          );
         }
       }
     } catch (error) {
@@ -441,7 +480,9 @@ const Dashboard = () => {
       }
       const pending = response.data.bookings.filter(
         (b: Booking) =>
-          (b.rating == null || b.rating === undefined) && (b.equipment_user_rating_enabled !== false)
+          (b.rating == null || b.rating === undefined) &&
+          (b.equipment_user_rating_enabled !== false) &&
+          (!isFacultyUser || (user?.id != null && Number(b.user) === Number(user.id)))
       );
       setPendingRatingBookings(pending);
     } catch {
@@ -538,15 +579,15 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="dashboard-page min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
       <DashboardHeader />
 
       <main className="container mx-auto px-4 py-8">
         {externalProfileNeedsAddress && (
-          <Card className="mb-6 border-amber-200/70 bg-amber-50/60 dark:bg-amber-950/10">
+          <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-blue-200/70 bg-blue-50/60 dark:bg-blue-950/10">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                <AlertCircle className="h-4 w-4 text-blue-700 dark:text-blue-400" />
                 Complete billing & shipping details
               </CardTitle>
               <CardDescription>
@@ -556,7 +597,7 @@ const Dashboard = () => {
             <CardContent className="pt-0">
               <Button
                 onClick={() => navigate("/profile#external-billing")}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Go to Profile
               </Button>
@@ -564,7 +605,7 @@ const Dashboard = () => {
           </Card>
         )}
         {showWalletLinkPrompt && userTypeStr === "student" && (
-          <Card className="mb-6 border-2 border-blue-500/80 bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 dark:from-blue-950/60 dark:via-indigo-950/50 dark:to-purple-950/40 shadow-lg shadow-blue-500/20">
+          <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-blue-500/80 bg-gradient-to-r from-blue-100 via-blue-100 to-indigo-100 dark:from-blue-950/60 dark:via-blue-950/50 dark:to-indigo-950/40 shadow-lg shadow-blue-500/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-blue-900 dark:text-blue-100">
                 <AlertCircle className="h-5 w-5 text-blue-700 dark:text-blue-300" />
@@ -577,7 +618,7 @@ const Dashboard = () => {
             <CardContent className="pt-0">
               <Button
                 onClick={() => navigate("/wallet")}
-                className="bg-blue-700 hover:bg-blue-800 text-white font-bold px-6 py-2.5 ring-2 ring-blue-300 dark:ring-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 ring-2 ring-blue-300 dark:ring-blue-700"
               >
                 Go to Wallet
               </Button>
@@ -585,11 +626,7 @@ const Dashboard = () => {
           </Card>
         )}
         {/* Profile card – image left, details right */}
-        <div className={`mb-10 overflow-hidden rounded-2xl shadow-xl ${
-          isAdmin 
-            ? "bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-700 text-white" 
-            : "bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600 text-white"
-        }`}>
+        <div className="dashboard-hero-card mb-10 overflow-hidden rounded-2xl shadow-xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 text-white">
           <div className="flex flex-col sm:flex-row sm:items-stretch gap-0">
             {/* Avatar */}
             <div className="flex justify-center sm:justify-start p-6 sm:p-8 sm:pr-0">
@@ -668,10 +705,10 @@ const Dashboard = () => {
 
         {/* Pending rating prompt for internal (student, faculty) and external users */}
         {!isOperatorOrManager && pendingRatingBookings.length > 0 && (
-          <Card className="mb-8 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 shadow-md">
+          <Card className="dashboard-notice-card dashboard-notice-warning mb-8 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40 shadow-md">
             <CardContent className="py-5 px-6">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400">
                   <Star className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -684,7 +721,7 @@ const Dashboard = () => {
                 </div>
                 <Button
                   onClick={() => navigate("/my-bookings?pending_rating=1")}
-                  className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
                 >
                   Submit rating
                 </Button>
@@ -693,12 +730,12 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
+        <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
           {isAdmin ? "Quick access" : "Get started"}
         </p>
 
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
-          <Card 
+        <div className={`dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
+          {!isLabInchargeUser && (<Card 
             role="button"
             tabIndex={0}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800 h-full"
@@ -724,7 +761,7 @@ const Dashboard = () => {
                 Browse Equipment
               </span>
             </CardContent>
-          </Card>
+          </Card>)}
 
           {!isOperatorOrManager && (
             <Card 
@@ -924,60 +961,6 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {userTypeStr === "faculty" && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/coupons")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Tag className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Coupons</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Coupons available for use when booking. View balance and consumption history on the coupons page.
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); navigate("/coupons"); }}>
-                  View my coupons
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Coupons card for non-faculty users (students, etc.) */}
-          {userTypeStr !== "faculty" && userTypeStr !== "admin" && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/coupons")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Tag className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Coupons</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Coupons available for use when booking. View balance and consumption history on the coupons page.
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); navigate("/coupons"); }}>
-                  View my coupons
-                </Button>
-              </CardContent>
-            </Card>
-          )}
 
           <Card 
             role="button"
@@ -1007,7 +990,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
+          {!isLabInchargeUser && (<Card 
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
             onClick={() => setQualityFormOpen(true)}
           >
@@ -1017,18 +1000,18 @@ const Dashboard = () => {
                   <MessageSquarePlus className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Quality Improvement</CardTitle>
+                    <CardTitle className="text-lg">Feedback/Suggestions</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
-                    Report bugs or suggest improvements for the booking website
+                      Share feedback, report issues, or suggest improvements for the booking portal
                   </CardDescription>
                 </div>
               </div>
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Report / Suggest</Button>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Feedback / Suggestions</Button>
             </CardContent>
-          </Card>
+          </Card>)}
           <TicketForm
             open={qualityFormOpen}
             onOpenChange={setQualityFormOpen}
@@ -1097,7 +1080,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isOperatorOrManager && (
+          {isOperatorOrManager && !isLabInchargeUser && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => navigate("/ta-nomination-call")}
@@ -1118,6 +1101,61 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Initiate TA nomination call</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {((isOperatorOrManager && !isLabInchargeUser) || userTypeStr === "student" || userTypeStr === "individual_student") && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => navigate("/ta-assignments")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Allocate TA duties and track assignment-to-reward workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">
+                  Open TA assignments
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOperatorOrManager && !isLabInchargeUser && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
+              onClick={() => navigate("/admin-settings/rewards")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
+                    <Star className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Reward config
+                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Per equipment</Badge>
+                    </CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Configure TA reward earning and redemption policy per equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Open reward settings</Button>
               </CardContent>
             </Card>
           )}
@@ -1147,7 +1185,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {canAccessAdminTools && (
+          {canAccessAdminTools && !isLabInchargeUser && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
               onClick={() => navigate("/manage/external-user-management")}
@@ -1225,6 +1263,81 @@ const Dashboard = () => {
           )}
 
           {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/admin-settings/wallet-recharge-parse")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manual credits, imports, IMAP, and recharge history
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open wallet tools</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/procurement-workflow")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Procurement Workflow</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Office verification, store approval, head approval and purchase closure
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
+              onClick={() => navigate("/inventory-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-emerald-600 text-white shadow-lg">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Inventory Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage item requests, stock transactions, and issued assets
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-lime-600 hover:bg-lime-700 text-white">Open inventory tools</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
               onClick={() => navigate("/content-management")}
@@ -1274,30 +1387,6 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isAdmin && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/admin/coupons")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Tag className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Coupons</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Create discount coupons, assign to users, and view usage history
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Create & manage coupons</Button>
-              </CardContent>
-            </Card>
-          )}
 
           {isAdmin && (
             <Card 
@@ -1328,10 +1417,10 @@ const Dashboard = () => {
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && (
           <section className="mt-12 space-y-8">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
+            <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
               Your activity
             </p>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="dashboard-uniform-cards grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Upcoming Bookings Section */}
               <Card className="overflow-hidden border-0 shadow-lg shadow-sky-500/10 bg-card rounded-2xl">
                 <CardHeader className="pb-4 border-b bg-gradient-to-r from-sky-500/10 to-blue-500/10">
@@ -1367,7 +1456,7 @@ const Dashboard = () => {
                         <li
                           key={booking.booking_id}
                           className="group flex cursor-pointer transition-colors hover:bg-muted/40"
-                          onClick={() => navigate("/my-bookings")}
+                          onClick={() => navigate(`/my-bookings?booking=${encodeURIComponent(getBookingKey(booking))}`)}
                         >
                           <div className={`w-1 shrink-0 self-stretch ${getStatusColor(booking.status)} opacity-80`} />
                           <div className="flex-1 min-w-0 py-4 px-5">

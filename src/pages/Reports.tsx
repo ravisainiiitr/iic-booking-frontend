@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,19 +124,13 @@ const Reports = () => {
   };
 
   const fetchStats = async () => {
-    const response = await apiClient.getBookings();
-    if (response.data && response.data.bookings) {
-      const bookings = response.data.bookings;
-      const statusCounts: Record<string, number> = {};
-      bookings.forEach((booking: { status?: string; status_display?: string; total_charge?: number; total_hours?: number }) => {
-        const status = booking.status || booking.status_display || "UNKNOWN";
-        statusCounts[status] = (statusCounts[status] || 0) + 1;
-      });
+    const response = await apiClient.getBookingStats();
+    if (response.data) {
       setStats({
-        totalBookings: response.data.count ?? bookings.length,
-        totalSpent: bookings.reduce((sum: number, b: { total_charge?: number }) => sum + Number(b.total_charge || 0), 0),
-        totalHours: bookings.reduce((sum: number, b: { total_hours?: number }) => sum + Number(b.total_hours || 0), 0),
-        statusCounts,
+        totalBookings: Number(response.data.total_bookings || 0),
+        totalSpent: Number(response.data.total_spent || 0),
+        totalHours: Number(response.data.total_hours || 0),
+        statusCounts: response.data.status_counts || {},
       });
     }
     setLoading(false);
@@ -193,23 +187,34 @@ const Reports = () => {
     else toast({ title: "Download started", description: "Excel report is downloading." });
   };
 
-  const pieData = Object.entries(stats.statusCounts).map(([name, value]) => ({
-    name: name.replace(/_/g, " "),
-    value,
-    fill: getStatusColor(name),
-  }));
+  const pieData = useMemo(
+    () =>
+      Object.entries(stats.statusCounts).map(([name, value]) => ({
+        name: name.replace(/_/g, " "),
+        value,
+        fill: getStatusColor(name),
+      })),
+    [stats.statusCounts]
+  );
 
-  const barData = Object.entries(stats.statusCounts).map(([name, value]) => ({
-    status: name.replace(/_/g, " "),
-    count: value,
-    fill: getStatusColor(name),
-  }));
+  const barData = useMemo(
+    () =>
+      Object.entries(stats.statusCounts).map(([name, value]) => ({
+        status: name.replace(/_/g, " "),
+        count: value,
+        fill: getStatusColor(name),
+      })),
+    [stats.statusCounts]
+  );
 
-  const utilizationPieData =
-    equipmentReportData?.utilization_pie?.map((p, i) => ({
-      ...p,
-      fill: UTILIZATION_PIE_COLORS[i % UTILIZATION_PIE_COLORS.length],
-    })) ?? [];
+  const utilizationPieData = useMemo(
+    () =>
+      equipmentReportData?.utilization_pie?.map((p, i) => ({
+        ...p,
+        fill: UTILIZATION_PIE_COLORS[i % UTILIZATION_PIE_COLORS.length],
+      })) ?? [],
+    [equipmentReportData]
+  );
 
   const averageCost = stats.totalBookings > 0 ? stats.totalSpent / stats.totalBookings : 0;
 
@@ -460,6 +465,178 @@ const Reports = () => {
                   Report period: {equipmentReportData.date_from} to {equipmentReportData.date_to} · {equipmentReportData.summary.total_equipment} equipment
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <IndianRupee className="h-4 w-4" />
+                        Revenue (total)
+                      </CardTitle>
+                      <CardDescription>Completed bookings in period</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-2xl font-semibold">
+                      ₹{Number(equipmentReportData.summary.revenue_total || 0).toFixed(2)}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Revenue (internal)</CardTitle>
+                      <CardDescription>Students / faculty</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-2xl font-semibold">
+                      ₹{Number(equipmentReportData.summary.revenue_internal || 0).toFixed(2)}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Revenue (external)</CardTitle>
+                      <CardDescription>External categories combined</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-2xl font-semibold">
+                      ₹{Number(equipmentReportData.summary.revenue_external || 0).toFixed(2)}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Utilization factor
+                      </CardTitle>
+                      <CardDescription>
+                        Utilized hours / total hours (slot-based)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      <div className="text-2xl font-semibold">
+                        {((Number(equipmentReportData.summary.utilization_factor || 0) || 0) * 100).toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Utilized: {Number(equipmentReportData.summary.utilized_hours || 0).toFixed(2)}h · Total:{" "}
+                        {Number(equipmentReportData.summary.total_hours || 0).toFixed(2)}h · Downtime:{" "}
+                        {Number(equipmentReportData.summary.downtime_hours || 0).toFixed(2)}h
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {equipmentReportData.financial && (
+                  <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Revenue by user type</CardTitle>
+                        <CardDescription>Internal + external category distribution</CardDescription>
+                      </CardHeader>
+                      <CardContent className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>User type</TableHead>
+                              <TableHead className="text-right">Bookings</TableHead>
+                              <TableHead className="text-right">Revenue</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(equipmentReportData.financial.revenue_by_user_type || []).map((r, idx) => (
+                              <TableRow key={`${r.user_type_snapshot}-${idx}`}>
+                                <TableCell className="font-medium">{String(r.user_type_snapshot || "—")}</TableCell>
+                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
+                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Revenue by department</CardTitle>
+                        <CardDescription>Internal department split (where available)</CardDescription>
+                      </CardHeader>
+                      <CardContent className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Department</TableHead>
+                              <TableHead className="text-right">Bookings</TableHead>
+                              <TableHead className="text-right">Revenue</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(equipmentReportData.financial.revenue_by_department || []).map((r, idx) => (
+                              <TableRow key={`${r.user__department__name}-${idx}`}>
+                                <TableCell className="font-medium">{String(r.user__department__name || "—")}</TableCell>
+                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
+                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {equipmentReportData.financial && (
+                  <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Revenue by equipment</CardTitle>
+                        <CardDescription>Completed bookings revenue per equipment</CardDescription>
+                      </CardHeader>
+                      <CardContent className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Equipment</TableHead>
+                              <TableHead className="text-right">Bookings</TableHead>
+                              <TableHead className="text-right">Revenue</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(equipmentReportData.financial.revenue_by_equipment || []).slice(0, 30).map((r, idx) => (
+                              <TableRow key={`${r.equipment_id}-${idx}`}>
+                                <TableCell className="font-medium">
+                                  {String(r.equipment__code || "")} – {String(r.equipment__name || "—")}
+                                </TableCell>
+                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
+                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>External revenue by category</CardTitle>
+                        <CardDescription>RND / Industry / Educational Institute / Other</CardDescription>
+                      </CardHeader>
+                      <CardContent className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Category</TableHead>
+                              <TableHead className="text-right">Bookings</TableHead>
+                              <TableHead className="text-right">Revenue</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(equipmentReportData.financial.revenue_by_external_category || []).map((r, idx) => (
+                              <TableRow key={`${r.user_type_snapshot}-${idx}`}>
+                                <TableCell className="font-medium">{String(r.user_type_snapshot || "—")}</TableCell>
+                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
+                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
                 <div className="grid lg:grid-cols-2 gap-6 mb-6">
                   <Card>
                     <CardHeader>
@@ -519,6 +696,7 @@ const Reports = () => {
                         <TableRow>
                           <TableHead>Equipment</TableHead>
                           <TableHead>Code</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead className="text-right">Bookings (period)</TableHead>
                           <TableHead className="text-right">Completed (period)</TableHead>
                           <TableHead className="text-right">Overall</TableHead>
@@ -534,6 +712,11 @@ const Reports = () => {
                           <TableRow key={eq.equipment_id}>
                             <TableCell className="font-medium">{eq.name}</TableCell>
                             <TableCell>{eq.code}</TableCell>
+                            <TableCell>
+                              <span className={eq.status === "ACTIVE" ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>
+                                {eq.status_display || eq.status || ""}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right">{eq.total_bookings_in_period}</TableCell>
                             <TableCell className="text-right">{eq.completed_in_period}</TableCell>
                             <TableCell className="text-right">{eq.overall_bookings}</TableCell>
