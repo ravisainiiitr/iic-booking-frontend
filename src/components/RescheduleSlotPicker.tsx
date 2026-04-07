@@ -6,6 +6,27 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+/** Monday-start weeks that overlap [minDateStr, maxDateStr] (from slots API slot_window bounds). */
+function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: string): Date[] {
+  const minDate = startOfDay(parseISO(minDateStr));
+  const maxDate = startOfDay(parseISO(maxDateStr));
+  const weeks: Date[] = [];
+  let w = startOfWeek(minDate, { weekStartsOn: 1 });
+  for (let i = 0; i < 52; i++) {
+    const weekSunday = addDays(w, 6);
+    if (w <= maxDate && weekSunday >= minDate) {
+      weeks.push(w);
+    }
+    w = addWeeks(w, 1);
+    if (w > maxDate) break;
+  }
+  return weeks;
+}
+
+function isExternalBookingUserType(normalized: string | null): boolean {
+  return normalized != null && ["external", "rnd", "industry", "other"].includes(normalized);
+}
+
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
@@ -46,6 +67,8 @@ export interface RescheduleBooking {
 interface RescheduleSlotPickerProps {
   equipmentId: number;
   booking: RescheduleBooking;
+  /** When set, slots API extends internal slot window by one week (maintenance reschedule policy). */
+  maintenanceExtraWeekBookingId?: number;
   onConfirm: (startTimeISO: string, endTimeISO: string) => void;
   onCancel: () => void;
   confirmLoading?: boolean;
@@ -54,10 +77,14 @@ interface RescheduleSlotPickerProps {
 export default function RescheduleSlotPicker({
   equipmentId,
   booking,
+  maintenanceExtraWeekBookingId,
   onConfirm,
   onCancel,
   confirmLoading = false,
 }: RescheduleSlotPickerProps) {
+  /** Same week-nav extension as urgent “Select slot” on BookEquipment (prev / current / next / +1 week when applicable). */
+  const useExtendedDisruptionWeekNav = maintenanceExtraWeekBookingId != null;
+
   const requiredSlotCount = booking.daily_slots?.length ?? 1;
   const currentBookingSlotIds = new Set((booking.daily_slots ?? []).map((s) => s.id));
 
@@ -144,7 +171,7 @@ export default function RescheduleSlotPicker({
     return normalizeUserType(userType) === 'admin';
   };
 
-  // Check if a week is allowed for the current user (admin: any week)
+  // Check if a week is allowed (align with BookEquipment isWeekAllowed; extended nav mirrors isUrgentHoldMode)
   const isWeekAllowed = (weekStartDate: Date): boolean => {
     if (isAdminUser()) return true;
     if (!userType) return false;
@@ -156,17 +183,49 @@ export default function RescheduleSlotPicker({
     const fifteenDaysFromNow = addDays(now, 15);
     const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
     const weekStartNormalized = startOfWeek(weekStartDate, { weekStartsOn: 1 });
+    const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 1 });
+    const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 1 });
+    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 1 });
+
     if (normalizedType === 'student' || normalizedType === 'faculty') {
-      if (slotWindowMinDate && slotWindowMaxDate) {
+      const minDateStr = slotWindowMinDate ?? null;
+      const maxDateStr = slotWindowMaxDate ?? null;
+      if (minDateStr && maxDateStr) {
         const allowed = getAllowedWeeks();
-        return allowed.some(w => startOfWeek(w, { weekStartsOn: 1 }).getTime() === weekStartNormalized.getTime());
+        return allowed.some(
+          (w) => startOfWeek(w, { weekStartsOn: 1 }).getTime() === weekStartNormalized.getTime()
+        );
+      }
+      if (useExtendedDisruptionWeekNav) {
+        const weekAfterNext = addWeeks(nextWeek, 1);
+        return (
+          weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+          weekStartNormalized.getTime() === nextWeekNormalized.getTime() ||
+          weekStartNormalized.getTime() === startOfWeek(weekAfterNext, { weekStartsOn: 1 }).getTime()
+        );
       }
       return (
-        weekStartNormalized.getTime() === startOfWeek(currentWeek, { weekStartsOn: 1 }).getTime() ||
-        weekStartNormalized.getTime() === startOfWeek(nextWeek, { weekStartsOn: 1 }).getTime()
+        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === nextWeekNormalized.getTime()
       );
     }
-    return weekStartNormalized.getTime() === startOfWeek(allowedWeekStart, { weekStartsOn: 1 }).getTime();
+
+    if (isExternalBookingUserType(normalizedType)) {
+      const lastNavWeek = useExtendedDisruptionWeekNav ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
+      const lastNorm = startOfWeek(lastNavWeek, { weekStartsOn: 1 }).getTime();
+      const firstNorm = currentWeekNormalized.getTime();
+      const t = weekStartNormalized.getTime();
+      return t >= firstNorm && t <= lastNorm;
+    }
+
+    if (useExtendedDisruptionWeekNav) {
+      const second = addWeeks(allowedWeekStart, 1);
+      return (
+        weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime() ||
+        weekStartNormalized.getTime() === startOfWeek(second, { weekStartsOn: 1 }).getTime()
+      );
+    }
+    return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
   };
 
   // Get allowed weeks for navigation (admin: not used; nav has no restriction)
@@ -181,21 +240,48 @@ export default function RescheduleSlotPicker({
     const fifteenDaysFromNow = addDays(now, 15);
     const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
     if (normalizedType === 'student' || normalizedType === 'faculty') {
-      if (!slotWindowMinDate || !slotWindowMaxDate) return [currentWeek, nextWeek];
-      const minDate = parseISO(slotWindowMinDate);
-      const maxDate = parseISO(slotWindowMaxDate);
-      const nextWeekSunday = addDays(nextWeek, 6);
-      const nextWeekAvailable = nextWeekSunday <= maxDate;
-      if (!nextWeekAvailable) return [currentWeek];
-      const previousWeek = subWeeks(currentWeek, 1);
-      const weeks: Date[] = [];
-      for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
-        const weekSunday = addDays(weekStart, 6);
-        if (weekSunday >= minDate && weekStart <= maxDate) {
-          weeks.push(weekStart);
+      const minDateStr = slotWindowMinDate;
+      const maxDateStr = slotWindowMaxDate;
+      if (!minDateStr || !maxDateStr) {
+        if (useExtendedDisruptionWeekNav) {
+          return [currentWeek, nextWeek, addWeeks(nextWeek, 1)];
         }
+        return [currentWeek, nextWeek];
+      }
+      if (useExtendedDisruptionWeekNav) {
+        const minDate = parseISO(minDateStr);
+        const maxDate = parseISO(maxDateStr);
+        const previousWeek = subWeeks(currentWeek, 1);
+        const nextWeekSunday = addDays(nextWeek, 6);
+        const nextWeekAvailable = nextWeekSunday <= maxDate;
+        if (!nextWeekAvailable) {
+          return addDays(currentWeek, 6) >= minDate && currentWeek <= maxDate ? [currentWeek] : [];
+        }
+        const weeks: Date[] = [];
+        const candidateWeeks = [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)];
+        for (const w of candidateWeeks) {
+          const weekSunday = addDays(w, 6);
+          if (weekSunday >= minDate && w <= maxDate) {
+            weeks.push(w);
+          }
+        }
+        return weeks;
+      }
+      return getAllowedWeeksFromSlotWindowBounds(minDateStr, maxDateStr);
+    }
+    if (isExternalBookingUserType(normalizedType)) {
+      const lastNavWeek = useExtendedDisruptionWeekNav ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
+      const weeks: Date[] = [];
+      let w = startOfWeek(currentWeek, { weekStartsOn: 1 });
+      const endW = startOfWeek(lastNavWeek, { weekStartsOn: 1 });
+      while (w.getTime() <= endW.getTime()) {
+        weeks.push(w);
+        w = startOfWeek(addWeeks(w, 1), { weekStartsOn: 1 });
       }
       return weeks;
+    }
+    if (useExtendedDisruptionWeekNav) {
+      return [allowedWeekStart, addWeeks(allowedWeekStart, 1)];
     }
     return [allowedWeekStart];
   };
@@ -213,7 +299,9 @@ export default function RescheduleSlotPicker({
     const weekEnd = addDays(weekStart, 7);
     const startStr = format(weekStart, "yyyy-MM-dd");
     const endStr = format(weekEnd, "yyyy-MM-dd");
-    const res = await apiClient.getEquipmentSlots(equipmentId, startStr, endStr);
+    const res = await apiClient.getEquipmentSlots(equipmentId, startStr, endStr, {
+      maintenanceExtraWeekBookingId,
+    });
     setLoadingSlots(false);
     if (res.data?.slots) {
       setSlots(res.data.slots);
@@ -224,34 +312,41 @@ export default function RescheduleSlotPicker({
     setSlotWindowMinDate(res.data?.slot_window_min_date ?? null);
     setSlotWindowMaxDate(res.data?.slot_window_max_date ?? null);
     setSelectedSlots([]);
-  }, [equipmentId, weekStart, userType]);
+  }, [equipmentId, weekStart, userType, maintenanceExtraWeekBookingId]);
 
   useEffect(() => {
     fetchSlots();
   }, [fetchSlots]);
 
-  // Internal users with slot window: default to current week when selected week is not allowed
+  // Internal users: snap to an allowed week when the selected week is outside navigable weeks (matches BookEquipment)
   useEffect(() => {
     const nType = userType != null ? normalizeUserType(userType) : null;
     if (nType !== 'student' && nType !== 'faculty') return;
-    if (!slotWindowMinDate || !slotWindowMaxDate) return;
-    const minDate = parseISO(slotWindowMinDate);
-    const maxDate = parseISO(slotWindowMaxDate);
-    const now = new Date();
-    const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
-    const previousWeek = subWeeks(currentWeek, 1);
-    const nextWeek = addWeeks(currentWeek, 1);
-    const allowed: Date[] = [];
-    for (const weekStart of [previousWeek, currentWeek, nextWeek]) {
-      const weekSunday = addDays(weekStart, 6);
-      if (weekSunday >= minDate && weekStart <= maxDate) allowed.push(weekStart);
-    }
+    const allowed = getAllowedWeeks();
+    if (allowed.length === 0) return;
     const selected = startOfWeek(weekStart, { weekStartsOn: 1 });
-    const isAllowed = allowed.some(w => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime());
+    const isAllowed = allowed.some(
+      (w) => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime()
+    );
     if (!isAllowed) {
-      setWeekStart(currentWeek);
+      setWeekStart(startOfWeek(allowed[0], { weekStartsOn: 1 }));
     }
-  }, [slotWindowMinDate, slotWindowMaxDate, userType, weekStart]);
+  }, [slotWindowMinDate, slotWindowMaxDate, userType, weekStart, useExtendedDisruptionWeekNav, maintenanceExtraWeekBookingId]);
+
+  // External users: snap into [current week … bookable week] (align with BookEquipment).
+  useEffect(() => {
+    const nType = userType != null ? normalizeUserType(userType) : null;
+    if (!isExternalBookingUserType(nType)) return;
+    const allowed = getAllowedWeeks();
+    if (allowed.length === 0) return;
+    const selected = startOfWeek(weekStart, { weekStartsOn: 1 });
+    const isAllowed = allowed.some(
+      (w) => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime()
+    );
+    if (!isAllowed) {
+      setWeekStart(startOfWeek(allowed[allowed.length - 1], { weekStartsOn: 1 }));
+    }
+  }, [userType, weekStart, useExtendedDisruptionWeekNav, maintenanceExtraWeekBookingId]);
 
   const getUniqueTimes = (): string[] => {
     const set = new Set<string>();
@@ -442,7 +537,21 @@ export default function RescheduleSlotPicker({
           )}
           {userType && !isAdminUser() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
             <p className="text-xs text-muted-foreground mt-1">
-              Available: Current week and next week only
+              {slotWindowMinDate && slotWindowMaxDate ? (
+                <>
+                  Bookable dates: {format(parseISO(slotWindowMinDate), "MMM d")} –{" "}
+                  {format(parseISO(slotWindowMaxDate), "MMM d, yyyy")}
+                  {maintenanceExtraWeekBookingId != null ? (
+                    <span className="block mt-0.5">
+                      (Maintenance reschedule may add an extra week when the slot window rules allow.)
+                    </span>
+                  ) : null}
+                </>
+              ) : useExtendedDisruptionWeekNav ? (
+                "Available: Current week, next week, and one additional week (maintenance / operator-unavailable reschedule)."
+              ) : (
+                "Available: Current week and next week only"
+              )}
             </p>
           )}
           {userType && !isAdminUser() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (

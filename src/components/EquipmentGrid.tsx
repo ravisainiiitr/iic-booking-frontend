@@ -1,4 +1,5 @@
-import EquipmentCard from "./EquipmentCard";
+import EquipmentCatalogCard from "@/components/EquipmentCatalogCard";
+import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
@@ -47,7 +48,7 @@ const EquipmentGrid = () => {
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
     equipmentName: string;
-    newStatus: "ACTIVE" | "INACTIVE";
+    newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR";
   } | null>(null);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
@@ -75,7 +76,8 @@ const EquipmentGrid = () => {
     try {
       setLoading(true);
       // Fetch all equipment without status filter
-      const response = await apiClient.getEquipments(search);
+      // Home catalog shows ratings, so request rating aggregations explicitly.
+      const response = await apiClient.getEquipments(search, undefined, undefined, true);
 
       if (response.error) {
         throw new Error(response.error);
@@ -129,7 +131,7 @@ const EquipmentGrid = () => {
     return equipment.length;
   }, [equipment]);
 
-  // Transform API equipment to EquipmentCard props
+  // Transform API equipment to shared card props
   const transformEquipment = (eqList: ApiEquipment[]) => {
     return eqList.map((eq) => ({
       id: eq.equipment_id,
@@ -147,15 +149,10 @@ const EquipmentGrid = () => {
       address: eq.location || "Institute Instrumentation Centre, IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",
-      showStatusToggle: isAdminOrOIC,
-      onStatusChange: isAdminOrOIC
-        ? (equipmentId, equipmentName, newStatus) => setPendingStatusChange({ equipmentId, equipmentName, newStatus })
-        : undefined,
-      statusUpdatingId: statusUpdatingId ?? undefined,
     }));
   };
 
-  const handleStatusChange = async (equipmentId: number, newStatus: "ACTIVE" | "INACTIVE") => {
+  const handleStatusChange = async (equipmentId: number, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => {
     setStatusUpdatingId(equipmentId);
     setPendingStatusChange(null);
     try {
@@ -164,7 +161,13 @@ const EquipmentGrid = () => {
         toast.error(res.error || "Failed to update status");
         return;
       }
-      toast.success(`Equipment set to ${newStatus === "ACTIVE" ? "Active" : "Inactive"}`);
+      const label =
+        newStatus === "ACTIVE"
+          ? "Operational"
+          : newStatus === "MAINTENANCE"
+            ? "Maintenance Scheduled"
+            : "Under Maintenance";
+      toast.success(`Equipment set to ${label}`);
       await fetchEquipment();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
@@ -267,7 +270,14 @@ const EquipmentGrid = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {allEquipment.map((equipment) => (
-                  <EquipmentCard key={equipment.id} {...equipment} />
+                  <EquipmentCatalogCard
+                    key={equipment.id}
+                    item={equipment as any}
+                    accent={accentForEquipmentId(equipment.id)}
+                    canChangeSlotStatus={isAdminOrOIC}
+                    statusUpdatingId={statusUpdatingId}
+                    onRequestStatusChange={(next) => setPendingStatusChange(next)}
+                  />
                 ))}
               </div>
             )}
@@ -286,7 +296,14 @@ const EquipmentGrid = () => {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {groupEquipment.map((equipment) => (
-                      <EquipmentCard key={equipment.id} {...equipment} />
+                      <EquipmentCatalogCard
+                        key={equipment.id}
+                        item={equipment as any}
+                        accent={accentForEquipmentId(equipment.id)}
+                        canChangeSlotStatus={isAdminOrOIC}
+                        statusUpdatingId={statusUpdatingId}
+                        onRequestStatusChange={(next) => setPendingStatusChange(next)}
+                      />
                     ))}
                   </div>
                 )}
@@ -304,9 +321,16 @@ const EquipmentGrid = () => {
               {pendingStatusChange && (
                 <>
                   Set <strong>{pendingStatusChange.equipmentName}</strong> to{" "}
-                  <strong>{pendingStatusChange.newStatus === "ACTIVE" ? "Active" : "Inactive"}</strong>?
-                  {pendingStatusChange.newStatus === "INACTIVE" && (
-                    <span className="block mt-2">Inactive equipment will not be available for booking.</span>
+                  <strong>
+                    {pendingStatusChange.newStatus === "ACTIVE"
+                      ? "Operational"
+                      : pendingStatusChange.newStatus === "MAINTENANCE"
+                        ? "Maintenance Scheduled"
+                        : "Under Maintenance"}
+                  </strong>
+                  ?
+                  {pendingStatusChange.newStatus !== "ACTIVE" && (
+                    <span className="block mt-2">Non-operational equipment will not be available for booking.</span>
                   )}
                 </>
               )}

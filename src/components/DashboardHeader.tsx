@@ -27,6 +27,9 @@ const DashboardHeader = () => {
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : '';
   const canManageBookings = ['admin', 'operator', 'manager'].includes(userTypeStr);
   const isFaculty = userTypeStr === 'faculty';
+  const isInternalFaculty =
+    isFaculty && String(user?.department_type ?? '').toLowerCase() === 'internal';
+  const showFacultyUrgentWalletMenu = isFaculty && !isInternalFaculty;
   
   // Refs to prevent multiple simultaneous API calls
   const balanceFetchingRef = useRef(false);
@@ -346,7 +349,7 @@ const DashboardHeader = () => {
                   <span>Wallet</span>
                 </DropdownMenuItem>
               )}
-              {isFaculty && (
+              {showFacultyUrgentWalletMenu && (
                 <DropdownMenuItem onClick={() => safeNavigate("/urgent-requests-wallet")}>
                   <FileCheck className="mr-2 h-4 w-4" />
                   <span>Urgent requests (approve)</span>

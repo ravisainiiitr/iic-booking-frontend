@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Table,
@@ -83,6 +84,7 @@ const MyUrgentRequests = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const isFacultyUser = String(user?.user_type || "").toLowerCase() === "faculty";
   const [list, setList] = useState<MyUrgentRequestRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -92,9 +94,10 @@ const MyUrgentRequests = () => {
   const [urgentEquipmentList, setUrgentEquipmentList] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
   const [loadingUrgentEquipments, setLoadingUrgentEquipments] = useState(false);
   const [urgentSelectedEquipmentId, setUrgentSelectedEquipmentId] = useState<string>("");
-  const [urgentRequestType, setUrgentRequestType] = useState<"NO_SLOT" | "REVIEWER_URGENT">("REVIEWER_URGENT");
+  const [urgentRequestType, setUrgentRequestType] = useState<"" | "NO_SLOT" | "REVIEWER_URGENT">("");
   const [urgentDisclaimerAccepted, setUrgentDisclaimerAccepted] = useState(false);
   const [urgentEvidenceFile, setUrgentEvidenceFile] = useState<File | null>(null);
+  const [urgentReviewerComment, setUrgentReviewerComment] = useState("");
   const [urgentSubmitting, setUrgentSubmitting] = useState(false);
   const [urgentHoldBookingId, setUrgentHoldBookingId] = useState<number | null>(null);
   const [urgentHoldVirtualBookingId, setUrgentHoldVirtualBookingId] = useState<string | null>(null);
@@ -144,6 +147,15 @@ const MyUrgentRequests = () => {
       .finally(() => setLoadingUrgentEquipments(false));
   }, [isAuthenticated, user]);
 
+  // Students/other users can only submit NO_SLOT. REVIEWER_URGENT is faculty-only.
+  useEffect(() => {
+    if (!isFacultyUser && urgentRequestType === "REVIEWER_URGENT") {
+      setUrgentRequestType("");
+      setUrgentEvidenceFile(null);
+      setUrgentDisclaimerAccepted(false);
+    }
+  }, [isFacultyUser, urgentRequestType]);
+
   // Load unsuccessful attempts when equipment selected and reason is NO_SLOT
   useEffect(() => {
     if (!urgentSelectedEquipmentId || urgentRequestType !== "NO_SLOT") {
@@ -169,10 +181,17 @@ const MyUrgentRequests = () => {
   useEffect(() => {
     if (urgentRequestType !== "NO_SLOT") return;
     if (!urgentSelectedEquipmentId) return;
+    if (slotsAvailableThisWeek === true) return;
     if (myUnsuccessfulAttemptsLoading) return;
     if (myUnsuccessfulAttempts.length > 0) return;
     setNoAttemptsDialogOpen(true);
-  }, [urgentRequestType, urgentSelectedEquipmentId, myUnsuccessfulAttemptsLoading, myUnsuccessfulAttempts.length]);
+  }, [
+    urgentRequestType,
+    urgentSelectedEquipmentId,
+    slotsAvailableThisWeek,
+    myUnsuccessfulAttemptsLoading,
+    myUnsuccessfulAttempts.length,
+  ]);
 
   // Check if slots are available in the current week for the selected equipment (urgent request not allowed if yes)
   useEffect(() => {
@@ -337,7 +356,6 @@ const MyUrgentRequests = () => {
         onOpenChange={(open) => {
           setNoAttemptsDialogOpen(open);
           if (!open) {
-            setUrgentRequestType("REVIEWER_URGENT");
             setUrgentDisclaimerAccepted(false);
           }
         }}
@@ -384,9 +402,10 @@ const MyUrgentRequests = () => {
                 value={urgentSelectedEquipmentId || "__none__"}
                 onValueChange={(v) => {
                   setUrgentSelectedEquipmentId(v === "__none__" ? "" : v);
-                  setUrgentRequestType("REVIEWER_URGENT");
+                  setUrgentRequestType(isFacultyUser ? "REVIEWER_URGENT" : "");
                   setUrgentDisclaimerAccepted(false);
                   setUrgentEvidenceFile(null);
+                  setUrgentReviewerComment("");
                   setUrgentHoldBookingId(null);
                   setNoAttemptsDialogOpen(false);
                 }}
@@ -413,7 +432,7 @@ const MyUrgentRequests = () => {
                     Checking slot availability…
                   </p>
                 )}
-                {!loadingSlotsAvailable && slotsAvailableThisWeek === true && (
+                {!loadingSlotsAvailable && slotsAvailableThisWeek === true && urgentRequestType !== "REVIEWER_URGENT" && (
                   <div className="rounded-lg border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-4 space-y-3">
                     <p className="text-sm font-medium text-green-800 dark:text-green-200">
                       Slots are available in the current week for this equipment. Please book normally instead of raising an urgent request.
@@ -427,17 +446,28 @@ const MyUrgentRequests = () => {
                     </Button>
                   </div>
                 )}
-                {!loadingSlotsAvailable && slotsAvailableThisWeek !== true && (
+                {!loadingSlotsAvailable && slotsAvailableThisWeek === true && urgentRequestType === "REVIEWER_URGENT" && (
+                  <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/30 p-3 text-sm text-blue-900 dark:text-blue-100">
+                    Regular booking slots may still be available for this equipment. If a normal booking meets your need, please use{" "}
+                    <Button type="button" variant="link" className="h-auto p-0 align-baseline text-blue-800 dark:text-blue-200" onClick={() => navigate(`/book-equipment?equipment_id=${urgentSelectedEquipmentId}`)}>
+                      standard booking
+                    </Button>
+                    . You may still submit an &quot;Urgent comment from reviewer&quot; request when documentary evidence supports it.
+                  </div>
+                )}
+                {!loadingSlotsAvailable && (slotsAvailableThisWeek !== true || urgentRequestType === "REVIEWER_URGENT") && (
                 <div className="space-y-4">
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Reason</Label>
                   <RadioGroup
                     value={urgentRequestType}
                     onValueChange={(v) => {
-                      const next = v as "NO_SLOT" | "REVIEWER_URGENT";
+                      const next = v as "" | "NO_SLOT" | "REVIEWER_URGENT";
+                      if (!isFacultyUser && next === "REVIEWER_URGENT") return;
                       setUrgentRequestType(next);
                       setUrgentDisclaimerAccepted(false);
                       setUrgentEvidenceFile(null);
+                      setUrgentReviewerComment("");
                       if (next === "NO_SLOT") {
                         setMyUnsuccessfulAttemptsLoading(true);
                       } else {
@@ -446,12 +476,14 @@ const MyUrgentRequests = () => {
                     }}
                     className="flex flex-col gap-2"
                   >
-                    <div className="flex items-center space-x-3 rounded-lg border p-3">
-                      <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer-page" className="h-4 w-4" />
-                      <Label htmlFor="urgent-reviewer-page" className="flex-1 cursor-pointer text-sm">
-                        Urgent comment from reviewer (upload evidence; Supervisor then Admin/OIC)
-                      </Label>
-                    </div>
+                    {isFacultyUser && (
+                      <div className="flex items-center space-x-3 rounded-lg border p-3">
+                        <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer-page" className="h-4 w-4" />
+                        <Label htmlFor="urgent-reviewer-page" className="flex-1 cursor-pointer text-sm">
+                          Urgent comment from reviewer (upload evidence; Supervisor then Admin/OIC)
+                        </Label>
+                      </div>
+                    )}
                     <div className="flex items-center space-x-3 rounded-lg border p-3">
                       <RadioGroupItem value="NO_SLOT" id="urgent-no-slot-page" className="h-4 w-4" />
                       <Label htmlFor="urgent-no-slot-page" className="flex-1 cursor-pointer text-sm">
@@ -534,7 +566,14 @@ const MyUrgentRequests = () => {
 
                 {urgentRequestType === "REVIEWER_URGENT" && (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground border border-amber-200 dark:border-amber-800 rounded p-3 bg-amber-50/50 dark:bg-amber-950/20">Upload documentary evidence. Supervisor approves first, then Admin/OIC.</p>
+                    <div className="text-xs text-muted-foreground border border-amber-200 dark:border-amber-800 rounded p-3 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                      <p>
+                        This path is for faculty when a reviewer&apos;s comment or project timeline requires an exceptional urgent booking. You must provide a short written summary (reviewer comment) and documentary evidence (e.g. reviewer email or note).
+                      </p>
+                      <p>
+                        By submitting, you confirm the information is accurate. The request is reviewed by your supervisor and by Admin/Officer in charge. Misuse may affect future access.
+                      </p>
+                    </div>
                     <div className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -543,7 +582,18 @@ const MyUrgentRequests = () => {
                         onChange={(e) => setUrgentDisclaimerAccepted(e.target.checked)}
                         className="h-4 w-4 rounded border-input"
                       />
-                      <Label htmlFor="urgent-disclaimer-reviewer-page" className="text-sm cursor-pointer">I have read and will upload genuine evidence.</Label>
+                      <Label htmlFor="urgent-disclaimer-reviewer-page" className="text-sm cursor-pointer">I have read the disclaimer and confirm the reviewer comment and evidence are genuine.</Label>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="urgent-reviewer-comment-page" className="text-sm">Reviewer comment (required)</Label>
+                      <Textarea
+                        id="urgent-reviewer-comment-page"
+                        value={urgentReviewerComment}
+                        onChange={(e) => setUrgentReviewerComment(e.target.value)}
+                        placeholder="Summarize the reviewer feedback, deadline, or why standard booking is insufficient (min. 10 characters)."
+                        rows={4}
+                        className="max-w-xl"
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="urgent-evidence-page" className="text-sm">Evidence (required) *</Label>
@@ -564,10 +614,11 @@ const MyUrgentRequests = () => {
                   className="bg-amber-600 hover:bg-amber-700"
                   disabled={
                     loadingSlotsAvailable ||
-                    slotsAvailableThisWeek === true ||
+                    (slotsAvailableThisWeek === true && urgentRequestType !== "REVIEWER_URGENT") ||
+                    !urgentRequestType ||
                     !urgentDisclaimerAccepted ||
                     urgentSubmitting ||
-                    (urgentRequestType === "REVIEWER_URGENT" && !urgentEvidenceFile) ||
+                    (urgentRequestType === "REVIEWER_URGENT" && (!urgentEvidenceFile || urgentReviewerComment.trim().length < 10)) ||
                     noSlotNoAttempts
                   }
                   onClick={async () => {
@@ -575,6 +626,10 @@ const MyUrgentRequests = () => {
                     if (Number.isNaN(eqId)) return;
                     if (urgentRequestType === "REVIEWER_URGENT" && !urgentEvidenceFile) {
                       toast.error("Please upload documentary evidence.");
+                      return;
+                    }
+                    if (urgentRequestType === "REVIEWER_URGENT" && urgentReviewerComment.trim().length < 10) {
+                      toast.error("Please enter a reviewer comment (at least 10 characters).");
                       return;
                     }
                     setUrgentSubmitting(true);
@@ -587,6 +642,7 @@ const MyUrgentRequests = () => {
                         slots_requested: 1,
                         evidence_file: urgentRequestType === "REVIEWER_URGENT" ? urgentEvidenceFile ?? undefined : undefined,
                         evidence_original_name: urgentEvidenceFile?.name,
+                        reviewer_comment: urgentRequestType === "REVIEWER_URGENT" ? urgentReviewerComment.trim() : undefined,
                         hold_booking_id: urgentHoldBookingId ?? undefined,
                       });
                       if (res.error) {
@@ -596,9 +652,10 @@ const MyUrgentRequests = () => {
                       toast.success(res.data?.message || "Urgent request submitted.");
                       setUrgentHoldBookingId(null);
                     setUrgentHoldVirtualBookingId(null);
-                      setUrgentRequestType("REVIEWER_URGENT");
+                      setUrgentRequestType(isFacultyUser ? "REVIEWER_URGENT" : "");
                       setUrgentDisclaimerAccepted(false);
                       setUrgentEvidenceFile(null);
+                      setUrgentReviewerComment("");
                       setLoading(true);
                       const listRes = await apiClient.listMyUrgentBookingRequests({ limit: 50, offset: 0 });
                       if (listRes.data?.urgent_requests) {

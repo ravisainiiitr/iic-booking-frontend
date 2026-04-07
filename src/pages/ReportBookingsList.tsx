@@ -51,6 +51,7 @@ const ReportBookingsList = () => {
     const response = await apiClient.getBookings({
       ...(statusFilter ? { status: statusFilter } : {}),
       ordering: "-created_at",
+      list_view: true,
     });
     if (response.data?.bookings) {
       const list = response.data.bookings.map((b: any) => ({
@@ -148,7 +149,7 @@ const ReportBookingsList = () => {
                       <TableBody>
                         {bookings.map((b) => (
                           <TableRow key={b.booking_id}>
-                            <TableCell className="font-medium">{b.equipment_code}-#{b.booking_id}</TableCell>
+                            <TableCell className="font-medium">{b.booking_id}</TableCell>
                             <TableCell>
                               <span className="font-medium">{b.equipment_name || b.equipment_code}</span>
                               {b.equipment_code && b.equipment_name !== b.equipment_code && (

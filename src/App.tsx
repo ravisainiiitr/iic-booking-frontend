@@ -48,6 +48,7 @@ import AdminRewardsConfig from "./pages/AdminRewardsConfig";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
 import InventoryManagement from "./pages/InventoryManagement";
 import ProcurementWorkflow from "./pages/ProcurementWorkflow";
+import EquipmentLifecycleHub from "./pages/EquipmentLifecycleHub";
 import UserManagement from "./pages/UserManagement";
 import SetupTestUsers from "./pages/SetupTestUsers";
 import Profile from "./pages/Profile";
@@ -130,6 +131,7 @@ const App = () => (
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
                 <Route path="/inventory-management" element={<InventoryManagement />} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
+                <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
                 <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />

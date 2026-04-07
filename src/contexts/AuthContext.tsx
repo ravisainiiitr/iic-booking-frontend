@@ -14,6 +14,8 @@ interface User {
   department?: number;
   department_code?: string;
   department_name?: string;
+  /** From department.department_type: internal IITR dept vs external (startup / institute). */
+  department_type?: string | null;
   can_have_wallet?: boolean;
   supervisor?: number | null;
   uses_admin_panel?: boolean;

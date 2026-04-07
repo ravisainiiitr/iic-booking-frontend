@@ -13,6 +13,7 @@ import { toast } from "sonner";
 const SLOT_KEYS: { key: string; label: string }[] = [
   { key: "AVAILABLE", label: "Available" },
   { key: "BOOKED", label: "Booked" },
+  { key: "COMPLETED", label: "Completed booking" },
   { key: "HOLD", label: "Hold" },
   { key: "BLOCKED", label: "Blocked" },
   { key: "UNDER_MAINTENANCE", label: "Under Maintenance" },
@@ -25,6 +26,7 @@ const SLOT_KEYS: { key: string; label: string }[] = [
 const DEFAULT_COLORS: Record<string, string> = {
   AVAILABLE: "#22c55e",
   BOOKED: "#ef4444",
+  COMPLETED: "#059669",
   HOLD: "#f59e0b",
   BLOCKED: "#64748b",
   UNDER_MAINTENANCE: "#f97316",
@@ -122,7 +124,7 @@ export default function CalendarColorSettings() {
             Calendar colors
           </h1>
           <p className="text-muted-foreground mt-1">
-            Customize colors for the weekly calendar: slot states, holiday default, and weekend (Saturday & Sunday). Changes apply to equipment profile and book-equipment weekly views.
+            Customize colors for the weekly calendar: slot states (including completed bookings), holiday default, and weekend (Saturday & Sunday). Changes apply to equipment profile and book-equipment weekly views.
           </p>
         </div>
 

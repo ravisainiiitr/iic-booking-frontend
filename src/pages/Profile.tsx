@@ -9,18 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Moon, Sun, Monitor, Plus, Trash2, Edit, Wallet } from "lucide-react";
+import { Upload, Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { useTheme } from "next-themes";
 import DashboardHeader from "@/components/DashboardHeader";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
   const { user, loading: authLoading, isAuthenticated, refreshUser, updateUser } = useAuth();
-  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +91,7 @@ const Profile = () => {
     auto_slot_selection: false,
     wallet_low_balance_alert_enabled: false,
     wallet_low_balance_alert_threshold: null as number | string | null,
+    istem_portal_acknowledged: false,
   });
 
   useEffect(() => {
@@ -108,17 +105,17 @@ const Profile = () => {
   }, [user, profileData.user_type]);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
     if (window.location.hash === "#external-billing") {
       setTimeout(() => {
         document.getElementById("external-billing")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 150);
     }
-  }, [mounted]);
+    if (window.location.hash === "#istem-portal-ack") {
+      setTimeout(() => {
+        document.getElementById("istem-portal-ack")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  }, []);
 
   const checkAuthAndLoadProfile = async () => {
     // Check authentication using AuthContext
@@ -211,6 +208,7 @@ const Profile = () => {
           response.data.wallet_low_balance_alert_threshold != null
             ? Number(response.data.wallet_low_balance_alert_threshold)
             : null,
+        istem_portal_acknowledged: Boolean(response.data.istem_portal_acknowledged),
       });
 
       // External users: prefill billing/shipping profile (invoice / shipping label)
@@ -469,6 +467,9 @@ const Profile = () => {
             ? Number(profileData.wallet_low_balance_alert_threshold)
             : null)
           : null;
+      }
+      if (isExternal) {
+        payload.istem_portal_acknowledged = profileData.istem_portal_acknowledged;
       }
       const response = await apiClient.updateProfile(payload);
 
@@ -747,6 +748,41 @@ const Profile = () => {
               if (!isExternal) return null;
               return (
                 <>
+                  <div id="istem-portal-ack" className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4 scroll-mt-24">
+                    <div>
+                      <h3 className="text-lg font-semibold">I-STEM national portal</h3>
+                      <p className="text-sm text-muted-foreground">
+                        External bookings are aligned with the Government of India I-STEM facility map. Register or log in at{" "}
+                        <a
+                          href="https://www.istem.gov.in/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-primary underline"
+                        >
+                          https://www.istem.gov.in/
+                        </a>
+                        , raise your facility booking there, then enter the FBR number on your booking in this portal after you confirm a slot here.
+                      </p>
+                    </div>
+                    <div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border/50 bg-background/80 p-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="istem-portal-ack-switch" className="text-sm font-medium">
+                          I confirm I have an I-STEM portal account
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Required before you can confirm equipment bookings as an external user.
+                        </p>
+                      </div>
+                      <Switch
+                        id="istem-portal-ack-switch"
+                        checked={profileData.istem_portal_acknowledged}
+                        onCheckedChange={(v) =>
+                          setProfileData((p) => ({ ...p, istem_portal_acknowledged: v === true }))
+                        }
+                      />
+                    </div>
+                  </div>
+
                   <div id="external-billing" className="space-y-4 scroll-mt-24">
                     <div>
                       <h3 className="text-lg font-semibold">Billing & shipping (External users)</h3>
@@ -1300,70 +1336,6 @@ const Profile = () => {
                 <Separator />
               </>
             )}
-
-            {/* Change Appearance Section */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold">Change Appearance</h3>
-                <p className="text-sm text-muted-foreground">Customize how the app looks and feels</p>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="theme">Theme</Label>
-                {mounted && (
-                  <RadioGroup
-                    value={theme || "system"}
-                    onValueChange={(value) => setTheme(value)}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center space-x-3 rounded-lg border p-3 hover:bg-accent/50 transition-colors">
-                      <RadioGroupItem value="light" id="light" />
-                      <Label htmlFor="light" className="flex items-center gap-2 cursor-pointer flex-1">
-                        <Sun className="h-4 w-4" />
-                        <div>
-                          <div className="font-medium">Light</div>
-                          <div className="text-xs text-muted-foreground">Use light theme</div>
-                        </div>
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-3 rounded-lg border p-3 hover:bg-accent/50 transition-colors">
-                      <RadioGroupItem value="dark" id="dark" />
-                      <Label htmlFor="dark" className="flex items-center gap-2 cursor-pointer flex-1">
-                        <Moon className="h-4 w-4" />
-                        <div>
-                          <div className="font-medium">Dark</div>
-                          <div className="text-xs text-muted-foreground">Use dark theme</div>
-                        </div>
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-3 rounded-lg border p-3 hover:bg-accent/50 transition-colors">
-                      <RadioGroupItem value="system" id="system" />
-                      <Label htmlFor="system" className="flex items-center gap-2 cursor-pointer flex-1">
-                        <Monitor className="h-4 w-4" />
-                        <div>
-                          <div className="font-medium">System</div>
-                          <div className="text-xs text-muted-foreground">Match system preference</div>
-                        </div>
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                )}
-                {!mounted && (
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3 rounded-lg border p-3">
-                      <div className="h-4 w-4 rounded-full border border-primary" />
-                      <div className="flex items-center gap-2 flex-1">
-                        <Sun className="h-4 w-4" />
-                        <div>
-                          <div className="font-medium">Light</div>
-                          <div className="text-xs text-muted-foreground">Use light theme</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div className="flex gap-4">
               <Button onClick={handleSave} disabled={saving} className="flex-1">

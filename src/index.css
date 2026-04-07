@@ -144,3 +144,190 @@ All colors MUST be HSL.
     border: 1px solid hsl(var(--border));
   }
 }
+
+/* Dashboard card color unification: muted professional palette */
+.dashboard-uniform-cards .cursor-pointer {
+  border: 1px solid hsl(220 18% 90%) !important;
+  background-color: hsl(0 0% 100%) !important;
+  box-shadow: 0 8px 20px -14px hsl(222 35% 20% / 0.35) !important;
+}
+
+.dashboard-uniform-cards .cursor-pointer:hover {
+  border-color: hsl(221 28% 76%) !important;
+  box-shadow: 0 16px 30px -18px hsl(222 45% 18% / 0.38) !important;
+}
+
+.dashboard-uniform-cards .rounded-xl.bg-gradient-to-br {
+  background-image: none !important;
+  background-color: hsl(219 40% 44%) !important;
+}
+
+.dashboard-uniform-cards .h-1.w-16.rounded-full {
+  background-image: none !important;
+  background-color: hsl(219 40% 44%) !important;
+}
+
+.dashboard-uniform-cards .w-full {
+  background-color: hsl(221 33% 36%) !important;
+  color: hsl(210 40% 98%) !important;
+}
+
+.dashboard-uniform-cards .w-full:hover {
+  background-color: hsl(221 36% 31%) !important;
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer {
+  border-color: hsl(217 22% 24%) !important;
+  background-color: hsl(222 35% 14%) !important;
+  box-shadow: 0 12px 26px -16px hsl(0 0% 0% / 0.6) !important;
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer:hover {
+  border-color: hsl(221 24% 42%) !important;
+}
+
+/* Dashboard visual refresh */
+.dashboard-page main.container {
+  max-width: 1320px;
+}
+
+.dashboard-section-title {
+  letter-spacing: 0.08em;
+  color: hsl(218 16% 42%);
+}
+
+.dashboard-hero-card {
+  border: 1px solid hsl(222 90% 62% / 0.45);
+  box-shadow: 0 24px 48px -22px hsl(225 85% 48% / 0.55);
+}
+
+.dashboard-notice-card {
+  border-width: 1px;
+  border-radius: 1rem;
+  box-shadow: 0 14px 28px -18px hsl(221 45% 30% / 0.42);
+}
+
+.dashboard-notice-primary {
+  border-color: hsl(223 92% 62% / 0.7) !important;
+  background: linear-gradient(90deg, hsl(212 100% 93%), hsl(226 100% 93%)) !important;
+}
+
+.dashboard-notice-info {
+  border-color: hsl(207 88% 62% / 0.65) !important;
+  background: linear-gradient(90deg, hsl(201 100% 93%), hsl(210 100% 93%)) !important;
+}
+
+.dashboard-notice-warning {
+  border-color: hsl(35 95% 56% / 0.68) !important;
+  background: linear-gradient(90deg, hsl(44 100% 92%), hsl(31 100% 92%)) !important;
+}
+
+.dashboard-uniform-cards .cursor-pointer {
+  border-radius: 1rem !important;
+  --card-accent-from: hsl(221 90% 56%);
+  --card-accent-to: hsl(236 85% 62%);
+  --card-accent-solid: hsl(224 84% 55%);
+  --card-accent-hover: hsl(224 78% 49%);
+  border: 1px solid hsl(221 84% 62% / 0.32) !important;
+  box-shadow: 0 16px 32px -20px hsl(225 58% 32% / 0.38) !important;
+}
+
+.dashboard-uniform-cards .cursor-pointer:hover {
+  border-color: hsl(224 90% 60% / 0.58) !important;
+  box-shadow: 0 22px 38px -20px hsl(225 65% 35% / 0.42) !important;
+}
+
+.dashboard-uniform-cards .cursor-pointer:nth-child(6n + 1) {
+  --card-accent-from: hsl(221 92% 57%);
+  --card-accent-to: hsl(238 90% 64%);
+  --card-accent-solid: hsl(224 85% 55%);
+  --card-accent-hover: hsl(224 79% 49%);
+}
+
+.dashboard-uniform-cards .cursor-pointer:nth-child(6n + 2) {
+  --card-accent-from: hsl(193 92% 50%);
+  --card-accent-to: hsl(212 92% 58%);
+  --card-accent-solid: hsl(202 88% 47%);
+  --card-accent-hover: hsl(203 82% 41%);
+}
+
+.dashboard-uniform-cards .cursor-pointer:nth-child(6n + 3) {
+  --card-accent-from: hsl(269 92% 62%);
+  --card-accent-to: hsl(288 88% 60%);
+  --card-accent-solid: hsl(274 78% 56%);
+  --card-accent-hover: hsl(274 72% 50%);
+}
+
+.dashboard-uniform-cards .cursor-pointer:nth-child(6n + 4) {
+  --card-accent-from: hsl(156 85% 45%);
+  --card-accent-to: hsl(174 86% 40%);
+  --card-accent-solid: hsl(163 75% 40%);
+  --card-accent-hover: hsl(163 70% 34%);
+}
+
+.dashboard-uniform-cards .cursor-pointer:nth-child(6n + 5) {
+  --card-accent-from: hsl(31 97% 56%);
+  --card-accent-to: hsl(11 90% 58%);
+  --card-accent-solid: hsl(24 90% 53%);
+  --card-accent-hover: hsl(22 84% 47%);
+}
+
+.dashboard-uniform-cards .cursor-pointer:nth-child(6n + 6) {
+  --card-accent-from: hsl(333 88% 60%);
+  --card-accent-to: hsl(351 88% 61%);
+  --card-accent-solid: hsl(341 80% 56%);
+  --card-accent-hover: hsl(341 74% 50%);
+}
+
+.dashboard-uniform-cards .w-full {
+  border-radius: 0.65rem !important;
+  font-weight: 600 !important;
+  background-color: var(--card-accent-solid) !important;
+  box-shadow: 0 10px 22px -13px color-mix(in srgb, var(--card-accent-solid) 70%, black) !important;
+}
+
+.dashboard-uniform-cards .cursor-pointer .text-lg {
+  letter-spacing: -0.01em;
+}
+
+.dashboard-uniform-cards .rounded-xl.bg-gradient-to-br {
+  background-image: linear-gradient(to bottom right, var(--card-accent-from), var(--card-accent-to)) !important;
+  box-shadow: 0 12px 24px -14px color-mix(in srgb, var(--card-accent-solid) 78%, black) !important;
+}
+
+.dashboard-uniform-cards .h-1.w-16.rounded-full {
+  background-image: linear-gradient(to right, var(--card-accent-from), var(--card-accent-to)) !important;
+}
+
+.dashboard-uniform-cards .w-full:hover {
+  background-color: var(--card-accent-hover) !important;
+}
+
+.dark .dashboard-section-title {
+  color: hsl(215 16% 70%);
+}
+
+.dark .dashboard-hero-card {
+  border-color: hsl(221 58% 48% / 0.72);
+  box-shadow: 0 20px 36px -20px hsl(226 75% 35% / 0.6);
+}
+
+.dark .dashboard-notice-primary {
+  border-color: hsl(223 58% 46% / 0.82) !important;
+  background: linear-gradient(90deg, hsl(221 38% 22%), hsl(229 36% 24%)) !important;
+}
+
+.dark .dashboard-notice-info {
+  border-color: hsl(205 54% 44% / 0.8) !important;
+  background: linear-gradient(90deg, hsl(208 32% 21%), hsl(214 30% 23%)) !important;
+}
+
+.dark .dashboard-notice-warning {
+  border-color: hsl(34 72% 44% / 0.8) !important;
+  background: linear-gradient(90deg, hsl(31 32% 21%), hsl(35 34% 23%)) !important;
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer {
+  border-color: hsl(222 38% 36% / 0.72) !important;
+  box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.62) !important;
+}

@@ -7,14 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
+import { cn } from "@/lib/utils";
 import { useAlert } from "@/hooks/use-alert";
 import {
   Table,
@@ -30,6 +32,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Transaction {
   id: number;
@@ -110,8 +122,22 @@ const Wallet = () => {
   const [requesting, setRequesting] = useState(false);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [selectedFacultyJoinRequestIds, setSelectedFacultyJoinRequestIds] = useState<number[]>([]);
+  const [selectedFacultyCancelledJoinRequestIds, setSelectedFacultyCancelledJoinRequestIds] = useState<number[]>([]);
+  const [bulkJoinActionLoading, setBulkJoinActionLoading] = useState<
+    false | "approve" | "reject" | "remove" | "delete"
+  >(false);
   const [resendingJoinRequestId, setResendingJoinRequestId] = useState<number | null>(null);
   const [isFaculty, setIsFaculty] = useState(false);
+  /** Aligns with backend `is_faculty` / `user_type` so credit preflight is not skipped after hydration. */
+  const isFacultyEffective = useMemo(() => {
+    return (
+      isFaculty ||
+      user?.is_faculty === true ||
+      (typeof user?.user_type === "string" && String(user.user_type).toLowerCase() === "faculty") ||
+      user?.user_type === 2
+    );
+  }, [isFaculty, user]);
   const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [walletOwner, setWalletOwner] = useState<{
@@ -147,13 +173,15 @@ const Wallet = () => {
   }>>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [requestingRecharge, setRequestingRecharge] = useState(false);
-  const [otpStep, setOtpStep] = useState<"form" | "otp">("form");
+  const [otpStep, setOtpStep] = useState<"form" | "otp" | "sric">("form");
   const [userOtp, setUserOtp] = useState("");
   const [tempRequestId, setTempRequestId] = useState<number | null>(null);
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [sendingSric, setSendingSric] = useState(false);
   const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
   const [loadingRechargeRequests, setLoadingRechargeRequests] = useState(false);
   const [showRechargeHistory, setShowRechargeHistory] = useState(false);
+  const [showTransactionHistoryExpanded, setShowTransactionHistoryExpanded] = useState(false);
   const [resendingNotification, setResendingNotification] = useState<number | null>(null);
   const [subWallets, setSubWallets] = useState<Array<{
     id: number;
@@ -169,6 +197,27 @@ const Wallet = () => {
   const [internalDepartments, setInternalDepartments] = useState<Array<{ id: number; name: string; code: string | null }>>([]);
   const [rechargeDepartmentId, setRechargeDepartmentId] = useState<number | null>(null);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
+  /** Faculty: OTP send may open credit-facility offer when department balance is below admin threshold. */
+  const [creditFacilityOfferOpen, setCreditFacilityOfferOpen] = useState(false);
+  const [creditFacilitySettings, setCreditFacilitySettings] = useState<{
+    balance_threshold_inr: string;
+    credit_window_days: number;
+    max_credit_inr: string;
+    can_activate_new_credit: boolean;
+  } | null>(null);
+  const [walletCreditFacilityItems, setWalletCreditFacilityItems] = useState<
+    Array<{
+      request_id: number;
+      department_name: string;
+      amount: string;
+      credit_limit_inr: string | null;
+      credit_window_ends_at: string | null;
+      credit_facility_status: string;
+      sub_wallet_balance: string;
+      bookings_blocked: boolean;
+    }>
+  >([]);
+  const [pendingCreditOptInDepartmentIds, setPendingCreditOptInDepartmentIds] = useState<number[]>([]);
 
   // External user withdrawal (bank transfer)
   const [isExternalUser, setIsExternalUser] = useState(false);
@@ -201,6 +250,13 @@ const Wallet = () => {
   const [txEquipmentFilter, setTxEquipmentFilter] = useState("");
   const [txBookedByFilter, setTxBookedByFilter] = useState("");
 
+  const openRechargeDialog = useCallback(() => {
+    if (isFacultyEffective) {
+      setRechargeType("request");
+    }
+    setShowRechargeDialog(true);
+  }, [isFacultyEffective]);
+
   useEffect(() => {
     checkAuthAndFetchWallet();
     fetchRechargeRequests();
@@ -217,23 +273,29 @@ const Wallet = () => {
   }, []);
 
   useEffect(() => {
+    if (showRechargeDialog && isFacultyEffective) {
+      setRechargeType("request");
+    }
+  }, [showRechargeDialog, isFacultyEffective]);
+
+  useEffect(() => {
     // Fetch active projects if user is faculty
-    if (isFaculty) {
+    if (isFacultyEffective) {
       fetchActiveProjects();
     }
-  }, [isFaculty]);
+  }, [isFacultyEffective]);
 
   // Refresh projects when recharge dialog opens (in case user added/updated projects from profile)
   useEffect(() => {
-    if (showRechargeDialog && isFaculty) {
+    if (showRechargeDialog && isFacultyEffective) {
       fetchActiveProjects();
     }
-  }, [showRechargeDialog, isFaculty]);
+  }, [showRechargeDialog, isFacultyEffective]);
 
   // Refresh projects when window regains focus (user navigated back from profile)
   useEffect(() => {
     const handleFocus = () => {
-      if (isFaculty && document.visibilityState === 'visible') {
+      if (isFacultyEffective && document.visibilityState === 'visible') {
         fetchActiveProjects();
       }
     };
@@ -245,7 +307,7 @@ const Wallet = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [isFaculty]);
+  }, [isFacultyEffective]);
 
   const fetchRechargeRequests = async () => {
     try {
@@ -303,6 +365,37 @@ const Wallet = () => {
     }
   }, [showRechargeDialog]);
 
+  // Auto-select department when exactly one internal department is available
+  useEffect(() => {
+    if (!showRechargeDialog || internalDepartments.length !== 1) {
+      return;
+    }
+    const onlyId = internalDepartments[0].id;
+    setRechargeDepartmentId((prev) => (prev === onlyId ? prev : onlyId));
+  }, [showRechargeDialog, internalDepartments]);
+
+  // When several recharge departments exist, default to the sub-wallet with the lowest balance so
+  // the credit-facility preflight matches the consolidated balance the user is looking at.
+  useEffect(() => {
+    if (!showRechargeDialog || internalDepartments.length <= 1) return;
+    setRechargeDepartmentId((prev) => {
+      if (prev != null) return prev;
+      const allowedIds = new Set(internalDepartments.map((d) => d.id));
+      const candidates = subWallets.filter((sw) => allowedIds.has(sw.department_id));
+      if (candidates.length === 0) return prev;
+      let best = candidates[0];
+      let bestBal = parseFloat(String(best.balance));
+      for (let i = 1; i < candidates.length; i++) {
+        const b = parseFloat(String(candidates[i].balance));
+        if (b < bestBal) {
+          bestBal = b;
+          best = candidates[i];
+        }
+      }
+      return best.department_id;
+    });
+  }, [showRechargeDialog, internalDepartments, subWallets]);
+
   const checkAuthAndFetchWallet = async () => {
     const token = apiClient.getToken();
     if (!token) {
@@ -333,18 +426,18 @@ const Wallet = () => {
     let isStudent = false;
     let isOtherUser = false;
     let isIndividualStudent = false;
-    let isFacultyUser = false;
+    let isFacultyUser = userResponse.data?.is_faculty === true;
     if (userType !== undefined && userType !== null) {
       if (typeof userType === "string") {
         const userTypeLower = userType.toLowerCase();
         isStudent = userTypeLower === "student";
         isOtherUser = userTypeLower === "other";
         isIndividualStudent = userTypeLower === "individual_student";
-        isFacultyUser = userTypeLower === "faculty";
+        isFacultyUser = isFacultyUser || userTypeLower === "faculty";
       } else if (typeof userType === "number") {
         // Assuming 1 = student, 2 = faculty (adjust based on your mapping)
         isStudent = userType === 1;
-        isFacultyUser = userType === 2;
+        isFacultyUser = isFacultyUser || userType === 2;
       }
     }
     setIsFaculty(isFacultyUser);
@@ -605,6 +698,14 @@ const Wallet = () => {
       const response = await apiClient.getWalletJoinRequests();
       if (response.data && response.data.requests) {
         setJoinRequests(response.data.requests);
+        setSelectedFacultyJoinRequestIds((prev) => {
+          const validIds = new Set(response.data.requests.map((r: any) => r.id));
+          return prev.filter((id) => validIds.has(id));
+        });
+        setSelectedFacultyCancelledJoinRequestIds((prev) => {
+          const validIds = new Set(response.data.requests.map((r: any) => r.id));
+          return prev.filter((id) => validIds.has(id));
+        });
         
         // Check if student has an approved request
         const approvedRequest = response.data.requests.find(
@@ -769,6 +870,250 @@ const Wallet = () => {
     );
   };
 
+  const handleDeleteCancelledJoinRequest = async (requestId: number) => {
+    confirm(
+      "Remove this cancelled request from your list? This cannot be undone.",
+      async () => {
+        try {
+          const response = await apiClient.deleteWalletJoinRequest(requestId);
+          if (response.error) {
+            toast.error(response.error);
+            return;
+          }
+          toast.success(response.data?.message || "Request removed from list");
+          await fetchJoinRequests();
+        } catch (error: any) {
+          toast.error(error.message || "Failed to delete request");
+        }
+      },
+      {
+        title: "Delete cancelled request",
+        variant: "destructive",
+        confirmText: "Delete",
+      }
+    );
+  };
+
+  const facultyActionableJoinRequests = useMemo(
+    () => joinRequests.filter((request) => request.status === "PENDING" || request.status === "APPROVED"),
+    [joinRequests]
+  );
+
+  const facultyCancelledJoinRequests = useMemo(
+    () => joinRequests.filter((request) => request.status === "CANCELLED"),
+    [joinRequests]
+  );
+
+  const facultyCancelledSelectedCount = useMemo(
+    () =>
+      joinRequests.filter(
+        (request) =>
+          selectedFacultyCancelledJoinRequestIds.includes(request.id) && request.status === "CANCELLED"
+      ).length,
+    [joinRequests, selectedFacultyCancelledJoinRequestIds]
+  );
+
+  const facultyPendingSelectedCount = useMemo(
+    () =>
+      joinRequests.filter(
+        (request) => selectedFacultyJoinRequestIds.includes(request.id) && request.status === "PENDING"
+      ).length,
+    [joinRequests, selectedFacultyJoinRequestIds]
+  );
+
+  const facultyApprovedSelectedCount = useMemo(
+    () =>
+      joinRequests.filter(
+        (request) => selectedFacultyJoinRequestIds.includes(request.id) && request.status === "APPROVED"
+      ).length,
+    [joinRequests, selectedFacultyJoinRequestIds]
+  );
+
+  const toggleFacultyJoinRequestSelection = (requestId: number, checked: boolean) => {
+    setSelectedFacultyJoinRequestIds((prev) => {
+      if (checked) return prev.includes(requestId) ? prev : [...prev, requestId];
+      return prev.filter((id) => id !== requestId);
+    });
+  };
+
+  const handleSelectAllFacultyJoinRequests = (checked: boolean) => {
+    if (!checked) {
+      setSelectedFacultyJoinRequestIds([]);
+      return;
+    }
+    setSelectedFacultyJoinRequestIds(facultyActionableJoinRequests.map((request) => request.id));
+  };
+
+  const toggleFacultyCancelledJoinRequestSelection = (requestId: number, checked: boolean) => {
+    setSelectedFacultyCancelledJoinRequestIds((prev) => {
+      if (checked) return prev.includes(requestId) ? prev : [...prev, requestId];
+      return prev.filter((id) => id !== requestId);
+    });
+  };
+
+  const handleSelectAllCancelledFacultyJoinRequests = (checked: boolean) => {
+    if (!checked) {
+      setSelectedFacultyCancelledJoinRequestIds([]);
+      return;
+    }
+    setSelectedFacultyCancelledJoinRequestIds(facultyCancelledJoinRequests.map((request) => request.id));
+  };
+
+  const handleBulkDeleteCancelledJoinRequests = async () => {
+    const cancelledIds = joinRequests
+      .filter(
+        (request) =>
+          selectedFacultyCancelledJoinRequestIds.includes(request.id) && request.status === "CANCELLED"
+      )
+      .map((request) => request.id);
+
+    if (cancelledIds.length === 0) {
+      toast.error("Select at least one cancelled request to delete.");
+      return;
+    }
+
+    confirm(
+      `Remove ${cancelledIds.length} cancelled request${cancelledIds.length === 1 ? "" : "s"} from your list? This cannot be undone.`,
+      async () => {
+        setBulkJoinActionLoading("delete");
+        try {
+          const response = await apiClient.deleteWalletJoinRequestsBulk(cancelledIds);
+          if (response.error) {
+            toast.error(response.error);
+            return;
+          }
+          const deleted = response.data?.deleted_count ?? cancelledIds.length;
+          const requested = response.data?.requested_count ?? cancelledIds.length;
+          if (deleted < requested) {
+            toast.success(
+              response.data?.message ||
+                `Removed ${deleted} of ${requested} request(s). Some could not be deleted.`
+            );
+          } else {
+            toast.success(response.data?.message || `Removed ${deleted} request(s) from your list.`);
+          }
+          await fetchJoinRequests();
+        } catch (error: any) {
+          toast.error(error.message || "Failed to delete requests");
+        } finally {
+          setBulkJoinActionLoading(false);
+        }
+      },
+      {
+        title: "Delete cancelled requests",
+        variant: "destructive",
+        confirmText: "Delete",
+      }
+    );
+  };
+
+  const handleBulkApproveJoinRequests = async () => {
+    const pendingIds = joinRequests
+      .filter((request) => selectedFacultyJoinRequestIds.includes(request.id) && request.status === "PENDING")
+      .map((request) => request.id);
+
+    if (pendingIds.length === 0) {
+      toast.error("Select at least one pending request to approve.");
+      return;
+    }
+
+    setBulkJoinActionLoading("approve");
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const requestId of pendingIds) {
+      const response = await apiClient.approveWalletJoinRequest(requestId);
+      if (response.error) failedCount += 1;
+      else successCount += 1;
+    }
+
+    if (successCount > 0 && failedCount === 0) {
+      toast.success(`Approved ${successCount} request${successCount === 1 ? "" : "s"} successfully.`);
+    } else if (successCount > 0 && failedCount > 0) {
+      toast.error(`Approved ${successCount}, failed ${failedCount}. Please retry the failed requests.`);
+    } else {
+      toast.error("Failed to approve selected requests.");
+    }
+
+    setBulkJoinActionLoading(false);
+    await fetchJoinRequests();
+  };
+
+  const handleBulkRejectJoinRequests = async () => {
+    const pendingIds = joinRequests
+      .filter((request) => selectedFacultyJoinRequestIds.includes(request.id) && request.status === "PENDING")
+      .map((request) => request.id);
+
+    if (pendingIds.length === 0) {
+      toast.error("Select at least one pending request to reject.");
+      return;
+    }
+
+    setBulkJoinActionLoading("reject");
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const requestId of pendingIds) {
+      const response = await apiClient.rejectWalletJoinRequest(requestId);
+      if (response.error) failedCount += 1;
+      else successCount += 1;
+    }
+
+    if (successCount > 0 && failedCount === 0) {
+      toast.success(`Rejected ${successCount} request${successCount === 1 ? "" : "s"} successfully.`);
+    } else if (successCount > 0 && failedCount > 0) {
+      toast.error(`Rejected ${successCount}, failed ${failedCount}. Please retry the failed requests.`);
+    } else {
+      toast.error("Failed to reject selected requests.");
+    }
+
+    setBulkJoinActionLoading(false);
+    await fetchJoinRequests();
+  };
+
+  const handleBulkRemoveStudents = async () => {
+    const approvedIds = joinRequests
+      .filter((request) => selectedFacultyJoinRequestIds.includes(request.id) && request.status === "APPROVED")
+      .map((request) => request.id);
+
+    if (approvedIds.length === 0) {
+      toast.error("Select at least one approved user to remove.");
+      return;
+    }
+
+    confirm(
+      `Are you sure you want to remove ${approvedIds.length} selected user${approvedIds.length === 1 ? "" : "s"} from your wallet? They will lose access immediately.`,
+      async () => {
+        setBulkJoinActionLoading("remove");
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (const requestId of approvedIds) {
+          const response = await apiClient.removeStudentFromWallet(requestId);
+          if (response.error) failedCount += 1;
+          else successCount += 1;
+        }
+
+        if (successCount > 0 && failedCount === 0) {
+          toast.success(`Removed ${successCount} user${successCount === 1 ? "" : "s"} from wallet.`);
+        } else if (successCount > 0 && failedCount > 0) {
+          toast.error(`Removed ${successCount}, failed ${failedCount}. Please retry the failed requests.`);
+        } else {
+          toast.error("Failed to remove selected users.");
+        }
+
+        setBulkJoinActionLoading(false);
+        await fetchJoinRequests();
+        if (userId) await fetchWalletData();
+      },
+      {
+        title: "Remove Selected Users",
+        variant: "destructive",
+        confirmText: "Remove",
+      }
+    );
+  };
+
   const fetchWalletData = async () => {
     try {
       const walletResponse = await apiClient.getWallet();
@@ -782,6 +1127,7 @@ const Wallet = () => {
         if (walletResponse.error.includes("404") || walletResponse.error.includes("Not found")) {
           setBalance(0);
           setTransactions([]);
+          setWalletCreditFacilityItems([]);
           setLoading(false);
           return;
         }
@@ -856,11 +1202,24 @@ const Wallet = () => {
         if (walletResponse.data.is_shared) {
           await fetchJoinRequests();
         }
+
+        const cr = await apiClient.getWalletCreditFacilityMyStatus();
+        if (!cr.error && cr.data?.items) {
+          setWalletCreditFacilityItems(cr.data.items);
+          setPendingCreditOptInDepartmentIds(
+            cr.data.pending_credit_opt_in_department_ids ?? []
+          );
+        } else {
+          setWalletCreditFacilityItems([]);
+          setPendingCreditOptInDepartmentIds([]);
+        }
       }
     } catch (error: any) {
       // Don't redirect on error, just show empty state
       setBalance(0);
       setTransactions([]);
+      setWalletCreditFacilityItems([]);
+      setPendingCreditOptInDepartmentIds([]);
       toast.error(error.message || "Failed to load wallet data. Showing empty wallet.");
     } finally {
       setLoading(false);
@@ -1102,17 +1461,17 @@ const Wallet = () => {
     }
   };
 
-  const handleSendOtp = async () => {
+  const completeRechargeOtpSend = async (creditFacilityOptedIn: boolean) => {
     const amount = parseFloat(rechargeAmount);
     if (!rechargeDepartmentId) {
       toast.error("Please select a department (sub-wallet to credit)");
       return;
     }
-    if (!amount || amount < 0.01) {
-      toast.error("Please enter a valid amount (minimum ₹0.01)");
+    if (!amount || amount < 100) {
+      toast.error("Please enter a valid amount (minimum ₹100)");
       return;
     }
-    if (isFaculty && !selectedProjectId) {
+    if (isFacultyEffective && !selectedProjectId) {
       toast.error("Please select a project. Add projects from your profile if none are available.");
       return;
     }
@@ -1121,7 +1480,8 @@ const Wallet = () => {
       const response = await apiClient.sendUserOtpForRecharge(
         amount,
         rechargeDepartmentId,
-        isFaculty ? selectedProjectId : null
+        isFacultyEffective ? selectedProjectId : null,
+        creditFacilityOptedIn
       );
 
       if (response.error) {
@@ -1136,6 +1496,112 @@ const Wallet = () => {
       toast.error(error.message || "Failed to send OTP");
     } finally {
       setSendingOtp(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    const amount = parseFloat(rechargeAmount);
+    if (!rechargeDepartmentId) {
+      toast.error("Please select a department (sub-wallet to credit)");
+      return;
+    }
+    if (!amount || amount < 100) {
+      toast.error("Please enter a valid amount (minimum ₹100)");
+      return;
+    }
+    if (isFacultyEffective && !selectedProjectId) {
+      toast.error("Please select a project. Add projects from your profile if none are available.");
+      return;
+    }
+    if (!isFacultyEffective) {
+      await completeRechargeOtpSend(false);
+      return;
+    }
+    try {
+      setSendingOtp(true);
+      const offerRes = await apiClient.getWalletCreditFacilityOfferForRecharge(rechargeDepartmentId);
+      if (offerRes.error || !offerRes.data) {
+        toast.error(offerRes.error || "Could not check credit facility eligibility");
+        return;
+      }
+      void apiClient.getWalletCreditFacilityMyStatus().then((cr) => {
+        if (!cr.error && cr.data?.items) {
+          setWalletCreditFacilityItems(cr.data.items);
+          setPendingCreditOptInDepartmentIds(cr.data.pending_credit_opt_in_department_ids ?? []);
+        }
+      });
+      void apiClient.getWallet().then((wr) => {
+        if (!wr.error && wr.data && Array.isArray(wr.data.sub_wallets)) {
+          setSubWallets(wr.data.sub_wallets as typeof subWallets);
+        }
+      });
+      const payload = offerRes.data as Record<string, unknown>;
+      const rawShow = payload.show_offer ?? payload.showOffer;
+      const showOffer =
+        rawShow === true ||
+        rawShow === "true" ||
+        rawShow === 1 ||
+        rawShow === "1";
+      const reason = String(payload.reason ?? "");
+      const subBal = parseFloat(String(payload.sub_wallet_balance ?? "0"));
+      const thr = parseFloat(String(payload.balance_threshold_inr ?? "0"));
+      const numericBelowThreshold = thr > 0 && !Number.isNaN(subBal) && subBal < thr;
+      const badReasons = new Set([
+        "not_faculty",
+        "no_wallet",
+        "invalid_department",
+        "negative_balance",
+        "at_or_above_threshold",
+      ]);
+      const shouldShowCreditDialog =
+        showOffer ||
+        reason === "below_threshold" ||
+        (numericBelowThreshold && !badReasons.has(reason));
+      if (shouldShowCreditDialog) {
+        setCreditFacilitySettings({
+          balance_threshold_inr: String(payload.balance_threshold_inr ?? offerRes.data.balance_threshold_inr),
+          credit_window_days: Number(payload.credit_window_days ?? offerRes.data.credit_window_days),
+          max_credit_inr: String(payload.max_credit_inr ?? offerRes.data.max_credit_inr),
+          can_activate_new_credit: payload.can_activate_new_credit !== false,
+        });
+        setCreditFacilityOfferOpen(true);
+        return;
+      }
+      await completeRechargeOtpSend(false);
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const resetRechargeDialog = () => {
+    setShowRechargeDialog(false);
+    setRechargeAmount("");
+    setRechargeDepartmentId(null);
+    setSelectedProjectId(null);
+    setRechargeType(isFacultyEffective ? "request" : "razorpay");
+    setOtpStep("form");
+    setUserOtp("");
+    setTempRequestId(null);
+    setCreditFacilityOfferOpen(false);
+    setCreditFacilitySettings(null);
+  };
+
+  const handleSendSricNotification = async (requestId: number, onSuccess?: () => void) => {
+    try {
+      setSendingSric(true);
+      const response = await apiClient.sendSricWalletRechargeNotification(requestId);
+      if (response.error) {
+        toast.error(response.error);
+        return;
+      }
+      toast.success(response.data?.message || "Request sent to SRIC Office.");
+      await fetchWalletData();
+      await fetchRechargeRequests();
+      onSuccess?.();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send to SRIC Office");
+    } finally {
+      setSendingSric(false);
     }
   };
 
@@ -1163,17 +1629,33 @@ const Wallet = () => {
         return;
       }
 
+      const req = response.data?.request;
+      const needsSric =
+        isFacultyEffective &&
+        req &&
+        req.user_otp_verified &&
+        !req.sric_notification_sent;
+
+      if (needsSric) {
+        toast.success(
+          response.data?.message ||
+            "Recharge request created. You can now notify the SRIC Office (if auto-notify did not run)."
+        );
+        setTempRequestId(req.id);
+        setOtpStep("sric");
+        setUserOtp("");
+        await fetchWalletData();
+        await fetchRechargeRequests();
+        return;
+      }
+
       toast.success(
-        response.data?.message || 
-        "Recharge request created successfully. The accounts team will review your request."
+        response.data?.message ||
+          (isFacultyEffective && req?.sric_notification_sent
+            ? "Recharge request submitted. SRIC Office, accounts, and staff have been notified where configured. You will receive email when the recharge is credited from the accounts file."
+            : "Recharge request created successfully. The accounts team will review your request.")
       );
-      setShowRechargeDialog(false);
-      setRechargeAmount("");
-      setSelectedProjectId(null);
-      setRechargeType("razorpay");
-      setOtpStep("form");
-      setUserOtp("");
-      setTempRequestId(null);
+      resetRechargeDialog();
       
       // Refresh wallet data and recharge requests
       await fetchWalletData();
@@ -1506,6 +1988,60 @@ const Wallet = () => {
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Wallet</h1>
 
+        {walletCreditFacilityItems.length > 0 && (
+          <Card
+            className={cn(
+              "mb-6 border-amber-300/80 bg-amber-50/90 dark:bg-amber-950/20",
+              walletCreditFacilityItems.some((x) => x.bookings_blocked) &&
+                "border-destructive/60 bg-destructive/5 dark:bg-destructive/10"
+            )}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Recharge credit facility — timeline
+              </CardTitle>
+              <CardDescription>
+                Temporary credit tied to pending wallet recharge requests (department sub-wallets).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {walletCreditFacilityItems.map((row) => (
+                <div
+                  key={row.request_id}
+                  className="rounded-lg border border-border/80 bg-background/60 px-3 py-2 space-y-1"
+                >
+                  <div className="font-medium text-foreground">
+                    {row.department_name || "Department"} — Request #{row.request_id} (₹{row.amount})
+                  </div>
+                  {row.credit_limit_inr != null && <div>Credit line: up to ₹{row.credit_limit_inr}</div>}
+                  {row.credit_window_ends_at && (
+                    <div className="text-muted-foreground">
+                      Window ends:{" "}
+                      {new Date(row.credit_window_ends_at).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </div>
+                  )}
+                  <div className="text-muted-foreground">Sub-wallet balance: ₹{row.sub_wallet_balance}</div>
+                  {row.bookings_blocked ? (
+                    <div className="text-destructive font-medium">
+                      Bookings for this department are on hold until the recharge is credited via accounts
+                      (parse).
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">
+                      Credit window active — book within the approved line until it ends or the recharge is
+                      credited.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Current Balance</CardTitle>
@@ -1520,7 +2056,7 @@ const Wallet = () => {
               </div>
               {!isShared && (
                 <Button
-                  onClick={() => setShowRechargeDialog(true)}
+                  onClick={() => openRechargeDialog()}
                   className="flex items-center gap-2"
                 >
                   <WalletIcon className="h-4 w-4" />
@@ -1528,10 +2064,10 @@ const Wallet = () => {
                 </Button>
               )}
             </div>
-            
+
             {/* Recharge Dialog */}
             {showRechargeDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90]">
                 <Card className="w-full max-w-md mx-4">
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -1540,14 +2076,7 @@ const Wallet = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setShowRechargeDialog(false);
-                          setRechargeAmount("");
-                          setRechargeDepartmentId(null);
-                          setSelectedProjectId(null);
-                          setRechargeType("razorpay");
-                          setOtpStep("form");
-                          setUserOtp("");
-                          setTempRequestId(null);
+                          resetRechargeDialog();
                         }}
                       >
                         <X className="h-4 w-4" />
@@ -1558,6 +2087,105 @@ const Wallet = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {otpStep === "sric" ? (
+                      <div className="space-y-4">
+                        <div className="p-4 border rounded-lg bg-muted/30">
+                          <p className="text-sm font-medium">OTP verified</p>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Your recharge request has been created. Send it to the SRIC Office by email.
+                          </p>
+                        </div>
+                        <Button
+                          className="w-full"
+                          size="lg"
+                          onClick={() => {
+                            if (tempRequestId != null) {
+                              void handleSendSricNotification(tempRequestId, () => {
+                                resetRechargeDialog();
+                              });
+                            }
+                          }}
+                          disabled={sendingSric || tempRequestId == null}
+                        >
+                          {sendingSric ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Send to SRIC Office
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            resetRechargeDialog();
+                            void fetchWalletData();
+                          }}
+                          disabled={sendingSric}
+                        >
+                          I will Send the e-mail Manually
+                        </Button>
+                      </div>
+                    ) : (
+                    <>
+                    {/* Recharge Type Tabs — faculty: offline default, online disabled; department follows */}
+                    <div className="flex gap-2 border-b">
+                      {isFacultyEffective ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant={rechargeType === "request" ? "default" : "ghost"}
+                            className="rounded-b-none border-b-2 border-transparent"
+                            onClick={() => setRechargeType("request")}
+                            disabled={recharging || requestingRecharge}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Offline Request
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={rechargeType === "razorpay" ? "default" : "ghost"}
+                            className="rounded-b-none border-b-2 border-transparent opacity-60"
+                            onClick={() => setRechargeType("razorpay")}
+                            disabled
+                            title="Online payment is not available for faculty recharge"
+                          >
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Online Payment
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant={rechargeType === "razorpay" ? "default" : "ghost"}
+                            className="rounded-b-none border-b-2 border-transparent"
+                            onClick={() => setRechargeType("razorpay")}
+                            disabled={recharging || requestingRecharge}
+                          >
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Online Payment
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={rechargeType === "request" ? "default" : "ghost"}
+                            className="rounded-b-none border-b-2 border-transparent"
+                            onClick={() => setRechargeType("request")}
+                            disabled={recharging || requestingRecharge}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Offline Request
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Department (sub-wallet to credit)</Label>
                       <select
@@ -1572,35 +2200,14 @@ const Wallet = () => {
                       </select>
                       {loadingDepartments && <p className="text-xs text-muted-foreground">Loading departments...</p>}
                     </div>
-                    {/* Recharge Type Tabs */}
-                    <div className="flex gap-2 border-b">
-                      <Button
-                        variant={rechargeType === "razorpay" ? "default" : "ghost"}
-                        className="rounded-b-none border-b-2 border-transparent"
-                        onClick={() => setRechargeType("razorpay")}
-                        disabled={recharging || requestingRecharge}
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Online Payment
-                      </Button>
-                      <Button
-                        variant={rechargeType === "request" ? "default" : "ghost"}
-                        className="rounded-b-none border-b-2 border-transparent"
-                        onClick={() => setRechargeType("request")}
-                        disabled={recharging || requestingRecharge}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Offline Request
-                      </Button>
-                    </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="recharge-amount">Amount (₹)</Label>
                       <Input
                         id="recharge-amount"
                         type="number"
-                        min="0.01"
-                        max="100000"
+                        min={rechargeType === "razorpay" ? "1" : "100"}
+                        max={rechargeType === "razorpay" ? "100000" : undefined}
                         step="0.01"
                         placeholder="Enter amount"
                         value={rechargeAmount}
@@ -1608,10 +2215,9 @@ const Wallet = () => {
                         disabled={recharging || requestingRecharge}
                       />
                       <p className="text-xs text-muted-foreground">
-                        {rechargeType === "razorpay" 
+                        {rechargeType === "razorpay"
                           ? "Minimum: ₹1 | Maximum: ₹1,00,000"
-                          : "Minimum: ₹0.01 | Maximum: ₹1,00,000"
-                        }
+                          : "Minimum ₹100 | Maximum: No Limit"}
                       </p>
                     </div>
 
@@ -1674,7 +2280,7 @@ const Wallet = () => {
 
                     {rechargeType === "request" && otpStep === "form" && (
                       <>
-                        {isFaculty && (
+                        {isFacultyEffective && (
                           <div className="space-y-2">
                             <Label htmlFor="project-select">Project *</Label>
                             {loadingProjects ? (
@@ -1730,7 +2336,10 @@ const Wallet = () => {
                         )}
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                           <p className="text-sm text-blue-700 dark:text-blue-400">
-                            ℹ️ An OTP will be sent to your email for verification before submitting the request.
+                            ℹ️{" "}
+                            {isFacultyEffective
+                              ? "Submit checks your department balance against the institute threshold. If it is below the limit, you can choose a temporary credit line; otherwise an OTP is sent to your email to continue."
+                              : "An OTP will be sent to your email for verification before submitting the request."}
                           </p>
                         </div>
                         <Button
@@ -1739,8 +2348,8 @@ const Wallet = () => {
                             sendingOtp || 
                             !rechargeDepartmentId || 
                             !rechargeAmount || 
-                            parseFloat(rechargeAmount) < 0.01 ||
-                            (isFaculty && (!selectedProjectId || projects.length === 0))
+                            parseFloat(rechargeAmount) < 100 ||
+                            (isFacultyEffective && (!selectedProjectId || projects.length === 0))
                           }
                           className="w-full"
                           size="lg"
@@ -1748,12 +2357,12 @@ const Wallet = () => {
                           {sendingOtp ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Sending OTP...
+                              {isFacultyEffective ? "Please wait…" : "Sending OTP..."}
                             </>
                           ) : (
                             <>
-                              <Mail className="h-4 w-4 mr-2" />
-                              Send OTP to Email
+                              <FileText className="h-4 w-4 mr-2" />
+                              {isFacultyEffective ? "Submit request" : "Send OTP to Email"}
                             </>
                           )}
                         </Button>
@@ -1819,6 +2428,8 @@ const Wallet = () => {
                           </Button>
                         </div>
                       </>
+                    )}
+                    </>
                     )}
                   </CardContent>
                 </Card>
@@ -2253,7 +2864,7 @@ const Wallet = () => {
         )}
 
         {/* Join Requests for Faculty */}
-        {isFaculty && (
+        {isFacultyEffective && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>Wallet Join Requests</CardTitle>
@@ -2272,12 +2883,116 @@ const Wallet = () => {
                 </p>
               ) : (
                 <div className="space-y-3">
+                  {facultyActionableJoinRequests.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="faculty-join-select-all"
+                          checked={
+                            facultyActionableJoinRequests.length > 0 &&
+                            selectedFacultyJoinRequestIds.length === facultyActionableJoinRequests.length
+                          }
+                          onCheckedChange={(checked) => handleSelectAllFacultyJoinRequests(checked === true)}
+                        />
+                        <Label htmlFor="faculty-join-select-all" className="text-sm">
+                          Select all actionable requests
+                        </Label>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={bulkJoinActionLoading !== false || facultyPendingSelectedCount === 0}
+                          onClick={handleBulkApproveJoinRequests}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          {bulkJoinActionLoading === "approve"
+                            ? "Approving..."
+                            : `Approve Selected (${facultyPendingSelectedCount})`}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={bulkJoinActionLoading !== false || facultyPendingSelectedCount === 0}
+                          onClick={handleBulkRejectJoinRequests}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          {bulkJoinActionLoading === "reject"
+                            ? "Rejecting..."
+                            : `Reject Selected (${facultyPendingSelectedCount})`}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={bulkJoinActionLoading !== false || facultyApprovedSelectedCount === 0}
+                          onClick={handleBulkRemoveStudents}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          {bulkJoinActionLoading === "remove"
+                            ? "Removing..."
+                            : `Remove Selected (${facultyApprovedSelectedCount})`}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {facultyCancelledJoinRequests.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="faculty-join-select-all-cancelled"
+                          checked={
+                            facultyCancelledJoinRequests.length > 0 &&
+                            selectedFacultyCancelledJoinRequestIds.length === facultyCancelledJoinRequests.length
+                          }
+                          onCheckedChange={(checked) =>
+                            handleSelectAllCancelledFacultyJoinRequests(checked === true)
+                          }
+                        />
+                        <Label htmlFor="faculty-join-select-all-cancelled" className="text-sm">
+                          Select all cancelled requests
+                        </Label>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={bulkJoinActionLoading !== false || facultyCancelledSelectedCount === 0}
+                        onClick={handleBulkDeleteCancelledJoinRequests}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        {bulkJoinActionLoading === "delete"
+                          ? "Deleting..."
+                          : `Delete Selected (${facultyCancelledSelectedCount})`}
+                      </Button>
+                    </div>
+                  )}
                   {joinRequests.map((request) => (
                     <div
                       key={request.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
                     >
-                      <div className="flex-1">
+                      <div className="flex-1 flex items-start gap-3">
+                        {(request.status === "PENDING" || request.status === "APPROVED") && (
+                          <Checkbox
+                            className="mt-1"
+                            checked={selectedFacultyJoinRequestIds.includes(request.id)}
+                            onCheckedChange={(checked) =>
+                              toggleFacultyJoinRequestSelection(request.id, checked === true)
+                            }
+                            aria-label={`Select ${request.student_name}`}
+                          />
+                        )}
+                        {request.status === "CANCELLED" && (
+                          <Checkbox
+                            className="mt-1"
+                            checked={selectedFacultyCancelledJoinRequestIds.includes(request.id)}
+                            onCheckedChange={(checked) =>
+                              toggleFacultyCancelledJoinRequestSelection(request.id, checked === true)
+                            }
+                            aria-label={`Select cancelled request ${request.student_name}`}
+                          />
+                        )}
+                        <div className="flex-1">
                         <UserProfile
                           name={request.student_name}
                           email={request.student_email}
@@ -2318,6 +3033,7 @@ const Wallet = () => {
                         <p className="text-xs text-muted-foreground mt-1">
                           {new Date(request.created_at).toLocaleString()}
                         </p>
+                        </div>
                       </div>
                       {request.status === "PENDING" && (
                         <div className="flex gap-2">
@@ -2348,6 +3064,16 @@ const Wallet = () => {
                         >
                           <XCircle className="h-4 w-4 mr-1" />
                           Remove Student
+                        </Button>
+                      )}
+                      {request.status === "CANCELLED" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteCancelledJoinRequest(request.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
                         </Button>
                       )}
                     </div>
@@ -2387,116 +3113,190 @@ const Wallet = () => {
                     No recharge requests yet
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {rechargeRequests.map((req) => (
-                      <div
-                        key={req.id}
-                        className="flex items-center justify-between p-4 border rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            {req.status === "PENDING" && (
-                              <Badge variant="secondary" className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {req.status_display || "Pending"}
-                              </Badge>
-                            )}
-                            {req.status === "APPROVED" && (
-                              <Badge variant="default" className="flex items-center gap-1 bg-green-600">
-                                <CheckCircle className="h-3 w-3" />
-                                {req.status_display || "Approved"}
-                              </Badge>
-                            )}
-                            {req.status === "REJECTED" && (
-                              <Badge variant="destructive" className="flex items-center gap-1">
-                                <XCircle className="h-3 w-3" />
-                                {req.status_display || "Rejected"}
-                              </Badge>
-                            )}
-                            {req.status === "CANCELLED" && (
-                              <Badge variant="outline" className="flex items-center gap-1">
-                                <X className="h-3 w-3" />
-                                {req.status_display || "Cancelled"}
-                              </Badge>
-                            )}
-                            <span className="font-semibold">₹{Number(req.amount).toFixed(2)}</span>
-                          </div>
-                          {req.project_name && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Project: {req.project_name} {req.project_code && `(${req.project_code})`}
-                            </p>
-                          )}
-                          {req.response_message && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Response: {req.response_message}
-                            </p>
-                          )}
-                          {req.approved_by_email && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Processed by: {req.approved_by_email}
-                            </p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Requested: {new Date(req.created_at).toLocaleString()}
-                            {req.responded_at && ` • Processed: ${new Date(req.responded_at).toLocaleString()}`}
-                          </p>
-                        </div>
-                        {req.status === "PENDING" && (
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                setResendingNotification(req.id);
-                                try {
-                                  const response = await apiClient.resendWalletRechargeNotification(req.id);
-                                  if (response.error) {
-                                    toast.error(response.error || "Failed to resend notification");
-                                  } else {
-                                    toast.success(response.data?.message || "Notification resent successfully");
-                                  }
-                                } catch (error: any) {
-                                  toast.error(error.message || "Failed to resend notification");
-                                } finally {
-                                  setResendingNotification(null);
-                                }
-                              }}
-                              disabled={resendingNotification === req.id}
-                              className="text-blue-600 hover:text-blue-700 border-blue-600 hover:border-blue-700"
-                            >
-                              {resendingNotification === req.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-1"></div>
-                                  Sending...
-                                </>
+                  <div className="rounded-lg border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                          <TableHead className="whitespace-nowrap font-semibold">S.No.</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Requested</TableHead>
+                          <TableHead className="text-right whitespace-nowrap font-semibold">Amount</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold min-w-[120px]">Department</TableHead>
+                          <TableHead className="min-w-[140px] font-semibold">Project</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Status</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold text-center">SRIC</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold">Response</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Processed</TableHead>
+                          <TableHead className="text-right whitespace-nowrap font-semibold w-[1%]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rechargeRequests.map((req, rowIndex) => (
+                          <TableRow key={req.id}>
+                            <TableCell className="text-sm tabular-nums w-[3rem]">{rowIndex + 1}</TableCell>
+                            <TableCell className="text-sm whitespace-nowrap">
+                              {new Date(req.created_at).toLocaleString(undefined, {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              ₹{Number(req.amount).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {req.department_name || "—"}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {req.project_name ? (
+                                <span className="line-clamp-2" title={[req.project_name, req.project_code].filter(Boolean).join(" · ")}>
+                                  {req.project_name}
+                                  {req.project_code ? ` (${req.project_code})` : ""}
+                                </span>
                               ) : (
-                                <>
-                                  <RefreshCw className="h-4 w-4 mr-1" />
-                                  Resend Notification
-                                </>
+                                <span className="text-muted-foreground">—</span>
                               )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                const response = await apiClient.cancelWalletRechargeRequest(req.id);
-                                if (response.error) {
-                                  toast.error(response.error || "Failed to cancel request");
-                                } else {
-                                  toast.success("Request cancelled");
-                                  await fetchRechargeRequests();
-                                }
-                              }}
-                              className="text-orange-600 hover:text-orange-700 border-orange-600 hover:border-orange-700"
-                            >
-                              <X className="h-4 w-4 mr-1" />
-                              Cancel
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                            </TableCell>
+                            <TableCell>
+                              {req.status === "PENDING" && (
+                                <Badge variant="secondary" className="gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {req.status_display || "Pending"}
+                                </Badge>
+                              )}
+                              {req.status === "APPROVED" && (
+                                <Badge className="bg-green-600 hover:bg-green-700 gap-1">
+                                  <CheckCircle className="h-3 w-3" />
+                                  {req.status_display || "Approved"}
+                                </Badge>
+                              )}
+                              {req.status === "REJECTED" && (
+                                <Badge variant="destructive" className="gap-1">
+                                  <XCircle className="h-3 w-3" />
+                                  {req.status_display || "Rejected"}
+                                </Badge>
+                              )}
+                              {req.status === "CANCELLED" && (
+                                <Badge variant="outline" className="gap-1">
+                                  <X className="h-3 w-3" />
+                                  {req.status_display || "Cancelled"}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {isFacultyEffective ? (
+                                req.sric_notification_sent ? (
+                                  <span className="text-emerald-600 dark:text-emerald-400">Yes</span>
+                                ) : (
+                                  <span className="text-muted-foreground">No</span>
+                                )
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-[220px]">
+                              <span className="line-clamp-2" title={req.response_message || ""}>
+                                {req.response_message || "—"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-sm whitespace-nowrap align-top">
+                              {req.responded_at ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span>
+                                    {new Date(req.responded_at).toLocaleString(undefined, {
+                                      dateStyle: "short",
+                                      timeStyle: "short",
+                                    })}
+                                  </span>
+                                  {req.approved_by_email && (
+                                    <span className="text-xs text-muted-foreground max-w-[180px] truncate" title={req.approved_by_email}>
+                                      {req.approved_by_email}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right align-top">
+                              {req.status === "PENDING" ? (
+                                <div className="flex flex-col gap-1 items-end">
+                                  {isFacultyEffective && !req.sric_notification_sent && (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-8"
+                                      onClick={() =>
+                                        void handleSendSricNotification(req.id, () => {
+                                          void fetchWalletData();
+                                        })
+                                      }
+                                      disabled={sendingSric}
+                                    >
+                                      {sendingSric ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Send className="h-3.5 w-3.5 mr-1" />
+                                          SRIC
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-blue-600 border-blue-600"
+                                    onClick={async () => {
+                                      setResendingNotification(req.id);
+                                      try {
+                                        const response = await apiClient.resendWalletRechargeNotification(req.id);
+                                        if (response.error) {
+                                          toast.error(response.error || "Failed to resend notification");
+                                        } else {
+                                          toast.success(response.data?.message || "Notification resent successfully");
+                                        }
+                                      } catch (error: any) {
+                                        toast.error(error.message || "Failed to resend notification");
+                                      } finally {
+                                        setResendingNotification(null);
+                                      }
+                                    }}
+                                    disabled={resendingNotification === req.id}
+                                  >
+                                    {resendingNotification === req.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                        Resend
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-orange-600 border-orange-600"
+                                    onClick={async () => {
+                                      const response = await apiClient.cancelWalletRechargeRequest(req.id);
+                                      if (response.error) {
+                                        toast.error(response.error || "Failed to cancel request");
+                                      } else {
+                                        toast.success(response.data?.message || "Request removed");
+                                        await fetchRechargeRequests();
+                                      }
+                                    }}
+                                  >
+                                    <X className="h-3.5 w-3.5 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
@@ -2512,50 +3312,78 @@ const Wallet = () => {
                 <CardDescription>
                   All credit and debit transactions across department sub-wallets. Net balance after each transaction is shown.
                 </CardDescription>
+                {!loading && transactions.length > 0 && !showTransactionHistoryExpanded && (
+                  <p className="text-sm text-muted-foreground pt-1">
+                    {transactions.length} transaction{transactions.length !== 1 ? "s" : ""} on record.
+                    Use <span className="font-medium text-foreground">Show full history</span> to open filters, search, and export.
+                  </p>
+                )}
               </div>
-              {!loading && transactions.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="shrink-0 gap-2">
-                      <Download className="h-4 w-4" />
-                      Download
-                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        if (filteredTransactions.length === 0) {
-                          toast.error("No transactions match the current filters.");
-                          return;
-                        }
-                        exportWalletTransactionsExcel(filteredTransactions, {
-                          sheetTitle: "Transactions",
-                        });
-                        toast.success("Excel file downloaded.");
-                      }}
-                    >
-                      <FileSpreadsheet className="h-4 w-4 mr-2" />
-                      Excel (.xlsx)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        if (filteredTransactions.length === 0) {
-                          toast.error("No transactions match the current filters.");
-                          return;
-                        }
-                        exportWalletTransactionsPdf(filteredTransactions, {
-                          title: "Wallet transaction history",
-                        });
-                        toast.success("PDF downloaded.");
-                      }}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      PDF
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {showTransactionHistoryExpanded && !loading && transactions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="shrink-0 gap-2">
+                        <Download className="h-4 w-4" />
+                        Download
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (filteredTransactions.length === 0) {
+                            toast.error("No transactions match the current filters.");
+                            return;
+                          }
+                          exportWalletTransactionsExcel(filteredTransactions, {
+                            sheetTitle: "Transactions",
+                          });
+                          toast.success("Excel file downloaded.");
+                        }}
+                      >
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel (.xlsx)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (filteredTransactions.length === 0) {
+                            toast.error("No transactions match the current filters.");
+                            return;
+                          }
+                          exportWalletTransactionsPdf(filteredTransactions, {
+                            title: "Wallet transaction history",
+                          });
+                          toast.success("PDF downloaded.");
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                {!loading && transactions.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setShowTransactionHistoryExpanded(!showTransactionHistoryExpanded)}
+                  >
+                    {showTransactionHistoryExpanded ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        Minimize
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        Show full history
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -2568,7 +3396,7 @@ const Wallet = () => {
                 <p className="font-medium">No transactions yet</p>
                 <p className="text-sm mt-1">Transactions will appear here when you recharge or make bookings.</p>
               </div>
-            ) : (
+            ) : showTransactionHistoryExpanded ? (
               <>
                 <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg bg-muted/40 border border-border/60">
                   <div className="flex items-center gap-2">
@@ -2779,10 +3607,102 @@ const Wallet = () => {
                 </Table>
               </div>
               </>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       </main>
+
+      <AlertDialog open={creditFacilityOfferOpen} onOpenChange={setCreditFacilityOfferOpen}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Temporary credit facility</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Your selected department balance is below ₹
+                  {creditFacilitySettings
+                    ? parseFloat(creditFacilitySettings.balance_threshold_inr).toLocaleString("en-IN")
+                    : "—"}{" "}
+                  (admin threshold).
+                  {creditFacilitySettings?.can_activate_new_credit
+                    ? " You may use a short-term credit line while your wallet recharge request is processed through accounts (parse)."
+                    : " You already have an active temporary credit line for this department from a pending recharge. Submit this request without a new credit line, or wait until that recharge is completed."}
+                </p>
+                {creditFacilitySettings?.can_activate_new_credit ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>
+                      Credit window:{" "}
+                      <span className="font-medium text-foreground">
+                        {creditFacilitySettings?.credit_window_days ?? "—"} days
+                      </span>{" "}
+                      from OTP verification.
+                    </li>
+                    <li>
+                      Line cap:{" "}
+                      <span className="font-medium text-foreground">
+                        ₹
+                        {Math.min(
+                          parseFloat(rechargeAmount || "0") || 0,
+                          parseFloat(creditFacilitySettings?.max_credit_inr || "0") || 0
+                        ).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                      </span>{" "}
+                      (lesser of your request amount and admin maximum).
+                    </li>
+                    <li>
+                      If the recharge is not credited via parse before the window ends, bookings for that
+                      department are put on hold and you will be emailed.
+                    </li>
+                    <li>
+                      Once accounts confirm the recharge, your balance updates and you can start a fresh
+                      request; the credit window no longer applies to that completed recharge.
+                    </li>
+                  </ul>
+                ) : (
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>
+                      After accounts credit your pending recharge, you can raise a new request and opt in
+                      again if your balance is still below the threshold.
+                    </li>
+                    <li>
+                      If the recharge is not credited before the credit window ends, bookings for that
+                      department stay on hold until the balance is restored.
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {creditFacilitySettings?.can_activate_new_credit ? (
+              <>
+                <AlertDialogCancel
+                  onClick={() => {
+                    void completeRechargeOtpSend(false);
+                  }}
+                >
+                  Continue without credit
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    void completeRechargeOtpSend(true);
+                  }}
+                >
+                  Accept credit facility
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction
+                onClick={() => {
+                  void completeRechargeOtpSend(false);
+                }}
+              >
+                Continue without new credit line
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {AlertComponent}
       {ConfirmComponent}
     </div>

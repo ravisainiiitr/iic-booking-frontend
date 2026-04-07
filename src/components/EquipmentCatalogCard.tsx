@@ -1,0 +1,220 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CalendarClock, Play, Star, StarHalf } from "lucide-react";
+import { toast } from "sonner";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+export type EquipmentCardAccent = {
+  gradient: string;
+  bar: string;
+  button: string;
+  border: string;
+};
+
+export type EquipmentCatalogCardItem = {
+  id: string | number;
+  name: string;
+  category?: string;
+  description?: string;
+  image: string;
+  video?: string | null;
+  status?: string | null;
+  statusDisplay?: string | null;
+  internalRate?: number | string | null;
+  avgRating?: number | null;
+  ratingCount?: number | null;
+};
+
+type Props = {
+  item: EquipmentCatalogCardItem;
+  accent: EquipmentCardAccent;
+  canChangeSlotStatus: boolean;
+  statusUpdatingId?: number | null;
+  onRequestStatusChange?: (next: { equipmentId: number; equipmentName: string; newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR" }) => void;
+};
+
+export default function EquipmentCatalogCard({
+  item,
+  accent,
+  canChangeSlotStatus,
+  statusUpdatingId,
+  onRequestStatusChange,
+}: Props) {
+  const navigate = useNavigate();
+  const [playingVideo, setPlayingVideo] = useState(false);
+
+  const status = (item.status || "").toString();
+  const isOperational = status === "ACTIVE";
+
+  const avg = item.avgRating != null ? Number(item.avgRating) : null;
+  const count = Number(item.ratingCount ?? 0);
+  const full = avg != null ? Math.floor(avg) : 0;
+  const half = avg != null ? avg - full >= 0.5 : false;
+
+  return (
+    <Card
+      className={`cursor-pointer overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
+      onClick={() => navigate(`/equipment/${item.id}`)}
+    >
+      <div className="relative aspect-video overflow-hidden bg-muted">
+        {playingVideo && item.video ? (
+          <video
+            src={item.video}
+            controls
+            autoPlay
+            className="w-full h-full object-cover"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <>
+            <img
+              src={item.image}
+              alt={item.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity" />
+            {item.video ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPlayingVideo(true);
+                }}
+                className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors"
+                aria-label="Play video"
+              >
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${accent.gradient} text-white shadow-lg hover:scale-110 transition-transform`}
+                >
+                  <Play className="h-7 w-7 fill-current" />
+                </div>
+              </button>
+            ) : null}
+          </>
+        )}
+        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${accent.bar}`} />
+        {item.category ? (
+          <span className="absolute top-3 left-3 rounded-full bg-white/90 dark:bg-black/50 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
+            {item.category}
+          </span>
+        ) : null}
+      </div>
+
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg line-clamp-2">{item.name}</CardTitle>
+        {count > 0 && avg != null ? (
+          <div className="mt-1">
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground" title={`${avg.toFixed(1)}/5 (${count})`}>
+              <span className="inline-flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map((s) => {
+                  if (s <= full) return <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-500" />;
+                  if (s === full + 1 && half) return <StarHalf key={s} className="h-4 w-4 fill-amber-400 text-amber-500" />;
+                  return <Star key={s} className="h-4 w-4 text-muted-foreground" />;
+                })}
+              </span>
+              <span className="font-medium text-foreground">{avg.toFixed(1)}</span>
+              <span className="text-muted-foreground">({count})</span>
+            </span>
+          </div>
+        ) : null}
+        <CardDescription className="text-sm line-clamp-2">{item.description || item.name}</CardDescription>
+        <div className={`h-1 w-12 rounded-full bg-gradient-to-r ${accent.bar} mt-3`} />
+        {(() => {
+          const r = item.internalRate;
+          const n = r == null ? 0 : Number(r);
+          return n > 0 ? (
+            <div className="text-base font-semibold text-foreground mt-2">₹{n.toFixed(2)}/hour</div>
+          ) : null;
+        })()}
+      </CardHeader>
+
+      <CardContent className="pt-0">
+        <div className="flex flex-col gap-3">
+          {canChangeSlotStatus && onRequestStatusChange ? (
+            <div
+              className="flex flex-col gap-2 rounded-lg border border-border bg-card/30 p-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Label className="text-sm font-medium leading-none">Status</Label>
+              <div className="w-full min-w-0">
+                <Select
+                  value={(item.status as any) || "ACTIVE"}
+                  onValueChange={(value) => {
+                    const next = value as "ACTIVE" | "MAINTENANCE" | "REPAIR";
+                    onRequestStatusChange({
+                      equipmentId: Number(item.id),
+                      equipmentName: item.name,
+                      newStatus: next,
+                    });
+                  }}
+                  disabled={statusUpdatingId === Number(item.id)}
+                >
+                  <SelectTrigger className="h-9 w-full min-w-0">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Operational</SelectItem>
+                    <SelectItem value="MAINTENANCE">Maintenance Scheduled</SelectItem>
+                    <SelectItem value="REPAIR">Under Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card/30 p-3">
+            <span className="shrink-0 text-sm font-medium text-muted-foreground">Current status</span>
+            <span
+              className={`min-w-0 text-right text-sm font-semibold ${isOperational ? "text-green-600" : "text-amber-600"}`}
+            >
+              {item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
+            </span>
+          </div>
+
+          <Button
+            className={`w-full ${accent.button} text-white`}
+            disabled={!isOperational}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isOperational) {
+                toast.error("This equipment is not operational and cannot be booked.");
+                return;
+              }
+              navigate(`/equipment/${item.id}`);
+            }}
+          >
+            Book now
+          </Button>
+
+          {canChangeSlotStatus ? (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/book-equipment?equipment_id=${item.id}&mode=status`);
+              }}
+            >
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Change Slot Status
+            </Button>
+          ) : null}
+
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/equipment/${item.id}`);
+            }}
+          >
+            View Details
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+

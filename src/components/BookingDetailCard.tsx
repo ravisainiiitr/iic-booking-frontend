@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -151,9 +159,37 @@ export interface BookingDetailCardBooking extends BookingRef {
   maintenance_reschedule_extra_week?: boolean;
   /** True when this booking is already in maintenance-disruption workflow (Admin/OIC flag or equipment maintenance). */
   maintenance_disruption_flag?: boolean;
+  is_waitlist_entry?: boolean;
+  waitlist_code?: string;
+  waitlist_position?: number;
+  waitlist_entry_id?: number;
+  /** From last booking attempt log (waitlist / My Bookings). */
+  booking_attempt_duration_minutes?: number | null;
+  booking_attempt_slots_requested?: number | null;
+  /** Equipment slot length; used with slots_requested if total_time_minutes is missing. */
+  equipment_slot_duration_minutes?: number | null;
+  /** I-STEM FBR workflow (external bookings). */
+  istem_fbr_number?: string | null;
+  istem_fbr_status?: string | null;
+  istem_fbr_status_display?: string | null;
+  istem_fbr_invalid_reason?: string | null;
+  istem_fbr_executed_at?: string | null;
+  sample_return_after_analysis?: boolean;
+  return_shipping_fee_amount?: string;
+  return_shipping_company?: string;
+  return_shipping_tracking_id?: string;
+  return_shipping_tracking_updated_at?: string | null;
 }
 
-type ActionType = "complete" | "refund" | "absent" | "under_maintenance" | "reschedule" | "not_utilized" | null;
+type ActionType =
+  | "complete"
+  | "refund"
+  | "absent"
+  | "under_maintenance"
+  | "other_disruption"
+  | "reschedule"
+  | "not_utilized"
+  | null;
 type ConfirmActionType = ActionType | "charge_recalc_refund" | "charge_recalc_pay";
 
 interface BookingDetailCardProps {
@@ -179,6 +215,7 @@ function getStatusColor(status: string): string {
     booked: "bg-blue-500",
     disruption_pending: "bg-amber-500",
     under_maintenance: "bg-yellow-600",
+    other_disruption: "bg-orange-600",
     completed: "bg-green-500",
     cancelled: "bg-red-500",
     absent: "bg-orange-500",
@@ -199,6 +236,11 @@ function canMarkBookingNotUtilized(booking: BookingDetailCardBooking): boolean {
   return !trace.some((e) => String(e.status || "").toUpperCase() !== "SAMPLE_SENT");
 }
 
+function isExternalUserTypeSnapshot(ut: string | null | undefined): boolean {
+  const n = (ut || "").toLowerCase();
+  return n === "external" || n === "rnd" || n === "industry" || n === "other";
+}
+
 function canPerformAction(booking: BookingDetailCardBooking, action: ActionType, isOperator: boolean): boolean {
   if (!action) return false;
   const status = booking.status.toUpperCase();
@@ -215,6 +257,9 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
     case "absent":
       return status === "BOOKED";
     case "under_maintenance":
+      if (booking.maintenance_disruption_flag) return false;
+      return status === "BOOKED" || status === "PENDING";
+    case "other_disruption":
       if (booking.maintenance_disruption_flag) return false;
       return status === "BOOKED" || status === "PENDING";
     case "reschedule":
@@ -239,6 +284,26 @@ export function BookingDetailCard({
   onUserCancelClick,
 }: BookingDetailCardProps) {
   const [booking, setBooking] = useState<BookingDetailCardBooking>(initialBooking);
+  const isWaitlistedEntry =
+    booking.status?.toUpperCase() === "WAITLISTED" || (booking as any).is_waitlist_entry === true;
+  const waitlistRequestedDurationMinutes = (() => {
+    if (!isWaitlistedEntry) return null;
+    const t = Number(booking.total_time_minutes);
+    if (Number.isFinite(t) && t > 0) return t;
+    const dm = booking.booking_attempt_duration_minutes;
+    if (dm != null) {
+      const d = Number(dm);
+      if (Number.isFinite(d) && d > 0) return d;
+    }
+    const slots = booking.booking_attempt_slots_requested;
+    const slotLen = booking.equipment_slot_duration_minutes;
+    if (slots != null && slotLen != null) {
+      const s = Number(slots);
+      const L = Number(slotLen);
+      if (Number.isFinite(s) && s > 0 && Number.isFinite(L) && L > 0) return Math.round(s * L);
+    }
+    return null;
+  })();
   const [actionDialog, setActionDialog] = useState<{ open: boolean; type: ActionType; booking: BookingDetailCardBooking | null }>({
     open: false,
     type: null,
@@ -261,6 +326,12 @@ export function BookingDetailCard({
   const bookingPk = getRealBookingId(booking);
   const [resultsData, setResultsData] = useState<{ exists: boolean; files: Array<{ name: string; download_url: string }> } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
+  const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
+  const [fbrInput, setFbrInput] = useState("");
+  const [fbrSaving, setFbrSaving] = useState(false);
+  const [fbrInvalidateReason, setFbrInvalidateReason] = useState("");
+  const [fbrReviewLoading, setFbrReviewLoading] = useState<null | "execute" | "invalidate">(null);
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
   const [zipDownloadInProgress, setZipDownloadInProgress] = useState(false);
   const [zipDownloadProgress, setZipDownloadProgress] = useState(0);
@@ -296,6 +367,11 @@ export function BookingDetailCard({
   const [legacyRepeatSubmitLoading, setLegacyRepeatSubmitLoading] = useState(false);
   const [sampleDisposedDialogOpen, setSampleDisposedDialogOpen] = useState(false);
   const [sampleDisposedReason, setSampleDisposedReason] = useState("");
+  const [returnShipDialogOpen, setReturnShipDialogOpen] = useState(false);
+  const [returnShipCompany, setReturnShipCompany] = useState<string>("");
+  const [returnShipOther, setReturnShipOther] = useState("");
+  const [returnShipTracking, setReturnShipTracking] = useState("");
+  const [returnShipSaving, setReturnShipSaving] = useState(false);
   const [postAnalyzedActionLoading, setPostAnalyzedActionLoading] = useState<null | "RETURNED" | "DISPOSED">(null);
 
   const navigate = useNavigate();
@@ -358,6 +434,7 @@ export function BookingDetailCard({
   // Keep local booking in sync when parent passes a newer object.
   useEffect(() => {
     setBooking(initialBooking);
+    setFbrInput((initialBooking.istem_fbr_number || "").trim());
   }, [initialBooking]);
   
   useEffect(() => {
@@ -387,10 +464,17 @@ export function BookingDetailCard({
     let cancelled = false;
     setResultsLoading(true);
     setResultsData(null);
+    setResultsFbrBlock(null);
     apiClient
       .getBookingResults(bookingPk)
       .then((res) => {
-        if (cancelled || res.error) return;
+        if (cancelled) return;
+        if (res.error) {
+          if (res.errorCode === "istem_fbr_not_executed") {
+            setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
+          }
+          return;
+        }
         setResultsData({
           exists: res.data?.exists ?? false,
           files: (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url })),
@@ -402,7 +486,7 @@ export function BookingDetailCard({
     return () => {
       cancelled = true;
     };
-  }, [booking.booking_id, bookingPk]);
+  }, [booking.booking_id, bookingPk, booking.status]);
 
   useEffect(() => {
     if (
@@ -657,6 +741,35 @@ export function BookingDetailCard({
     }
   };
 
+  const handleOtherDisruption = async () => {
+    if (!actionDialog.booking) return;
+    const reason = (actionNotes || "").trim();
+    if (!reason) {
+      toast.error("Reason is required for Other Disruption.");
+      return;
+    }
+    setActionSubmitLoading(true);
+    try {
+      const bookingPk = getRealBookingId(actionDialog.booking);
+      if (bookingPk == null) throw new Error("Invalid booking reference.");
+      const response = await apiClient.bookingOtherDisruption(bookingPk, reason);
+      if (response.error) {
+        toast.error(response.error);
+        return;
+      }
+      const data = response.data as { message?: string; booking?: BookingDetailCardBooking } | undefined;
+      if (data?.booking) setBooking(data.booking);
+      toast.success(data?.message || "Booking flagged for Other Disruption. User has been notified.");
+      setConfirmAction({ open: false, type: null });
+      closeActionDialog();
+      onUpdated();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to flag booking for other disruption");
+    } finally {
+      setActionSubmitLoading(false);
+    }
+  };
+
   const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string) => {
     if (!actionDialog.booking) return;
     setRescheduleLoading(true);
@@ -757,10 +870,78 @@ export function BookingDetailCard({
     }
   };
 
+  const submitIstemFbr = async () => {
+    if (bookingPk == null) return;
+    const v = fbrInput.trim();
+    if (!v) {
+      toast.error("Enter your FBR number from the I-STEM portal.");
+      return;
+    }
+    setFbrSaving(true);
+    try {
+      const res = await apiClient.updateBookingIstemFbr(bookingPk, v);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("FBR submitted for Officer in Charge verification.");
+      await refreshBookingDetail();
+      onUpdated();
+    } finally {
+      setFbrSaving(false);
+    }
+  };
+
+  const executeIstemFbrReview = async () => {
+    if (bookingPk == null) return;
+    setFbrReviewLoading("execute");
+    try {
+      const res = await apiClient.reviewBookingIstemFbr(bookingPk, "execute");
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("FBR marked as executed.");
+      setFbrInvalidateReason("");
+      await refreshBookingDetail();
+      onUpdated();
+    } finally {
+      setFbrReviewLoading(null);
+    }
+  };
+
+  const invalidateIstemFbrReview = async () => {
+    if (bookingPk == null) return;
+    const reason = fbrInvalidateReason.trim();
+    if (!reason) {
+      toast.error("Enter a short reason so the user can correct the FBR.");
+      return;
+    }
+    setFbrReviewLoading("invalidate");
+    try {
+      const res = await apiClient.reviewBookingIstemFbr(bookingPk, "invalidate", reason);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("User will be notified to update the FBR.");
+      setFbrInvalidateReason("");
+      await refreshBookingDetail();
+      onUpdated();
+    } finally {
+      setFbrReviewLoading(null);
+    }
+  };
+
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
   const normalizedCurrentUserType = String(currentUserType || "")
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
+  const isFinanceUser =
+    normalizedCurrentUserType === "finance" ||
+    normalizedCurrentUserType.includes("accountsincharge") ||
+    normalizedCurrentUserType.includes("accounts") ||
+    normalizedCurrentUserType.includes("finance");
   const isLabInchargeType =
     normalizedCurrentUserType.includes("labincharge") ||
     normalizedCurrentUserType.includes("labinchargeuser");
@@ -794,6 +975,7 @@ export function BookingDetailCard({
   const traceHasReturned = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "RETURNED");
   const traceHasArchived = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "ARCHIVED");
   const traceHasDisposed = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "DISPOSED");
+  const returnShippingAccountsLocked = traceHasReturned;
 
   /** Match Sample Lifecycle: Analyzed shows Done when trace has COMPLETED or booking is Completed. */
   const analyzedDoneForStaffActions = traceHasAnalyzed || isCompleted;
@@ -823,6 +1005,10 @@ export function BookingDetailCard({
     !traceHasDisposed;
 
   const hasDownloadableResults = !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0);
+  const showIstemWorkflow =
+    !isWaitlistedEntry &&
+    isExternalUserTypeSnapshot(booking.user_type_snapshot) &&
+    booking.istem_fbr_status != null;
   const equipmentRepeatSampleRequestEnabled =
     booking.equipment_repeat_sample_request_days != null &&
     Number(booking.equipment_repeat_sample_request_days) > 0;
@@ -873,46 +1059,164 @@ export function BookingDetailCard({
           </div>
         </CardHeader>
         <CardContent className="text-base">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div>
-              <p className="text-base text-muted-foreground">Start Time</p>
-              <p className="font-medium text-base">{new Date(booking.start_time).toLocaleString()}</p>
+          {!isWaitlistedEntry ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <p className="text-base text-muted-foreground">Start Time</p>
+                <p className="font-medium text-base">{new Date(booking.start_time).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-base text-muted-foreground">End Time</p>
+                <p className="font-medium text-base">{new Date(booking.end_time).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-base text-muted-foreground">Duration</p>
+                <p className="font-medium text-base">
+                  {booking.total_time_minutes} min ({Number(booking.total_hours).toFixed(2)} hrs)
+                </p>
+              </div>
+              <div>
+                <p className="text-base text-muted-foreground">Total Cost</p>
+                <p className="font-medium text-base text-primary">₹{Number(booking.total_charge).toFixed(2)}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-base text-muted-foreground">End Time</p>
-              <p className="font-medium text-base">{new Date(booking.end_time).toLocaleString()}</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <p className="text-base text-muted-foreground">Joined</p>
+                <p className="font-medium text-base">
+                  {booking.created_at ? new Date(booking.created_at).toLocaleString() : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-base text-muted-foreground">Queue position</p>
+                <p className="font-medium text-base">
+                  {booking.waitlist_code || `WL${booking.waitlist_position ?? "—"}`}
+                </p>
+              </div>
+              <div>
+                <p className="text-base text-muted-foreground">Requested duration</p>
+                <p className="font-medium text-base">
+                  {waitlistRequestedDurationMinutes != null
+                    ? `${waitlistRequestedDurationMinutes} min (${(waitlistRequestedDurationMinutes / 60).toFixed(2)} hrs)`
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-base text-muted-foreground">Status</p>
+                <p className="font-medium text-base">{booking.status_display}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-base text-muted-foreground">Duration</p>
-              <p className="font-medium text-base">
-                {booking.total_time_minutes} min ({Number(booking.total_hours).toFixed(2)} hrs)
+          )}
+
+          {showIstemWorkflow && (
+            <div className="rounded-lg border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/90 dark:bg-amber-950/25 p-4 mb-4 space-y-3">
+              <p className="font-semibold text-foreground">I-STEM (national portal)</p>
+              <p className="text-sm text-muted-foreground">
+                Parallel booking on the Government of India portal is required. Register and book at{" "}
+                <a
+                  href="https://www.istem.gov.in/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary font-medium underline"
+                >
+                  https://www.istem.gov.in/
+                </a>
+                , then enter your Facility Booking Record (FBR) number here for verification by the Officer in Charge.
               </p>
+              <div className="text-sm space-y-1">
+                <p>
+                  <span className="text-muted-foreground">Status: </span>
+                  <span className="font-medium">{booking.istem_fbr_status_display || booking.istem_fbr_status || "—"}</span>
+                </p>
+                {booking.istem_fbr_number ? (
+                  <p>
+                    <span className="text-muted-foreground">FBR number: </span>
+                    <span className="font-mono">{booking.istem_fbr_number}</span>
+                  </p>
+                ) : null}
+                {booking.istem_fbr_invalid_reason ? (
+                  <p className="text-destructive whitespace-pre-wrap">{booking.istem_fbr_invalid_reason}</p>
+                ) : null}
+              </div>
+              {isExternalSelfView &&
+                (booking.istem_fbr_status === "PENDING_FBR" || booking.istem_fbr_status === "INVALID") && (
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor="istem-fbr-input">I-STEM FBR number</Label>
+                      <Input
+                        id="istem-fbr-input"
+                        value={fbrInput}
+                        onChange={(e) => setFbrInput(e.target.value)}
+                        placeholder="From your I-STEM booking"
+                        className="font-mono"
+                      />
+                    </div>
+                    <Button type="button" onClick={() => void submitIstemFbr()} disabled={fbrSaving}>
+                      {fbrSaving ? "Saving…" : "Submit FBR"}
+                    </Button>
+                  </div>
+                )}
+              {isManagerOrAdmin && booking.istem_fbr_status === "PENDING_OIC" && (
+                <div className="space-y-3 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+                  <p className="text-sm font-medium">OIC: verify this FBR on I-STEM, then mark below.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      disabled={fbrReviewLoading !== null}
+                      onClick={() => void executeIstemFbrReview()}
+                    >
+                      {fbrReviewLoading === "execute" ? "Working…" : "Mark FBR executed"}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="istem-fbr-invalidate">Reject FBR (reason to user)</Label>
+                    <Textarea
+                      id="istem-fbr-invalidate"
+                      value={fbrInvalidateReason}
+                      onChange={(e) => setFbrInvalidateReason(e.target.value)}
+                      rows={2}
+                      placeholder="e.g. FBR not found — please copy the exact number from I-STEM."
+                      className="resize-none"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      disabled={fbrReviewLoading !== null}
+                      onClick={() => void invalidateIstemFbrReview()}
+                    >
+                      {fbrReviewLoading === "invalidate" ? "Working…" : "Mark FBR invalid"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <p className="text-base text-muted-foreground">Total Cost</p>
-              <p className="font-medium text-base text-primary">₹{Number(booking.total_charge).toFixed(2)}</p>
-            </div>
-          </div>
+          )}
 
           {/* Invoice + technical contacts: all booking statuses and viewer roles (internal/external/student/faculty/operator/OIC). */}
           <div className="mt-4 pt-4 border-t">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border rounded-md p-3">
-                <p className="text-base font-semibold text-foreground mb-2">
-                  For Invoice Related Query Please Contact the Undersigned
-                </p>
-                {booking.accounts_in_charge ? (
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <div>
-                      <span className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</span>
+              {!isWaitlistedEntry && (
+                <div className="border rounded-md p-3">
+                  <p className="text-base font-semibold text-foreground mb-2">
+                    For Invoice Related Query Please Contact the Undersigned
+                  </p>
+                  {booking.accounts_in_charge ? (
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <div>
+                        <span className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</span>
+                      </div>
+                      {booking.accounts_in_charge.phone ? <div>Contact Number: {booking.accounts_in_charge.phone}</div> : null}
+                      {booking.accounts_in_charge.email ? <div>Email: {booking.accounts_in_charge.email}</div> : null}
                     </div>
-                    {booking.accounts_in_charge.phone ? <div>Contact Number: {booking.accounts_in_charge.phone}</div> : null}
-                    {booking.accounts_in_charge.email ? <div>Email: {booking.accounts_in_charge.email}</div> : null}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Not available.</div>
-                )}
-              </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Not available.</div>
+                  )}
+                </div>
+              )}
 
               <div className="border rounded-md p-3">
                 <p className="text-base font-semibold text-foreground mb-2">
@@ -1133,10 +1437,160 @@ export function BookingDetailCard({
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              {isOperatorOrManager &&
-              currentUserId != null &&
-                booking.user === currentUserId &&
-                ["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase()) && (
+              {isFinanceUser &&
+                isExternalBookingType &&
+                booking.sample_return_after_analysis === true &&
+                analyzedDoneForStaffActions && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        isRefunded ||
+                        downloadingDoc !== null ||
+                        returnShippingAccountsLocked
+                      }
+                      onClick={async () => {
+                        setDownloadingDoc("label");
+                        try {
+                          if (bookingPk == null) {
+                            toast.error("Return shipping label is unavailable for this booking.");
+                            return;
+                          }
+                          const res = await apiClient.getBookingReturnShippingLabelPdfBlob(bookingPk);
+                          if (res.error) {
+                            toast.error(res.error);
+                            return;
+                          }
+                          if (res.blob) {
+                            const url = URL.createObjectURL(res.blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `return_shipping_label_${booking.virtual_booking_id || booking.booking_id}.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }
+                        } finally {
+                          setDownloadingDoc(null);
+                        }
+                      }}
+                    >
+                      <FolderDown className="h-4 w-4 mr-2" />
+                      {downloadingDoc === "label" ? "Preparing…" : "Return shipping label"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isRefunded || returnShippingAccountsLocked}
+                      onClick={() => {
+                        setReturnShipCompany("");
+                        setReturnShipOther("");
+                        setReturnShipTracking(booking.return_shipping_tracking_id || "");
+                        setReturnShipDialogOpen(true);
+                      }}
+                    >
+                      <Handshake className="h-4 w-4 mr-2" />
+                      Update shipping information
+                    </Button>
+                    <Dialog open={returnShipDialogOpen} onOpenChange={setReturnShipDialogOpen}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Update shipping information</DialogTitle>
+                          <DialogDescription>
+                            Select the shipping company and enter the tracking number. This will email the user, mark the sample as
+                            returned, and close the lifecycle for further changes.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <Label>Shipping company</Label>
+                            <Select value={returnShipCompany} onValueChange={setReturnShipCompany}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select company" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="DTDC">DTDC</SelectItem>
+                                <SelectItem value="BLUE_DART">Blue Dart</SelectItem>
+                                <SelectItem value="INDIAN_SPEED_POST">Indian Speed Post</SelectItem>
+                                <SelectItem value="OTHER">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {returnShipCompany === "OTHER" ? (
+                            <div className="space-y-2">
+                              <Label htmlFor="return-ship-other">Company name</Label>
+                              <Input
+                                id="return-ship-other"
+                                value={returnShipOther}
+                                onChange={(e) => setReturnShipOther(e.target.value)}
+                                placeholder="Enter shipping company name"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="space-y-2">
+                            <Label htmlFor="return-ship-tracking">Tracking number</Label>
+                            <Input
+                              id="return-ship-tracking"
+                              value={returnShipTracking}
+                              onChange={(e) => setReturnShipTracking(e.target.value)}
+                              placeholder="AWB / tracking ID"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" type="button" onClick={() => setReturnShipDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            disabled={returnShipSaving}
+                            onClick={async () => {
+                              if (!returnShipCompany) {
+                                toast.error("Select a shipping company.");
+                                return;
+                              }
+                              if (returnShipCompany === "OTHER" && !returnShipOther.trim()) {
+                                toast.error("Enter the company name for Other.");
+                                return;
+                              }
+                              if (!returnShipTracking.trim()) {
+                                toast.error("Enter the tracking number.");
+                                return;
+                              }
+                              if (bookingPk == null) {
+                                toast.error("This booking cannot be updated right now.");
+                                return;
+                              }
+                              setReturnShipSaving(true);
+                              try {
+                                const res = await apiClient.setBookingReturnShippingTracking(bookingPk, {
+                                  shipping_company: returnShipCompany,
+                                  ...(returnShipCompany === "OTHER"
+                                    ? { other_company_name: returnShipOther.trim() }
+                                    : {}),
+                                  tracking_number: returnShipTracking.trim(),
+                                });
+                                if (res.error) {
+                                  toast.error(res.error);
+                                  return;
+                                }
+                                toast.success(res.data?.message || "Shipping details saved and user notified.");
+                                setReturnShipDialogOpen(false);
+                                await refreshBookingDetail();
+                                onUpdated();
+                              } finally {
+                                setReturnShipSaving(false);
+                              }
+                            }}
+                          >
+                            {returnShipSaving ? "Updating…" : "Update"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                )}
+              {isExternalSelfView && (
                   <>
                     <Button
                       size="sm"
@@ -1234,12 +1688,14 @@ export function BookingDetailCard({
                 !isHold &&
                 (booking.status.toUpperCase() === "PENDING" ||
                   booking.status.toUpperCase() === "BOOKED" ||
-                  booking.status.toUpperCase() === "DISRUPTION_PENDING") &&
+                  booking.status.toUpperCase() === "DISRUPTION_PENDING" ||
+                  booking.status.toUpperCase() === "WAITLISTED" ||
+                  (booking as any).is_waitlist_entry === true) &&
                 !booking.source_booking_id &&
                 (currentUserId != null && booking.user === currentUserId && !["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase()) || (!isOperator && !isExternalSelfView)) && (
                   <Button size="sm" variant="destructive" onClick={() => onUserCancelClick(booking)}>
                     <XCircle className="h-4 w-4 mr-2" />
-                    Cancel booking
+                    {isWaitlistedEntry ? "Cancel waitlist" : "Cancel booking"}
                   </Button>
                 )}
               {!isHold && isOperatorOrManager && canPerformAction(booking, "complete", isOperator) && !isExternalSelfView && (
@@ -1269,7 +1725,20 @@ export function BookingDetailCard({
                     Under maintenance
                   </Button>
                 )}
-              {!isHold && !isLabInchargeUser && canPerformAction(booking, "reschedule", isOperator) && !isExternalSelfView && (
+              {!isHold &&
+                isManagerOrAdmin &&
+                canPerformAction(booking, "other_disruption", isOperator) &&
+                !isExternalSelfView && (
+                  <Button size="sm" variant="outline" onClick={() => openActionDialog("other_disruption", booking)}>
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Other Disruption
+                  </Button>
+                )}
+              {!isHold &&
+                !isOperator &&
+                !isLabInchargeUser &&
+                canPerformAction(booking, "reschedule", isOperator) &&
+                !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("reschedule", booking)}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Reschedule
@@ -1319,7 +1788,7 @@ export function BookingDetailCard({
                   ) : (
                     <Handshake className="h-4 w-4 mr-2" />
                   )}
-                  Sample returned
+                  Sample Returned
                 </Button>
               )}
               {showSampleDisposedAction && (
@@ -1330,7 +1799,7 @@ export function BookingDetailCard({
                   onClick={() => setSampleDisposedDialogOpen(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Sample disposed
+                  Disposed
                 </Button>
               )}
               {!isOperator &&
@@ -1361,6 +1830,17 @@ export function BookingDetailCard({
                 >
                   <FolderDown className="h-4 w-4 mr-2" />
                   Results
+                </Button>
+              )}
+              {!resultsLoading && isCompleted && isExternalSelfView && resultsFbrBlock && !hasDownloadableResults && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-600 text-amber-800 dark:text-amber-200"
+                  type="button"
+                  onClick={() => setResultsFbrInfoOpen(true)}
+                >
+                  Why can&apos;t I download results?
                 </Button>
               )}
             </div>
@@ -1464,7 +1944,8 @@ export function BookingDetailCard({
               )}
           </div>
 
-          <div className="mt-4 pt-4 border-t no-print">
+          {!isWaitlistedEntry && (
+            <div className="mt-4 pt-4 border-t no-print">
             {isHold && (
               <p className="text-sm text-muted-foreground mb-2">
                 Sample Lifecycle is disabled while booking is in hold state.
@@ -1481,7 +1962,11 @@ export function BookingDetailCard({
                 currentUserId != null &&
                 booking.user === currentUserId
               }
-              canSetStaffStatus={!isHold && isOperatorOrManager}
+              canSetStaffStatus={
+                !isHold &&
+                (isOperatorOrManager ||
+                  (isFinanceUser && isExternalBookingType && !traceHasReturned))
+              }
               onUpdated={async () => {
                 await refreshBookingDetail();
                 onUpdated();
@@ -1496,10 +1981,12 @@ export function BookingDetailCard({
               })()}
               hideSampleStatusActions={(() => {
                 if (isRefunded || isOperatorUnavailable || isBookingNotUtilized || isHold) return true;
-                // Admin/OIC/Lab staff see all staff status actions. Other users see only Sample Sent.
-                if (isOperatorOrManager) return false;
+                if (isOperatorOrManager && !isFinanceUser) return false;
                 return true;
               })()}
+              showHeldForwardedDespiteHideSampleActions={
+                isFinanceUser && isExternalBookingType && !traceHasReturned
+              }
               restrictBookingUserActionsToSampleSent={(() => {
                 if (isRefunded || isOperatorUnavailable || isBookingNotUtilized || isHold) return true;
                 // Admin/OIC/Lab staff see all actions. Other users see only Sample Sent in sample lifecycle section.
@@ -1507,7 +1994,48 @@ export function BookingDetailCard({
                 return true;
               })()}
             />
-          </div>
+            </div>
+          )}
+
+          <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Results not available yet</DialogTitle>
+                <DialogDescription className="text-left space-y-3 pt-2">
+                  <span className="block text-foreground">{resultsFbrBlock?.message}</span>
+                  {resultsFbrBlock?.portalUrl ? (
+                    <a
+                      href={resultsFbrBlock.portalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-primary font-medium underline"
+                    >
+                      Open I-STEM portal
+                    </a>
+                  ) : null}
+                  <span className="block text-sm font-medium text-foreground pt-2">Officer in Charge (contact)</span>
+                  {oicContacts.length > 0 ? (
+                    <ul className="text-sm space-y-2 list-none pl-0">
+                      {oicContacts.map((c) => (
+                        <li key={c.user_id} className="border rounded-md p-2">
+                          <div className="font-medium">{c.name}</div>
+                          {c.phone ? <div>Mobile: {c.phone}</div> : null}
+                          {c.email ? <div>Email: {c.email}</div> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No OIC contact listed for this equipment. Please use institute helpdesk.</p>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button type="button" onClick={() => setResultsFbrInfoOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
             <DialogContent className="sm:max-w-md">
@@ -1534,6 +2062,13 @@ export function BookingDetailCard({
                       (percent) => setZipDownloadProgress(percent)
                     );
                     if (err.error) {
+                      if (err.errorCode === "istem_fbr_not_executed") {
+                        setResultsFbrBlock({
+                          message: err.error,
+                          portalUrl: err.istem_portal_url,
+                        });
+                        setResultsFbrInfoOpen(true);
+                      }
                       toast.error(err.error);
                       setZipDownloadInProgress(false);
                       setZipDownloadProgress(0);
@@ -1619,7 +2154,7 @@ export function BookingDetailCard({
               editableInputFields={booking.editable_input_fields ?? undefined}
               status={booking.status}
               enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation && !booking.source_booking_id}
-              sampleTrace={booking.sample_trace ?? undefined}
+              sampleTrace={isWaitlistedEntry ? undefined : (booking.sample_trace ?? undefined)}
               isAdminUser={true}
               disabled={!!booking.source_booking_id}
               onUpdate={async (newInputValues) => {
@@ -1639,7 +2174,7 @@ export function BookingDetailCard({
             />
           )}
 
-          {booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
+          {!isWaitlistedEntry && booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
             <div className="mt-4 pt-4 border-t">
               <p className="text-base font-medium mb-2">Charge Breakdown:</p>
               <ul className="space-y-1">
@@ -1738,31 +2273,33 @@ export function BookingDetailCard({
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t no-print">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-base w-full"
-              onClick={() => {
-                setExpandedBookings((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(booking.booking_id)) next.delete(booking.booking_id);
-                  else next.add(booking.booking_id);
-                  return next;
-                });
-              }}
-            >
-              <History className="h-4 w-4 mr-2" />
-              {expandedBookings.has(booking.booking_id) ? "Hide" : "Show"} Event History
-            </Button>
-            {expandedBookings.has(booking.booking_id) && (
-              <div className="mt-4">
-                {bookingPk != null ? (
-                  <BookingEventHistory bookingId={bookingPk} onEventAdded={onUpdated} />
-                ) : null}
-              </div>
-            )}
-          </div>
+          {!isWaitlistedEntry && (
+            <div className="mt-4 pt-4 border-t no-print">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-base w-full"
+                onClick={() => {
+                  setExpandedBookings((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(booking.booking_id)) next.delete(booking.booking_id);
+                    else next.add(booking.booking_id);
+                    return next;
+                  });
+                }}
+              >
+                <History className="h-4 w-4 mr-2" />
+                {expandedBookings.has(booking.booking_id) ? "Hide" : "Show"} Event History
+              </Button>
+              {expandedBookings.has(booking.booking_id) && (
+                <div className="mt-4">
+                  {bookingPk != null ? (
+                    <BookingEventHistory bookingId={bookingPk} onEventAdded={onUpdated} />
+                  ) : null}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1774,6 +2311,7 @@ export function BookingDetailCard({
               {actionDialog.type === "refund" && "Refund Booking"}
               {actionDialog.type === "absent" && "Operator Unavailable"}
               {actionDialog.type === "under_maintenance" && "Under maintenance (disruption)"}
+              {actionDialog.type === "other_disruption" && "Other Disruption"}
               {actionDialog.type === "reschedule" && "Reschedule Booking"}
               {actionDialog.type === "not_utilized" && "Booking Not Utilized"}
             </DialogTitle>
@@ -1878,9 +2416,14 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {(actionDialog.type === "refund" || actionDialog.type === "absent" || actionDialog.type === "under_maintenance") && (
+          {(actionDialog.type === "refund" ||
+            actionDialog.type === "absent" ||
+            actionDialog.type === "under_maintenance" ||
+            actionDialog.type === "other_disruption") && (
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Label htmlFor="notes">
+                {actionDialog.type === "other_disruption" ? "Reason (Required)" : "Notes (Optional)"}
+              </Label>
               <Textarea
                 id="notes"
                 value={actionNotes}
@@ -1890,12 +2433,19 @@ export function BookingDetailCard({
                     ? "Add any notes about the refund..."
                     : actionDialog.type === "under_maintenance"
                       ? "Optional context for staff (e.g. equipment issue reference)..."
+                      : actionDialog.type === "other_disruption"
+                        ? "Enter reason for disruption (this will be emailed to the user)..."
                       : "Add any notes (e.g. reason operator was unavailable)..."
                 }
               />
               {actionDialog.type === "under_maintenance" && (
                 <p className="text-sm text-muted-foreground">
                   This does not refund the booking. The user receives an email with options to cancel (refund) or reschedule. After the equipment is operational again, extended week navigation applies for their reschedule.
+                </p>
+              )}
+              {actionDialog.type === "other_disruption" && (
+                <p className="text-sm text-muted-foreground">
+                  Reason is required. The user will receive an email containing the same reason, and can then choose cancel (refund) or reschedule from My Bookings.
                 </p>
               )}
               {actionDialog.type === "absent" && (
@@ -1937,6 +2487,7 @@ export function BookingDetailCard({
                   } else if (actionDialog.type === "refund") handleRefund();
                   else if (actionDialog.type === "absent") handleAbsent();
                   else if (actionDialog.type === "under_maintenance") handleUnderMaintenanceDisruption();
+                  else if (actionDialog.type === "other_disruption") handleOtherDisruption();
                   else if (actionDialog.type === "not_utilized") handleMarkNotUtilized();
                 }}
                 disabled={actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)}

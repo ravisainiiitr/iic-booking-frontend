@@ -372,7 +372,7 @@ const TicketManagement = () => {
                 )}
 
                 <div className="border-t pt-4">
-                  <p className="text-sm font-medium mb-2">Comments</p>
+                  <p className="text-sm font-medium mb-2">Updates & Comments</p>
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {comments.map((comment) => (
                       <div key={comment.comment_id} className="border rounded-lg p-3">
@@ -394,7 +394,7 @@ const TicketManagement = () => {
                     ))}
                     {comments.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        No comments yet
+                        No updates yet
                       </p>
                     )}
                   </div>

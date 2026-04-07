@@ -14,5 +14,9 @@ export function getRealBookingId(booking: BookingRef | null | undefined): number
   if (!booking) return null;
   if (typeof booking.real_booking_id === "number") return booking.real_booking_id;
   if (typeof booking.booking_id === "number") return booking.booking_id;
+  // Some payloads only expose string booking_id; accept pure digits.
+  if (typeof booking.booking_id === "string" && /^\d+$/.test(booking.booking_id.trim())) {
+    return parseInt(booking.booking_id.trim(), 10);
+  }
   return null;
 }

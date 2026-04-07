@@ -1573,6 +1573,18 @@ export default function AdminSection() {
                           <TableHead>New booking</TableHead>
                           <TableHead className="w-[140px]">Actions</TableHead>
                         </TableRow>
+                      ) : sectionKey === "equipment" ? (
+                        <TableRow>
+                          <TableHead>Code</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Profile Type</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Equipment Group</TableHead>
+                          <TableHead>Reschedule (hrs)</TableHead>
+                          <TableHead>Booking Not Utilize Window (hrs)</TableHead>
+                          <TableHead className="w-[120px]">Actions</TableHead>
+                        </TableRow>
                       ) : sectionKey === "departments" ? (
                         <TableRow>
                           <TableHead>Department Name</TableHead>
@@ -1675,6 +1687,73 @@ export default function AdminSection() {
                               </TableRow>
                             );
                           })
+                        : sectionKey === "equipment"
+                        ? list.map((row) => (
+                            <TableRow key={row[idField] ?? row.id}>
+                              <TableCell>
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(row)}
+                                  className="text-primary font-medium underline underline-offset-2 hover:no-underline text-left"
+                                >
+                                  {row.code != null && row.code !== "" ? String(row.code) : "—"}
+                                </button>
+                              </TableCell>
+                              <TableCell>
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(row)}
+                                  className="text-primary font-medium underline underline-offset-2 hover:no-underline text-left"
+                                >
+                                  {row.name != null && row.name !== "" ? String(row.name) : "—"}
+                                </button>
+                              </TableCell>
+                              <TableCell>
+                                {row.status_display != null && row.status_display !== ""
+                                  ? String(row.status_display)
+                                  : row.status != null && row.status !== ""
+                                    ? String(row.status)
+                                    : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {row.profile_type_display != null && row.profile_type_display !== ""
+                                  ? String(row.profile_type_display)
+                                  : row.profile_type != null && row.profile_type !== ""
+                                    ? String(row.profile_type)
+                                    : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {row.category_name != null && row.category_name !== ""
+                                  ? String(row.category_name)
+                                  : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {row.equipment_group_name != null && row.equipment_group_name !== ""
+                                  ? String(row.equipment_group_name)
+                                  : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {row.reschedule_hours_threshold != null && row.reschedule_hours_threshold !== ""
+                                  ? String(row.reschedule_hours_threshold)
+                                  : "—"}
+                              </TableCell>
+                              <TableCell>
+                                {row.booking_not_utilize_window_hours != null && row.booking_not_utilize_window_hours !== ""
+                                  ? String(row.booking_not_utilize_window_hours)
+                                  : "—"}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
                         : sectionKey === "departments"
                         ? list.map((row) => (
                             <TableRow key={row[idField] ?? row.id}>

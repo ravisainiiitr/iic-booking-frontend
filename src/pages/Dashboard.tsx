@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,11 +14,34 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, FolderTree, Layers, CreditCard, Banknote } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
+import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
+import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { TicketForm, TICKET_TYPE, QUALITY_IMPROVEMENT_SUBJECT } from "@/components/TicketForm";
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 
@@ -65,6 +89,138 @@ function getUserCategoryLabel(userType: number | string | undefined | null, user
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
+function addDaysIso(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+type LabOperatorDashBooking = {
+  booking_id: number;
+  booking_ref: string;
+  virtual_booking_id?: string;
+  equipment_code: string;
+  equipment_name: string;
+  user_name: string;
+  status: string;
+  status_display?: string;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+type LabDashPeriod = "today" | "week" | "month" | "year" | "custom";
+
+type LabDashPanel =
+  | null
+  | { key: "overall"; segment: "BOOKED" | "COMPLETED" }
+  | { key: "external"; segment: "BOOKED" | "COMPLETED" }
+  | { key: "not_util"; segment: "AVAILABLE" | "MARKED" }
+  | { key: "sample_return"; segment: "AVAILABLE" | "RETURNED" }
+  | { key: "dispose"; segment: "AVAILABLE" | "DISPOSED" };
+
+function filterLabDashRowsByStatus(rows: LabOperatorDashBooking[] | undefined, status: string): LabOperatorDashBooking[] {
+  const u = status.toUpperCase();
+  return (rows ?? []).filter((r) => String(r.status).toUpperCase() === u);
+}
+
+type LabDashRowsDash = {
+  overall_booking_rows: LabOperatorDashBooking[];
+  external_booking_rows: LabOperatorDashBooking[];
+  pending_not_utilized_bookings: LabOperatorDashBooking[];
+  not_utilized_marked_bookings?: LabOperatorDashBooking[];
+  pending_sample_returned_bookings: LabOperatorDashBooking[];
+  sample_returned_done_bookings?: LabOperatorDashBooking[];
+  pending_dispose_bookings: LabOperatorDashBooking[];
+  sample_disposed_done_bookings?: LabOperatorDashBooking[];
+};
+
+function labDashPanelRows(dash: LabDashRowsDash, panel: NonNullable<LabDashPanel>): LabOperatorDashBooking[] {
+  switch (panel.key) {
+    case "overall":
+      return filterLabDashRowsByStatus(dash.overall_booking_rows, panel.segment);
+    case "external":
+      return filterLabDashRowsByStatus(dash.external_booking_rows, panel.segment);
+    case "not_util":
+      return panel.segment === "AVAILABLE"
+        ? dash.pending_not_utilized_bookings
+        : dash.not_utilized_marked_bookings ?? [];
+    case "sample_return":
+      return panel.segment === "AVAILABLE"
+        ? dash.pending_sample_returned_bookings
+        : dash.sample_returned_done_bookings ?? [];
+    case "dispose":
+      return panel.segment === "AVAILABLE"
+        ? dash.pending_dispose_bookings
+        : dash.sample_disposed_done_bookings ?? [];
+    default:
+      return [];
+  }
+}
+
+type LabHeroEquipmentStatusVariant =
+  | "operational"
+  | "under_maintenance"
+  | "scheduled"
+  | "other"
+  | "neutral";
+
+function labHeroInstrumentPanelClass(v: LabHeroEquipmentStatusVariant) {
+  switch (v) {
+    case "operational":
+      return {
+        shell:
+          "border-emerald-200/55 bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-950 shadow-xl shadow-emerald-950/45 ring-2 ring-emerald-300/35",
+        badge: "bg-white text-emerald-900 shadow-md",
+      };
+    case "under_maintenance":
+      return {
+        shell:
+          "border-red-200/55 bg-gradient-to-br from-red-600 via-red-700 to-red-950 shadow-xl shadow-red-950/45 ring-2 ring-red-300/35",
+        badge: "bg-white text-red-900 shadow-md",
+      };
+    case "scheduled":
+      return {
+        shell:
+          "border-amber-200/50 bg-gradient-to-br from-amber-600 via-amber-700 to-amber-950 shadow-xl shadow-amber-950/40 ring-2 ring-amber-300/35",
+        badge: "bg-white text-amber-950 shadow-md font-extrabold",
+      };
+    case "other":
+      return {
+        shell:
+          "border-violet-200/40 bg-gradient-to-br from-violet-800 via-slate-900 to-slate-950 shadow-xl ring-2 ring-violet-400/25",
+        badge: "bg-white/95 text-violet-900 shadow-md",
+      };
+    default:
+      return {
+        shell:
+          "border-white/35 bg-gradient-to-br from-slate-800/90 via-slate-900 to-slate-950 shadow-xl shadow-black/30 ring-2 ring-white/15 backdrop-blur-sm",
+        badge: "bg-white/95 text-slate-900 shadow-md",
+      };
+  }
+}
+
+function labDashPanelTitle(panel: NonNullable<LabDashPanel>): string {
+  switch (panel.key) {
+    case "overall":
+      return panel.segment === "BOOKED" ? "Overall — Pending (booked)" : "Overall — Completed";
+    case "external":
+      return panel.segment === "BOOKED" ? "External — Pending (booked)" : "External — Completed";
+    case "not_util":
+      return panel.segment === "AVAILABLE"
+        ? "Available to mark not utilized"
+        : "Already marked not utilized";
+    case "sample_return":
+      return panel.segment === "AVAILABLE"
+        ? "Sample pickup — completed bookings (mark returned)"
+        : "Sample pickup — already marked returned";
+    case "dispose":
+      return panel.segment === "AVAILABLE" ? "Available to mark disposed" : "Already marked disposed";
+    default:
+      return "";
+  }
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated, refreshUser, logout } = useAuth();
@@ -93,17 +249,97 @@ const Dashboard = () => {
   const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
   const [externalProfileNeedsAddress, setExternalProfileNeedsAddress] = useState(false);
   const [showWalletLinkPrompt, setShowWalletLinkPrompt] = useState(false);
+  const [walletCreditFacilityItems, setWalletCreditFacilityItems] = useState<
+    Array<{
+      request_id: number;
+      department_name: string;
+      amount: string;
+      credit_limit_inr: string | null;
+      credit_window_ends_at: string | null;
+      credit_facility_status: string;
+      sub_wallet_balance: string;
+      bookings_blocked: boolean;
+    }>
+  >([]);
+  const [labOperatorDashLoading, setLabOperatorDashLoading] = useState(false);
+  const [labOperatorDash, setLabOperatorDash] = useState<{
+    today: string;
+    week_start: string;
+    week_end: string;
+    filter_period: string;
+    filter_date_start: string;
+    filter_date_end: string;
+    overall_booking_total: number;
+    overall_booking_booked_total: number;
+    overall_booking_completed: number;
+    overall_booking_rows: LabOperatorDashBooking[];
+    external_booking_total: number;
+    external_booking_booked_total: number;
+    external_booking_completed: number;
+    external_booking_rows: LabOperatorDashBooking[];
+    not_utilized_marked_total: number;
+    not_utilized_available_total: number;
+    not_utilized_focus_booking_id: number | null;
+    sample_returned_done_total: number;
+    sample_available_to_return_total: number;
+    sample_return_focus_booking_id: number | null;
+    sample_disposed_done_total: number;
+    sample_available_to_dispose_total: number;
+    sample_dispose_focus_booking_id: number | null;
+    days: Array<{ date: string; is_today: boolean; bookings: LabOperatorDashBooking[] }>;
+    pending_sample_returned_count: number;
+    pending_sample_returned_bookings: LabOperatorDashBooking[];
+    pending_dispose_count: number;
+    pending_dispose_bookings: LabOperatorDashBooking[];
+    pending_not_utilized_count: number;
+    pending_not_utilized_bookings: LabOperatorDashBooking[];
+    not_utilized_marked_bookings?: LabOperatorDashBooking[];
+    sample_returned_done_bookings?: LabOperatorDashBooking[];
+    sample_disposed_done_bookings?: LabOperatorDashBooking[];
+    equipment_ids: number[];
+    equipment_summaries: Array<{
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      equipment_status?: string;
+      equipment_status_display?: string;
+    }>;
+  } | null>(null);
+  /** When null, backend uses the calendar week that contains “today”. */
+  const [labOperatorWeekStart, setLabOperatorWeekStart] = useState<string | null>(null);
+  const [labDashPeriod, setLabDashPeriod] = useState<LabDashPeriod>("today");
+  const [labDashCustomFrom, setLabDashCustomFrom] = useState("");
+  const [labDashCustomTo, setLabDashCustomTo] = useState("");
+  const [labDashPanel, setLabDashPanel] = useState<LabDashPanel>(null);
+  const [labSlotByEquipment, setLabSlotByEquipment] = useState<Record<number, LabWeekCalendarSlotsPayload>>({});
+  const [labSlotsLoading, setLabSlotsLoading] = useState(false);
+  const [labSlotsRefresh, setLabSlotsRefresh] = useState(0);
+  const [labCalendarBookedOnly, setLabCalendarBookedOnly] = useState(false);
+  /** Week slot grid: collapsed by default to reduce noise and avoid loading slots until needed. */
+  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(false);
+  const [labDashSelectedBookingId, setLabDashSelectedBookingId] = useState<number | null>(null);
+  const [labDashDetailBooking, setLabDashDetailBooking] = useState<BookingDetailCardBooking | null>(null);
+  const [labDashDetailLoading, setLabDashDetailLoading] = useState(false);
+  /** Lab dashboard metrics scope: all assigned equipment or one instrument. */
+  const [labDashEquipmentFilter, setLabDashEquipmentFilter] = useState<number | "all">("all");
 
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
   const userTypeStr = userType ? String(userType).toLowerCase() : '';
   const isLabInchargeUser = userTypeStr === "operator";
+  /** OIC (manager): keeps extra dashboard tools; lab-style hero + lab dashboard also shown. */
+  const isOicUser = userTypeStr === "manager";
+  /** Same weekly metrics, instrument hero, and week calendar as Lab Incharge. */
+  const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
   const isOperatorOrManager = 
     userTypeStr === 'operator' || userTypeStr === 'manager' || userTypeStr === 'admin';
   
   // Admin Settings section is only visible to admins (not managers, operators, or finance)
   const isAdmin = userTypeStr === 'admin';
   const isFacultyUser = userTypeStr === "faculty";
+  const isInternalFacultyUser =
+    isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
+  const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
 
   // Admin and OIC (manager, operator, finance) can see booking attempt log
   const canAccessBookingAttemptLog =
@@ -114,6 +350,76 @@ const Dashboard = () => {
     userTypeStr === 'finance';
 
   const canAccessAdminTools = apiClient.isAdminPanelUser(user?.user_type) || canAccessBookingAttemptLog;
+
+  const labEquipmentSummariesForScope = useMemo(() => {
+    const list = labOperatorDash?.equipment_summaries ?? [];
+    if (labDashEquipmentFilter === "all") return list;
+    return list.filter((e) => e.equipment_id === labDashEquipmentFilter);
+  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]);
+
+  const labHeroEquipmentTitle = useMemo(() => {
+    const sums = labOperatorDash?.equipment_summaries ?? [];
+    if (sums.length === 0) {
+      if (labOperatorDashLoading) return "Loading…";
+      return "";
+    }
+    if (labDashEquipmentFilter === "all") {
+      if (sums.length === 1) return sums[0].equipment_name || sums[0].equipment_code || "Equipment";
+      return `${sums.length} assigned instruments`;
+    }
+    const one = sums.find((e) => e.equipment_id === labDashEquipmentFilter);
+    return one?.equipment_name || one?.equipment_code || "Equipment";
+  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter, labOperatorDashLoading]);
+
+  const labHeroEquipmentStatus = useMemo((): {
+    variant: LabHeroEquipmentStatusVariant;
+    label: string;
+  } | null => {
+    const sums = labOperatorDash?.equipment_summaries ?? [];
+    if (sums.length === 0) {
+      return labOperatorDashLoading ? { variant: "neutral", label: "" } : null;
+    }
+    let eq: (typeof sums)[0] | null = null;
+    if (labDashEquipmentFilter === "all") {
+      if (sums.length === 1) eq = sums[0];
+      else return { variant: "neutral", label: `${sums.length} instruments` };
+    } else {
+      eq = sums.find((e) => e.equipment_id === labDashEquipmentFilter) ?? null;
+    }
+    if (!eq) return { variant: "neutral", label: `${sums.length} instruments` };
+    const code = String(eq.equipment_status || "").toUpperCase();
+    const label = (eq.equipment_status_display || "").trim() || "Unknown";
+    if (code === "ACTIVE") return { variant: "operational", label };
+    if (code === "REPAIR" || code === "INACTIVE") return { variant: "under_maintenance", label };
+    if (code === "MAINTENANCE") return { variant: "scheduled", label };
+    return { variant: "other", label };
+  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter, labOperatorDashLoading]);
+
+  /** Stable key for assigned equipment list; when it changes, re-apply default first instrument for multi-assign. */
+  const labEquipmentSummariesKey = useMemo(() => {
+    const ids = (labOperatorDash?.equipment_summaries ?? []).map((e) => e.equipment_id);
+    return [...ids].sort((a, b) => a - b).join(",");
+  }, [labOperatorDash?.equipment_summaries]);
+
+  const labEquipmentSummariesKeyRef = useRef("");
+  useEffect(() => {
+    const sums = labOperatorDash?.equipment_summaries ?? [];
+    if (sums.length < 2 || !labEquipmentSummariesKey) return;
+
+    if (labEquipmentSummariesKeyRef.current !== labEquipmentSummariesKey) {
+      labEquipmentSummariesKeyRef.current = labEquipmentSummariesKey;
+      setLabDashEquipmentFilter(sums[0].equipment_id);
+      return;
+    }
+
+    if (
+      labDashEquipmentFilter !== "all" &&
+      typeof labDashEquipmentFilter === "number" &&
+      !sums.some((e) => e.equipment_id === labDashEquipmentFilter)
+    ) {
+      setLabDashEquipmentFilter(sums[0].equipment_id);
+    }
+  }, [labEquipmentSummariesKey, labDashEquipmentFilter, labOperatorDash?.equipment_summaries]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -152,6 +458,19 @@ const Dashboard = () => {
     });
     sessionStorage.setItem(promptKey, "1");
   }, [showWalletLinkPrompt, user?.id, navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated || authLoading || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const res = await apiClient.getWalletCreditFacilityMyStatus();
+      if (cancelled || res.error || !res.data?.items) return;
+      setWalletCreditFacilityItems(res.data.items);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authLoading, user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -239,10 +558,12 @@ const Dashboard = () => {
             fetchPendingRatingBookings().then(() => {})
           );
         }
-        if (isCurrentUserOperatorOrManager) {
+        if (isCurrentUserOperatorOrManager && currentUserTypeStr !== "operator") {
           tasks.push(fetchUrgentRequestsPendingCount().then(() => {}));
         }
-        if (currentUserTypeStr === "faculty") {
+        const facultyDeptInternal =
+          String(user?.department_type ?? "").toLowerCase() === "internal";
+        if (currentUserTypeStr === "faculty" && !facultyDeptInternal) {
           tasks.push(fetchFacultyUrgentPendingCount().then(() => {}));
         }
         if (isStudent) {
@@ -314,6 +635,168 @@ const Dashboard = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, authLoading]);
+
+  useEffect(() => {
+    if (!showsLabStyleDashboard || !user?.id) return;
+    if (labDashPeriod === "custom" && (!labDashCustomFrom.trim() || !labDashCustomTo.trim())) {
+      return;
+    }
+    let cancelled = false;
+    setLabOperatorDashLoading(true);
+    apiClient
+      .getLabOperatorDashboard({
+        weekStart: labOperatorWeekStart ?? undefined,
+        period: labDashPeriod,
+        dateFrom: labDashPeriod === "custom" ? labDashCustomFrom : undefined,
+        dateTo: labDashPeriod === "custom" ? labDashCustomTo : undefined,
+        equipmentId: labDashEquipmentFilter === "all" ? undefined : labDashEquipmentFilter,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.error || !res.data) {
+          setLabOperatorDash(null);
+          return;
+        }
+        setLabOperatorDash(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setLabOperatorDash(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLabOperatorDashLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showsLabStyleDashboard,
+    user?.id,
+    labOperatorWeekStart,
+    labDashPeriod,
+    labDashCustomFrom,
+    labDashCustomTo,
+    labDashEquipmentFilter,
+  ]);
+
+  const selectLabBookingForDetail = useCallback((bookingId: number) => {
+    setLabDashSelectedBookingId(bookingId);
+    setTimeout(() => {
+      document.getElementById("lab-booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }, []);
+
+  const clearLabBookingDetail = useCallback(() => {
+    setLabDashSelectedBookingId(null);
+    setLabDashDetailBooking(null);
+  }, []);
+
+  const labDashKpiClassName =
+    "group relative overflow-hidden text-left rounded-2xl border border-border/60 bg-card p-5 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-px hover:border-violet-400/40 hover:shadow-md dark:ring-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-55 disabled:hover:translate-y-0";
+
+  const refreshLabOperatorHome = useCallback(async () => {
+    const res = await apiClient.getLabOperatorDashboard({
+      weekStart: labOperatorWeekStart ?? undefined,
+      period: labDashPeriod,
+      dateFrom: labDashPeriod === "custom" ? labDashCustomFrom : undefined,
+      dateTo: labDashPeriod === "custom" ? labDashCustomTo : undefined,
+      equipmentId: labDashEquipmentFilter === "all" ? undefined : labDashEquipmentFilter,
+    });
+    if (res.data) setLabOperatorDash(res.data);
+    setLabSlotsRefresh((t) => t + 1);
+  }, [labOperatorWeekStart, labDashPeriod, labDashCustomFrom, labDashCustomTo, labDashEquipmentFilter]);
+
+  const toggleLabDashPanel = useCallback((next: NonNullable<LabDashPanel>) => {
+    setLabDashPanel((p) => (p?.key === next.key && p.segment === next.segment ? null : next));
+  }, []);
+
+  useEffect(() => {
+    clearLabBookingDetail();
+    setLabDashPanel(null);
+  }, [
+    labOperatorDash?.week_start,
+    labOperatorWeekStart,
+    labDashPeriod,
+    labDashCustomFrom,
+    labDashCustomTo,
+    labDashEquipmentFilter,
+    clearLabBookingDetail,
+  ]);
+
+  useEffect(() => {
+    if (!showsLabStyleDashboard || !labOperatorDash?.week_start || !labOperatorDash?.week_end) {
+      setLabSlotByEquipment({});
+      return;
+    }
+    if (!labWeekCalendarExpanded) {
+      setLabSlotByEquipment({});
+      setLabSlotsLoading(false);
+      return;
+    }
+    const summaries = labEquipmentSummariesForScope;
+    if (summaries.length === 0) {
+      setLabSlotByEquipment({});
+      return;
+    }
+    let cancelled = false;
+    setLabSlotsLoading(true);
+    Promise.all(
+      summaries.map((eq) =>
+        apiClient.getEquipmentSlots(eq.equipment_id, labOperatorDash.week_start, labOperatorDash.week_end, {
+          applyWeeklyViewTimeFilter: true,
+        })
+      )
+    )
+      .then((results) => {
+        if (cancelled) return;
+        const next: Record<number, LabWeekCalendarSlotsPayload> = {};
+        summaries.forEach((eq, i) => {
+          const res = results[i];
+          if (res.data) next[eq.equipment_id] = res.data as LabWeekCalendarSlotsPayload;
+        });
+        setLabSlotByEquipment(next);
+      })
+      .catch(() => {
+        if (!cancelled) setLabSlotByEquipment({});
+      })
+      .finally(() => {
+        if (!cancelled) setLabSlotsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showsLabStyleDashboard,
+    labOperatorDash?.week_start,
+    labOperatorDash?.week_end,
+    labSlotsRefresh,
+    labEquipmentSummariesForScope.map((e) => e.equipment_id).join(","),
+    labWeekCalendarExpanded,
+    labDashEquipmentFilter,
+  ]);
+
+  useEffect(() => {
+    if (!showsLabStyleDashboard || labDashSelectedBookingId == null) {
+      setLabDashDetailBooking(null);
+      setLabDashDetailLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLabDashDetailLoading(true);
+    setLabDashDetailBooking(null);
+    apiClient
+      .getBookings({ booking_id: labDashSelectedBookingId, limit: 1 })
+      .then((res) => {
+        if (cancelled || res.error) return;
+        const b = res.data?.bookings?.[0];
+        if (b) setLabDashDetailBooking(b as BookingDetailCardBooking);
+      })
+      .finally(() => {
+        if (!cancelled) setLabDashDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showsLabStyleDashboard, labDashSelectedBookingId]);
 
   const fetchWalletBalance = async () => {
     try {
@@ -604,6 +1087,66 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+        {walletCreditFacilityItems.length > 0 && (
+          <Card
+            className={cn(
+              "dashboard-notice-card mb-6 border-amber-300/80 bg-amber-50/90 dark:bg-amber-950/20",
+              walletCreditFacilityItems.some((x) => x.bookings_blocked) &&
+                "border-destructive/60 bg-destructive/5 dark:bg-destructive/10"
+            )}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Wallet recharge credit facility
+              </CardTitle>
+              <CardDescription>
+                Timeline for temporary credit tied to pending recharge requests (department sub-wallets).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {walletCreditFacilityItems.map((row) => (
+                <div
+                  key={row.request_id}
+                  className="rounded-lg border border-border/80 bg-background/60 px-3 py-2 space-y-1"
+                >
+                  <div className="font-medium text-foreground">
+                    {row.department_name || "Department"} — Request #{row.request_id} (₹{row.amount})
+                  </div>
+                  {row.credit_limit_inr != null && (
+                    <div>Credit line: up to ₹{row.credit_limit_inr}</div>
+                  )}
+                  {row.credit_window_ends_at && (
+                    <div className="text-muted-foreground">
+                      Window ends:{" "}
+                      {new Date(row.credit_window_ends_at).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </div>
+                  )}
+                  <div className="text-muted-foreground">
+                    Sub-wallet balance shown: ₹{row.sub_wallet_balance}
+                  </div>
+                  {row.bookings_blocked ? (
+                    <div className="text-destructive font-medium">
+                      Bookings for this department are on hold until the recharge is credited via accounts
+                      (parse).
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">
+                      Credit window active — you may book within the approved line until the window ends or the
+                      recharge is credited.
+                    </div>
+                  )}
+                </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => navigate("/wallet")}>
+                Open wallet
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {showWalletLinkPrompt && userTypeStr === "student" && (
           <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-blue-500/80 bg-gradient-to-r from-blue-100 via-blue-100 to-indigo-100 dark:from-blue-950/60 dark:via-blue-950/50 dark:to-indigo-950/40 shadow-lg shadow-blue-500/20">
             <CardHeader className="pb-3">
@@ -625,83 +1168,886 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
-        {/* Profile card – image left, details right */}
-        <div className="dashboard-hero-card mb-10 overflow-hidden rounded-2xl shadow-xl bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 text-white">
-          <div className="flex flex-col sm:flex-row sm:items-stretch gap-0">
-            {/* Avatar */}
-            <div className="flex justify-center sm:justify-start p-6 sm:p-8 sm:pr-0">
-              <Avatar className="h-28 w-28 shrink-0 rounded-2xl border-4 border-white/40 shadow-xl ring-4 ring-white/10">
-                <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={user?.name || "Profile"} className="object-cover" />
-                <AvatarFallback className="rounded-2xl bg-white/20 text-3xl font-bold text-white">
-                  {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            {/* Details – strict order: Name, Category, Department, Mobile, Email */}
-            <div className="flex-1 min-w-0 px-6 pb-6 sm:px-8 sm:py-8 flex flex-col justify-center">
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white drop-shadow-sm">
-                {user?.name || "—"}
-              </h2>
-              <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/25 px-3.5 py-1 text-sm font-medium backdrop-blur-sm border border-white/20">
-                  <BadgeCheck className="h-3.5 w-3.5" />
-                  {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
-                </span>
+        {/* Profile hero — layered gradient, glass contact strip, status-tinted instrument card for Lab Incharge & OIC */}
+        <div className="dashboard-hero-card relative mb-10 overflow-hidden rounded-3xl border border-white/25 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-950 text-white shadow-2xl shadow-blue-950/40 ring-1 ring-white/20">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_110%_90%_at_0%_-30%,rgba(255,255,255,0.2),transparent_55%)]"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_100%_100%,rgba(129,140,248,0.35),transparent_55%)]"
+            aria-hidden
+          />
+          <div
+            className={cn(
+              "relative flex flex-col lg:flex-row",
+              showsLabStyleDashboard ? "lg:items-center" : "lg:items-stretch"
+            )}
+          >
+            {!showsLabStyleDashboard && (
+              <div className="flex justify-center border-b border-white/15 bg-white/[0.07] px-6 py-8 backdrop-blur-sm lg:w-[12rem] lg:shrink-0 lg:flex-col lg:items-center lg:justify-center lg:border-b-0 lg:border-r lg:border-white/15 lg:py-10">
+                <Avatar className="h-28 w-28 shrink-0 rounded-2xl border-[3px] border-white/55 shadow-xl shadow-black/25 ring-4 ring-white/15">
+                  <AvatarImage
+                    src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined}
+                    alt={user?.name || "Profile"}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="rounded-2xl bg-white/25 text-3xl font-bold text-white">
+                    {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
               </div>
-              <dl className={`mt-6 grid grid-cols-1 gap-4 ${(userTypeStr === "student" || userTypeStr === "individual_student" || userTypeStr === "faculty") ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+            )}
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 flex-col",
+                showsLabStyleDashboard ? "px-4 py-4 sm:px-5 sm:py-4" : "px-5 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8"
+              )}
+            >
+              {showsLabStyleDashboard ? (
+                <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
+                  <div className="flex min-w-0 flex-1 flex-row items-center gap-3 sm:gap-4">
+                    <Avatar className="h-16 w-16 shrink-0 rounded-full border-2 border-white/50 shadow-md shadow-black/20 ring-2 ring-white/15 sm:h-[4.5rem] sm:w-[4.5rem]">
+                      <AvatarImage
+                        src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined}
+                        alt={user?.name || "Profile"}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="rounded-full bg-white/25 text-lg font-bold text-white sm:text-xl">
+                        {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-xl font-bold leading-tight tracking-tight text-white drop-shadow-sm sm:text-2xl">
+                        {user?.name || "—"}
+                      </h2>
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
+                          <BadgeCheck className="h-3 w-3 shrink-0 opacity-90" />
+                          {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-col gap-0.5 text-[13px] leading-snug text-white/80 sm:text-sm">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" strokeWidth={2} />
+                          <span className="min-w-0 break-all [overflow-wrap:anywhere]" title={user?.email || undefined}>
+                            {user?.email || "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" strokeWidth={2} />
+                          <span className="min-w-0 [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
+                            {user?.department_name || "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Phone className="h-3.5 w-3.5 shrink-0 text-white/45" strokeWidth={2} />
+                          <span className="min-w-0 tabular-nums [overflow-wrap:anywhere]" title={user?.phone_number || user?.secondary_phone_number || undefined}>
+                            {user?.phone_number || user?.secondary_phone_number || "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-w-0 w-full lg:max-w-[min(100%,28rem)] lg:flex-1 xl:max-w-xl">
+                    {(() => {
+                      const statusUi = labHeroEquipmentStatus;
+                      const variant = statusUi?.variant ?? "neutral";
+                      const vis = labHeroInstrumentPanelClass(variant);
+                      return (
+                        <div className={cn("overflow-hidden rounded-xl border-2 shadow-lg", vis.shell)}>
+                          <div className="px-4 py-3 sm:px-5 sm:py-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/25 pb-2.5">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/20 ring-1 ring-white/25">
+                                  <FlaskConical className="h-4 w-4 text-white" strokeWidth={2} />
+                                </div>
+                                <div className="min-w-0 leading-tight">
+                                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-white/85">Assigned equipment</p>
+                                  <p className="text-[11px] text-white/55">
+                                    {isOicUser ? "Officer In Charge" : "Lab Incharge"}
+                                  </p>
+                                </div>
+                              </div>
+                              {statusUi?.label ? (
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide sm:text-[11px]",
+                                    vis.badge
+                                  )}
+                                >
+                                  {statusUi.label}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="pt-2.5 text-base font-bold leading-snug tracking-tight text-white [text-wrap:pretty] sm:text-lg">
+                              {labHeroEquipmentTitle || (labOperatorDashLoading ? "…" : "—")}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="min-w-0">
+                    <h2 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm sm:text-4xl">
+                      {user?.name || "—"}
+                    </h2>
+                    <div className="mt-3">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/20 px-4 py-1.5 text-sm font-medium shadow-inner shadow-black/10 backdrop-blur-md">
+                        <BadgeCheck className="h-4 w-4 shrink-0 opacity-95" />
+                        {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+              {!showsLabStyleDashboard && (
+              <dl
+                className={cn(
+                  "mt-8 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-black/20 p-4 shadow-inner backdrop-blur-md sm:gap-4",
+                  userTypeStr === "student" || userTypeStr === "individual_student" || userTypeStr === "faculty"
+                    ? "sm:grid-cols-2 lg:grid-cols-4"
+                    : "sm:grid-cols-2 lg:grid-cols-3"
+                )}
+              >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                     <Building2 className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Department</dt>
-                    <dd className="mt-0.5 font-medium text-white truncate" title={user?.department_name || undefined}>{user?.department_name || "—"}</dd>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Department</dt>
+                    <dd className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
+                      {user?.department_name || "—"}
+                    </dd>
                   </div>
                 </div>
                 {(userTypeStr === "student" || userTypeStr === "individual_student") && (
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                       <IdCard className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Enrollment Number</dt>
-                      <dd className="mt-0.5 font-medium text-white truncate" title={user?.emp_id || undefined}>{user?.emp_id || "—"}</dd>
+                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Enrollment Number</dt>
+                      <dd className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
+                        {user?.emp_id || "—"}
+                      </dd>
                     </div>
                   </div>
                 )}
                 {userTypeStr === "faculty" && (
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                       <IdCard className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Employee Number</dt>
-                      <dd className="mt-0.5 font-medium text-white truncate" title={user?.emp_id || undefined}>{user?.emp_id || "—"}</dd>
+                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Employee Number</dt>
+                      <dd className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
+                        {user?.emp_id || "—"}
+                      </dd>
                     </div>
                   </div>
                 )}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                     <Phone className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Mobile</dt>
-                    <dd className="mt-0.5 font-medium text-white truncate" title={user?.phone_number || user?.secondary_phone_number || undefined}>{user?.phone_number || user?.secondary_phone_number || "—"}</dd>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Mobile</dt>
+                    <dd
+                      className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]"
+                      title={user?.phone_number || user?.secondary_phone_number || undefined}
+                    >
+                      {user?.phone_number || user?.secondary_phone_number || "—"}
+                    </dd>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                     <Mail className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-medium uppercase tracking-wider text-white/70">Email</dt>
-                    <dd className="mt-0.5 font-medium text-white truncate" title={user?.email || undefined}>{user?.email || "—"}</dd>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Email</dt>
+                    <dd className="mt-0.5 font-semibold text-white break-all [overflow-wrap:anywhere]" title={user?.email || undefined}>
+                      {user?.email || "—"}
+                    </dd>
                   </div>
                 </div>
               </dl>
+              )}
             </div>
           </div>
         </div>
+
+        {showsLabStyleDashboard && (
+          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-violet-950/[0.06] dark:shadow-none">
+            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-violet-600/[0.07] via-background to-background pb-6 pt-6 sm:pt-8">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div className="flex gap-4 min-w-0">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                    <Layout className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Lab dashboard</CardTitle>
+                    <CardDescription className="text-sm leading-relaxed max-w-xl">
+                      Counts, queues, and weekly schedules for{" "}
+                      {isOicUser ? "equipment you manage as OIC" : "your equipment"}
+                      {(labOperatorDash?.equipment_summaries ?? []).length > 1
+                        ? ". Use the instrument selector to focus metrics and the week view on one machine."
+                        : "."}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+                  {labOperatorDash && (labOperatorDash.equipment_summaries ?? []).length > 1 && (
+                    <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:min-w-[14rem]">
+                      <Label
+                        htmlFor="lab-dash-equipment-scope"
+                        className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Instrument
+                      </Label>
+                      <Select
+                        value={labDashEquipmentFilter === "all" ? "all" : String(labDashEquipmentFilter)}
+                        onValueChange={(v) => {
+                          if (v === "all") setLabDashEquipmentFilter("all");
+                          else setLabDashEquipmentFilter(Number(v));
+                        }}
+                      >
+                        <SelectTrigger id="lab-dash-equipment-scope" className="h-10 w-full bg-background/80">
+                          <SelectValue placeholder="Scope" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All assigned instruments</SelectItem>
+                          {(labOperatorDash.equipment_summaries ?? []).map((eq) => (
+                            <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
+                              {eq.equipment_code ? `${eq.equipment_code} · ${eq.equipment_name}` : eq.equipment_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Button
+                    className="shrink-0 bg-violet-600 text-white hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500 sm:self-end"
+                    size="sm"
+                    onClick={() => navigate("/booking-management")}
+                  >
+                    Booking management
+                    <ChevronRight className="ml-1 h-4 w-4 opacity-80" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-10 p-6 sm:p-8">
+              {labOperatorDashLoading && !labOperatorDash ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+                  <p className="text-sm font-medium">Loading lab dashboard…</p>
+                </div>
+              ) : labOperatorDash ? (
+                <>
+                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label
+                        htmlFor="lab-dash-period"
+                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Booking overview and follow-up range
+                      </Label>
+                      <Select
+                        value={labDashPeriod}
+                        onValueChange={(v) => {
+                          const p = v as LabDashPeriod;
+                          setLabDashPeriod(p);
+                          if (p === "custom") {
+                            const d = format(new Date(), "yyyy-MM-dd");
+                            setLabDashCustomFrom((f) => f || d);
+                            setLabDashCustomTo((t) => t || d);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
+                          <SelectValue placeholder="Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
+                          <SelectItem value="month">Monthly</SelectItem>
+                          <SelectItem value="year">Yearly</SelectItem>
+                          <SelectItem value="custom">Custom dates</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {labDashPeriod === "custom" && (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-from" className="text-xs">
+                            From
+                          </Label>
+                          <Input
+                            id="lab-dash-from"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomFrom}
+                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-to" className="text-xs">
+                            To
+                          </Label>
+                          <Input
+                            id="lab-dash-to"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomTo}
+                            onChange={(e) => setLabDashCustomTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
+                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
+                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
+                    </p>
+                  </div>
+
+                  <section className="space-y-4">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Booking overview
+                    </h3>
+                    <p className="text-xs text-muted-foreground -mt-2">
+                      Click <span className="font-medium text-foreground">Pending (booked)</span> or{" "}
+                      <span className="font-medium text-foreground">Completed</span> to open that list. Click a booking
+                      ID to view details below (same page).
+                    </p>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-violet-500/35" : ""}`}
+                      >
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "overall" ? "rotate-180" : ""}`}
+                        />
+                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-violet-500/[0.12] transition-opacity group-hover:text-violet-500/20" />
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
+                          Overall Booking Pending
+                        </p>
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-violet-700 dark:text-violet-300">
+                          {labOperatorDash.overall_booking_booked_total}/{labOperatorDash.overall_booking_total}
+                        </p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Booked / total
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "overall", segment: "BOOKED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-violet-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 ${
+                              labDashPanel?.key === "overall" && labDashPanel.segment === "BOOKED"
+                                ? "border-violet-500/50 bg-violet-500/[0.06] ring-1 ring-violet-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Pending (booked)
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-violet-700 dark:text-violet-300">
+                              {labOperatorDash.overall_booking_booked_total}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "overall", segment: "COMPLETED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+                              labDashPanel?.key === "overall" && labDashPanel.segment === "COMPLETED"
+                                ? "border-emerald-500/50 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Completed
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                              {labOperatorDash.overall_booking_completed}
+                            </p>
+                          </button>
+                        </div>
+                        <p className="mt-3 text-[11px] font-normal text-muted-foreground/90">
+                          Total = booked + completed in range
+                        </p>
+                      </div>
+                      <div
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-sky-500/35" : ""}`}
+                      >
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "external" ? "rotate-180" : ""}`}
+                        />
+                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-sky-500/[0.12] group-hover:text-sky-500/20" />
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
+                          External bookings
+                        </p>
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-sky-700 dark:text-sky-300">
+                          {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
+                        </p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Booked / total
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "external", segment: "BOOKED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-sky-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                              labDashPanel?.key === "external" && labDashPanel.segment === "BOOKED"
+                                ? "border-sky-500/50 bg-sky-500/[0.06] ring-1 ring-sky-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Pending (booked)
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-sky-700 dark:text-sky-300">
+                              {labOperatorDash.external_booking_booked_total}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "external", segment: "COMPLETED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+                              labDashPanel?.key === "external" && labDashPanel.segment === "COMPLETED"
+                                ? "border-emerald-500/50 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Completed
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                              {labOperatorDash.external_booking_completed}
+                            </p>
+                          </button>
+                        </div>
+                        <p className="mt-3 text-[11px] font-normal text-muted-foreground/90">
+                          External users · total = booked + completed in range
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Follow-up queues
+                    </h3>
+                    <p className="text-xs text-muted-foreground -mt-2">
+                      Click <span className="font-medium text-foreground">Available</span> or{" "}
+                      <span className="font-medium text-foreground">Done</span> (already marked) for each queue.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "not_util" ? "ring-2 ring-amber-500/35" : ""}`}
+                      >
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "not_util" ? "rotate-180" : ""}`}
+                        />
+                        <AlertCircle className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-amber-500/[0.12] group-hover:text-amber-500/20" />
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
+                          Booking available to be marked as not utilized
+                        </p>
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-amber-700 dark:text-amber-300">
+                          {labOperatorDash.not_utilized_available_total}/
+                          {labOperatorDash.not_utilized_available_total + labOperatorDash.not_utilized_marked_total}
+                        </p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Current / total (available + already marked)
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "not_util", segment: "AVAILABLE" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-amber-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 ${
+                              labDashPanel?.key === "not_util" && labDashPanel.segment === "AVAILABLE"
+                                ? "border-amber-500/50 bg-amber-500/[0.06] ring-1 ring-amber-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Available
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
+                              {labOperatorDash.not_utilized_available_total}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "not_util", segment: "MARKED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                              labDashPanel?.key === "not_util" && labDashPanel.segment === "MARKED"
+                                ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Marked
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
+                              {labOperatorDash.not_utilized_marked_total}
+                            </p>
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-teal-500/35" : ""}`}
+                      >
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "sample_return" ? "rotate-180" : ""}`}
+                        />
+                        <PackageOpen className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-teal-500/[0.12] group-hover:text-teal-500/20" />
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
+                          Sample pickup (completed bookings)
+                        </p>
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-teal-700 dark:text-teal-300">
+                          {labOperatorDash.sample_available_to_return_total}/
+                          {labOperatorDash.sample_available_to_return_total + labOperatorDash.sample_returned_done_total}
+                        </p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Awaiting return / total (awaiting + already returned)
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "sample_return", segment: "AVAILABLE" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-teal-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 ${
+                              labDashPanel?.key === "sample_return" && labDashPanel.segment === "AVAILABLE"
+                                ? "border-teal-500/50 bg-teal-500/[0.06] ring-1 ring-teal-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Awaiting return
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-teal-700 dark:text-teal-300">
+                              {labOperatorDash.sample_available_to_return_total}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "sample_return", segment: "RETURNED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                              labDashPanel?.key === "sample_return" && labDashPanel.segment === "RETURNED"
+                                ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Returned
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
+                              {labOperatorDash.sample_returned_done_total}
+                            </p>
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "dispose" ? "ring-2 ring-rose-500/35" : ""}`}
+                      >
+                        <ChevronDown
+                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "dispose" ? "rotate-180" : ""}`}
+                        />
+                        <Archive className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-rose-500/[0.12] group-hover:text-rose-500/20" />
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
+                          Sample Available to be Disposed
+                        </p>
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-rose-700 dark:text-rose-300">
+                          {labOperatorDash.sample_available_to_dispose_total}/
+                          {labOperatorDash.sample_available_to_dispose_total + labOperatorDash.sample_disposed_done_total}
+                        </p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Current / total (available + already disposed)
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "dispose", segment: "AVAILABLE" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-rose-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 ${
+                              labDashPanel?.key === "dispose" && labDashPanel.segment === "AVAILABLE"
+                                ? "border-rose-500/50 bg-rose-500/[0.06] ring-1 ring-rose-500/30"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Available
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-rose-700 dark:text-rose-300">
+                              {labOperatorDash.sample_available_to_dispose_total}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleLabDashPanel({ key: "dispose", segment: "DISPOSED" })}
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                              labDashPanel?.key === "dispose" && labDashPanel.segment === "DISPOSED"
+                                ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
+                                : "border-border/60 bg-background/40"
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Disposed
+                            </p>
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
+                              {labOperatorDash.sample_disposed_done_total}
+                            </p>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {labDashPanel && (
+                    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm">
+                      <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
+                        <p className="text-sm font-semibold">{labDashPanelTitle(labDashPanel)}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {labDashPanel.key === "overall" || labDashPanel.key === "external"
+                            ? "Up to 400 rows · Click a booking ID for details below"
+                            : "Up to 100 rows · Click a booking ID for details below"}
+                        </p>
+                      </div>
+                      <div className="overflow-x-auto p-2 sm:p-4">
+                        {(() => {
+                          const rows = labDashPanelRows(labOperatorDash, labDashPanel);
+                          if (rows.length === 0) {
+                            return (
+                              <p className="py-8 text-center text-sm text-muted-foreground">No rows for this view.</p>
+                            );
+                          }
+                          return (
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                  <TableHead className="font-semibold whitespace-nowrap">Booking ID</TableHead>
+                                  <TableHead className="font-semibold">Equipment</TableHead>
+                                  <TableHead className="font-semibold">User</TableHead>
+                                  <TableHead className="font-semibold">Status</TableHead>
+                                  <TableHead className="font-semibold whitespace-nowrap">Start</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {rows.map((row) => (
+                                  <TableRow key={`${labDashPanel.key}-${labDashPanel.segment}-${row.booking_id}`}>
+                                    <TableCell className="font-medium whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => selectLabBookingForDetail(row.booking_id)}
+                                        className={`inline-flex items-center gap-1.5 rounded font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                                          String(row.status).toUpperCase() === "COMPLETED"
+                                            ? "text-green-600 hover:text-green-700 dark:text-green-500"
+                                            : "text-primary hover:text-primary/80"
+                                        }`}
+                                      >
+                                        {row.virtual_booking_id || row.booking_ref}
+                                      </button>
+                                    </TableCell>
+                                    <TableCell className="max-w-[200px] truncate" title={row.equipment_name}>
+                                      {row.equipment_name}
+                                    </TableCell>
+                                    <TableCell className="max-w-[160px] truncate">{row.user_name || "—"}</TableCell>
+                                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                                      {row.status_display || row.status}
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
+                                      {row.start_time
+                                        ? format(parseISO(row.start_time), "MMM d, yyyy h:mm a")
+                                        : "—"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  <section className="space-y-4">
+                    {!labWeekCalendarExpanded ? (
+                      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                            <Calendar className="h-5 w-5" />
+                          </span>
+                          <div className="min-w-0 space-y-1">
+                            <h3 className="text-sm font-semibold tracking-tight text-foreground">Week calendar</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Slot grids load when expanded. Week shown:{" "}
+                              <span className="font-medium tabular-nums text-foreground">
+                                {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
+                                {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-10 shrink-0 gap-2 self-stretch sm:self-center border-dashed"
+                          onClick={() => setLabWeekCalendarExpanded(true)}
+                        >
+                          <ChevronDown className="h-4 w-4 opacity-80" />
+                          Expand week calendar
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                          <Calendar className="h-4 w-4" />
+                        </span>
+                        Week calendar
+                      </h3>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-2 shrink-0"
+                        onClick={() => setLabWeekCalendarExpanded(false)}
+                      >
+                        <ChevronUp className="h-4 w-4 opacity-80" />
+                        Minimize
+                      </Button>
+                    </div>
+                    <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/50 to-muted/20 dark:from-muted/20 dark:to-background p-4 sm:p-6 min-h-[min(520px,70vh)]">
+                      {(labOperatorDashLoading || labSlotsLoading) && (
+                        <div
+                          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 rounded-lg bg-background/95 dark:bg-background/95 backdrop-blur-sm px-6 py-10"
+                          aria-busy="true"
+                          aria-live="polite"
+                        >
+                          <Loader2 className="h-10 w-10 animate-spin text-primary shrink-0" />
+                          <p className="text-sm font-medium text-foreground text-center max-w-md">
+                            Loading slot availability for this week…
+                          </p>
+                          <Progress
+                            value={100}
+                            className="h-2 w-full max-w-md [&>div]:w-full [&>div]:animate-pulse [&>div]:origin-left"
+                          />
+                        </div>
+                      )}
+                      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center justify-center gap-1 rounded-full border border-border/80 bg-background/80 px-1 py-1 shadow-sm sm:order-2 sm:flex-1 sm:justify-center">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 rounded-full px-3"
+                            onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, -7))}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <span className="min-w-[10rem] text-center text-sm font-semibold tabular-nums sm:min-w-[12rem]">
+                            {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
+                            {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 rounded-full px-3"
+                            onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, 7))}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 sm:order-1 sm:justify-start">
+                          <div className="flex items-center gap-2.5 rounded-full border border-border/60 bg-background/60 px-3 py-1.5">
+                            <Switch
+                              id="lab-calendar-booked-only"
+                              checked={labCalendarBookedOnly}
+                              onCheckedChange={setLabCalendarBookedOnly}
+                            />
+                            <Label htmlFor="lab-calendar-booked-only" className="cursor-pointer text-sm font-medium">
+                              Booked slots only
+                            </Label>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLabOperatorWeekStart(null)}
+                            className="h-9 gap-1.5 rounded-full border-dashed"
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                            Reset to current week
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="space-y-10">
+                        {labEquipmentSummariesForScope.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-8">
+                            {isOicUser
+                              ? "No equipment assigned to your OIC account."
+                              : "No equipment assigned to your operator account."}
+                          </p>
+                        ) : (
+                          labEquipmentSummariesForScope.map((eq) => (
+                            <LabOperatorWeekCalendarGrid
+                              key={eq.equipment_id}
+                              weekStartIso={labOperatorDash.week_start}
+                              equipmentTitle={`${eq.equipment_code} · ${eq.equipment_name}`}
+                              slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
+                              onBookedSlotClick={selectLabBookingForDetail}
+                              bookedSlotsOnly={labCalendarBookedOnly}
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                      </>
+                    )}
+                  </section>
+
+                  {labDashSelectedBookingId != null && (
+                    <div
+                      id="lab-booking-detail-section"
+                      className="mt-8 scroll-mt-8 rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-6"
+                    >
+                      {labDashDetailLoading ? (
+                        <Card className="border shadow-sm">
+                          <CardContent className="py-12">
+                            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                              <span>Loading booking details…</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ) : labDashDetailBooking ? (
+                        <BookingDetailCard
+                          booking={labDashDetailBooking}
+                          onClose={clearLabBookingDetail}
+                          onUpdated={refreshLabOperatorHome}
+                          isOperator={isLabInchargeUser}
+                          isManagerOrAdmin={isOicUser || isAdmin}
+                          currentUserType={userTypeStr}
+                          currentUserId={user?.id}
+                          backLabel="Back to dashboard"
+                          showPrintButton
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Could not load this booking.</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6">Could not load lab dashboard.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Pending rating prompt for internal (student, faculty) and external users */}
         {!isOperatorOrManager && pendingRatingBookings.length > 0 && (
@@ -840,7 +2186,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {userTypeStr === "faculty" && (
+          {showFacultyUrgentWalletCard && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
               onClick={() => navigate("/urgent-requests-wallet")}
@@ -1048,7 +2394,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isOperatorOrManager && (
+          {isOperatorOrManager && !isLabInchargeUser && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
               onClick={() => navigate("/urgent-requests")}
@@ -1160,7 +2506,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {canAccessBookingAttemptLog && (
+          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
               onClick={() => navigate("/booking-attempt-logs")}
@@ -1185,7 +2531,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {canAccessAdminTools && !isLabInchargeUser && (
+          {canAccessAdminTools && (!showsLabStyleDashboard || isOicUser) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
               onClick={() => navigate("/manage/external-user-management")}
@@ -1212,7 +2558,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {canAccessBookingAttemptLog && (
+          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
               onClick={() => navigate("/equipment-waitlist")}
@@ -1287,7 +2633,32 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isAdmin && (
+          {apiClient.isAdminPanelUser(user?.user_type) && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => navigate("/equipment-lifecycle")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment lifecycle &amp; expenses</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Purchase, warranty, AMC, expenses, accessories, write-off workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open lifecycle hub</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {apiClient.isAdminPanelUser(user?.user_type) && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
               onClick={() => navigate("/procurement-workflow")}
@@ -1312,7 +2683,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isAdmin && (
+          {apiClient.isAdminPanelUser(user?.user_type) && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
               onClick={() => navigate("/inventory-management")}
@@ -1337,7 +2708,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isAdmin && (
+          {(isAdmin || isOicUser) && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
               onClick={() => navigate("/content-management")}

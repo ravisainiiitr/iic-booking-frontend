@@ -25,10 +25,20 @@ type NullableBookingRef = Omit<BookingRef, "booking_id"> & { booking_id: Booking
 
 /** Base URL for Django Admin (same origin as API, path /admin/). Used for admin dashboard links. */
 export const getAdminBaseUrl = (): string => {
-  const base = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
-    ? (window as any).__RUNTIME_CONFIG__.VITE_API_URL
-    : import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://127.0.0.1:8000/api');
-  const origin = base.replace(/\/api\/?$/, '');
+  const base =
+    (typeof window !== "undefined" && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL)
+      ? (window as any).__RUNTIME_CONFIG__.VITE_API_URL
+      : import.meta.env.VITE_API_URL || (typeof window !== "undefined" ? "/api" : "http://127.0.0.1:8000/api");
+
+  // In local frontend dev, API base is often relative (/api) and served from Vite origin (e.g. :8080),
+  // but Django admin is on backend server (typically :8000).
+  // Use explicit backend origin in this case to avoid /admin 404 on frontend dev server.
+  let origin: string;
+  if (base.startsWith("/")) {
+    origin = "http://127.0.0.1:8000";
+  } else {
+    origin = base.replace(/\/api\/?$/, "");
+  }
   return `${origin}/admin/`;
 };
 
@@ -63,11 +73,73 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   communicationTemplates: 'admin/communication-templates',
   communicationLogs: 'admin/communication-logs',
   notices: 'admin/notices',
-  coupons: 'admin/coupons',
   calendarColors: 'admin/calendar-colors',
   internalSlotWindow: 'admin/internal-slot-window',
   equipmentReports: 'admin/equipment-reports',
 };
+
+/** Response from GET /wallet/faculty-expense-report/ (IITR Faculty only). */
+export interface FacultyWalletExpenseReportData {
+  date_from: string;
+  date_to: string;
+  current_balance: string;
+  sub_wallets: Array<{ department_id: number; department_name: string; balance: string }>;
+  linked_students: Array<{ user_id: number; name: string; email: string; user_type: string }>;
+  member_user_ids: number[];
+  period_wallet_movements: {
+    total_debits: string;
+    total_credits: string;
+    recharges_and_similar_credits: string;
+    refund_credits: string;
+    internal_transfer_credits: string;
+    withdrawal_reversal_credits: string;
+  };
+  period_booking_spend: { total: string; booking_count: number };
+  by_member: Array<{
+    user_id: number;
+    name: string;
+    email: string;
+    user_type: string;
+    is_wallet_owner: boolean;
+    role_label: string;
+    total_spend: string;
+    booking_count: number;
+    share_of_period_spend_percent: number;
+    by_equipment: Array<{
+      equipment_id: number;
+      equipment_code: string;
+      equipment_name: string;
+      total_spend: string;
+      booking_count: number;
+    }>;
+  }>;
+  by_equipment: Array<{
+    equipment_id: number;
+    equipment_code: string;
+    equipment_name: string;
+    total_spend: string;
+    booking_count: number;
+  }>;
+  equipment_filter_id: number | null;
+  /** Accounts-team approved recharges in the report date range (offline / SRIC flow). */
+  approved_recharges: Array<{
+    id: number;
+    amount: string;
+    department_name: string;
+    project_name: string;
+    project_code: string;
+    project_agency: string;
+    project_details_legacy: string;
+    project_head_name: string;
+    project_head_email: string;
+    requested_by_name: string;
+    requested_by_email: string;
+    created_at: string | null;
+    responded_at: string | null;
+    approved_by_email: string;
+    response_message: string;
+  }>;
+}
 
 interface ApiResponse<T> {
   data?: T;
@@ -78,6 +150,11 @@ interface ApiResponse<T> {
   waitlist_position?: number;
   waitlist_code?: string;
   waitlist_full?: boolean;
+  /** JSON from X-Booking-Perf (server phase timings) when backend exposes it. */
+  bookingPerf?: string;
+  /** Machine-readable error code from JSON body (e.g. istem_fbr_not_executed). */
+  errorCode?: string;
+  istem_portal_url?: string;
 }
 
 interface User {
@@ -111,6 +188,8 @@ interface User {
   last_login?: string | null;
   auto_slot_selection?: boolean;
   is_staff?: boolean;
+  /** External users: must confirm I-STEM portal registration before booking. */
+  istem_portal_acknowledged?: boolean;
 }
 
 /** Student equipment operating nomination (semester-wise, supervisor nominates). */
@@ -162,6 +241,60 @@ export interface TANominationCall {
   created_by_id: number | null;
   created_at: string | null;
   email_sent_at: string | null;
+}
+
+export interface TAAssignment {
+  id: number;
+  nomination: number;
+  booking: number;
+  /** Display booking ref (virtual_booking_id or code-id); from API. */
+  booking_display_id?: string;
+  /** Local date/time range for booked slot(s), e.g. "2025-03-24 09:30–11:30". */
+  booking_slot_summary?: string;
+  ta_student: number;
+  ta_student_name?: string;
+  ta_student_email?: string;
+  equipment: number;
+  equipment_code?: string;
+  equipment_name?: string;
+  semester: number;
+  semester_name?: string;
+  status: "ALLOCATED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
+  allocation_notes?: string | null;
+  expected_hours?: string | null;
+  allocated_by?: number | null;
+  allocated_by_name?: string | null;
+  allocated_at?: string | null;
+  responded_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface TADutyLog {
+  id: number;
+  nomination: number;
+  student: number;
+  student_name?: string;
+  student_email?: string;
+  equipment: number;
+  equipment_code?: string;
+  equipment_name?: string;
+  booking?: number | null;
+  assignment?: number | null;
+  assignment_status?: string;
+  duty_date: string;
+  hours_spent: string;
+  samples_processed: number;
+  remarks?: string | null;
+  status: "PENDING" | "VERIFIED" | "REJECTED";
+  /** Present when status is VERIFIED: points credited for this duty log (linked booking). */
+  reward_points_earned?: string | null;
+  verified_by?: number | null;
+  verified_by_name?: string | null;
+  verified_at?: string | null;
+  created_by?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface AuthResponse {
@@ -330,7 +463,10 @@ export type SampleTraceStatus =
   | 'SAMPLE_ACCEPTED'
   | 'SAMPLE_REJECTED'
   | 'PROCESSING'
-  | 'COMPLETED';
+  | 'COMPLETED'
+  | 'RETURNED'
+  | 'ARCHIVED'
+  | 'DISPOSED';
 
 export interface SampleTraceReplyAttachment {
   id: number;
@@ -354,6 +490,8 @@ export interface SampleTraceEvent {
 
 /** One row from wallet recharge file parse API (date, receipt_no, amount, matched user, processed). */
 export interface WalletRechargeParseRow {
+  /** Present for rows loaded from server (stored parse entries). */
+  id?: number;
   date: string | null;
   receipt_no: string;
   name: string;
@@ -367,7 +505,11 @@ export interface WalletRechargeParseRow {
     email: string;
     name: string;
     emp_id: string;
+    /** Internal department name when user is matched by employee ID (from database). */
+    department_name?: string;
   } | null;
+  /** IMAP mailbox UID of the message this row was imported from (if any). */
+  source_imap_uid?: string;
 }
 
 class ApiClient {
@@ -385,7 +527,8 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    exposeHeaders?: string[],
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     const headers: HeadersInit = {
@@ -496,11 +639,22 @@ class ApiClient {
           waitlist_position: maybeWaitlist.waitlist_position,
           waitlist_code: maybeWaitlist.waitlist_code,
           waitlist_full: maybeWaitlist.waitlist_full,
+          errorCode: typeof maybeWaitlist.code === "string" ? maybeWaitlist.code : undefined,
+          istem_portal_url: typeof maybeWaitlist.istem_portal_url === "string" ? maybeWaitlist.istem_portal_url : undefined,
           fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
         };
       }
 
-      return { data: data as T };
+      const out: ApiResponse<T> = { data: data as T };
+      if (exposeHeaders?.length) {
+        for (const h of exposeHeaders) {
+          const v = response.headers.get(h);
+          if (v != null && v !== "" && h.toLowerCase() === "x-booking-perf") {
+            out.bookingPerf = v;
+          }
+        }
+      }
+      return out;
     } catch (error: any) {
       return {
         error: error.message || 'Network error occurred',
@@ -984,6 +1138,33 @@ class ApiClient {
     return { blob };
   }
 
+  async getBookingReturnShippingLabelPdfBlob(bookingId: number): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL}/bookings/${bookingId}/return-shipping-label.pdf`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
+  }
+
+  async setBookingReturnShippingTracking(
+    bookingId: number,
+    payload: {
+      shipping_company: string;
+      other_company_name?: string;
+      tracking_number: string;
+    }
+  ) {
+    return this.request<{ message?: string }>(`/bookings/${bookingId}/return-shipping-tracking/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getEquipmentProformaInvoicePdfBlob(equipmentId: number, data: { base_charge: number | string; description?: string }) {
     const token = this.getToken();
     const url = `${this.baseURL}/equipments/${equipmentId}/proforma-invoice.pdf`;
@@ -1056,6 +1237,7 @@ class ApiClient {
     auto_slot_selection?: boolean;
     wallet_low_balance_alert_enabled?: boolean;
     wallet_low_balance_alert_threshold?: number | null;
+    istem_portal_acknowledged?: boolean;
   }) {
     // Get current user ID first
     const userResponse = await this.getCurrentUser();
@@ -1076,7 +1258,7 @@ class ApiClient {
     return this.request<any[]>('/equipment/');
   }
 
-  async getEquipments(search?: string, status?: string, scope?: string) {
+  async getEquipments(search?: string, status?: string, scope?: string, includeRatings?: boolean) {
     const params = new URLSearchParams();
     if (search) {
       params.append('search', search);
@@ -1086,6 +1268,9 @@ class ApiClient {
     }
     if (scope) {
       params.append('scope', scope);
+    }
+    if (includeRatings) {
+      params.append('include_ratings', '1');
     }
     const queryString = params.toString();
     const endpoint = queryString ? `/equipments/?${queryString}` : '/equipments/';
@@ -1121,6 +1306,11 @@ class ApiClient {
     return this.request<{ content: Record<string, string>; font_sizes: Record<string, string> }>('/cms/home/');
   }
 
+  /** Public hero stats: operational equipment (public catalog) and active users. */
+  async getCmsSiteStats() {
+    return this.request<{ equipment_count: number; active_users_count: number }>('/cms/site-stats/');
+  }
+
   /** Hero carousel background images (multiple, with autoscroll on frontend). */
   async getCmsHeroSlides() {
     return this.request<Array<{ id: number; order: number; image_url: string; alt_text: string }>>('/cms/hero-slides/');
@@ -1149,6 +1339,9 @@ class ApiClient {
       image_url: string;
       slot_duration_minutes: number;
       slots_per_day: number;
+      /** Nullable override; when null, UI should use user's preference. */
+      auto_slot_selection_default?: boolean | null;
+      results_base_location?: string | null;
       internal_weekly_quota: number;
       external_weekly_quota: number;
       internal_monthly_quota: number;
@@ -1226,15 +1419,19 @@ class ApiClient {
     });
   }
 
-  /** Update equipment status (ACTIVE / INACTIVE). Admin/OIC only. */
-  async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'INACTIVE') {
+  /** Update equipment status. Admin/OIC only. */
+  async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'MAINTENANCE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER') {
     return this.updateEquipment(String(equipmentId), { status });
   }
 
   async calculateEquipmentCharge(
     equipmentId: number | string,
     fieldValues: Record<string, string | boolean | string[]>,
-    options?: { user_id?: number | string }
+    options?: {
+      user_id?: number | string;
+      reward_points_to_redeem?: number | string;
+      sample_return_after_analysis?: boolean;
+    }
   ) {
     // Convert field values to query parameters
     const params = new URLSearchParams();
@@ -1248,6 +1445,12 @@ class ApiClient {
     });
     if (options?.user_id != null) {
       params.append('user_id', String(options.user_id));
+    }
+    if (options?.reward_points_to_redeem != null) {
+      params.append('reward_points_to_redeem', String(options.reward_points_to_redeem));
+    }
+    if (options?.sample_return_after_analysis != null) {
+      params.append('sample_return_after_analysis', options.sample_return_after_analysis ? 'true' : 'false');
     }
     const queryString = params.toString();
     const endpoint = queryString
@@ -1270,6 +1473,14 @@ class ApiClient {
         description: string;
         amount: number;
       }>;
+      reward?: {
+        points_balance: string;
+        requested_points: string;
+        points_applied: string;
+        discount_amount: string;
+        final_payable: string;
+        message: string | null;
+      };
     }>(endpoint);
   }
 
@@ -1335,7 +1546,15 @@ class ApiClient {
     equipmentId: number | string, 
     startDate?: string,
     endDate?: string,
-    options?: { urgentWeekExtension?: boolean }
+    options?: {
+      urgentWeekExtension?: boolean;
+      maintenanceExtraWeekBookingId?: number;
+      /**
+       * Enforce Equipment.weekly_view_time_from/to on the slots payload.
+       * Used by Lab operator + OIC dashboard weekly calendar to restrict the visible time axis.
+       */
+      applyWeeklyViewTimeFilter?: boolean;
+    }
   ) {
     const params = new URLSearchParams();
 
@@ -1350,6 +1569,14 @@ class ApiClient {
     if (options?.urgentWeekExtension) {
       params.append('urgent_week_extension', '1');
     }
+    if (options?.maintenanceExtraWeekBookingId != null) {
+      params.append('maintenance_extra_week_booking_id', String(options.maintenanceExtraWeekBookingId));
+    }
+    if (options?.applyWeeklyViewTimeFilter) {
+      params.append('apply_weekly_view_time_filter', '1');
+    }
+    // Prevent stale weekly-slot responses after slot-status updates.
+    params.append('_ts', String(Date.now()));
     
     const queryString = params.toString();
     const endpoint = queryString 
@@ -1372,9 +1599,12 @@ class ApiClient {
         end_datetime: string;
         status: string;
         status_display?: string;
-        booking_id?: number | null;
+        booking_id?: number | string | null;
+        real_booking_id?: number | null;
         booking_status?: string | null;
         booking_status_display?: string | null;
+        booking_user_name?: string | null;
+        booking_user_department_code?: string | null;
         created_at: string;
         updated_at: string;
       }>;
@@ -1511,6 +1741,22 @@ class ApiClient {
 
   async getWalletBalance() {
     return this.request<{ balance: string }>('/wallet/balance/');
+  }
+
+  /** IITR Faculty: shared-wallet spend / recharges by linked students (optional date + equipment filter). */
+  async getFacultyWalletExpenseReport(params: {
+    date_from?: string;
+    date_to?: string;
+    equipment_id?: number;
+  }) {
+    const q = new URLSearchParams();
+    if (params.date_from) q.set('date_from', params.date_from);
+    if (params.date_to) q.set('date_to', params.date_to);
+    if (params.equipment_id != null) q.set('equipment_id', String(params.equipment_id));
+    const qs = q.toString();
+    return this.request<FacultyWalletExpenseReportData>(
+      `/wallet/faculty-expense-report/${qs ? `?${qs}` : ""}`,
+    );
   }
 
   async creditWallet(amount: number, description?: string) {
@@ -1978,6 +2224,50 @@ class ApiClient {
     };
   }
 
+  /** Faculty recharge pipeline (OTP-verified). Admin or accounts-in-charge. filter: all | pending | unmatched_no_parse */
+  async getWalletRechargePipelineRequests(
+    filter?: "all" | "pending" | "unmatched_no_parse"
+  ): Promise<{
+    data?: { requests: Record<string, unknown>[]; count: number; filter: string };
+    error?: string;
+  }> {
+    const q =
+      filter && filter !== "all" ? `?filter=${encodeURIComponent(filter)}` : "";
+    const url = `${this.baseURL.replace(/\/$/, "")}/wallet/recharge-requests/pipeline${q}`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 120_000);
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "GET", headers, signal: controller.signal });
+    } catch (e) {
+      window.clearTimeout(timeoutId);
+      const name = e instanceof Error ? e.name : "";
+      if (name === "AbortError") {
+        return {
+          error:
+            "Pipeline request timed out or was cancelled. Try again; if it persists, use filter “All” or check the server.",
+          data: undefined,
+        };
+      }
+      return {
+        error: e instanceof Error ? e.message : "Failed to load pipeline",
+        data: undefined,
+      };
+    }
+    window.clearTimeout(timeoutId);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || "Failed to load pipeline", data: undefined };
+    }
+    return {
+      data: data as { requests: Record<string, unknown>[]; count: number; filter: string },
+      error: undefined,
+    };
+  }
+
   /** Get stored recharge parse entries (shared across devices). Admin only. */
   async getWalletRechargeParseEntries(): Promise<{
     data?: { rows: WalletRechargeParseRow[]; count: number };
@@ -2006,15 +2296,21 @@ class ApiClient {
       ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
     };
     const body = JSON.stringify({
-      rows: rows.map((r) => ({
-        date: r.date,
-        receipt_no: r.receipt_no,
-        name: r.name,
-        emp_no: r.emp_no,
-        department: r.department,
-        amount: r.amount,
-        payment: r.payment,
-      })),
+      rows: rows.map((r) => {
+        const row: Record<string, unknown> = {
+          date: r.date,
+          receipt_no: r.receipt_no,
+          name: r.name,
+          emp_no: r.emp_no,
+          department: r.department,
+          amount: r.amount,
+          payment: r.payment,
+        };
+        if (typeof r.source_imap_uid === 'string' && r.source_imap_uid.trim() !== '') {
+          row.source_imap_uid = r.source_imap_uid.trim();
+        }
+        return row;
+      }),
     });
     const res = await fetch(url, { method: 'POST', headers, body });
     const data = await res.json().catch(() => ({}));
@@ -2022,6 +2318,223 @@ class ApiClient {
       return { error: (data as { error?: string }).error || 'Failed to save parse entries', data: undefined };
     }
     return { data: data as { rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** IMAP: delete message by UID if all parse rows tagged with that UID are processed. Admin only. */
+  async walletImapDeleteEmailIfProcessed(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{ data?: { deleted: boolean; email_uid: string }; error?: string }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-delete-email-if-processed/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to delete email', data: undefined };
+    }
+    return {
+      data: data as { deleted: boolean; email_uid: string },
+      error: undefined,
+    };
+  }
+
+  /** Update one stored parse row and, if it matches a user and is unprocessed, credit like process-recharge-rows. Admin only. */
+  async applyWalletRechargeParseEntry(payload: {
+    id: number;
+    date: string | null;
+    receipt_no: string;
+    name: string;
+    emp_no: string;
+    department: string;
+    amount: string;
+    payment: string;
+    default_department_id?: number | null;
+  }): Promise<{
+    data?: {
+      row: WalletRechargeParseRow;
+      credited: number;
+      skipped: number;
+      errors: string[];
+      processed_receipts: string[];
+      matched_recharge_requests: number;
+    };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entry-apply/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      id: payload.id,
+      date: payload.date,
+      receipt_no: payload.receipt_no,
+      name: payload.name,
+      emp_no: payload.emp_no,
+      department: payload.department,
+      amount: payload.amount,
+      payment: payload.payment,
+      default_department_id: payload.default_department_id ?? null,
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to apply row', data: undefined };
+    }
+    return {
+      data: data as {
+        row: WalletRechargeParseRow;
+        credited: number;
+        skipped: number;
+        errors: string[];
+        processed_receipts: string[];
+        matched_recharge_requests: number;
+      },
+      error: undefined,
+    };
+  }
+
+  /** Admin/finance: active projects for a faculty user (manual recharge request from unmatched parse row). */
+  async getWalletRechargeTargetUserProjects(userId: number): Promise<{
+    data?: { projects: Array<{ id: number; name: string; project_code: string; agency: string }> };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-target-user-projects/?user_id=${encodeURIComponent(String(userId))}`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'GET', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to load projects', data: undefined };
+    }
+    return {
+      data: data as { projects: Array<{ id: number; name: string; project_code: string; agency: string }> },
+      error: undefined,
+    };
+  }
+
+  /**
+   * Admin/finance: unmatched Wallet Recharge History row — create pending recharge request for selected user,
+   * notify faculty and accounts (same as post–faculty-OTP flow).
+   */
+  async createWalletRechargeRequestFromUnmatchedParseRow(payload: {
+    parse_entry_id: number;
+    user_id: number;
+    department_id: number;
+    project_id?: number | null;
+    note?: string;
+  }): Promise<{
+    data?: { request: Record<string, unknown>; message: string };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-request-from-unmatched-parse-row/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      parse_entry_id: payload.parse_entry_id,
+      user_id: payload.user_id,
+      department_id: payload.department_id,
+      project_id: payload.project_id ?? null,
+      note: payload.note?.trim() || '',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        error: (data as { error?: string }).error || 'Failed to create recharge request',
+        data: undefined,
+      };
+    }
+    return {
+      data: data as { request: Record<string, unknown>; message: string },
+      error: undefined,
+    };
+  }
+
+  /** Admin: users eligible for an individual wallet (for manual recharge). */
+  async adminWalletEligibleUsers(search?: string): Promise<{
+    data?: { users: Array<{
+      id: number;
+      name: string;
+      email: string;
+      emp_id: string;
+      user_type: string;
+      department_name: string | null;
+      department_id: number | null;
+      phone_number?: string | null;
+      secondary_phone_number?: string | null;
+      contact_number?: string | null;
+    }>; count: number };
+    error?: string;
+  }> {
+    const q = search != null && search !== '' ? `?search=${encodeURIComponent(search)}` : '';
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/admin-eligible-users/${q}`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'GET', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to list users', data: undefined };
+    }
+    return { data: data as { users: Array<{
+      id: number;
+      name: string;
+      email: string;
+      emp_id: string;
+      user_type: string;
+      department_name: string | null;
+      department_id: number | null;
+      phone_number?: string | null;
+      secondary_phone_number?: string | null;
+      contact_number?: string | null;
+    }>; count: number }, error: undefined };
+  }
+
+  /** Admin: credit wallet manually; creates import + parse rows; emails user (CC office). */
+  async adminManualWalletRecharge(payload: {
+    user_id: number;
+    amount: string;
+    department_id: number;
+    receipt_no: string;
+    date?: string | null;
+    payment?: string;
+    name?: string;
+  }): Promise<{
+    data?: { message?: string; rows?: WalletRechargeParseRow[]; processed_receipts?: string[]; errors?: string[] };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/admin-manual-recharge/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Manual recharge failed', data: undefined };
+    }
+    return { data: data as { message?: string; rows?: WalletRechargeParseRow[]; processed_receipts?: string[]; errors?: string[] }, error: undefined };
   }
 
   /** Clear all stored parse entries. Admin only. */
@@ -2290,17 +2803,83 @@ class ApiClient {
     });
   }
 
+  /** Faculty only: permanently remove a cancelled join request from the list. */
+  async deleteWalletJoinRequest(requestId: number) {
+    return this.request<{ message: string }>(`/wallet/join-requests/${requestId}/delete/`, {
+      method: 'POST',
+    });
+  }
+
+  /** Faculty only: permanently remove multiple cancelled join requests at once. */
+  async deleteWalletJoinRequestsBulk(requestIds: number[]) {
+    return this.request<{
+      message: string;
+      deleted_count: number;
+      requested_count: number;
+    }>('/wallet/join-requests/bulk-delete/', {
+      method: 'POST',
+      body: JSON.stringify({ request_ids: requestIds }),
+    });
+  }
+
   // Wallet recharge request endpoints
-  async sendUserOtpForRecharge(amount: number, departmentId: number, projectId?: number | null) {
+  async getWalletCreditFacilitySettings() {
+    return this.request<{
+      balance_threshold_inr: string;
+      credit_window_days: number;
+      max_credit_inr: string;
+    }>('/wallet/credit-facility/settings/', { method: 'GET' });
+  }
+
+  /** Faculty offline recharge: server decides if credit-facility popup should appear before send-otp. */
+  async getWalletCreditFacilityOfferForRecharge(departmentId: number) {
+    const q = new URLSearchParams({ department_id: String(departmentId) });
+    return this.request<{
+      show_offer: boolean;
+      /** False when a temporary credit line is already active for this department (cannot stack). */
+      can_activate_new_credit?: boolean;
+      balance_threshold_inr: string;
+      credit_window_days: number;
+      max_credit_inr: string;
+      sub_wallet_balance: string;
+      reason: string;
+    }>(`/wallet/credit-facility/offer-for-recharge/?${q.toString()}`, { method: 'GET' });
+  }
+
+  async getWalletCreditFacilityMyStatus() {
+    return this.request<{
+      items: Array<{
+        request_id: number;
+        department_id: number | null;
+        department_name: string;
+        amount: string;
+        credit_limit_inr: string | null;
+        credit_window_ends_at: string | null;
+        credit_facility_status: string;
+        sub_wallet_balance: string;
+        bookings_blocked: boolean;
+      }>;
+      /** Departments with a pending recharge that already opted into credit (suppress new credit popup). */
+      pending_credit_opt_in_department_ids?: number[];
+    }>('/wallet/credit-facility/my-status/', { method: 'GET' });
+  }
+
+  async sendUserOtpForRecharge(
+    amount: number,
+    departmentId: number,
+    projectId?: number | null,
+    creditFacilityOptedIn?: boolean
+  ) {
     return this.request<{
       request_id: number;
       message: string;
     }>('/wallet/recharge-request/send-otp/', {
       method: 'POST',
-      body: JSON.stringify({ 
-        amount, 
-        department_id: departmentId, 
-        project_id: projectId || null 
+      body: JSON.stringify({
+        amount,
+        department_id: departmentId,
+        project_id: projectId || null,
+        credit_facility_opted_in: Boolean(creditFacilityOptedIn),
       }),
     });
   }
@@ -2317,6 +2896,8 @@ class ApiClient {
         project_details?: string;
         status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
         status_display: string;
+        user_otp_verified?: boolean;
+        sric_notification_sent?: boolean;
         approved_by_email?: string;
         response_message?: string;
         created_at: string;
@@ -2338,6 +2919,9 @@ class ApiClient {
         user_name: string;
         user_email: string;
         wallet: number;
+        department?: number | null;
+        department_id?: number | null;
+        department_name?: string | null;
         amount: string;
         project_id?: number | null;
         project_name?: string | null;
@@ -2345,6 +2929,8 @@ class ApiClient {
         project_details?: string;
         status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
         status_display: string;
+        user_otp_verified?: boolean;
+        sric_notification_sent?: boolean;
         approved_by_email?: string;
         response_message?: string;
         created_at: string;
@@ -2357,8 +2943,8 @@ class ApiClient {
 
   async cancelWalletRechargeRequest(requestId: number) {
     return this.request<{
-      request: any;
       message: string;
+      deleted_id: number;
     }>(`/wallet/recharge-requests/${requestId}/cancel/`, {
       method: 'POST',
     });
@@ -2368,6 +2954,21 @@ class ApiClient {
     return this.request<{
       message: string;
     }>(`/wallet/recharge-requests/${requestId}/resend-notification/`, {
+      method: 'POST',
+    });
+  }
+
+  /** Faculty: send SRIC Office notification email for a pending recharge (after OTP verified). */
+  async sendSricWalletRechargeNotification(requestId: number) {
+    return this.request<{
+      message: string;
+      request: {
+        id: number;
+        sric_notification_sent?: boolean;
+        user_otp_verified?: boolean;
+        status: string;
+      };
+    }>(`/wallet/recharge-requests/${requestId}/send-sric/`, {
       method: 'POST',
     });
   }
@@ -2455,6 +3056,28 @@ class ApiClient {
     });
   }
 
+  /** Admin/OIC: flag booking for under-maintenance disruption (no refund; user may reschedule per policy). */
+  async bookingMaintenanceDisruption(bookingId: number, notes?: string) {
+    return this.request<{
+      message: string;
+      booking: any;
+    }>(`/bookings/${bookingId}/maintenance-disruption/`, {
+      method: 'POST',
+      body: JSON.stringify({ notes: notes ?? '' }),
+    });
+  }
+
+  /** Admin/OIC: flag booking for "Other Disruption" (requires reason; emailed to user). */
+  async bookingOtherDisruption(bookingId: number, reason: string) {
+    return this.request<{
+      message: string;
+      booking: any;
+    }>(`/bookings/${bookingId}/other-disruption/`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   async rescheduleBooking(bookingId: number, startTime: string, endTime: string) {
     return this.request<{
       message: string;
@@ -2512,32 +3135,101 @@ class ApiClient {
       exists: boolean;
       virtual_booking_id: string | null;
       files: Array<{ key: string; name: string; download_url: string }>;
+      error?: string;
+      code?: string;
+      istem_portal_url?: string;
     }>(`/bookings/${bookingId}/results/`);
   }
 
+  async updateBookingIstemFbr(bookingId: number, istem_fbr_number: string) {
+    return this.request<{ message: string; booking: unknown }>(`/bookings/${bookingId}/istem-fbr/`, {
+      method: "PATCH",
+      body: JSON.stringify({ istem_fbr_number }),
+    });
+  }
+
+  async reviewBookingIstemFbr(bookingId: number, action: "execute" | "invalidate", reason?: string) {
+    return this.request<{ message: string; booking: unknown }>(`/bookings/${bookingId}/istem-fbr/review/`, {
+      method: "POST",
+      body: JSON.stringify({ action, ...(reason != null && reason !== "" ? { reason } : {}) }),
+    });
+  }
+
   /** Download all result files for a booking as a single ZIP (folder named with booking ID). Triggers browser download. */
-  async downloadBookingResultsZip(bookingId: number, filename?: string): Promise<{ error?: string }> {
+  async downloadBookingResultsZip(
+    bookingId: number,
+    filename?: string,
+    onProgress?: (percent: number) => void
+  ): Promise<{ error?: string; errorCode?: string; istem_portal_url?: string }> {
     const token = this.getToken();
     if (!token) return { error: 'Not authenticated' };
+    let progress = 3;
+    const emitProgress = (value: number) => {
+      progress = Math.max(progress, Math.min(99, Math.round(value)));
+      onProgress?.(progress);
+    };
+    onProgress?.(progress);
+    const progressTimer = window.setInterval(() => {
+      if (progress < 30) progress += 3;
+      else if (progress < 65) progress += 2;
+      else if (progress < 88) progress += 1;
+      else if (progress < 97) progress += 0.35;
+      else if (progress < 99) progress += 0.12;
+      emitProgress(progress);
+    }, 180);
     const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
     const url = `${base}/bookings/${bookingId}/results/download/`;
-    const res = await fetch(url, { headers: { Authorization: `Token ${token}` } });
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: { Authorization: `Token ${token}` } });
+    } catch (error: any) {
+      window.clearInterval(progressTimer);
+      return { error: error?.message || 'Download failed' };
+    }
     if (!res.ok) {
+      window.clearInterval(progressTimer);
       const text = await res.text();
       try {
-        const j = JSON.parse(text);
-        return { error: j.error || res.statusText };
+        const j = JSON.parse(text) as { error?: string; code?: string; istem_portal_url?: string };
+        return {
+          error: j.error || res.statusText,
+          errorCode: j.code,
+          istem_portal_url: j.istem_portal_url,
+        };
       } catch {
         return { error: text || res.statusText };
       }
     }
-    const blob = await res.blob();
+    let blob: Blob;
+    const totalBytes = Number(res.headers.get('Content-Length') || '0');
+    if (res.body && totalBytes > 0) {
+      const reader = res.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+          const percent = Math.min(99, 10 + Math.round((received / totalBytes) * 89));
+          emitProgress(percent);
+        }
+      }
+      blob = new Blob(chunks, { type: res.headers.get('Content-Type') || 'application/zip' });
+    } else {
+      // When content length is unavailable, keep showing smooth progress via timer above.
+      blob = await res.blob();
+    }
+    window.clearInterval(progressTimer);
+    emitProgress(99);
     const name = filename || res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `Results_${bookingId}.zip`;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = name;
     a.click();
-    URL.revokeObjectURL(a.href);
+    onProgress?.(100);
+    window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     return {};
   }
 
@@ -2710,6 +3402,171 @@ class ApiClient {
     }>(endpoint);
   }
 
+  async getBookingStats() {
+    return this.request<{
+      total_bookings: number;
+      total_spent: number;
+      total_hours: number;
+      status_counts: Record<string, number>;
+    }>('/bookings/stats/');
+  }
+
+  /** Lab Incharge (operator) and OIC (manager) dashboard: filtered booking totals, week view, follow-up queues. */
+  async getLabOperatorDashboard(opts?: {
+    weekStart?: string;
+    period?: 'today' | 'week' | 'month' | 'year' | 'custom';
+    dateFrom?: string;
+    dateTo?: string;
+    /** Scope metrics & week grids to one assigned / OIC-managed equipment. */
+    equipmentId?: number;
+  }) {
+    const p = new URLSearchParams();
+    if (opts?.weekStart?.trim()) p.set('week_start', opts.weekStart.trim());
+    if (opts?.period) p.set('period', opts.period);
+    if (opts?.dateFrom?.trim()) p.set('date_from', opts.dateFrom.trim());
+    if (opts?.dateTo?.trim()) p.set('date_to', opts.dateTo.trim());
+    if (opts?.equipmentId != null && opts.equipmentId > 0) {
+      p.set('equipment_id', String(opts.equipmentId));
+    }
+    const q = p.toString() ? `?${p.toString()}` : '';
+    return this.request<{
+      today: string;
+      week_start: string;
+      week_end: string;
+      filter_period: string;
+      filter_date_start: string;
+      filter_date_end: string;
+      overall_booking_total: number;
+      overall_booking_booked_total: number;
+      overall_booking_completed: number;
+      overall_booking_rows: Array<{
+        booking_id: number;
+        booking_ref: string;
+        virtual_booking_id: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        status_display: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      external_booking_total: number;
+      external_booking_booked_total: number;
+      external_booking_completed: number;
+      external_booking_rows: Array<{
+        booking_id: number;
+        booking_ref: string;
+        virtual_booking_id: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        status_display: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      not_utilized_marked_total: number;
+      not_utilized_available_total: number;
+      not_utilized_focus_booking_id: number | null;
+      sample_returned_done_total: number;
+      sample_available_to_return_total: number;
+      sample_return_focus_booking_id: number | null;
+      sample_disposed_done_total: number;
+      sample_available_to_dispose_total: number;
+      sample_dispose_focus_booking_id: number | null;
+      days: Array<{
+        date: string;
+        is_today: boolean;
+        bookings: Array<{
+          booking_id: number;
+          booking_ref: string;
+          equipment_code: string;
+          equipment_name: string;
+          user_name: string;
+          status: string;
+          start_time: string | null;
+          end_time: string | null;
+        }>;
+      }>;
+      pending_sample_returned_count: number;
+      pending_sample_returned_bookings: Array<{
+        booking_id: number;
+        booking_ref: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      pending_dispose_count: number;
+      pending_dispose_bookings: Array<{
+        booking_id: number;
+        booking_ref: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      equipment_ids: number[];
+      equipment_summaries: Array<{
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+      }>;
+      pending_not_utilized_count: number;
+      pending_not_utilized_bookings: Array<{
+        booking_id: number;
+        booking_ref: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      not_utilized_marked_bookings: Array<{
+        booking_id: number;
+        booking_ref: string;
+        virtual_booking_id: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        status_display: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      sample_returned_done_bookings: Array<{
+        booking_id: number;
+        booking_ref: string;
+        virtual_booking_id: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        status_display: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+      sample_disposed_done_bookings: Array<{
+        booking_id: number;
+        booking_ref: string;
+        virtual_booking_id: string;
+        equipment_code: string;
+        equipment_name: string;
+        user_name: string;
+        status: string;
+        status_display: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>;
+    }>(`/bookings/lab-operator-dashboard/${q}`);
+  }
+
   async createBooking(data: {
     equipment_id: string | number;
     start_time: string;
@@ -2748,10 +3605,6 @@ class ApiClient {
     user_id?: number | string;
     /** When provided, create one booking for exactly these slot IDs (faster, single entry in My Bookings) */
     slot_ids?: number[];
-    /** Coupon: id of assigned coupon to apply (optional) */
-    coupon_id?: number;
-    /** Coupon: or provide code to apply (optional) */
-    coupon_code?: string;
     /** When true, create booking in HOLD status (no wallet debit); used for urgent request "Select Slot" flow */
     create_as_hold?: boolean;
     /** When true and slot_ids are taken, backend may allocate any other available slots (e.g. distributed) for the same duration */
@@ -2766,6 +3619,8 @@ class ApiClient {
     request_waitlist_without_slot_selection?: boolean;
     /** When false, backend will not push failed booking attempts to waitlist queue. */
     waitlist_on_failure?: boolean;
+    /** Optional TA reward points to redeem against this booking charge. */
+    reward_points_to_redeem?: number | string;
   }) {
     return this.request<{
       id: number;
@@ -2779,63 +3634,14 @@ class ApiClient {
       status_display: string;
       created_at: string;
       updated_at: string;
+      reward?: {
+        points_used: string;
+        discount_amount: string;
+      };
     }>(`/equipments/${equipmentId}/book/`, {
       method: 'POST',
       body: JSON.stringify(data),
-    });
-  }
-
-  /** List coupons assigned to the current user (balance, validity, is_expired). */
-  async getMyCoupons() {
-    return this.request<{
-      coupons: Array<{
-        id: number;
-        code: string;
-        amount: string;
-        balance?: string;
-        valid_from: string | null;
-        valid_until: string | null;
-        is_expired?: boolean;
-        max_uses: number | null;
-        used_count: number;
-      }>;
-    }>('/coupons/my/');
-  }
-
-  /** Validate a coupon code for the current user. Returns valid + coupon info or error message. */
-  async validateCoupon(couponCode: string) {
-    return this.request<{
-      valid: boolean;
-      message?: string;
-      coupon?: {
-        id: number;
-        code: string;
-        amount: string;
-        balance?: string;
-        valid_from: string | null;
-        valid_until: string | null;
-      };
-    }>('/coupons/validate/', {
-      method: 'POST',
-      body: JSON.stringify({ coupon_code: (couponCode || '').trim() }),
-    });
-  }
-
-  /** List current user's coupon consumption history. */
-  async getMyCouponUsages() {
-    return this.request<{
-      usages: Array<{
-        id: number;
-        coupon_code: string;
-        discount_amount: string;
-        used_at: string | null;
-        booking_id: BookingRef["booking_id"];
-        real_booking_id?: BookingRef["real_booking_id"];
-        virtual_booking_id: string | null;
-        equipment_name: string | null;
-        equipment_code: string | null;
-      }>;
-    }>('/coupons/my-usages/');
+    }, ['X-Booking-Perf']);
   }
 
   async updateBooking(bookingId: number | string, data: {
@@ -2885,11 +3691,23 @@ class ApiClient {
     );
   }
 
-  /** Submit rating (1-5 stars) and optional feedback for a booking. Only the booking user can rate. */
-  async rateBooking(bookingId: number, rating: number, feedback?: string) {
+  /** Submit rating for a booking. Only the booking user can rate. */
+  async rateBooking(
+    bookingId: number,
+    payload:
+      | { rating: number; feedback?: string }
+      | {
+          on_time_operator_availability: boolean;
+          laboratory_cleanliness_organization: boolean;
+          sample_handling_care: boolean;
+          operator_behaviour_professionalism: boolean;
+          compliance_booking_request_parameters: boolean;
+          feedback?: string;
+        }
+  ) {
     return this.request<{ message: string; booking: any }>(`/bookings/${bookingId}/rate/`, {
       method: 'POST',
-      body: JSON.stringify({ rating, feedback: feedback ?? '' }),
+      body: JSON.stringify(payload),
     });
   }
 
@@ -3216,6 +4034,8 @@ class ApiClient {
     duration_minutes?: number;
     evidence_file?: File;
     evidence_original_name?: string;
+    /** Faculty narrative for REVIEWER_URGENT (required by API when submitting evidence). */
+    reviewer_comment?: string;
     /** When user selected a slot via "Select Slot", pass the hold booking id returned by the hold booking API. */
     hold_booking_id?: number;
   }) {
@@ -3229,6 +4049,9 @@ class ApiClient {
       form.append('slots_requested', String(data.slots_requested ?? 1));
       if (data.duration_minutes != null) form.append('duration_minutes', String(data.duration_minutes));
       form.append('evidence_file', data.evidence_file);
+      if (data.reviewer_comment != null && data.reviewer_comment !== '') {
+        form.append('reviewer_comment', data.reviewer_comment);
+      }
       if (data.evidence_original_name) form.append('evidence_original_name', data.evidence_original_name);
       if (data.hold_booking_id != null) form.append('hold_booking_id', String(data.hold_booking_id));
       const url = `${this.baseURL}/urgent-booking-requests/create/`;
@@ -3276,6 +4099,7 @@ class ApiClient {
         duration_minutes: number | null;
         evidence_file_url: string | null;
         evidence_original_name: string;
+        reviewer_comment?: string;
         wallet_approved_at: string | null;
         wallet_approved_by_name: string | null;
         wallet_notes: string;
@@ -3331,6 +4155,7 @@ class ApiClient {
       duration_minutes: number | null;
       evidence_file_url: string | null;
       evidence_original_name: string;
+      reviewer_comment?: string;
       wallet_approved_at: string | null;
       wallet_approved_by_name: string | null;
       wallet_notes: string;
@@ -3662,6 +4487,218 @@ class ApiClient {
   /** Faculty: list TA nomination calls that are open for nomination (OPEN, deadline not passed). */
   async getOpenTANominationCallsForFaculty() {
     return this.request<{ ta_calls: TANominationCall[] }>('/ta-nomination-calls/open-for-faculty/');
+  }
+
+  /** Student: reward points summary (balance + config). */
+  async getMyRewardSummary() {
+    return this.request<{
+      student_id: number;
+      points_balance: string;
+      currency_per_point: string;
+      currency_value_balance: string;
+      lifetime_earned_points: string;
+      lifetime_redeemed_points: string;
+      config: {
+        is_enabled: boolean;
+        max_redeem_percent_per_booking: string;
+        max_redeem_points_per_booking: number;
+        min_booking_amount_for_redeem: string;
+      };
+    }>('/rewards/me/summary/');
+  }
+
+  /** Student: reward points ledger/history. */
+  async getMyRewardLedger(params?: { entry_type?: string; source_type?: string }) {
+    const sp = new URLSearchParams();
+    if (params?.entry_type) sp.append('entry_type', params.entry_type);
+    if (params?.source_type) sp.append('source_type', params.source_type);
+    const q = sp.toString();
+    return this.request<{
+      count: number;
+      entries: Array<{
+        id: number;
+        entry_type: string;
+        points: string;
+        currency_value: string;
+        source_type: string;
+        source_id: number | null;
+        description: string | null;
+        expires_at: string | null;
+        is_expired: boolean;
+        created_at: string;
+      }>;
+    }>(q ? `/rewards/me/ledger/?${q}` : '/rewards/me/ledger/');
+  }
+
+  /** Admin/OIC/Operator: list or get per-equipment reward config(s). */
+  async getAdminRewardConfigs(equipmentId?: number | string) {
+    const q = equipmentId != null ? `?equipment_id=${encodeURIComponent(String(equipmentId))}` : "";
+    return this.request<{
+      config?: {
+        id?: number;
+        equipment?: number | null;
+        equipment_code?: string;
+        equipment_name?: string;
+        is_enabled: boolean;
+        points_per_duty_hour: string;
+        points_per_sample: string;
+        currency_per_point: string;
+        max_redeem_percent_per_booking: string;
+        max_redeem_points_per_booking: number;
+        min_booking_amount_for_redeem: string;
+        expiry_days: number | null;
+        allow_stack_with_other_discounts: boolean;
+      };
+      configs?: Array<{
+        id?: number;
+        equipment?: number | null;
+        equipment_code?: string;
+        equipment_name?: string;
+        is_enabled: boolean;
+        points_per_duty_hour: string;
+        points_per_sample: string;
+        currency_per_point: string;
+        max_redeem_percent_per_booking: string;
+        max_redeem_points_per_booking: number;
+        min_booking_amount_for_redeem: string;
+        expiry_days: number | null;
+        allow_stack_with_other_discounts: boolean;
+      }>;
+      manageable_equipments?: Array<{
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        config_exists: boolean;
+      }>;
+    }>(`/admin/rewards/config/${q}`);
+  }
+
+  /** Admin/OIC/Operator: create or update per-equipment reward config. */
+  async updateAdminRewardConfig(
+    equipmentId: number | string,
+    data: {
+      is_enabled?: boolean;
+      points_per_duty_hour?: string | number;
+      points_per_sample?: string | number;
+      currency_per_point?: string | number;
+      max_redeem_percent_per_booking?: string | number;
+      max_redeem_points_per_booking?: number;
+      min_booking_amount_for_redeem?: string | number;
+      expiry_days?: number | null;
+      allow_stack_with_other_discounts?: boolean;
+    }
+  ) {
+    return this.request<{
+      config: {
+        id?: number;
+        equipment?: number | null;
+        equipment_code?: string;
+        equipment_name?: string;
+        is_enabled: boolean;
+        points_per_duty_hour: string;
+        points_per_sample: string;
+        currency_per_point: string;
+        max_redeem_percent_per_booking: string;
+        max_redeem_points_per_booking: number;
+        min_booking_amount_for_redeem: string;
+        expiry_days: number | null;
+        allow_stack_with_other_discounts: boolean;
+      };
+    }>(`/admin/rewards/config/?equipment_id=${encodeURIComponent(String(equipmentId))}`, {
+      method: "PATCH",
+      body: JSON.stringify({ equipment_id: Number(equipmentId), ...data }),
+    });
+  }
+
+  /** Admin/OIC: allocate a booking duty to an approved TA nomination. */
+  async allocateTAAssignment(data: {
+    nomination_id: number;
+    booking_id: number;
+    expected_hours?: string | number;
+    allocation_notes?: string;
+  }) {
+    return this.request<{ assignment: TAAssignment }>('/ta-assignments/allocate/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** List TA assignments for current user role (admin/oic/ta student). */
+  async listTAAssignments(params?: { status?: string; equipment_id?: number; booking_id?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.append('status', params.status);
+    if (params?.equipment_id != null) sp.append('equipment_id', String(params.equipment_id));
+    if (params?.booking_id != null) sp.append('booking_id', String(params.booking_id));
+    const q = sp.toString();
+    return this.request<{ count: number; assignments: TAAssignment[] }>(
+      q ? `/ta-assignments/list/?${q}` : '/ta-assignments/list/'
+    );
+  }
+
+  /** TA student: accept or decline a duty assignment. */
+  async respondTAAssignment(assignmentId: number, data: { action: "ACCEPT" | "DECLINE"; remarks?: string }) {
+    return this.request<{ assignment: TAAssignment }>(`/ta-assignments/${assignmentId}/respond/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Admin/OIC: cancel an ALLOCATED or ACCEPTED assignment. */
+  async cancelTAAssignment(assignmentId: number) {
+    return this.request<{ assignment: TAAssignment }>(`/ta-assignments/${assignmentId}/cancel/`, {
+      method: 'POST',
+    });
+  }
+
+  /** Create TA duty log against an accepted assignment. */
+  async createTADutyLog(data: {
+    assignment_id: number;
+    duty_date: string;
+    hours_spent?: string | number;
+    samples_processed?: number;
+    remarks?: string;
+  }) {
+    return this.request<{ duty_log: TADutyLog }>('/ta-duty-logs/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** List TA duty logs (role-scoped by backend). */
+  async listTADutyLogs(params?: { status?: string; student_id?: number; equipment_id?: number; assignment_id?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.append('status', params.status);
+    if (params?.student_id != null) sp.append('student_id', String(params.student_id));
+    if (params?.equipment_id != null) sp.append('equipment_id', String(params.equipment_id));
+    if (params?.assignment_id != null) sp.append('assignment_id', String(params.assignment_id));
+    const q = sp.toString();
+    return this.request<{ count: number; duty_logs: TADutyLog[] }>(
+      q ? `/ta-duty-logs/list/?${q}` : '/ta-duty-logs/list/'
+    );
+  }
+
+  /** Admin/OIC/Operator: verify TA duty log and credit rewards. Optional fields amend TA-submitted values before approving. */
+  async verifyTADutyLog(
+    dutyLogId: number,
+    data?: {
+      remarks?: string;
+      duty_date?: string;
+      hours_spent?: string | number;
+      samples_processed?: number;
+    }
+  ) {
+    return this.request<{ duty_log: TADutyLog }>(`/ta-duty-logs/${dutyLogId}/verify/`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  /** Admin/OIC/Operator: reject TA duty log. */
+  async rejectTADutyLog(dutyLogId: number, data?: { remarks?: string }) {
+    return this.request<{ duty_log: TADutyLog }>(`/ta-duty-logs/${dutyLogId}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
   }
 
   // Notice Board endpoints (public)
@@ -4076,6 +5113,312 @@ class ApiClient {
     });
   }
 
+  // Inventory APIs
+  async getInventoryItems(activeOnly = true) {
+    const q = new URLSearchParams();
+    q.set("active_only", activeOnly ? "1" : "0");
+    return this.request<{
+      items: Array<{
+        item_id: number;
+        item_code: string;
+        name: string;
+        category: "MAS" | "MIA_LLTA" | "CS";
+        uom: string;
+        specification: string;
+        active: boolean;
+      }>;
+    }>(`/inventory/items/?${q.toString()}`, { method: "GET" });
+  }
+
+  async createInventoryItem(payload: {
+    name: string;
+    category: "MAS" | "MIA_LLTA" | "CS";
+    uom: string;
+    specification?: string;
+    active?: boolean;
+  }) {
+    return this.request<{
+      item_id: number;
+      item_code: string;
+      name: string;
+      category: "MAS" | "MIA_LLTA" | "CS";
+      uom: string;
+      specification: string;
+      active: boolean;
+    }>("/inventory/items/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getInventoryEquipmentStock(equipmentId: number | string) {
+    return this.request<{
+      equipment_id: number;
+      configured_items: Array<Record<string, unknown>>;
+      stock: Array<{
+        id: number;
+        equipment: number;
+        item: {
+          item_id: number;
+          item_code: string;
+          name: string;
+          category: string;
+          uom: string;
+        };
+        current_qty: string;
+        updated_at: string;
+      }>;
+    }>(`/inventory/equipments/${equipmentId}/stock/`, { method: "GET" });
+  }
+
+  async addInventoryStock(payload: {
+    equipment: number;
+    item: number;
+    quantity: string;
+    unit_cost?: string;
+    remarks?: string;
+  }) {
+    return this.request<Record<string, unknown>>("/inventory/stock/add/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getInventoryRequests(params?: { equipment_id?: number | string; status?: string }) {
+    const q = new URLSearchParams();
+    if (params?.equipment_id != null) q.set("equipment_id", String(params.equipment_id));
+    if (params?.status) q.set("status", params.status);
+    return this.request<{
+      requests: Array<{
+        request_id: number;
+        request_no: string;
+        equipment: number;
+        requested_by: number;
+        request_type: "CONSUMABLE" | "NON_CONSUMABLE" | "MIXED";
+        status: string;
+        justification: string;
+        required_by_date: string | null;
+        lines: Array<{
+          id: number;
+          item: number;
+          item_detail?: { item_id: number; item_code: string; name: string; uom: string };
+          requested_qty: string;
+          approved_qty: string;
+          issued_qty: string;
+          remarks?: string;
+        }>;
+      }>;
+    }>(`/inventory/requests/${q.toString() ? `?${q.toString()}` : ""}`, { method: "GET" });
+  }
+
+  async createInventoryRequest(payload: {
+    equipment: number;
+    request_type: "CONSUMABLE" | "NON_CONSUMABLE" | "MIXED";
+    status?: "DRAFT" | "SUBMITTED";
+    justification?: string;
+    required_by_date?: string;
+    lines: Array<{
+      item: number;
+      requested_qty: string;
+      approved_qty?: string;
+      issued_qty?: string;
+      estimated_unit_cost?: string;
+      remarks?: string;
+    }>;
+  }) {
+    return this.request<Record<string, unknown>>("/inventory/requests/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async decideInventoryRequest(requestId: number | string, payload: { action: "APPROVE" | "REJECT"; decision_note?: string }) {
+    return this.request<Record<string, unknown>>(`/inventory/requests/${requestId}/decide/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async issueInventoryRequest(
+    requestId: number | string,
+    payload: { lines: Array<{ line_id: number; issue_qty: string; remarks?: string; serial_no?: string; issued_to?: number; condition_on_issue?: string }> },
+  ) {
+    return this.request<Record<string, unknown>>(`/inventory/requests/${requestId}/issue/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Procurement workflow APIs
+  async getProcurementRequests(params?: { equipment_id?: number | string; status?: string }) {
+    const q = new URLSearchParams();
+    if (params?.equipment_id != null) q.set("equipment_id", String(params.equipment_id));
+    if (params?.status) q.set("status", params.status);
+    return this.request<{ requests: Array<Record<string, unknown>> }>(
+      `/procurement/requests/${q.toString() ? `?${q.toString()}` : ""}`,
+      { method: "GET" },
+    );
+  }
+
+  async createProcurementRequest(payload: {
+    equipment: number;
+    remarks?: string;
+    lines: Array<{
+      item_master?: number;
+      manual_item_name?: string;
+      classification: "MAS" | "MIA_LLTA" | "CS";
+      quantity: string;
+      tentative_unit_cost: string;
+    }>;
+  }) {
+    return this.request<Record<string, unknown>>("/procurement/requests/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async officeVerifyProcurementRequest(
+    requestId: number | string,
+    payload: { decision: "VERIFY" | "REJECT"; comments?: string; line_corrections?: Array<Record<string, unknown>> },
+  ) {
+    return this.request<Record<string, unknown>>(`/procurement/requests/${requestId}/office-verify/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async storeApproveProcurementRequest(
+    requestId: number | string,
+    payload: { decision: "APPROVE" | "REJECT"; head_approval_mode?: "OFFLINE" | "EMAIL" | "NOT_REQUIRED"; comments?: string },
+  ) {
+    return this.request<Record<string, unknown>>(`/procurement/requests/${requestId}/store-approve/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async headApproveProcurementRequest(requestId: number | string, payload: { decision: "APPROVE" | "REJECT"; comments?: string }) {
+    return this.request<Record<string, unknown>>(`/procurement/requests/${requestId}/head-approve/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async markProcurementPurchaseComplete(requestId: number | string, payload: { comments?: string; invoice_file?: File | null }) {
+    const token = this.getToken();
+    if (!token) return { error: "Not authenticated" };
+    const formData = new FormData();
+    if (payload.comments) formData.append("comments", payload.comments);
+    if (payload.invoice_file) formData.append("invoice_file", payload.invoice_file);
+    const url = `${this.baseURL}/procurement/requests/${requestId}/purchase-complete/`;
+    const res = await fetch(url, { method: "POST", headers: { Authorization: `Token ${token}` }, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as any).error || `HTTP ${res.status}` };
+    return { data };
+  }
+
+  async markProcurementOfficeSeen(requestId: number | string, payload?: { comments?: string }) {
+    return this.request<Record<string, unknown>>(`/procurement/requests/${requestId}/office-seen/`, {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async oicEndorseProcurementRequest(
+    requestId: number | string,
+    payload: { decision?: "ENDORSE" | "REJECT"; comments?: string },
+  ) {
+    return this.request<Record<string, unknown>>(`/procurement/requests/${requestId}/oic-endorse/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getEquipmentLifecycleEquipmentChoices() {
+    return this.request<{ equipments: Array<{ equipment_id: number; code?: string; name?: string }> }>(
+      "/equipment/lifecycle/equipment-choices/",
+      { method: "GET" },
+    );
+  }
+
+  async getEquipmentLifecycle(equipmentId: number | string) {
+    return this.request<Record<string, unknown>>(`/equipment/${equipmentId}/lifecycle/`, { method: "GET" });
+  }
+
+  async patchEquipmentLifecycle(equipmentId: number | string, payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/equipment/${equipmentId}/lifecycle/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createEquipmentAmcContract(equipmentId: number | string, formData: FormData) {
+    const token = this.getToken();
+    if (!token) return { error: "Not authenticated" };
+    const url = `${this.baseURL}/equipment/${equipmentId}/amc-contracts/`;
+    const res = await fetch(url, { method: "POST", headers: { Authorization: `Token ${token}` }, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    return { data };
+  }
+
+  async createEquipmentExpense(equipmentId: number | string, payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/equipment/${equipmentId}/expenses/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getEquipmentWriteOffRequests(params?: { equipment_id?: number | string; status?: string }) {
+    const q = new URLSearchParams();
+    if (params?.equipment_id != null) q.set("equipment_id", String(params.equipment_id));
+    if (params?.status) q.set("status", params.status);
+    return this.request<{ requests: Array<Record<string, unknown>> }>(
+      `/equipment/write-off-requests/${q.toString() ? `?${q.toString()}` : ""}`,
+      { method: "GET" },
+    );
+  }
+
+  async createEquipmentWriteOffRequest(payload: {
+    equipment: number;
+    reason: string;
+    asset_classification?: string;
+    estimated_residual_value?: string | null;
+  }) {
+    return this.request<Record<string, unknown>>("/equipment/write-off-requests/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async equipmentWriteOffOfficeAction(writeOffId: number | string, payload: { decision?: "FORWARD" | "REJECT"; comments?: string }) {
+    return this.request<Record<string, unknown>>(`/equipment/write-off-requests/${writeOffId}/office-action/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async equipmentWriteOffStoreAction(writeOffId: number | string, payload: { decision?: "FORWARD" | "REJECT"; comments?: string }) {
+    return this.request<Record<string, unknown>>(`/equipment/write-off-requests/${writeOffId}/store-action/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async equipmentWriteOffHeadAction(writeOffId: number | string, payload: { decision?: "APPROVE" | "REJECT"; comments?: string }) {
+    return this.request<Record<string, unknown>>(`/equipment/write-off-requests/${writeOffId}/head-action/`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async equipmentWriteOffExecute(writeOffId: number | string, payload?: { comments?: string }) {
+    return this.request<Record<string, unknown>>(`/equipment/write-off-requests/${writeOffId}/execute/`, {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
   // Admin dashboard CRUD (admin-only API; no Django Admin login required)
   getAdminEndpoint(section: string): string {
     const path = ADMIN_SECTION_ENDPOINTS[section];
@@ -4320,10 +5663,37 @@ class ApiClient {
     return this.request<{
       date_from: string;
       date_to: string;
+      report_header?: {
+        institute_name?: string;
+        organization?: string;
+        report_title?: string;
+        period_display?: string;
+        month_year?: string;
+      };
       equipment: Array<{
         equipment_id: number;
         name: string;
         code: string;
+        status?: string;
+        status_display?: string;
+        officers_in_charge?: Array<{ id: number; name: string; email: string }>;
+        lab_operators?: Array<{ id: number; name: string; email: string }>;
+        slot_window_display?: string;
+        distinct_users_served?: number;
+        distinct_users_internal?: number;
+        distinct_users_external?: number;
+        total_samples?: number;
+        samples_internal?: number;
+        samples_external?: number;
+        total_booking_hours?: number;
+        booking_hours_internal?: number;
+        booking_hours_external?: number;
+        available_hours_working_window?: number;
+        available_hours_weekend_or_holiday?: number;
+        completed_slot_hours_working_window?: number;
+        utilization_vs_working_capacity?: number;
+        blocked_hours?: number;
+        other_disruption_hours?: number;
         total_bookings_in_period: number;
         completed_in_period: number;
         overall_bookings: number;
@@ -4338,9 +5708,36 @@ class ApiClient {
         no_booking_hours: number;
         booked_slots: number;
         booked_hours: number;
+        user_ratings?: {
+          ratings_submitted_count?: number;
+          overall_rating_avg?: number | null;
+          criteria?: Record<
+            string,
+            { yes?: number; no?: number; unanswered?: number }
+          >;
+        };
       }>;
       utilization_pie: Array<{ name: string; value: number; hours: number }>;
-      summary: { total_equipment: number };
+      summary: {
+        total_equipment: number;
+        total_hours?: number;
+        utilized_hours?: number;
+        downtime_hours?: number;
+        utilization_factor?: number;
+        revenue_total?: number;
+        revenue_internal?: number;
+        revenue_external?: number;
+        available_hours_working_window?: number;
+        completed_hours_in_working_window?: number;
+        utilization_vs_working_capacity?: number;
+      };
+      financial?: {
+        revenue_by_user_type?: Array<{ user_type_snapshot: string; total: string | number; count: number }>;
+        revenue_by_department?: Array<{ user__department__name: string | null; total: string | number; count: number }>;
+        revenue_by_user?: Array<{ user_id: number; user__name: string | null; user__email: string | null; total: string | number; count: number }>;
+        revenue_by_equipment?: Array<{ equipment_id: number; equipment__code: string | null; equipment__name: string | null; total: string | number; count: number }>;
+        revenue_by_external_category?: Array<{ user_type_snapshot: string; total: string | number; count: number }>;
+      };
     }>(`${endpoint}${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
   }
 
@@ -4661,62 +6058,6 @@ class ApiClient {
     return this.request<void>(`${this.getAdminEndpoint('notices')}${id}/`, { method: 'DELETE' });
   }
 
-  /** Admin: list coupons. */
-  async adminCouponsList(params?: { search?: string }) {
-    const p: Record<string, string> = {};
-    if (params?.search) p.search = params.search;
-    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
-    return this.request<Array<{
-      id: number;
-      code: string;
-      amount: string;
-      valid_from: string;
-      valid_until: string;
-      max_uses: number | null;
-      used_count: number;
-      is_active: boolean;
-      created_by: number | null;
-      created_by_email: string | null;
-      created_at: string;
-      updated_at: string;
-    }>>(`${this.getAdminEndpoint('coupons')}${q}`, { method: 'GET' });
-  }
-
-  /** Admin: create coupon. */
-  async adminCouponCreate(data: { amount: number; valid_from: string; valid_until: string; max_uses?: number | null; is_active?: boolean }) {
-    return this.request<Record<string, unknown>>(this.getAdminEndpoint('coupons'), {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  /** Admin: assign coupon to user. */
-  async adminCouponAssign(couponId: number, userId: number) {
-    return this.request<{ message: string; user_id: number; user_email: string }>(
-      `${this.getAdminEndpoint('coupons')}${couponId}/assign/`,
-      { method: 'POST', body: JSON.stringify({ user_id: userId }) }
-    );
-  }
-
-  /** Admin: list coupon usages (consumption history). */
-  async adminCouponUsages(params?: { coupon_id?: number; page?: number }) {
-    const p: Record<string, string> = {};
-    if (params?.coupon_id != null) p.coupon_id = String(params.coupon_id);
-    if (params?.page != null) p.page = String(params.page);
-    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
-    return this.request<{ count: number; next: string | null; previous: string | null; results: Array<{
-      id: number;
-      coupon_code: string;
-      coupon_id: number;
-      booking_id: BookingRef["booking_id"];
-      real_booking_id?: BookingRef["real_booking_id"];
-      virtual_booking_id: string;
-      user_email: string;
-      discount_amount: string;
-      used_at: string;
-    }> }>(`${this.getAdminEndpoint('coupons')}/usages/${q}`, { method: 'GET' });
-  }
-
   /** Create CMS menu item, optionally with document (PDF) upload via multipart. */
   async adminCmsMenuCreate(data: Record<string, unknown>, documentFile?: File | null) {
     const endpoint = this.getAdminEndpoint('cmsMenu');
@@ -4931,6 +6272,9 @@ class ApiClient {
         user_email: string;
         user_name: string;
         created_at: string | null;
+        status?: string | null;
+        cannot_fulfill_remark?: string | null;
+        marked_cannot_fulfill_at?: string | null;
         booking_attempt_requested_at?: string | null;
         booking_attempt_failure_reason?: string | null;
         booking_attempt_number_of_samples?: number | null;
@@ -4939,6 +6283,8 @@ class ApiClient {
         booking_attempt_additional_info?: any;
       }>;
       count: number;
+      active_count?: number;
+      cannot_fulfill_count?: number;
     }>(`${endpoint}${equipmentId}/waitlist/`, { method: 'GET' });
   }
 

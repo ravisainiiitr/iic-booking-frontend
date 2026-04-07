@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,8 +10,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import TicketForm from "@/components/TicketForm";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 
 interface EquipmentCardProps {
   name: string;
@@ -37,10 +44,10 @@ interface EquipmentCardProps {
   sampleRequirements?: string;
   detailsUrl?: string;
   id?: string | number;
-  /** When true, show Active/Inactive toggle (admin/OIC only). */
+  /** When true, show status dropdown (admin/OIC only). */
   showStatusToggle?: boolean;
-  /** Callback when status is toggled (opens confirmation; parent should show dialog and then call API on confirm). */
-  onStatusChange?: (equipmentId: number, equipmentName: string, newStatus: "ACTIVE" | "INACTIVE") => void | Promise<void>;
+  /** Callback when status is changed. */
+  onStatusChange?: (equipmentId: number, equipmentName: string, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => void | Promise<void>;
   /** Equipment id that is currently updating (disables its switch). */
   statusUpdatingId?: number;
   avgRating?: number | null;
@@ -149,6 +156,7 @@ const EquipmentCard = ({
   ratingDist,
 }: EquipmentCardProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(true); // Start as playing if video exists
   const videoRef = useRef<HTMLVideoElement>(null);
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
@@ -264,8 +272,14 @@ const EquipmentCard = ({
   };
 
   return (
-    <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
-      <div className="aspect-square overflow-hidden bg-muted relative">
+    <Card
+      className="cursor-pointer overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1"
+      onClick={() => {
+        if (id == null) return;
+        navigate(`/equipment/${id}`);
+      }}
+    >
+      <div className="relative aspect-video overflow-hidden bg-muted">
         {video ? (
           <>
             <video 
@@ -277,12 +291,18 @@ const EquipmentCard = ({
               loop
               playsInline
               onEnded={() => setIsPlaying(true)}
-              onClick={handlePauseVideo}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePauseVideo();
+              }}
               poster={displayImage}
             />
             {!isPlaying && (
               <button
-                onClick={handlePlayVideo}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePlayVideo();
+                }}
                 className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors group/play z-10"
                 aria-label="Play video"
               >
@@ -299,18 +319,26 @@ const EquipmentCard = ({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         )}
+        {category ? (
+          <span className="absolute top-3 left-3 rounded-full bg-white/90 dark:bg-black/50 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
+            {category}
+          </span>
+        ) : null}
       </div>
       
-      <CardHeader>
+      <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
+            <CardTitle className="text-lg line-clamp-2">{name}</CardTitle>
             {ratingSummaryCount > 0 && (
               <div className="mt-1">
                 <button
                   type="button"
                   className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                  onClick={() => setRatingDialogOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRatingDialogOpen(true);
+                  }}
                 >
                   <span className="inline-flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((s) => {
@@ -335,69 +363,70 @@ const EquipmentCard = ({
           <div className="flex items-center gap-2 shrink-0">
             {showStatusToggle && onStatusChange && id != null ? (
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Label htmlFor={`card-status-${id}`} className="text-xs font-medium text-muted-foreground cursor-pointer whitespace-nowrap">
-                  {status === "ACTIVE" ? "Active" : "Inactive"}
+                <Label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Status
                 </Label>
-                <Switch
-                  id={`card-status-${id}`}
-                  checked={status === "ACTIVE"}
+                <Select
+                  value={(status as any) || "ACTIVE"}
+                  onValueChange={(value) => onStatusChange(Number(id), name, value as any)}
                   disabled={statusUpdatingId === Number(id)}
-                  onCheckedChange={(checked) => onStatusChange(Number(id), name, checked ? "ACTIVE" : "INACTIVE")}
-                />
+                >
+                  <SelectTrigger className="h-8 w-[190px]">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Operational</SelectItem>
+                    <SelectItem value="MAINTENANCE">Maintenance Scheduled</SelectItem>
+                    <SelectItem value="REPAIR">Under Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               (() => {
-                // Map status display: ACTIVE -> "Working", INACTIVE -> "Not Working", others -> actual status
-                let displayStatus = statusDisplay || status || "";
-                if (status === "ACTIVE") {
-                  displayStatus = "Working";
-                } else if (status === "INACTIVE") {
-                  displayStatus = "Not Working";
-                }
-
-                const isWorking = status === "ACTIVE";
-                const isNotWorking = status === "INACTIVE";
-                const variant = isWorking ? "default" : (isNotWorking ? "destructive" : "secondary");
-                const badgeClass = isWorking
+                const displayStatus = statusDisplay || status || "";
+                const isOperational = status === "ACTIVE";
+                const variant = isOperational ? "default" : "secondary";
+                const badgeClass = isOperational
                   ? "shrink-0 bg-green-600 hover:bg-green-700"
-                  : (isNotWorking ? "shrink-0" : "shrink-0");
+                  : "shrink-0";
 
                 return (
                   <Badge variant={variant} className={badgeClass}>
-                    {displayStatus || (available ? "Working" : "Not Working")}
+                    {displayStatus || (isOperational ? "Operational" : "Not Operational")}
                   </Badge>
                 );
               })()
             )}
           </div>
         </div>
-        {category ? <CardDescription className="text-sm">{category}</CardDescription> : null}
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground line-clamp-2">
-          {description}
-        </p>
+        <CardDescription className="text-sm line-clamp-2">{description}</CardDescription>
+        {typeof internalRate === "number" && internalRate > 0 ? (
+          <div className="text-base font-semibold text-foreground">₹{Number(internalRate).toFixed(2)}/hour</div>
+        ) : null}
+        <div className="pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDialogOpen(true);
+            }}
+          >
+            More info
+          </Button>
+        </div>
       </CardContent>
 
-      <CardFooter className="flex gap-2">
-        <Button 
-          className="flex-1 gap-2" 
-          disabled={!available}
-          onClick={() => {
-            window.location.href = `/equipment/${id}`;
-          }}
-        >
-          <Calendar className="h-4 w-4" />
-          Book Now
-        </Button>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="flex-1">
-              More Info
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <DialogHeader>
               <DialogTitle className="text-2xl">{equipmentDetail?.name || name}</DialogTitle>
               {category ? <DialogDescription>{category}</DialogDescription> : null}
@@ -637,11 +666,11 @@ const EquipmentCard = ({
                 </div>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+        </DialogContent>
+      </Dialog>
 
-        <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <DialogHeader>
               <DialogTitle className="text-xl">Ratings & reviews</DialogTitle>
               <DialogDescription>{name}</DialogDescription>
@@ -778,9 +807,8 @@ const EquipmentCard = ({
                 )}
               </div>
             )}
-          </DialogContent>
-        </Dialog>
-      </CardFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

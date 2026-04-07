@@ -56,6 +56,7 @@ interface Booking extends BookingRef {
   user_email: string;
   user_name: string;
   created_by_name?: string | null;
+  created_by?: number | null;
   user_phone?: string | null;
   user_department?: string | null;
   user_profile_picture?: string | null;
@@ -122,6 +123,19 @@ interface Booking extends BookingRef {
   equipment_repeat_sample_disclaimer?: string | null;
   equipment_enable_charge_recalculation?: boolean;
   equipment_user_rating_enabled?: boolean;
+  has_results?: boolean;
+  oic_contacts?: Array<{
+    user_id: number;
+    name: string;
+    email?: string;
+    phone?: string | null;
+    user_type?: string;
+  }>;
+  istem_fbr_number?: string | null;
+  istem_fbr_status?: string | null;
+  istem_fbr_status_display?: string | null;
+  istem_fbr_invalid_reason?: string | null;
+  istem_fbr_executed_at?: string | null;
   repeat_sample_request_status?: string | null;
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
@@ -132,6 +146,21 @@ interface Booking extends BookingRef {
   waitlist_position?: number;
   waitlist_code?: string;
   is_waitlist_entry?: boolean;
+  booking_attempt_requested_at?: string | null;
+  booking_attempt_failure_reason?: string | null;
+  booking_attempt_number_of_samples?: number | null;
+  booking_attempt_slots_requested?: number | null;
+  booking_attempt_duration_minutes?: number | null;
+  booking_attempt_additional_info?: any;
+  /** Equipment under-maintenance disruption policy */
+  maintenance_disruption_flag?: boolean;
+  maintenance_decision_deadline_at?: string | null;
+  maintenance_reschedule_extra_week?: boolean;
+  /** When equipment became operational again; used server-side for extra reschedule weeks */
+  maintenance_operational_marked_at?: string | null;
+  equipment_status?: string | null;
+  /** False when equipment is not ACTIVE (e.g. under maintenance) */
+  equipment_is_operational?: boolean;
 }
 
 const PAGE_SIZE = 50;
@@ -156,6 +185,12 @@ const MyBookings = () => {
   const [resultsDialogFiles, setResultsDialogFiles] = useState<Array<{ name: string; download_url: string }>>([]);
   const [resultsDialogBookingId, setResultsDialogBookingId] = useState<number | null>(null);
   const [resultsLoadingId, setResultsLoadingId] = useState<string | number | null>(null);
+  const [zipDownloadInProgress, setZipDownloadInProgress] = useState(false);
+  const [zipDownloadProgress, setZipDownloadProgress] = useState(0);
+  const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
+  const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
+  const [resultsDialogBooking, setResultsDialogBooking] = useState<Booking | null>(null);
+  const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [ratingLoadingId, setRatingLoadingId] = useState<string | number | null>(null);
   const [ratingDraft, setRatingDraft] = useState<Record<string, { stars: number; feedback: string }>>({});
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
@@ -168,6 +203,9 @@ const MyBookings = () => {
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [currentUserType, setCurrentUserType] = useState<string | null>(null);
   const [cancelProgress, setCancelProgress] = useState(0);
+  const isFacultyUser = String(currentUserType || "").toLowerCase() === "faculty";
+  const isAccountsFinanceUser = String(currentUserType || "").toLowerCase() === "finance";
+  const isLabOperatorUser = String(currentUserType || "").toLowerCase() === "operator";
 
   useEffect(() => {
     if (user?.user_type != null) setCurrentUserType(String(user.user_type));
@@ -198,12 +236,22 @@ const MyBookings = () => {
   };
 
   const handleResultsClick = async (booking: Booking) => {
+    if (canRateBooking(booking)) {
+      setRatingRequiredPopupOpen(true);
+      showBookingDetail(booking);
+      return;
+    }
+    if (booking.has_results !== true) {
+      toast.info("Results are not available for this booking yet.");
+      return;
+    }
     const bid = booking.booking_id;
     const backendId = getRealBookingId(booking);
     const cacheKey = getBookingKey(booking);
     const cached = resultsCache[cacheKey];
     if (cached) {
       if (cached.exists && cached.files.length > 0) {
+        setResultsDialogBooking(booking);
         setResultsDialogFiles(cached.files);
         setResultsDialogBookingId(backendId);
         setResultsDialogOpen(true);
@@ -219,10 +267,21 @@ const MyBookings = () => {
     setResultsLoadingId(bid);
     const res = await apiClient.getBookingResults(backendId);
     setResultsLoadingId(null);
+    if (res.error) {
+      if (res.errorCode === "istem_fbr_not_executed") {
+        setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
+        setResultsDialogBooking(booking);
+        setResultsFbrInfoOpen(true);
+        return;
+      }
+      toast.error(res.error);
+      return;
+    }
     const exists = res.data?.exists ?? false;
     const files = (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url }));
     setResultsCache((prev) => ({ ...prev, [cacheKey]: { exists, files } }));
     if (exists && files.length > 0) {
+      setResultsDialogBooking(booking);
       setResultsDialogFiles(files);
       setResultsDialogBookingId(backendId);
       setResultsDialogOpen(true);
@@ -326,7 +385,7 @@ const MyBookings = () => {
         setTotalCount(0);
       } else if (response.data && response.data.bookings) {
         let list = response.data.bookings as unknown as Booking[];
-        if (status === "all" || status === "WAITLISTED") {
+        if (!isAccountsFinanceUser && (status === "all" || status === "WAITLISTED")) {
           const waitlistRes = await apiClient.getMyWaitlistEntries();
           if (!waitlistRes.error && Array.isArray(waitlistRes.data?.entries)) {
             list = [...list, ...(waitlistRes.data?.entries as unknown as Booking[])];
@@ -343,7 +402,9 @@ const MyBookings = () => {
         if (overrides?.onlyShowUnrated) {
           list = list.filter(
             (b: Booking) =>
-              (b.rating == null || b.rating === undefined) && (b.equipment_user_rating_enabled !== false)
+              (b.rating == null || b.rating === undefined) &&
+              (b.equipment_user_rating_enabled !== false) &&
+              (!isFacultyUser || (user?.id != null && Number(b.user) === Number(user.id)))
           );
         }
         setBookings(list);
@@ -416,9 +477,25 @@ const MyBookings = () => {
     });
   };
 
+  const showWaitlistDetail = (booking: Booking) => {
+    setSelectedBookingId(booking.booking_id);
+    setOverrideBooking(booking);
+    setTimeout(
+      () =>
+        document
+          .getElementById("booking-detail-section")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      150
+    );
+  };
+
   const canCancelOrReschedule = (status: string) => {
     const statusLower = status.toLowerCase();
-    return statusLower === "pending" || statusLower === "booked";
+    return (
+      statusLower === "pending" ||
+      statusLower === "booked" ||
+      statusLower === "disruption_pending"
+    );
   };
 
   const isWaitlistedEntry = (booking: Booking) =>
@@ -440,15 +517,18 @@ const MyBookings = () => {
       if (startTime <= now) return false;
       const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
       const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
-      return hoursUntilStart > threshold;
+      // Allow actions at the exact cutoff moment; disallow only when strictly inside the threshold window.
+      return hoursUntilStart >= threshold;
     } catch {
       return false;
     }
   };
 
   const canRateBooking = (booking: Booking): boolean => {
+    if (isAccountsFinanceUser) return false;
     if (booking.rating != null && booking.rating !== undefined) return false;
     if (booking.equipment_user_rating_enabled === false) return false;
+    if (isFacultyUser && (user?.id == null || Number(booking.user) !== Number(user.id))) return false;
     return booking.status.toUpperCase() === "COMPLETED";
   };
 
@@ -465,7 +545,10 @@ const MyBookings = () => {
       return;
     }
     setRatingLoadingId(booking.booking_id);
-    const res = await apiClient.rateBooking(backendId, draft.stars, draft.feedback.trim() || undefined);
+    const res = await apiClient.rateBooking(backendId, {
+      rating: draft.stars,
+      feedback: draft.feedback.trim() || undefined,
+    });
     setRatingLoadingId(null);
     if (res.error) {
       toast.error(res.error || "Failed to submit rating");
@@ -502,7 +585,7 @@ const MyBookings = () => {
       const now = new Date();
       
       // Check if start time is in the past
-      if (startTime <= now) {
+      if (!booking.maintenance_disruption_flag && startTime <= now) {
         return false;
       }
       
@@ -511,13 +594,47 @@ const MyBookings = () => {
       // Get threshold from equipment (default to 48 hours if not specified)
       const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
 
+      // Under maintenance disruption: reschedule only after equipment is operational again
+      if (booking.maintenance_disruption_flag && booking.equipment_is_operational === false) {
+        return false;
+      }
+
+      // Disruption policy (maintenance/operator absent): reschedule allowed even inside threshold
+      if (booking.maintenance_disruption_flag) {
+        return true;
+      }
+
       // Allow reschedule if booking is more than threshold hours away
-      return hoursUntilStart > threshold;
+      // Allow reschedule at the exact cutoff moment; disallow only when strictly inside the threshold window.
+      return hoursUntilStart >= threshold;
     } catch (error) {
       console.error('Error calculating reschedule eligibility:', error);
       return false;
     }
   };
+
+  /** Cancel allowed outside normal threshold when maintenance disruption policy applies. Waitlist: any time if entry id present. */
+  const canUseCancelButton = (booking: Booking) => {
+    if (isRepeatBooking(booking)) return false;
+    if (isWaitlistedEntry(booking)) {
+      return Boolean(booking.waitlist_entry_id);
+    }
+    return (
+      canCancelBooking(booking) &&
+      (!!booking.maintenance_disruption_flag || isWithinThresholdWindow(booking))
+    );
+  };
+
+  const restrictedExternalUserType =
+    currentUserType &&
+    ["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase());
+
+  /** Table Cancel: waitlisted users may cancel queue entry even when external; normal bookings keep existing external restriction. */
+  const canShowTableCancelButton = (booking: Booking) =>
+    !isAccountsFinanceUser &&
+    !isLabOperatorUser &&
+    canUseCancelButton(booking) &&
+    (isWaitlistedEntry(booking) || !restrictedExternalUserType);
 
   const handleCancelClick = (booking: Booking) => {
     if (isRepeatBooking(booking)) {
@@ -530,8 +647,8 @@ const MyBookings = () => {
       setCancelDialogOpen(true);
       return;
     }
-    // Check if cancel is allowed based on time threshold
-    if (!isWithinThresholdWindow(booking)) {
+    // Check if cancel is allowed based on time threshold (maintenance disruption: always allowed)
+    if (!booking.maintenance_disruption_flag && !isWithinThresholdWindow(booking)) {
       if (booking.start_time) {
         const startTime = new Date(booking.start_time);
         const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
@@ -764,6 +881,8 @@ const MyBookings = () => {
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="PENDING">PENDING</SelectItem>
                     <SelectItem value="BOOKED">BOOKED</SelectItem>
+                    <SelectItem value="DISRUPTION_PENDING">Awaiting choice (disruption)</SelectItem>
+                  <SelectItem value="UNDER_MAINTENANCE">Under maintenance</SelectItem>
                     <SelectItem value="COMPLETED">COMPLETED</SelectItem>
                     <SelectItem value="CANCELLED">CANCELLED</SelectItem>
                     <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
@@ -935,9 +1054,14 @@ const MyBookings = () => {
                       <TableRow key={booking.booking_id} className="group">
                         <TableCell className="font-medium">
                           {isWaitlistedEntry(booking) ? (
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-500">
+                            <button
+                              type="button"
+                              onClick={() => showWaitlistDetail(booking)}
+                              className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-500 hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded"
+                            >
                               {booking.virtual_booking_id || booking.waitlist_code || "Waitlisted"}
-                            </span>
+                              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                            </button>
                           ) : (
                             <button
                               type="button"
@@ -997,7 +1121,9 @@ const MyBookings = () => {
                                 View
                               </Button>
                             )}
-                            {!isWaitlistedEntry(booking) && booking.status.toUpperCase() === "COMPLETED" && (
+                            {!isWaitlistedEntry(booking) &&
+                              booking.status.toUpperCase() === "COMPLETED" &&
+                              booking.has_results === true && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1007,8 +1133,10 @@ const MyBookings = () => {
                                 {resultsLoadingId === booking.booking_id ? "…" : "Results"}
                               </Button>
                             )}
-                            {(!currentUserType ||
-                              !["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase())) &&
+                            {!isAccountsFinanceUser &&
+                              !isLabOperatorUser &&
+                              (!currentUserType ||
+                                !["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase())) &&
                               canCancelOrReschedule(booking.status) &&
                               canReschedule(booking) && (
                               <Button
@@ -1022,10 +1150,7 @@ const MyBookings = () => {
                                 Reschedule
                               </Button>
                             )}
-                            {(!currentUserType ||
-                              !["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase())) &&
-                              canCancelBooking(booking) &&
-                              !isRepeatBooking(booking) && (
+                            {canShowTableCancelButton(booking) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1105,27 +1230,104 @@ const MyBookings = () => {
                   </div>
                 );
               }
+              if (isWaitlistedEntry(overrideBooking)) {
+                return (
+                  <BookingDetailCard
+                    booking={overrideBooking as unknown as BookingDetailCardBooking}
+                    onClose={closeDetail}
+                    onUpdated={() => fetchBookings(undefined, page)}
+                    isOperator={isLabOperatorUser}
+                    isManagerOrAdmin={isAdminOrOIC()}
+                    currentUserType={currentUserType}
+                    currentUserId={user?.id}
+                    backLabel="Back to list"
+                    showPrintButton
+                    onUserCancelClick={
+                      isLabOperatorUser || isAccountsFinanceUser
+                        ? undefined
+                        : (b) => {
+                            setSelectedBooking(b as unknown as Booking);
+                            setCancelDialogOpen(true);
+                          }
+                    }
+                  />
+                );
+              }
               return (
                 <BookingDetailCard
                   booking={overrideBooking as BookingDetailCardBooking}
                   onClose={closeDetail}
                   onUpdated={() => fetchBookings(undefined, page)}
-                  isOperator={false}
+                  isOperator={isLabOperatorUser}
+                  isManagerOrAdmin={isAdminOrOIC()}
+                    currentUserType={currentUserType}
                   currentUserId={user?.id}
                   backLabel="Back to list"
                   showPrintButton
-                  onUserCancelClick={(b) => {
-                    setSelectedBooking(b as Booking);
-                    setCancelDialogOpen(true);
-                  }}
+                  onUserCancelClick={
+                    isLabOperatorUser || isAccountsFinanceUser
+                      ? undefined
+                      : (b) => {
+                          setSelectedBooking(b as Booking);
+                          setCancelDialogOpen(true);
+                        }
+                  }
                 />
               );
             })()}
           </>
         )}
 
+        <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Results not available yet</DialogTitle>
+              <DialogDescription className="text-left space-y-3 pt-2">
+                <span className="block text-foreground">{resultsFbrBlock?.message}</span>
+                {resultsFbrBlock?.portalUrl ? (
+                  <a
+                    href={resultsFbrBlock.portalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-primary font-medium underline"
+                  >
+                    Open I-STEM portal
+                  </a>
+                ) : null}
+                <span className="block text-sm font-medium text-foreground pt-2">Officer in Charge (contact)</span>
+                {(resultsDialogBooking?.oic_contacts?.length ?? 0) > 0 ? (
+                  <ul className="text-sm space-y-2 list-none pl-0">
+                    {resultsDialogBooking!.oic_contacts!.map((c) => (
+                      <li key={c.user_id} className="border rounded-md p-2">
+                        <div className="font-medium">{c.name}</div>
+                        {c.phone ? <div>Mobile: {c.phone}</div> : null}
+                        {c.email ? <div>Email: {c.email}</div> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No OIC contact listed for this equipment. Please use institute helpdesk.
+                  </p>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button type="button" onClick={() => setResultsFbrInfoOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Results download dialog */}
-        <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
+        <Dialog
+          open={resultsDialogOpen}
+          onOpenChange={(open) => {
+            setResultsDialogOpen(open);
+            if (!open) setResultsDialogBooking(null);
+          }}
+        >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Download Results</DialogTitle>
@@ -1137,15 +1339,48 @@ const MyBookings = () => {
               {resultsDialogBookingId != null && (
                 <Button
                   className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={zipDownloadInProgress}
                   onClick={async () => {
-                    const err = await apiClient.downloadBookingResultsZip(resultsDialogBookingId);
-                    if (err.error) toast.error(err.error);
-                    else toast.success("Download started.");
+                    setZipDownloadInProgress(true);
+                    setZipDownloadProgress(8);
+                    const err = await apiClient.downloadBookingResultsZip(
+                      resultsDialogBookingId,
+                      undefined,
+                      (percent) => setZipDownloadProgress(percent)
+                    );
+                    if (err.error) {
+                      if (err.errorCode === "istem_fbr_not_executed") {
+                        setResultsFbrBlock({
+                          message: err.error,
+                          portalUrl: err.istem_portal_url,
+                        });
+                        setResultsFbrInfoOpen(true);
+                      }
+                      toast.error(err.error);
+                      setZipDownloadInProgress(false);
+                      setZipDownloadProgress(0);
+                    } else {
+                      toast.success("Download started. Save prompt should appear shortly.");
+                      setZipDownloadProgress(100);
+                      window.setTimeout(() => {
+                        setZipDownloadInProgress(false);
+                        setZipDownloadProgress(0);
+                      }, 700);
+                    }
                   }}
                 >
                   <FolderDown className="h-4 w-4 mr-2" />
-                  Download folder (ZIP)
+                  {zipDownloadInProgress ? "Preparing ZIP..." : "Download folder (ZIP)"}
                 </Button>
+              )}
+              {zipDownloadInProgress && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Preparing and downloading ZIP...</span>
+                    <span>{zipDownloadProgress}%</span>
+                  </div>
+                  <Progress value={zipDownloadProgress} className="h-2" />
+                </div>
               )}
               <p className="text-sm text-muted-foreground">Individual files:</p>
               <ul className="space-y-2 max-h-64 overflow-y-auto">
@@ -1257,13 +1492,26 @@ const MyBookings = () => {
               <DialogTitle>Reschedule Booking</DialogTitle>
               <DialogDescription>
                 {selectedBooking && (
-                  <span><strong>{selectedBooking.equipment_name}</strong> – Select the same number of consecutive slots in the week below.</span>
+                  <span>
+                    <strong>{selectedBooking.equipment_name}</strong> – Select the same number of consecutive slots in the week below.
+                    {selectedBooking.maintenance_reschedule_extra_week ? (
+                      <span className="block mt-2 text-amber-800 dark:text-amber-200">
+                        Extended week navigation is enabled for this reschedule (after equipment maintenance or operator unavailability).
+                      </span>
+                    ) : null}
+                  </span>
                 )}
               </DialogDescription>
             </DialogHeader>
             {selectedBooking && (
               <RescheduleSlotPicker
                 equipmentId={selectedBooking.equipment}
+                maintenanceExtraWeekBookingId={
+                  selectedBooking.maintenance_reschedule_extra_week ||
+                  selectedBooking.status?.toUpperCase() === "DISRUPTION_PENDING"
+                    ? getRealBookingId(selectedBooking) ?? undefined
+                    : undefined
+                }
                 booking={{
                   booking_id: getRealBookingId(selectedBooking) ?? 0,
                   equipment: selectedBooking.equipment,
@@ -1283,6 +1531,23 @@ const MyBookings = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={ratingRequiredPopupOpen} onOpenChange={setRatingRequiredPopupOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rating required</AlertDialogTitle>
+              <AlertDialogDescription>
+                Please submit your rating first, then download results.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setRatingRequiredPopupOpen(false)}>
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       </main>
     </div>
   );

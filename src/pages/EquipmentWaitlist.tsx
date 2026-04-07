@@ -32,6 +32,9 @@ type WaitlistEntry = {
   user_email: string;
   user_name: string;
   created_at: string | null;
+  status?: string | null;
+  cannot_fulfill_remark?: string | null;
+  marked_cannot_fulfill_at?: string | null;
   booking_attempt_requested_at?: string | null;
   booking_attempt_failure_reason?: string | null;
   booking_attempt_number_of_samples?: number | null;
@@ -46,13 +49,15 @@ type WaitlistData = {
   waitlist_queue_depth: number;
   entries: WaitlistEntry[];
   count: number;
+  active_count?: number;
+  cannot_fulfill_count?: number;
 };
 
 export default function EquipmentWaitlist() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
-  const canView = userType === "admin" || userType === "manager"; // admin and OIC
+  const canView = userType === "admin" || userType === "manager" || userType === "operator"; // admin, OIC, Lab Incharge
 
   const [equipmentList, setEquipmentList] = useState<EquipmentOption[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -200,6 +205,11 @@ export default function EquipmentWaitlist() {
                     Queue depth: <strong>{waitlist.waitlist_queue_depth}</strong>
                     {waitlist.waitlist_queue_depth === 0 && " (waitlist disabled)"}
                   </p>
+                  <p className="text-sm text-muted-foreground">
+                    Active: <strong>{waitlist.active_count ?? waitlist.entries.filter((e) => String(e.status || "ACTIVE").toUpperCase() === "ACTIVE").length}</strong>
+                    {" • "}
+                    Cannot fulfill: <strong>{waitlist.cannot_fulfill_count ?? waitlist.entries.filter((e) => String(e.status || "").toUpperCase() === "CANNOT_FULFILL").length}</strong>
+                  </p>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -220,6 +230,7 @@ export default function EquipmentWaitlist() {
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Joined</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Last Attempt</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -231,6 +242,25 @@ export default function EquipmentWaitlist() {
                           <TableCell>{e.user_email}</TableCell>
                           <TableCell>
                             {e.created_at ? format(new Date(e.created_at), "PPp") : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <div className="text-sm font-medium">
+                                {(e.status || "ACTIVE").toUpperCase() === "CANNOT_FULFILL" ? "Cannot fulfill" : "Active"}
+                              </div>
+                              {(e.status || "").toUpperCase() === "CANNOT_FULFILL" && (
+                                <>
+                                  <div className="text-xs text-muted-foreground">
+                                    {e.cannot_fulfill_remark || "—"}
+                                  </div>
+                                  {e.marked_cannot_fulfill_at ? (
+                                    <div className="text-xs text-muted-foreground">
+                                      Marked: {format(new Date(e.marked_cannot_fulfill_at), "PPp")}
+                                    </div>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Circle, ArrowRight, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Package, FlaskConical, XCircle, Info } from "lucide-react";
+import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -20,17 +20,31 @@ const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
   { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
   { key: "held_or_forwarded", label: "Held at Office / Forwarded to Lab", statuses: ["HELD_AT_OFFICE", "FORWARDED_TO_LAB"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
-  { key: "processing", label: "Processing", statuses: ["PROCESSING"] },
-  { key: "completed", label: "Completed", statuses: ["COMPLETED"] },
+  { key: "in_analysis", label: "In Analysis", statuses: ["PROCESSING"] },
+  { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
+  { key: "returned", label: "Sample Returned", statuses: ["RETURNED"] },
+  { key: "archived", label: "Archived", statuses: ["ARCHIVED"] },
+  { key: "disposed", label: "Disposed", statuses: ["DISPOSED"] },
 ];
 
 /** For internal users (students/faculty): no Held at Office / Forwarded to Lab step */
 const STEPS_INTERNAL: { key: string; label: string; statuses: string[] }[] = [
   { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
-  { key: "processing", label: "Processing", statuses: ["PROCESSING"] },
-  { key: "completed", label: "Completed", statuses: ["COMPLETED"] },
+  { key: "in_analysis", label: "In Analysis", statuses: ["PROCESSING"] },
+  { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
+  { key: "returned", label: "Sample Returned", statuses: ["RETURNED"] },
+  { key: "archived", label: "Archived", statuses: ["ARCHIVED"] },
+  { key: "disposed", label: "Disposed", statuses: ["DISPOSED"] },
 ];
+
+const REFUNDED_TERMINAL_STEP = { key: "refunded", label: "Refunded", statuses: ["BOOKING_REFUNDED"] };
+const ABSENT_TERMINAL_STEP = {
+  key: "operator_unavailable",
+  label: "Operator Unavailable",
+  statuses: ["BOOKING_ABSENT", "OP_UNAVAILABLE"],
+};
+const NOT_UTILIZED_TERMINAL_STEP = { key: "not_utilized", label: "Booking Not Utilized", statuses: ["NOT_UTILIZED"] };
 
 function formatTraceTime(iso: string): string {
   try {
@@ -47,31 +61,35 @@ function getEventForStep(events: SampleTraceEvent[], step: { key: string; label:
   return matching.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 }
 
-const LATER_THAN_SAMPLE_SENT = ["HELD_AT_OFFICE", "FORWARDED_TO_LAB", "SAMPLE_ACCEPTED", "SAMPLE_REJECTED", "PROCESSING", "COMPLETED"];
-
-/** Step is done if it has an event, or a later step was set (auto-tick), or booking was completed via Complete Action. When rejected, processing/completed are not done. */
-function stepIsDone(
-  events: SampleTraceEvent[],
-  step: { key: string; label: string; statuses: string[] },
-  bookingComplete: boolean,
-  isRejectedFlow: boolean
-): boolean {
-  const event = getEventForStep(events, step);
-  if (step.key === "sample_sent") {
-    return !!event || events.some((e) => LATER_THAN_SAMPLE_SENT.includes(e.status)) || bookingComplete;
+/** Furthest index in `base` ladder reached by any sample_trace event (excludes booking-level terminal statuses). */
+function computeFurthestIntermediateIndex(
+  trace: SampleTraceEvent[],
+  base: { key: string; label: string; statuses: string[] }[]
+): number {
+  const intermediateStatuses = new Set(base.flatMap((s) => s.statuses));
+  let furthest = -1;
+  for (const e of trace) {
+    const st = String(e.status || "").toUpperCase();
+    if (!intermediateStatuses.has(st)) continue;
+    for (let i = 0; i < base.length; i++) {
+      if (base[i].statuses.includes(st)) {
+        furthest = Math.max(furthest, i);
+        break;
+      }
+    }
   }
-  if (step.key === "completed") {
-    return (!!event || bookingComplete) && !isRejectedFlow;
-  }
-  if (step.key === "processing") {
-    if (isRejectedFlow) return false;
-    return !!event || events.some((e) => e.status === "COMPLETED") || bookingComplete;
-  }
-  if (step.key === "accepted_rejected") {
-    return !!event || events.some((e) => e.status === "PROCESSING" || e.status === "COMPLETED") || bookingComplete;
-  }
-  return !!event;
+  return furthest;
 }
+
+const STATUS_LABEL_OVERRIDES: Record<string, string> = {
+  PROCESSING: "In Analysis",
+  COMPLETED: "Analyzed",
+  RETURNED: "Sample Returned",
+  ARCHIVED: "Archived",
+  DISPOSED: "Disposed",
+  NOT_UTILIZED: "Booking Not Utilized",
+  OP_UNAVAILABLE: "Operator Unavailable",
+};
 
 interface SampleTraceTimelineProps {
   bookingId: number;
@@ -87,6 +105,17 @@ interface SampleTraceTimelineProps {
   hideSampleStatusActions?: boolean;
   /** When true, booking-user interactions other than "Sample Sent" are hidden (e.g. external users shouldn't reply/upload). */
   restrictBookingUserActionsToSampleSent?: boolean;
+  /**
+   * When hideSampleStatusActions is true (e.g. Accounts In Charge), still show Held at Office / Forwarded to Lab
+   * if staff may set those statuses.
+   */
+  showHeldForwardedDespiteHideSampleActions?: boolean;
+  /** When true, show the Not Utilized branch in lifecycle UI. */
+  bookingNotUtilized?: boolean;
+  /** When true, show terminal "Refunded" state in lifecycle UI. */
+  bookingRefunded?: boolean;
+  /** When true, show terminal "Operator Unavailable" state in lifecycle UI. */
+  bookingOperatorUnavailable?: boolean;
 }
 
 export default function SampleTraceTimeline({
@@ -99,8 +128,93 @@ export default function SampleTraceTimeline({
   hideHeldForwardedStep = false,
   hideSampleStatusActions = false,
   restrictBookingUserActionsToSampleSent = false,
+  showHeldForwardedDespiteHideSampleActions = false,
+  bookingNotUtilized = false,
+  bookingRefunded = false,
+  bookingOperatorUnavailable = false,
 }: SampleTraceTimelineProps) {
-  const steps = hideHeldForwardedStep ? STEPS_INTERNAL : STEPS_FULL;
+  const baseLadder = useMemo(
+    () => (hideHeldForwardedStep ? STEPS_INTERNAL : STEPS_FULL),
+    [hideHeldForwardedStep]
+  );
+  const furthestIntermediateIndex = useMemo(
+    () => computeFurthestIntermediateIndex(sampleTrace, baseLadder),
+    [sampleTrace, baseLadder]
+  );
+
+  const hasDisposedInTrace = useMemo(
+    () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "DISPOSED"),
+    [sampleTrace]
+  );
+  const hasReturnedInTrace = useMemo(
+    () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "RETURNED"),
+    [sampleTrace]
+  );
+  const hasArchivedInTrace = useMemo(
+    () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "ARCHIVED"),
+    [sampleTrace]
+  );
+
+  const steps = useMemo(() => {
+    if (bookingRefunded) {
+      if (furthestIntermediateIndex < 0) return [REFUNDED_TERMINAL_STEP];
+      return [...baseLadder.slice(0, furthestIntermediateIndex + 1), REFUNDED_TERMINAL_STEP];
+    }
+    if (bookingOperatorUnavailable) {
+      if (furthestIntermediateIndex < 0) return [ABSENT_TERMINAL_STEP];
+      return [...baseLadder.slice(0, furthestIntermediateIndex + 1), ABSENT_TERMINAL_STEP];
+    }
+    if (bookingNotUtilized) {
+      if (furthestIntermediateIndex < 0) return [NOT_UTILIZED_TERMINAL_STEP];
+      return [...baseLadder.slice(0, furthestIntermediateIndex + 1), NOT_UTILIZED_TERMINAL_STEP];
+    }
+
+    const ladderNoReturned = baseLadder.filter((s) => s.key !== "returned");
+
+    if (hasDisposedInTrace) {
+      const f = computeFurthestIntermediateIndex(sampleTrace, ladderNoReturned);
+      if (f < 0) return ladderNoReturned;
+      return ladderNoReturned.slice(0, f + 1);
+    }
+    if (hasReturnedInTrace) {
+      const ri = baseLadder.findIndex((s) => s.key === "returned");
+      if (ri < 0) return baseLadder;
+      return baseLadder.slice(0, ri + 1);
+    }
+    if (hasArchivedInTrace) {
+      const f = computeFurthestIntermediateIndex(sampleTrace, ladderNoReturned);
+      if (f < 0) return ladderNoReturned;
+      return ladderNoReturned.slice(0, f + 1);
+    }
+
+    return baseLadder;
+  }, [
+    baseLadder,
+    bookingRefunded,
+    bookingOperatorUnavailable,
+    bookingNotUtilized,
+    furthestIntermediateIndex,
+    hasDisposedInTrace,
+    hasReturnedInTrace,
+    hasArchivedInTrace,
+    sampleTrace,
+  ]);
+
+  const furthestInSteps = useMemo(
+    () => computeFurthestIntermediateIndex(sampleTrace, steps),
+    [sampleTrace, steps]
+  );
+
+  /** Lifecycle visually closed at Returned or Disposed (no further steps shown). */
+  const postAnalyzedLifecycleClosed =
+    !bookingRefunded &&
+    !bookingOperatorUnavailable &&
+    !bookingNotUtilized &&
+    ((hasReturnedInTrace && !hasDisposedInTrace) || hasDisposedInTrace);
+
+  /** Booking closed for lifecycle: no sample-status actions (user or staff). */
+  const lifecycleTerminal =
+    bookingRefunded || bookingOperatorUnavailable || bookingNotUtilized;
   const [loading, setLoading] = useState<string | null>(null);
   const [sampleSentOpen, setSampleSentOpen] = useState(false);
   const [sampleIdentifiers, setSampleIdentifiers] = useState("");
@@ -110,23 +224,29 @@ export default function SampleTraceTimeline({
   const [rejectReason, setRejectReason] = useState("");
   const [heldDialogOpen, setHeldDialogOpen] = useState(false);
   const [heldReason, setHeldReason] = useState("");
+  const [disposeDialogOpen, setDisposeDialogOpen] = useState(false);
+  const [disposeReason, setDisposeReason] = useState("");
   const [detailEvent, setDetailEvent] = useState<SampleTraceEvent | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [replySaving, setReplySaving] = useState(false);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
   const isBookingUser = canSetSampleSent && !canSetStaffStatus;
-  const canBookingUserReply = isBookingUser && !restrictBookingUserActionsToSampleSent;
+  const canBookingUserReply = isBookingUser && !restrictBookingUserActionsToSampleSent && !lifecycleTerminal;
   useEffect(() => {
     setReplyText(detailEvent?.user_reply ?? "");
     setReplyFiles([]);
     if (replyFileInputRef.current) replyFileInputRef.current.value = "";
   }, [detailEvent]);
 
-  const sampleSentStep = steps.find((s) => s.key === "sample_sent")!;
-  const heldOrForwardedStep = steps.find((s) => s.key === "held_or_forwarded");
-  const acceptedRejectedStep = steps.find((s) => s.key === "accepted_rejected")!;
-  const processingStep = steps.find((s) => s.key === "processing")!;
+  const sampleSentStep = baseLadder.find((s) => s.key === "sample_sent")!;
+  const heldOrForwardedStep = baseLadder.find((s) => s.key === "held_or_forwarded");
+  const acceptedRejectedStep = baseLadder.find((s) => s.key === "accepted_rejected")!;
+  const inAnalysisStep = baseLadder.find((s) => s.key === "in_analysis")!;
+  const analyzedReadyStep = baseLadder.find((s) => s.key === "analyzed_ready")!;
+  const returnedStep = baseLadder.find((s) => s.key === "returned")!;
+  const archivedStep = baseLadder.find((s) => s.key === "archived")!;
+  const disposedStep = baseLadder.find((s) => s.key === "disposed")!;
 
   const sampleSentEvent = getEventForStep(sampleTrace, sampleSentStep);
   const sampleSentDone = !!sampleSentEvent;
@@ -134,8 +254,16 @@ export default function SampleTraceTimeline({
   const heldOrForwardedDone = !!heldOrForwardedEvent;
   const acceptedOrRejectedEvent = getEventForStep(sampleTrace, acceptedRejectedStep);
   const acceptedOrRejectedDone = !!acceptedOrRejectedEvent;
-  const processingEvent = getEventForStep(sampleTrace, processingStep);
-  const processingDone = !!processingEvent;
+  const inAnalysisEvent = getEventForStep(sampleTrace, inAnalysisStep);
+  const inAnalysisDone = !!inAnalysisEvent;
+  const analyzedReadyEvent = getEventForStep(sampleTrace, analyzedReadyStep);
+  const analyzedReadyDone = !!analyzedReadyEvent || bookingComplete;
+  const returnedEvent = getEventForStep(sampleTrace, returnedStep);
+  const returnedDone = !!returnedEvent;
+  const archivedEvent = getEventForStep(sampleTrace, archivedStep);
+  const archivedDone = !!archivedEvent;
+  const disposedEvent = getEventForStep(sampleTrace, disposedStep);
+  const disposedDone = !!disposedEvent;
   const acceptedRejectedEvents = sampleTrace.filter((e) => e.status === "SAMPLE_ACCEPTED" || e.status === "SAMPLE_REJECTED");
   const latestAcceptedRejected = acceptedRejectedEvents.length > 0
     ? acceptedRejectedEvents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
@@ -148,6 +276,42 @@ export default function SampleTraceTimeline({
   const isHeldAtOfficeFlow = latestHeldOrForwarded?.status === "HELD_AT_OFFICE";
   const isExternalBooking = !hideHeldForwardedStep;
   const applyHeldAtOfficeFlowRules = isExternalBooking && isHeldAtOfficeFlow;
+  const isNotUtilizedFlow = bookingNotUtilized || sampleTrace.some((e) => String(e.status).toUpperCase() === "NOT_UTILIZED");
+
+  const stepIndexByKey = new Map<string, number>(steps.map((s, idx) => [s.key, idx]));
+  const stepIndexForStatus = (status: string): number => {
+    const upper = String(status || "").toUpperCase();
+    const found = steps.find((s) => s.statuses.includes(upper));
+    if (!found) return -1;
+    return stepIndexByKey.get(found.key) ?? -1;
+  };
+  const latestEvent = sampleTrace?.length ? sampleTrace[sampleTrace.length - 1] : null;
+  const terminalBookingOutcome =
+    bookingRefunded || bookingOperatorUnavailable || bookingNotUtilized;
+  const latestIdx = (() => {
+    if (terminalBookingOutcome) {
+      return furthestIntermediateIndex >= 0 ? steps.length - 1 : 0;
+    }
+    if (postAnalyzedLifecycleClosed) {
+      return Math.max(0, steps.length - 1);
+    }
+    return Math.max(
+      bookingComplete ? (stepIndexByKey.get("analyzed_ready") ?? -1) : -1,
+      latestEvent ? stepIndexForStatus(latestEvent.status) : -1
+    );
+  })();
+  const activeIdx = (() => {
+    if (terminalBookingOutcome) return Math.max(0, steps.length - 1);
+    if (postAnalyzedLifecycleClosed) return Math.max(0, steps.length - 1);
+    if (isRejectedFlow) return stepIndexByKey.get("accepted_rejected") ?? -1;
+    if (isNotUtilizedFlow && !bookingNotUtilized) {
+      return stepIndexByKey.get("not_utilized") ?? latestIdx;
+    }
+    if (latestIdx >= 0) return latestIdx;
+    return 0;
+  })();
+
+  const acceptedRejectedIdxInBase = baseLadder.findIndex((s) => s.key === "accepted_rejected");
 
   const setStatus = async (status: string, sampleIdentifiers?: string, trackingIdVal?: string, reason?: string) => {
     setLoading(status);
@@ -175,6 +339,8 @@ export default function SampleTraceTimeline({
       setRejectReason("");
       setHeldDialogOpen(false);
       setHeldReason("");
+      setDisposeDialogOpen(false);
+      setDisposeReason("");
     } finally {
       setLoading(null);
     }
@@ -182,72 +348,164 @@ export default function SampleTraceTimeline({
 
   return (
     <div className="space-y-4">
-      <p className="text-base font-medium text-foreground">Sample / slot status</p>
-      <div className="flex flex-wrap items-center gap-2 md:gap-0">
+      <p className="text-base font-medium text-foreground">Sample Lifecycle</p>
+      <div className="overflow-x-auto">
+        <div className="min-w-[880px] flex items-stretch gap-0">
         {steps.map((step, index) => {
           const event = getEventForStep(sampleTrace, step);
-          const done = stepIsDone(sampleTrace, step, bookingComplete, isRejectedFlow);
-          const isRejectedStep = step.key === "accepted_rejected" && event?.status === "SAMPLE_REJECTED";
+
+          const stepIdx = stepIndexByKey.get(step.key) ?? index;
+          const lastStepKey = steps[steps.length - 1]?.key;
+          const isTerminalDisplayStep =
+            step.key === "refunded" ||
+            step.key === "operator_unavailable" ||
+            step.key === "not_utilized" ||
+            (step.key === "returned" &&
+              hasReturnedInTrace &&
+              !hasDisposedInTrace &&
+              lastStepKey === "returned") ||
+            (step.key === "disposed" && hasDisposedInTrace && lastStepKey === "disposed");
+          const isAfterRejected =
+            !bookingRefunded &&
+            !bookingOperatorUnavailable &&
+            !bookingNotUtilized &&
+            isRejectedFlow &&
+            stepIdx > (stepIndexByKey.get("accepted_rejected") ?? 999);
+          const isAfterNotUtilized = isNotUtilizedFlow && stepIdx > (stepIndexByKey.get("not_utilized") ?? 999);
+          const done = (() => {
+            if (terminalBookingOutcome && furthestIntermediateIndex >= 0) {
+              if (isTerminalDisplayStep) return true;
+              return stepIdx <= furthestIntermediateIndex;
+            }
+            if (terminalBookingOutcome && furthestIntermediateIndex < 0) {
+              return isTerminalDisplayStep;
+            }
+            if (postAnalyzedLifecycleClosed) {
+              if (isTerminalDisplayStep) return true;
+              return stepIdx <= furthestInSteps;
+            }
+            return !isAfterRejected && (event ? true : latestIdx >= stepIdx);
+          })();
+          const isActive =
+            stepIdx === activeIdx && !bookingComplete && !isTerminalDisplayStep;
+
+          const isRejectedStep = step.key === "accepted_rejected" && (event?.status === "SAMPLE_REJECTED" || isRejectedFlow);
           const isHeldAtOfficeStep = step.key === "held_or_forwarded" && event?.status === "HELD_AT_OFFICE";
           const isRedStep = isRejectedStep || (isHeldAtOfficeStep && isExternalBooking);
-          const isDisabledStep = isRejectedFlow && (step.key === "processing" || step.key === "completed");
-          const acceptedRejectedDoneByImplication = step.key === "accepted_rejected" && done && !event && (sampleTrace.some((e) => e.status === "PROCESSING" || e.status === "COMPLETED") || bookingComplete);
-          const displayLabel = event
-            ? (step.statuses.includes("SAMPLE_ACCEPTED") || step.statuses.includes("SAMPLE_REJECTED") || step.statuses.includes("HELD_AT_OFFICE") || step.statuses.includes("FORWARDED_TO_LAB"))
-              ? event.status_display
-              : step.label
-            : acceptedRejectedDoneByImplication
-              ? "Sample Accepted"
-              : step.label;
-          const boxClass = isRedStep
-            ? "border-red-500 bg-red-50 dark:bg-red-950/30"
-            : isDisabledStep
-              ? "border-muted bg-muted/20 opacity-60"
-              : done
-                ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-                : "border-muted bg-muted/30";
-          const icon = isRedStep ? (
-            <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+          const isNotUtilizedStep = step.key === "not_utilized" || String(event?.status || "").toUpperCase() === "NOT_UTILIZED";
+          const isDisabledStep = isAfterRejected || isAfterNotUtilized;
+
+          const acceptedRejectedDoneByImplication =
+            step.key === "accepted_rejected" &&
+            done &&
+            !event &&
+            (sampleTrace.some((e) => ["PROCESSING", "COMPLETED", "RETURNED", "ARCHIVED", "DISPOSED"].includes(String(e.status).toUpperCase())) ||
+              bookingComplete ||
+              (terminalBookingOutcome &&
+                acceptedRejectedIdxInBase >= 0 &&
+                furthestIntermediateIndex > acceptedRejectedIdxInBase));
+
+          const displayLabel = (() => {
+            if (event) {
+              if (step.statuses.includes("SAMPLE_ACCEPTED") || step.statuses.includes("SAMPLE_REJECTED") || step.statuses.includes("HELD_AT_OFFICE") || step.statuses.includes("FORWARDED_TO_LAB")) {
+                return event.status_display;
+              }
+              return STATUS_LABEL_OVERRIDES[String(event.status || "").toUpperCase()] || step.label;
+            }
+            if (acceptedRejectedDoneByImplication) return "Sample Accepted";
+            return step.label;
+          })();
+
+          const base = (() => {
+            const k = step.key;
+            if (k === "sample_sent") return { tint: "sky", strong: "from-sky-500 to-sky-700", soft: "from-sky-100 to-sky-200", textSoft: "text-sky-900 dark:text-sky-200" };
+            if (k === "held_or_forwarded") return { tint: "indigo", strong: "from-indigo-500 to-indigo-700", soft: "from-indigo-100 to-indigo-200", textSoft: "text-indigo-900 dark:text-indigo-200" };
+            if (k === "accepted_rejected") return { tint: "violet", strong: "from-violet-500 to-violet-700", soft: "from-violet-100 to-violet-200", textSoft: "text-violet-900 dark:text-violet-200" };
+            if (k === "in_analysis") return { tint: "amber", strong: "from-amber-500 to-amber-700", soft: "from-amber-100 to-amber-200", textSoft: "text-amber-900 dark:text-amber-200" };
+            if (k === "analyzed_ready") return { tint: "emerald", strong: "from-emerald-500 to-emerald-700", soft: "from-emerald-100 to-emerald-200", textSoft: "text-emerald-900 dark:text-emerald-200" };
+            if (k === "returned") return { tint: "teal", strong: "from-teal-500 to-teal-700", soft: "from-teal-100 to-teal-200", textSoft: "text-teal-900 dark:text-teal-200" };
+            if (k === "archived") return { tint: "slate", strong: "from-slate-600 to-slate-800", soft: "from-slate-100 to-slate-200", textSoft: "text-slate-900 dark:text-slate-200" };
+            if (k === "disposed") return { tint: "rose", strong: "from-rose-600 to-rose-800", soft: "from-rose-100 to-rose-200", textSoft: "text-rose-900 dark:text-rose-200" };
+            if (k === "not_utilized") return { tint: "rose", strong: "from-rose-600 to-rose-800", soft: "from-rose-100 to-rose-200", textSoft: "text-rose-900 dark:text-rose-200" };
+            if (k === "refunded") return { tint: "violet", strong: "from-violet-600 to-violet-800", soft: "from-violet-100 to-violet-200", textSoft: "text-violet-900 dark:text-violet-200" };
+            if (k === "operator_unavailable") return { tint: "orange", strong: "from-orange-600 to-orange-800", soft: "from-orange-100 to-orange-200", textSoft: "text-orange-900 dark:text-orange-200" };
+            return { tint: "slate", strong: "from-slate-600 to-slate-800", soft: "from-slate-100 to-slate-200", textSoft: "text-slate-900 dark:text-slate-200" };
+          })();
+
+          const icon = isNotUtilizedStep ? (
+            <Ban className="h-4 w-4 text-white/90 shrink-0" />
+          ) : isRedStep ? (
+            <XCircle className="h-4 w-4 text-white/90 shrink-0" />
           ) : done ? (
-            <Check className="h-4 w-4 text-green-600 shrink-0" />
+            <Check className="h-4 w-4 text-white/90 shrink-0" />
           ) : (
-            <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Circle className="h-4 w-4 text-black/30 dark:text-white/40 shrink-0" />
           );
-          const labelClass = isRedStep
-            ? "text-red-700 dark:text-red-400"
-            : isDisabledStep
-              ? "text-muted-foreground"
-              : done
-                ? "text-green-700 dark:text-green-400"
-                : "text-muted-foreground";
+
+          const classes = (() => {
+            if (isDisabledStep) return "bg-muted/40 text-muted-foreground opacity-70";
+            if (isNotUtilizedStep) return "bg-gradient-to-r from-rose-600 to-rose-800 text-white";
+            if (isRedStep) return "bg-gradient-to-r from-rose-600 to-rose-800 text-white";
+            if (done) return `bg-gradient-to-r ${base.strong} text-white`;
+            return `bg-gradient-to-r ${base.soft} ${base.textSoft}`;
+          })();
+
+          const ring = isActive && !isDisabledStep ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-background" : "";
+
+          const isFirst = index === 0;
+          const isLast = index === steps.length - 1;
+          const notch = 18;
+          const clipPath = (() => {
+            if (isFirst && isLast) return "polygon(0 0, 100% 0, 100% 100%, 0 100%)";
+            if (isFirst) return `polygon(0 0, calc(100% - ${notch}px) 0, 100% 50%, calc(100% - ${notch}px) 100%, 0 100%)`;
+            if (isLast) return `polygon(${notch}px 0, 100% 0, 100% 100%, ${notch}px 100%, 0 50%)`;
+            return `polygon(${notch}px 0, calc(100% - ${notch}px) 0, 100% 50%, calc(100% - ${notch}px) 100%, ${notch}px 100%, 0 50%)`;
+          })();
+
           return (
-            <div key={step.key} className="flex items-center">
+            <div key={step.key} className="flex items-stretch -ml-[18px] first:ml-0 first:-ml-0">
               <div
                 role={event ? "button" : undefined}
                 tabIndex={event ? 0 : undefined}
                 onClick={event ? () => setDetailEvent(event) : undefined}
                 onKeyDown={event ? (e) => e.key === "Enter" && setDetailEvent(event) : undefined}
-                className={`flex flex-col items-center rounded-lg border px-3 py-2 min-w-[120px] max-w-[160px] ${boxClass} ${event ? "cursor-pointer hover:ring-2 hover:ring-primary/20 transition-shadow" : ""}`}
+                style={{ clipPath }}
+                className={[
+                  "relative flex flex-col justify-center px-5 py-3 min-w-[170px] max-w-[220px] border border-white/20 shadow-sm",
+                  classes,
+                  ring,
+                  event ? "cursor-pointer hover:brightness-[1.03] transition" : "",
+                  isDisabledStep ? "cursor-not-allowed" : "",
+                ].join(" ")}
               >
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {icon}
-                  <span className={`text-sm font-medium ${labelClass}`}>
-                    {displayLabel}
-                  </span>
-                  {event && (
-                    <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden />
-                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold leading-tight truncate">
+                        {displayLabel}
+                      </span>
+                      {event && (
+                        <Info className="h-3.5 w-3.5 text-black/40 dark:text-white/60 shrink-0" aria-hidden />
+                      )}
+                    </div>
+                    {event && (
+                      <div className="text-xs opacity-90 mt-0.5">
+                        {formatTraceTime(event.created_at)}
+                      </div>
+                    )}
+                    {!event && (
+                      <div className="text-xs opacity-80 mt-0.5">
+                        {done ? "Done" : isActive ? "In progress" : "Pending"}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {event && (
-                  <span className="text-xs text-muted-foreground mt-1">{formatTraceTime(event.created_at)}</span>
-                )}
               </div>
-              {index < steps.length - 1 && (
-                <ArrowRight className="h-5 w-5 text-muted-foreground mx-1 shrink-0 hidden sm:block" />
-              )}
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Detail popup for a step's event (reason, sample code, tracking, etc.) */}
@@ -387,7 +645,7 @@ export default function SampleTraceTimeline({
       </Dialog>
 
       <div className="flex flex-wrap gap-2 pt-2">
-        {canSetSampleSent && !bookingComplete && (
+        {canSetSampleSent && !bookingComplete && !lifecycleTerminal && (
           <>
             <Button
               size="sm"
@@ -441,13 +699,17 @@ export default function SampleTraceTimeline({
           </>
         )}
         {/* Held at Office / Forwarded to Lab: staff only, and only when step is shown (hidden when hideSampleStatusActions is true, e.g. for external users) */}
-        {canSetStaffStatus && !bookingComplete && !hideHeldForwardedStep && !hideSampleStatusActions && (
+        {canSetStaffStatus &&
+          !bookingComplete &&
+          !lifecycleTerminal &&
+          !hideHeldForwardedStep &&
+          (!hideSampleStatusActions || showHeldForwardedDespiteHideSampleActions) && (
           <>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setHeldDialogOpen(true)}
-              disabled={heldOrForwardedDone || !sampleSentDone || processingDone || !!loading}
+              disabled={heldOrForwardedDone || !sampleSentDone || inAnalysisDone || analyzedReadyDone || !!loading}
             >
               {loading === "HELD_AT_OFFICE" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Package className="h-4 w-4 mr-2" />}
               Held at Office
@@ -483,21 +745,21 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setStatus("FORWARDED_TO_LAB")}
-              disabled={(heldOrForwardedDone && latestHeldOrForwarded?.status === "FORWARDED_TO_LAB") || !sampleSentDone || processingDone || !!loading}
+              disabled={(heldOrForwardedDone && latestHeldOrForwarded?.status === "FORWARDED_TO_LAB") || !sampleSentDone || inAnalysisDone || analyzedReadyDone || !!loading}
             >
               {loading === "FORWARDED_TO_LAB" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
               Forwarded to Lab
             </Button>
           </>
         )}
-        {/* Sample Accepted, Sample Rejected, Processing: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
-        {canSetStaffStatus && !bookingComplete && !hideSampleStatusActions && (
+        {/* Sample Accepted, Sample Rejected, In Analysis, Analyzed, Returned, Archived, Disposed: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
+        {canSetStaffStatus && !bookingComplete && !lifecycleTerminal && !hideSampleStatusActions && (
           <>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setStatus("SAMPLE_ACCEPTED")}
-              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || processingDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || inAnalysisDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "SAMPLE_ACCEPTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsUp className="h-4 w-4 mr-2" />}
               Sample Accepted
@@ -506,7 +768,7 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setRejectDialogOpen(true)}
-              disabled={acceptedOrRejectedDone || processingDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={acceptedOrRejectedDone || inAnalysisDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "SAMPLE_REJECTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsDown className="h-4 w-4 mr-2" />}
               Sample Rejected
@@ -542,11 +804,79 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setStatus("PROCESSING")}
-              disabled={processingDone || isRejectedFlow || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={isNotUtilizedFlow || inAnalysisDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || isRejectedFlow || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "PROCESSING" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
-              Processing
+              In Analysis
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setStatus("COMPLETED")}
+              disabled={!acceptedOrRejectedDone || isRejectedFlow || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
+            >
+              {loading === "COMPLETED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+              Analyzed
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setStatus("RETURNED")}
+              disabled={!analyzedReadyDone || returnedDone || archivedDone || disposedDone || !!loading}
+            >
+              {loading === "RETURNED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Handshake className="h-4 w-4 mr-2" />}
+              Sample Returned
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setStatus("ARCHIVED")}
+              disabled={!analyzedReadyDone || archivedDone || disposedDone || !!loading}
+            >
+              {loading === "ARCHIVED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
+              Archived
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setDisposeDialogOpen(true)}
+              disabled={!archivedDone || disposedDone || !!loading}
+            >
+              {loading === "DISPOSED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Disposed
+            </Button>
+            <Dialog open={disposeDialogOpen} onOpenChange={setDisposeDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Mark as Disposed</DialogTitle>
+                  <DialogDescription>
+                    This will mark the sample as disposed and send an email notification to the user.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2">
+                  <Label htmlFor="dispose-reason">Remarks (optional)</Label>
+                  <Textarea
+                    id="dispose-reason"
+                    value={disposeReason}
+                    onChange={(e) => setDisposeReason(e.target.value)}
+                    placeholder="e.g. Retention period ended; sample disposed as per policy."
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDisposeDialogOpen(false)} disabled={loading === "DISPOSED"}>Cancel</Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setStatus("DISPOSED", undefined, undefined, disposeReason.trim() || undefined)}
+                    disabled={loading === "DISPOSED"}
+                  >
+                    {loading === "DISPOSED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Confirm Disposed
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </div>

@@ -256,6 +256,11 @@ const EquipmentProfile = () => {
     return false;
   };
 
+  const isEquipmentOperational = (): boolean => {
+    const st = String((equipment as any)?.status || "").trim().toUpperCase();
+    return st === "ACTIVE" || st === "OPERATIONAL";
+  };
+
   const fetchEquipmentProfile = async () => {
     if (!id) return;
 
@@ -492,6 +497,7 @@ const EquipmentProfile = () => {
             </Card>
 
             {/* Slot Display - Weekly Calendar */}
+            {false && (
             <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -624,6 +630,7 @@ const EquipmentProfile = () => {
                               const slotColors = calendarColors?.slot_colors ?? {
                                 AVAILABLE: "#22c55e",
                                 BOOKED: "#ef4444",
+                                COMPLETED: "#059669",
                                 BLOCKED: "#64748b",
                                 UNDER_MAINTENANCE: "#f97316",
                                 OPERATOR_ABSENT: "#eab308",
@@ -649,7 +656,9 @@ const EquipmentProfile = () => {
                                   : (slotData?.status ?? "AVAILABLE");
                                 if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
                                 else if (slotData?.status === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
-                                cellBg = slotColors[statusForColor] ?? slotColors.AVAILABLE;
+                                cellBg =
+                                  slotColors[statusForColor] ??
+                                  (slotData?.status === "BOOKED" ? slotColors.BOOKED : slotColors.AVAILABLE);
                                 cellText = getContrastTextColor(cellBg);
                                 if (isPast && statusForColor === "AVAILABLE") {
                                   cellBg = "#94a3b8"; // muted past slot
@@ -679,6 +688,7 @@ const EquipmentProfile = () => {
                   })()}
                 </CardContent>
               </Card>
+            )}
           </div>
 
           {/* Right Section - Equipment Details */}
@@ -691,12 +701,22 @@ const EquipmentProfile = () => {
                     <Button
                       className="w-full"
                       size="lg"
+                      disabled={!canManageEquipment() && !isEquipmentOperational()}
                       onClick={() => {
+                        if (!canManageEquipment() && !isEquipmentOperational()) {
+                          toast.error("This equipment is not operational and cannot be booked.");
+                          return;
+                        }
                         navigate(`/book-equipment?equipment_id=${equipment.equipment_id}`);
                       }}
                     >
                       {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
                     </Button>
+                    {!canManageEquipment() && !isEquipmentOperational() && (
+                      <p className="text-sm text-amber-600 font-medium">
+                        Booking is disabled while equipment is {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
+                      </p>
+                    )}
                     {canManageEquipment() && (
                       <Button
                         variant="outline"

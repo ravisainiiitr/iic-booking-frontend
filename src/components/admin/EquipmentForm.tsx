@@ -31,7 +31,10 @@ export type EquipmentFormData = {
   slot_duration_minutes?: number;
   slots_per_day?: number;
   reschedule_hours_threshold?: number;
+  results_base_location?: string | null;
   split_booking_enabled?: boolean;
+  /** Nullable override: null = use user's preference on booking page. */
+  auto_slot_selection_default?: boolean | null;
   /** Weekly grid vertical axis: TIME = show time; SLOT_ID = show slot number/name. Only admin and OIC can change. */
   weekly_view_display?: 'TIME' | 'SLOT_ID';
   /** Only show slots starting at or after this time (24h). Leave empty for no limit. */
@@ -50,6 +53,10 @@ export type EquipmentFormData = {
   waitlist_queue_depth?: number | null;
   /** Max PENDING urgent requests for this equipment at a time. Leave empty for no cap. Admin and OIC. */
   max_urgent_requests?: number | null;
+  /** After booking end time, if sample lifecycle has no update or only Sample Sent for this many hours, auto-mark as Booking Not Utilized. 0 = disabled. */
+  booking_not_utilize_window_hours?: number | null;
+  /** Hours after last slot end before auto Operator Unavailable (full refund) when staff engaged beyond Sample Sent. 0 = disabled. */
+  operator_unavailable_after_booking_end_hours?: number | null;
   repeat_sample_request_days?: number | null;
   repeat_sample_disclaimer?: string | null;
   created_at?: string | null;
@@ -106,7 +113,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     slot_duration_minutes: 30,
     slots_per_day: 12,
     reschedule_hours_threshold: 48,
+    results_base_location: "D:\\Results",
     split_booking_enabled: false,
+    auto_slot_selection_default: null,
     weekly_view_display: 'TIME',
     weekly_view_time_from: null,
     weekly_view_time_to: null,
@@ -116,6 +125,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     slot_window_reference_time: null,
     waitlist_queue_depth: 0,
     max_urgent_requests: null,
+    booking_not_utilize_window_hours: 24,
+    operator_unavailable_after_booking_end_hours: 24,
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
     equipment_managers: [],
@@ -182,7 +193,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         slot_duration_minutes: (d.slot_duration_minutes as number) ?? 30,
         slots_per_day: (d.slots_per_day as number) ?? 12,
         reschedule_hours_threshold: (d.reschedule_hours_threshold as number) ?? 48,
+        results_base_location: (d.results_base_location as string) ?? "D:\\Results",
         split_booking_enabled: (d.split_booking_enabled as boolean) ?? false,
+        auto_slot_selection_default:
+          (d.auto_slot_selection_default === true ? true : d.auto_slot_selection_default === false ? false : null) as boolean | null,
         weekly_view_display: (d.weekly_view_display === 'SLOT_ID' ? 'SLOT_ID' : 'TIME') as 'TIME' | 'SLOT_ID',
         weekly_view_time_from: (d.weekly_view_time_from != null && String(d.weekly_view_time_from).trim() !== '') ? String(d.weekly_view_time_from).slice(0, 5) : null,
         weekly_view_time_to: (d.weekly_view_time_to != null && String(d.weekly_view_time_to).trim() !== '') ? String(d.weekly_view_time_to).slice(0, 5) : null,
@@ -192,6 +206,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         slot_window_reference_time: (d.slot_window_reference_time != null && String(d.slot_window_reference_time).trim() !== '') ? String(d.slot_window_reference_time).slice(0, 5) : null,
         waitlist_queue_depth: (d.waitlist_queue_depth as number | null) ?? 0,
         max_urgent_requests: (d.max_urgent_requests as number | null) ?? null,
+        booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
+        operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
         repeat_sample_request_days: (d.repeat_sample_request_days as number | null) ?? null,
         repeat_sample_disclaimer: (d.repeat_sample_disclaimer as string) ?? "",
         created_at: (d.created_at as string) ?? null,
@@ -227,7 +243,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       slot_duration_minutes: formData.slot_duration_minutes,
       slots_per_day: formData.slots_per_day,
       reschedule_hours_threshold: formData.reschedule_hours_threshold,
+      results_base_location:
+        formData.results_base_location && formData.results_base_location.trim() !== ""
+          ? formData.results_base_location.trim()
+          : "D:\\Results",
       split_booking_enabled: formData.split_booking_enabled,
+      auto_slot_selection_default:
+        formData.auto_slot_selection_default === true ? true : formData.auto_slot_selection_default === false ? false : null,
       weekly_view_display: formData.weekly_view_display ?? 'TIME',
       weekly_view_time_from: formData.weekly_view_time_from && formData.weekly_view_time_from.trim() !== '' ? formData.weekly_view_time_from.trim() : null,
       weekly_view_time_to: formData.weekly_view_time_to && formData.weekly_view_time_to.trim() !== '' ? formData.weekly_view_time_to.trim() : null,
@@ -237,6 +259,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       slot_window_reference_time: formData.slot_window_reference_time && formData.slot_window_reference_time.trim() !== '' ? formData.slot_window_reference_time.trim() : null,
       waitlist_queue_depth: formData.waitlist_queue_depth ?? 0,
       max_urgent_requests: formData.max_urgent_requests != null && formData.max_urgent_requests !== '' ? (typeof formData.max_urgent_requests === 'number' ? formData.max_urgent_requests : parseInt(String(formData.max_urgent_requests), 10)) : null,
+      booking_not_utilize_window_hours:
+        formData.booking_not_utilize_window_hours != null && formData.booking_not_utilize_window_hours !== ''
+          ? (typeof formData.booking_not_utilize_window_hours === 'number'
+              ? formData.booking_not_utilize_window_hours
+              : parseInt(String(formData.booking_not_utilize_window_hours), 10))
+          : 24,
+      operator_unavailable_after_booking_end_hours:
+        formData.operator_unavailable_after_booking_end_hours != null && formData.operator_unavailable_after_booking_end_hours !== ''
+          ? (typeof formData.operator_unavailable_after_booking_end_hours === 'number'
+              ? formData.operator_unavailable_after_booking_end_hours
+              : parseInt(String(formData.operator_unavailable_after_booking_end_hours), 10))
+          : 24,
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
       equipment_managers: formData.equipment_managers ?? [],
@@ -503,6 +537,20 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             onChange={(e) => setFormData((p) => ({ ...p, reschedule_hours_threshold: parseInt(e.target.value, 10) || 48 }))}
           />
         </div>
+        <div className="space-y-2 sm:col-span-3">
+          <Label htmlFor="results-base-location">Results base location</Label>
+          <Input
+            id="results-base-location"
+            type="text"
+            placeholder="D:\\Results"
+            value={formData.results_base_location ?? "D:\\Results"}
+            onChange={(e) => setFormData((p) => ({ ...p, results_base_location: e.target.value }))}
+          />
+          <p className="text-muted-foreground text-xs">
+            Used when Sample Lifecycle changes to In Analysis. Folder structure:
+            Equipment Code → Internal/External → Year → Department → User → Booking ID.
+          </p>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="waitlist-queue-depth">Waitlist queue depth</Label>
           <Input
@@ -539,6 +587,46 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           />
           <p className="text-muted-foreground text-xs">Maximum number of PENDING urgent requests allowed for this equipment at a time. Leave empty for no cap. Admin and OIC.</p>
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="booking-not-utilize-window-hours">Booking Not Utilize Window (hours)</Label>
+          <Input
+            id="booking-not-utilize-window-hours"
+            type="number"
+            min={0}
+            placeholder="Default 24, 0 = disabled"
+            value={formData.booking_not_utilize_window_hours ?? ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              setFormData((p) => ({
+                ...p,
+                booking_not_utilize_window_hours: v === "" ? 24 : Math.max(0, parseInt(v, 10) || 0),
+              }));
+            }}
+          />
+          <p className="text-muted-foreground text-xs">
+            Hours after the last slot ends before Lab/OIC/Admin may mark Booking Not Utilized (no refund), only when lifecycle has no update or only &quot;Sample Sent&quot;. Set to 0 to hide this action for this equipment.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="operator-unavailable-after-booking-end-hours">Auto Operator Unavailable (hours after booking end)</Label>
+          <Input
+            id="operator-unavailable-after-booking-end-hours"
+            type="number"
+            min={0}
+            placeholder="Default 24, 0 = disabled"
+            value={formData.operator_unavailable_after_booking_end_hours ?? ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              setFormData((p) => ({
+                ...p,
+                operator_unavailable_after_booking_end_hours: v === "" ? 24 : Math.max(0, parseInt(v, 10) || 0),
+              }));
+            }}
+          />
+          <p className="text-muted-foreground text-xs">
+            After the last slot ends, if the booking is still open and lifecycle shows staff work beyond &quot;Sample Sent&quot; but the run is not finished (not analyzed/returned/archived/disposed), the system auto-marks Operator Unavailable (full refund) after this many hours. Set to 0 to disable. User no-shows use manual Booking Not Utilized.
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center space-x-2">
@@ -548,6 +636,37 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           onCheckedChange={(checked) => setFormData((p) => ({ ...p, split_booking_enabled: !!checked }))}
         />
         <Label htmlFor="split-booking">Split booking enabled</Label>
+      </div>
+
+      <div className="space-y-2 max-w-sm">
+        <Label>Auto Slot Selection default (override)</Label>
+        <Select
+          value={
+            formData.auto_slot_selection_default === true
+              ? "true"
+              : formData.auto_slot_selection_default === false
+                ? "false"
+                : "null"
+          }
+          onValueChange={(v) =>
+            setFormData((p) => ({
+              ...p,
+              auto_slot_selection_default: v === "true" ? true : v === "false" ? false : null,
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Use user's preference" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="null">Use user preference</SelectItem>
+            <SelectItem value="true">Enabled by default</SelectItem>
+            <SelectItem value="false">Disabled by default</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-muted-foreground text-xs">
+          Controls the default state of the booking page toggle for this equipment. When unset, the user&apos;s profile preference is used.
+        </p>
       </div>
 
       <div className="space-y-2 max-w-xs">

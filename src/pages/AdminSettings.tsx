@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, User as UserIcon, MessageSquare, Package, LifeBuoy, Target, Inbox, Wallet, Shield } from "lucide-react";
+import { ArrowLeft, User as UserIcon, MessageSquare, Package, LifeBuoy, Target, Inbox, Wallet, Shield, Trophy } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -10,6 +10,7 @@ const AdminSettings = () => {
   const { user } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
+  const canManageRewards = userTypeStr === "admin" || userTypeStr === "manager" || userTypeStr === "operator";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
@@ -95,9 +96,9 @@ const AdminSettings = () => {
             >
               <CardHeader>
                 <Wallet className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Parse Recharge File</CardTitle>
+                <CardTitle className="text-base">Wallet Management</CardTitle>
                 <CardDescription className="text-sm">
-                  Upload wallet recharge file and match entries by Employee/Student ID
+                  Manual credits, file import, IMAP, and wallet recharge history
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -140,6 +141,20 @@ const AdminSettings = () => {
                 <CardTitle className="text-base">Quality Improvement</CardTitle>
                 <CardDescription className="text-sm">
                   Bugs & suggestions for the booking website; mark resolved or unresolved and notify users
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+          {canManageRewards && (
+            <Card
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate("/admin-settings/rewards")}
+            >
+              <CardHeader>
+                <Trophy className="h-8 w-8 text-primary mb-2" />
+                <CardTitle className="text-base">Reward Config (Per Equipment)</CardTitle>
+                <CardDescription className="text-sm">
+                  Configure TA reward earning and redemption rules equipment-wise
                 </CardDescription>
               </CardHeader>
             </Card>

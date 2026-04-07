@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import type { EquipmentNomination, TANominationCall } from "@/lib/api";
@@ -40,6 +40,20 @@ import { format } from "date-fns";
 type SemesterOption = { id: number; code: string; name: string };
 type EquipmentOption = { equipment_id: number; code: string; name: string };
 
+function extractAcademicYearLabel(s: SemesterOption): string {
+  const text = `${s.code || ""} ${s.name || ""}`;
+  const yyyyShort = text.match(/\b(\d{4}-\d{2})\b/);
+  if (yyyyShort?.[1]) return yyyyShort[1];
+  const yyyyFull = text.match(/\b(\d{4}-\d{4})\b/);
+  if (yyyyFull?.[1]) {
+    const [a, b] = yyyyFull[1].split("-");
+    return `${a}-${b.slice(-2)}`;
+  }
+  const single = text.match(/\b(20\d{2})\b/);
+  if (single?.[1]) return single[1];
+  return s.name || s.code || `Year-${s.id}`;
+}
+
 export default function TANominationCall() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -74,6 +88,19 @@ export default function TANominationCall() {
     nominationId: null,
     remarks: "",
   });
+
+  const academicYearOptions = useMemo(() => {
+    const byYear = new Map<string, SemesterOption>();
+    for (const s of semesters) {
+      const year = extractAcademicYearLabel(s);
+      const existing = byYear.get(year);
+      // Prefer latest row (higher id) for that year.
+      if (!existing || s.id > existing.id) byYear.set(year, s);
+    }
+    return Array.from(byYear.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([year, sem]) => ({ year, semesterId: String(sem.id) }));
+  }, [semesters]);
 
   useEffect(() => {
     if (!isOperatorOrManager) {
@@ -205,7 +232,7 @@ export default function TANominationCall() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!equipmentId || !semesterId || !nominationDeadline) {
-      toast.error("Please select equipment, semester, and nomination deadline.");
+      toast.error("Please select equipment, academic year, and nomination deadline.");
       return;
     }
     const num = parseInt(numberOfOperators, 10);
@@ -265,7 +292,7 @@ export default function TANominationCall() {
               <div>
                 <CardTitle className="text-xl">Initiate TA nomination call</CardTitle>
                 <CardDescription className="text-sm mt-0.5">
-                  Send a request to all Internal (Faculty) users to nominate students for operating an equipment this semester. OIC can select only equipment they manage; Admin can select any.
+                  Send a request to all Internal (Faculty) users to nominate students for operating an equipment for this academic year. OIC can select only equipment they manage; Admin can select any.
                 </CardDescription>
               </div>
             </div>
@@ -289,15 +316,15 @@ export default function TANominationCall() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="semester">Semester *</Label>
+                  <Label htmlFor="semester">Academic Year *</Label>
                   <Select value={semesterId} onValueChange={setSemesterId} required>
                     <SelectTrigger id="semester">
-                      <SelectValue placeholder={loadingSemesters ? "Loading…" : "Select semester"} />
+                      <SelectValue placeholder={loadingSemesters ? "Loading…" : "Select academic year"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {semesters.map((s) => (
-                        <SelectItem key={s.id} value={String(s.id)}>
-                          {s.name}
+                      {academicYearOptions.map((opt) => (
+                        <SelectItem key={opt.semesterId} value={opt.semesterId}>
+                          {opt.year}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -345,7 +372,7 @@ export default function TANominationCall() {
                 <Label htmlFor="duty_hours">Expected duty hours</Label>
                 <Textarea
                   id="duty_hours"
-                  placeholder="e.g. 4–6 hours per week during semester"
+                  placeholder="e.g. 4–6 hours per week during academic year"
                   value={expectedDutyHours}
                   onChange={(e) => setExpectedDutyHours(e.target.value)}
                   rows={2}
@@ -381,7 +408,7 @@ export default function TANominationCall() {
                 <Label htmlFor="benefits">Benefits</Label>
                 <Textarea
                   id="benefits"
-                  placeholder="e.g. Certificate on completion; instrument usage coupons for personal samples"
+                  placeholder="e.g. Certificate on completion; priority instrument booking support"
                   value={benefits}
                   onChange={(e) => setBenefits(e.target.value)}
                   rows={2}
@@ -464,7 +491,7 @@ export default function TANominationCall() {
                       <TableHead className="hidden md:table-cell">Email</TableHead>
                       <TableHead>Supervisor</TableHead>
                       <TableHead>Equipment</TableHead>
-                      <TableHead>Semester</TableHead>
+                      <TableHead>Academic Year</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Resume</TableHead>
                       <TableHead className="w-[120px] text-right">Actions</TableHead>

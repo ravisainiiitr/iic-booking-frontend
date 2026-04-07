@@ -21,11 +21,11 @@ const DEFAULT_HOME = {
   cta_book_route: "/equipments",
   cta_browse_text: "Browse Catalog",
   cta_browse_anchor: "#equipment",
-  stat1_value: "50+",
+  stat1_value: "—",
   stat1_label: "Equipment Types",
   stat2_value: "24/7",
   stat2_label: "Online Booking",
-  stat3_value: "1000+",
+  stat3_value: "—",
   stat3_label: "Active Users",
 };
 
@@ -35,6 +35,12 @@ const Hero = () => {
   const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
   const [fontSizes, setFontSizes] = useState<Record<string, string>>({});
+  /** Live counts from API; CMS stat1/stat3 used only if the stats request fails. */
+  const [liveSiteStats, setLiveSiteStats] = useState<{
+    equipmentCount: number;
+    activeUsersCount: number;
+  } | null>(null);
+  const [siteStatsFailed, setSiteStatsFailed] = useState(false);
   const [channeliLoading, setChanneliLoading] = useState(false);
 
   const handleChanneliLogin = async () => {
@@ -77,6 +83,24 @@ const Hero = () => {
   }, []);
 
   useEffect(() => {
+    apiClient
+      .getCmsSiteStats()
+      .then((res) => {
+        if (res.error || res.data == null) {
+          setSiteStatsFailed(true);
+          return;
+        }
+        setLiveSiteStats({
+          equipmentCount: res.data.equipment_count,
+          activeUsersCount: res.data.active_users_count,
+        });
+      })
+      .catch(() => {
+        setSiteStatsFailed(true);
+      });
+  }, []);
+
+  useEffect(() => {
     apiClient.getCmsHeroSlides().then((res) => {
       if (res.error) return;
       if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -96,6 +120,19 @@ const Hero = () => {
 
   const instrumentImages: Array<{ src: string; alt: string }> =
     heroSlides.length > 0 ? heroSlides : fallbackImages;
+
+  const stat1Display =
+    liveSiteStats != null
+      ? `${liveSiteStats.equipmentCount.toLocaleString("en-IN")}+`
+      : siteStatsFailed
+        ? (home.stat1_value ?? DEFAULT_HOME.stat1_value)
+        : "—";
+  const stat3Display =
+    liveSiteStats != null
+      ? `${liveSiteStats.activeUsersCount.toLocaleString("en-IN")}+`
+      : siteStatsFailed
+        ? (home.stat3_value ?? DEFAULT_HOME.stat3_value)
+        : "—";
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
@@ -200,7 +237,7 @@ const Hero = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8 max-w-2xl mx-auto pt-8 md:pt-12">
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat1_value ? { fontSize: fontSizes.stat1_value } : undefined}>{home.stat1_value ?? "50+"}</div>
+              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat1_value ? { fontSize: fontSizes.stat1_value } : undefined}>{stat1Display}</div>
               <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat1_label ? { fontSize: fontSizes.stat1_label } : undefined}>{home.stat1_label ?? "Equipment Types"}</div>
             </div>
             <div className="text-center">
@@ -208,7 +245,7 @@ const Hero = () => {
               <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat2_label ? { fontSize: fontSizes.stat2_label } : undefined}>{home.stat2_label ?? "Online Booking"}</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat3_value ? { fontSize: fontSizes.stat3_value } : undefined}>{home.stat3_value ?? "1000+"}</div>
+              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat3_value ? { fontSize: fontSizes.stat3_value } : undefined}>{stat3Display}</div>
               <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat3_label ? { fontSize: fontSizes.stat3_label } : undefined}>{home.stat3_label ?? "Active Users"}</div>
             </div>
           </div>

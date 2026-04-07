@@ -3,14 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Play, ArrowLeft, Package, Loader2, Search, CalendarClock } from "lucide-react";
+import { ArrowLeft, Package, Loader2, Search } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { type EquipmentData } from "@/data/equipmentData";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,9 +27,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
+import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 
-interface Equipment extends EquipmentData {
+interface Equipment extends EquipmentData, EquipmentCatalogCardItem {
   status?: string;
+  statusDisplay?: string;
 }
 
 interface ApiEquipment {
@@ -37,32 +46,24 @@ interface ApiEquipment {
   location: string;
   image_url: string;
   category_name?: string | null;
+  avg_rating?: number | null;
+  rating_count?: number | null;
   created_at: string;
   updated_at: string;
 }
 
-// Gradient accent colors for card variety (cycle by index)
-const CARD_ACCENTS = [
-  { gradient: "from-indigo-500 to-blue-600", bar: "from-indigo-500 to-blue-500", button: "bg-indigo-600 hover:bg-indigo-700", border: "hover:border-indigo-200 dark:hover:border-indigo-800" },
-  { gradient: "from-emerald-500 to-teal-600", bar: "from-emerald-500 to-teal-500", button: "bg-emerald-600 hover:bg-emerald-700", border: "hover:border-emerald-200 dark:hover:border-emerald-800" },
-  { gradient: "from-violet-500 to-purple-600", bar: "from-violet-500 to-purple-500", button: "bg-violet-600 hover:bg-violet-700", border: "hover:border-violet-200 dark:hover:border-violet-800" },
-  { gradient: "from-amber-500 to-orange-600", bar: "from-amber-500 to-orange-500", button: "bg-amber-600 hover:bg-amber-700", border: "hover:border-amber-200 dark:hover:border-amber-800" },
-  { gradient: "from-sky-500 to-blue-600", bar: "from-sky-500 to-blue-500", button: "bg-sky-600 hover:bg-sky-700", border: "hover:border-sky-200 dark:hover:border-sky-800" },
-  { gradient: "from-rose-500 to-pink-600", bar: "from-rose-500 to-pink-500", button: "bg-rose-600 hover:bg-rose-700", border: "hover:border-rose-200 dark:hover:border-rose-800" },
-];
 
 const EquipmentList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
     equipmentName: string;
-    newStatus: "ACTIVE" | "INACTIVE";
+    newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR";
   } | null>(null);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
@@ -90,7 +91,8 @@ const EquipmentList = () => {
 
       try {
         setLoading(true);
-        const response = await apiClient.getEquipments();
+        // Request rating aggregates so cards can display overall rating (avg + count).
+        const response = await apiClient.getEquipments(undefined, undefined, undefined, true);
         if (cancelled) return;
 
         if (response.error) {
@@ -113,8 +115,8 @@ const EquipmentList = () => {
 
         const transformedEquipment: Equipment[] = list
           .filter((eq: ApiEquipment) => {
-            if (canChangeSlotStatusFilter) return eq.status_display !== "Disposed";
-            return eq.status === "ACTIVE" && eq.status_display !== "Disposed";
+            // Never hide maintenance statuses from regular users; only hide truly disposed equipment.
+            return eq.status_display !== "Disposed";
           })
           .map((eq: ApiEquipment) => ({
             id: eq.equipment_id,
@@ -125,11 +127,14 @@ const EquipmentList = () => {
             video: "",
             available: eq.status === "ACTIVE",
             status: eq.status,
+            statusDisplay: eq.status_display,
             address: eq.location || "",
             technicalPerson: "",
             contactNumber: "",
             internalRate: 0,
             externalRate: 0,
+            avgRating: eq.avg_rating ?? null,
+            ratingCount: eq.rating_count ?? null,
           }));
 
         setEquipment(transformedEquipment);
@@ -149,7 +154,7 @@ const EquipmentList = () => {
 
   const fetchEquipment = async () => {
     try {
-      const response = await apiClient.getEquipments();
+      const response = await apiClient.getEquipments(undefined, undefined, undefined, true);
       if (response.error) {
         toast.error(response.error || "Failed to load equipment");
         return;
@@ -157,10 +162,7 @@ const EquipmentList = () => {
       const rawList = response.data?.equipments;
       const list = Array.isArray(rawList) ? rawList : [];
       const transformedEquipment: Equipment[] = list
-        .filter((eq: ApiEquipment) => {
-          if (canChangeSlotStatus) return eq.status_display !== "Disposed";
-          return eq.status === "ACTIVE" && eq.status_display !== "Disposed";
-        })
+        .filter((eq: ApiEquipment) => eq.status_display !== "Disposed")
         .map((eq: ApiEquipment) => ({
           id: eq.equipment_id,
           name: eq.name,
@@ -170,11 +172,14 @@ const EquipmentList = () => {
           video: "",
           available: eq.status === "ACTIVE",
           status: eq.status,
+          statusDisplay: eq.status_display,
           address: eq.location || "",
           technicalPerson: "",
           contactNumber: "",
           internalRate: 0,
           externalRate: 0,
+          avgRating: eq.avg_rating ?? null,
+          ratingCount: eq.rating_count ?? null,
         }));
       setEquipment(transformedEquipment);
     } catch (error: any) {
@@ -182,7 +187,7 @@ const EquipmentList = () => {
     }
   };
 
-  const handleStatusToggle = async (equipmentId: number, newStatus: "ACTIVE" | "INACTIVE") => {
+  const handleStatusToggle = async (equipmentId: number, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => {
     setStatusUpdatingId(equipmentId);
     setPendingStatusChange(null);
     try {
@@ -191,7 +196,13 @@ const EquipmentList = () => {
         toast.error(res.error || "Failed to update status");
         return;
       }
-      toast.success(`Equipment set to ${newStatus === "ACTIVE" ? "Active" : "Inactive"}`);
+      const label =
+        newStatus === "ACTIVE"
+          ? "Operational"
+          : newStatus === "MAINTENANCE"
+            ? "Maintenance Scheduled"
+            : "Under Maintenance";
+      toast.success(`Equipment set to ${label}`);
       await fetchEquipment();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
@@ -307,122 +318,16 @@ const EquipmentList = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredEquipment.map((item, index) => {
-              const accent = CARD_ACCENTS[index % CARD_ACCENTS.length];
+              const accent = accentForEquipmentId(item.id);
               return (
-                <Card
+                <EquipmentCatalogCard
                   key={item.id}
-                  className={`cursor-pointer overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
-                  onClick={() => navigate(`/equipment/${item.id}`)}
-                >
-                  <div className="relative aspect-video overflow-hidden bg-muted">
-                    {playingVideo === item.id.toString() && item.video ? (
-                      <video
-                        src={item.video}
-                        controls
-                        autoPlay
-                        className="w-full h-full object-cover"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <>
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity" />
-                        {item.video && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPlayingVideo(item.id.toString());
-                            }}
-                            className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors"
-                          >
-                            <div className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${accent.gradient} text-white shadow-lg hover:scale-110 transition-transform`}>
-                              <Play className="h-7 w-7 fill-current" />
-                            </div>
-                          </button>
-                        )}
-                      </>
-                    )}
-                    {/* Accent bar on image */}
-                    <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${accent.bar}`} />
-                    {item.category && (
-                      <span className="absolute top-3 left-3 rounded-full bg-white/90 dark:bg-black/50 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
-                        {item.category}
-                      </span>
-                    )}
-                  </div>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg line-clamp-2">{item.name}</CardTitle>
-                    <CardDescription className="text-sm line-clamp-2">{item.description}</CardDescription>
-                    <div className={`h-1 w-12 rounded-full bg-gradient-to-r ${accent.bar} mt-3`} />
-                    {Number(item.internalRate) > 0 && (
-                      <div className="text-base font-semibold text-foreground mt-2">
-                        ₹{Number(item.internalRate).toFixed(2)}/hour
-                      </div>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-2">
-                      {canChangeSlotStatus && (
-                        <div
-                          className="flex items-center justify-between gap-2 rounded-lg border p-3"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Label htmlFor={`status-${item.id}`} className="text-sm font-medium cursor-pointer">
-                            {item.status === "ACTIVE" ? "Active" : "Inactive"}
-                          </Label>
-                          <Switch
-                            id={`status-${item.id}`}
-                            checked={item.status === "ACTIVE"}
-                            disabled={statusUpdatingId === item.id}
-                            onCheckedChange={() =>
-                              setPendingStatusChange({
-                                equipmentId: Number(item.id),
-                                equipmentName: item.name,
-                                newStatus: item.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-                              })
-                            }
-                          />
-                        </div>
-                      )}
-                      <Button
-                        className={`w-full ${accent.button} text-white`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/equipment/${item.id}`);
-                        }}
-                      >
-                        Book now
-                      </Button>
-                      {canChangeSlotStatus && (
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/book-equipment?equipment_id=${item.id}&mode=status`);
-                          }}
-                        >
-                          <CalendarClock className="h-4 w-4 mr-2" />
-                          Change Slot Status
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/equipment/${item.id}`);
-                        }}
-                      >
-                        View Details
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                  item={item}
+                  accent={accent}
+                  canChangeSlotStatus={canChangeSlotStatus}
+                  statusUpdatingId={statusUpdatingId}
+                  onRequestStatusChange={(next) => setPendingStatusChange(next)}
+                />
               );
             })}
           </div>
@@ -437,9 +342,16 @@ const EquipmentList = () => {
               {pendingStatusChange && (
                 <>
                   Set <strong>{pendingStatusChange.equipmentName}</strong> to{" "}
-                  <strong>{pendingStatusChange.newStatus === "ACTIVE" ? "Active" : "Inactive"}</strong>?
-                  {pendingStatusChange.newStatus === "INACTIVE" && (
-                    <span className="block mt-2">Inactive equipment will not be available for booking.</span>
+                  <strong>
+                    {pendingStatusChange.newStatus === "ACTIVE"
+                      ? "Operational"
+                      : pendingStatusChange.newStatus === "MAINTENANCE"
+                        ? "Maintenance Scheduled"
+                        : "Under Maintenance"}
+                  </strong>
+                  ?
+                  {pendingStatusChange.newStatus !== "ACTIVE" && (
+                    <span className="block mt-2">Non-operational equipment will not be available for booking.</span>
                   )}
                 </>
               )}

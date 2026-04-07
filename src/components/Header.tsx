@@ -104,6 +104,18 @@ const Header = () => {
       toast.error("Failed to log out");
     }
   };
+
+  const safeNavigate = (path: string) => {
+    if (!path) return;
+    if (window.location.pathname === path) return;
+    navigate(path);
+    // Fallback: if SPA route render doesn't happen, force navigation.
+    window.setTimeout(() => {
+      if (window.location.pathname !== path) {
+        window.location.assign(path);
+      }
+    }, 80);
+  };
   
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
@@ -310,36 +322,36 @@ const Header = () => {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                    <DropdownMenuItem onClick={() => safeNavigate("/dashboard")}>
                       <Calendar className="mr-2 h-4 w-4" />
                       <span>Dashboard</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/equipments")}>
+                    <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
                       <Package className="mr-2 h-4 w-4" />
                       <span>Browse Equipment</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate(canManageBookings ? "/booking-management" : "/my-bookings")}>
+                    <DropdownMenuItem onClick={() => safeNavigate(canManageBookings ? "/booking-management" : "/my-bookings")}>
                       <ClipboardList className="mr-2 h-4 w-4" />
                       <span>{canManageBookings ? "Manage booking" : "My Booking"}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate("/profile")}>
+                    <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                       <UserIcon className="mr-2 h-4 w-4" />
                       <span>Profile</span>
                     </DropdownMenuItem>
                     {isAdmin && (
-                      <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                      <DropdownMenuItem onClick={() => safeNavigate("/dashboard")}>
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Admin</span>
                       </DropdownMenuItem>
                     )}
                     {user?.can_have_wallet && (
-                      <DropdownMenuItem onClick={() => navigate("/wallet")}>
+                      <DropdownMenuItem onClick={() => safeNavigate("/wallet")}>
                         <Wallet className="mr-2 h-4 w-4" />
                         <span>Wallet</span>
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+                    <DropdownMenuItem onSelect={handleSignOut} className="text-destructive focus:text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Logout</span>
                     </DropdownMenuItem>

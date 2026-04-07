@@ -38,10 +38,11 @@ export interface InputFieldDef {
 interface BookingUserInputsProps {
   inputValues: Record<string, string | boolean | string[] | number | string[][]>;
   inputFields?: InputFieldDef[] | null;
+  editableInputFields?: InputFieldDef[] | null;
   status: string;
   onUpdate?: (newInputValues: Record<string, string | boolean | string[] | number | string[][]>) => Promise<void>;
   disabled?: boolean;
-  /** When true and status is BOOKED, all input fields are editable (charge recalculation flow). */
+  /** Legacy flag; editing is still restricted by editable fields. */
   enableChargeRecalculation?: boolean;
   /** Sample/slot trace events (ordered by created_at). Editing is disabled when latest status is PROCESSING or COMPLETED. */
   sampleTrace?: Array<{ status: string }>;
@@ -109,6 +110,7 @@ function resolveRadioComboDisplay(
 export function BookingUserInputs({
   inputValues,
   inputFields,
+  editableInputFields,
   status,
   onUpdate,
   disabled = false,
@@ -132,8 +134,14 @@ export function BookingUserInputs({
   const keysToShow = Object.keys(iv).filter((k) => !k.endsWith("_elements"));
   if (keysToShow.length === 0) return null;
 
-  const isCompleted = String(status || "").toUpperCase() === "COMPLETED";
-  const isBooked = String(status || "").toUpperCase() === "BOOKED";
+  const statusUpper = String(status || "").toUpperCase();
+  const isCompleted = statusUpper === "COMPLETED";
+  const isBooked = statusUpper === "BOOKED";
+  /** Closed outcomes: no user-input edits even when fields are marked editing_required / charge recalc. */
+  const noUserInputEdits =
+    statusUpper === "REFUNDED" ||
+    statusUpper === "ABSENT" ||
+    statusUpper === "BOOKING_NOT_UTILIZED";
   const latestSampleStatus = sampleTrace?.length
     ? String(sampleTrace[sampleTrace.length - 1]?.status ?? "").toUpperCase()
     : "";
@@ -142,9 +150,10 @@ export function BookingUserInputs({
   const canEdit =
     !!onUpdate &&
     !disabled &&
+    !noUserInputEdits &&
     !isCompleted &&
     (isAdminUser || (isBooked && !sampleSlotBlocksEdit));
-  const allowAllFieldsEditable = enableChargeRecalculation && isBooked;
+  void enableChargeRecalculation; // kept for backward compatibility, but does not override editable field restrictions.
 
   const fields =
     inputFields && inputFields.length > 0
@@ -154,7 +163,10 @@ export function BookingUserInputs({
             ({ field_key: key, field_label: key, field_type: "", options: undefined, editing_required: false } as InputFieldDef)
         );
 
-  const editableFields = allowAllFieldsEditable ? fields : fields.filter((f) => f.editing_required);
+  const editableFields =
+    editableInputFields && editableInputFields.length > 0
+      ? editableInputFields
+      : fields.filter((f) => f.editing_required);
   const hasEditableFields = canEdit && editableFields.length > 0;
   const hasPeriodicTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"
