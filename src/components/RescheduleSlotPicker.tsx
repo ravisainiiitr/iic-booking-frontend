@@ -255,7 +255,7 @@ export default function RescheduleSlotPicker({
         const nextWeekSunday = addDays(nextWeek, 6);
         const nextWeekAvailable = nextWeekSunday <= maxDate;
         if (!nextWeekAvailable) {
-          return addDays(currentWeek, 6) >= minDate && currentWeek <= maxDate ? [currentWeek] : [];
+          return getAllowedWeeksFromSlotWindowBounds(minDateStr, maxDateStr);
         }
         const weeks: Date[] = [];
         const candidateWeeks = [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)];

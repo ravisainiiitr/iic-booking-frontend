@@ -531,8 +531,10 @@ class ApiClient {
     exposeHeaders?: string[],
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
+    const isFormDataBody =
+      typeof FormData !== "undefined" && options.body instanceof FormData;
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     };
 
@@ -660,6 +662,194 @@ class ApiClient {
         error: error.message || 'Network error occurred',
       };
     }
+  }
+
+  /** Lab operator: submit a leave request (optional attachment). */
+  async createOperatorLeaveRequest(input: {
+    equipment_id?: number;
+    start_date: string; // YYYY-MM-DD
+    end_date: string; // YYYY-MM-DD
+    start_session?: "FN" | "AN";
+    end_session?: "FN" | "AN";
+    reason: string;
+    attachment?: File | null;
+  }) {
+    const fd = new FormData();
+    if (input.equipment_id != null) fd.set("equipment_id", String(input.equipment_id));
+    fd.set("start_date", input.start_date);
+    fd.set("end_date", input.end_date);
+    if (input.start_session) fd.set("start_session", input.start_session);
+    if (input.end_session) fd.set("end_session", input.end_session);
+    fd.set("reason", input.reason);
+    if (input.attachment) fd.set("attachment", input.attachment);
+    return this.request<{ id: number; status: string }>("/operator/leave/requests/", {
+      method: "POST",
+      body: fd,
+    });
+  }
+
+  /** Operator/OIC: resume duty — shortens leave per 10:00 local rule or vacates leave if before 10:00 on first day. */
+  async resumeOperatorLeaveRequest(leaveId: number) {
+    return this.request<{
+      message: string;
+      status?: string;
+      end_date?: string;
+      end_session?: string;
+      ended_coverages?: number;
+      updated_coverages?: number;
+    }>(`/operator/leave/requests/${leaveId}/resume/`, {
+      method: "POST",
+    });
+  }
+
+  async getOperatorLeaveSummary(opts: { year: number }) {
+    const p = new URLSearchParams();
+    p.set("year", String(opts.year));
+    return this.request<{ approved_days_this_year: number }>(`/operator/leave/summary/?${p.toString()}`);
+  }
+
+  async listOperatorLeaveRequests(opts?: { year?: number }) {
+    const p = new URLSearchParams();
+    if (opts?.year != null) p.set("year", String(opts.year));
+    const qs = p.toString();
+    return this.request<{ leaves: any[] }>(`/operator/leave/requests/${qs ? `?${qs}` : ""}`);
+  }
+
+  async getTeamCalendarDepartment(opts: { month: string; department_id?: number }) {
+    const p = new URLSearchParams();
+    p.set("month", opts.month);
+    if (opts.department_id != null) p.set("department_id", String(opts.department_id));
+    return this.request<{
+      month: string;
+      date_start: string;
+      date_end: string;
+      members: Array<{ id: number; name: string; email: string; user_type: string }>;
+      leaves: Array<{
+        id: number;
+        operator_id: number;
+        operator_name: string;
+        start_date: string;
+        start_session: "FN" | "AN";
+        end_date: string;
+        end_session: "FN" | "AN";
+        status: string;
+        reason: string;
+        rejection_reason?: string | null;
+      }>;
+      holidays?: Record<string, { reason: string; color: string }>;
+    }>(`/team-calendar/department/?${p.toString()}`);
+  }
+
+  /** OIC/Admin: list pending leave requests in their department. */
+  async listPendingLeaveRequestsForOic() {
+    return this.request<{ leaves: any[] }>(`/oic/leave/requests/pending/`);
+  }
+
+  /** OIC/Admin: list approved leave requests in their department. */
+  async listApprovedLeaveRequestsForOic() {
+    return this.request<{ leaves: any[] }>(`/oic/leave/requests/approved/`);
+  }
+
+  /** OIC/Admin: approve leave request. */
+  async approveLeaveRequestAsOic(leaveId: number) {
+    return this.request<{ id: number; status: string }>(`/oic/leave/requests/${leaveId}/approve/`, {
+      method: "POST",
+    });
+  }
+
+  /** OIC/Admin: coverage options for approving operator leave request. */
+  async getOicLeaveCoverageOptions(leaveId: number) {
+    return this.request<{
+      leave: {
+        id: number;
+        operator_id: number;
+        operator_name?: string | null;
+        operator_email?: string | null;
+        start_date: string;
+        start_session: "FN" | "AN";
+        end_date: string;
+        end_session: "FN" | "AN";
+      };
+      equipments: Array<{ equipment_id: number; equipment_code: string; equipment_name: string }>;
+      eligible_operators: Array<{ id: number; name: string; email: string }>;
+      modes: string[];
+    }>(`/oic/leave/requests/${leaveId}/coverage-options/`);
+  }
+
+  /** OIC/Admin: read existing coverages for a leave request. */
+  async getOicLeaveCoverages(leaveId: number) {
+    return this.request<{
+      coverages: Array<{
+        id: number;
+        equipment_id: number;
+        mode: "SECONDARY_OPERATOR" | "OIC_SELF_OPERATE" | "OPERATOR_ON_LEAVE";
+        acting_operator_id: number | null;
+        acting_operator_email?: string | null;
+        ended_early_at?: string | null;
+      }>;
+    }>(`/oic/leave/requests/${leaveId}/coverages/`);
+  }
+
+  /** OIC/Admin: set/replace coverages for an approved leave request. */
+  async setOicLeaveCoverages(
+    leaveId: number,
+    input: {
+      coverages: Array<{
+        equipment_id: number;
+        mode: "SECONDARY_OPERATOR" | "OIC_SELF_OPERATE" | "OPERATOR_ON_LEAVE";
+        acting_operator_id?: number | null;
+      }>;
+    },
+  ) {
+    return this.request<{ coverage_ids: number[] }>(`/oic/leave/requests/${leaveId}/set-coverages/`, {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  /** OIC/Admin: approve leave and attach per-equipment coverage decisions. */
+  async approveLeaveRequestAsOicWithCoverage(
+    leaveId: number,
+    input: {
+      coverages: Array<{
+        equipment_id: number;
+        mode: "SECONDARY_OPERATOR" | "OIC_SELF_OPERATE" | "OPERATOR_ON_LEAVE";
+        acting_operator_id?: number | null;
+      }>;
+    },
+  ) {
+    return this.request<{ id: number; status: string; coverage_ids: number[] }>(
+      `/oic/leave/requests/${leaveId}/approve-with-coverage/`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  /** OIC/Admin: resume duty for operator — same leave-shortening rules as operator self-resume. */
+  async resumeLeaveRequestAsOic(leaveId: number) {
+    return this.request<{
+      message: string;
+      status?: string;
+      end_date?: string;
+      end_session?: string;
+      ended_coverages?: number;
+      updated_coverages?: number;
+    }>(`/oic/leave/requests/${leaveId}/resume/`, {
+      method: "POST",
+    });
+  }
+
+  /** OIC/Admin: reject leave request (requires rejection_reason). */
+  async rejectLeaveRequestAsOic(leaveId: number, rejection_reason: string) {
+    return this.request<{ id: number; status: string }>(`/oic/leave/requests/${leaveId}/reject/`, {
+      method: "POST",
+      body: JSON.stringify({ rejection_reason }),
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   setToken(token: string | null) {
@@ -1258,7 +1448,13 @@ class ApiClient {
     return this.request<any[]>('/equipment/');
   }
 
-  async getEquipments(search?: string, status?: string, scope?: string, includeRatings?: boolean) {
+  async getEquipments(
+    search?: string,
+    status?: string,
+    scope?: string,
+    includeRatings?: boolean,
+    internalDepartmentId?: number | 'all',
+  ) {
     const params = new URLSearchParams();
     if (search) {
       params.append('search', search);
@@ -1271,6 +1467,9 @@ class ApiClient {
     }
     if (includeRatings) {
       params.append('include_ratings', '1');
+    }
+    if (internalDepartmentId != null && internalDepartmentId !== 'all') {
+      params.append('internal_department_id', String(internalDepartmentId));
     }
     const queryString = params.toString();
     const endpoint = queryString ? `/equipments/?${queryString}` : '/equipments/';
@@ -1290,11 +1489,26 @@ class ApiClient {
         category?: number | null;
         category_name?: string | null;
         category_code?: string | null;
+        internal_department?: number | null;
+        internal_department_name?: string | null;
+        internal_department_code?: string | null;
         created_at: string;
         updated_at: string;
       }>;
       count: number;
     }>(endpoint);
+  }
+
+  async getCatalogDepartments() {
+    return this.request<{
+      departments: Array<{
+        id: number;
+        name: string;
+        code: string;
+        equipment_count: number;
+      }>;
+      unassigned_count: number;
+    }>('/equipments/catalog-departments/');
   }
 
   // CMS (public read-only for main page and menu)
@@ -1308,7 +1522,7 @@ class ApiClient {
 
   /** Public hero stats: operational equipment (public catalog) and active users. */
   async getCmsSiteStats() {
-    return this.request<{ equipment_count: number; active_users_count: number }>('/cms/site-stats/');
+    return this.request<{ equipment_count: number; active_users_count: number; total_bookings_count: number }>('/cms/site-stats/');
   }
 
   /** Hero carousel background images (multiple, with autoscroll on frontend). */

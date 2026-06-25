@@ -27,6 +27,8 @@ const DEFAULT_HOME = {
   stat2_label: "Online Booking",
   stat3_value: "—",
   stat3_label: "Active Users",
+  stat4_value: "—",
+  stat4_label: "Total Bookings",
 };
 
 const Hero = () => {
@@ -35,9 +37,10 @@ const Hero = () => {
   const [autoplay] = useState(() => Autoplay({ delay: 4000, stopOnInteraction: false }));
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
   const [fontSizes, setFontSizes] = useState<Record<string, string>>({});
-  /** Live counts from API; CMS stat1/stat3 used only if the stats request fails. */
+  /** Live counts from API; CMS stat values used only if the stats request fails. */
   const [liveSiteStats, setLiveSiteStats] = useState<{
     equipmentCount: number;
+    totalBookingsCount: number;
     activeUsersCount: number;
   } | null>(null);
   const [siteStatsFailed, setSiteStatsFailed] = useState(false);
@@ -92,6 +95,7 @@ const Hero = () => {
         }
         setLiveSiteStats({
           equipmentCount: res.data.equipment_count,
+          totalBookingsCount: res.data.total_bookings_count ?? 0,
           activeUsersCount: res.data.active_users_count,
         });
       })
@@ -126,6 +130,12 @@ const Hero = () => {
       ? `${liveSiteStats.equipmentCount.toLocaleString("en-IN")}+`
       : siteStatsFailed
         ? (home.stat1_value ?? DEFAULT_HOME.stat1_value)
+        : "—";
+  const stat2BookingsDisplay =
+    liveSiteStats != null
+      ? `${liveSiteStats.totalBookingsCount.toLocaleString("en-IN")}+`
+      : siteStatsFailed
+        ? (home.stat4_value ?? DEFAULT_HOME.stat4_value)
         : "—";
   const stat3Display =
     liveSiteStats != null
@@ -235,10 +245,14 @@ const Hero = () => {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8 max-w-2xl mx-auto pt-8 md:pt-12">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-4xl mx-auto pt-8 md:pt-12">
             <div className="text-center">
               <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat1_value ? { fontSize: fontSizes.stat1_value } : undefined}>{stat1Display}</div>
               <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat1_label ? { fontSize: fontSizes.stat1_label } : undefined}>{home.stat1_label ?? "Equipment Types"}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat4_value ? { fontSize: fontSizes.stat4_value } : undefined}>{stat2BookingsDisplay}</div>
+              <div className="text-primary-foreground/80 text-sm mt-1" style={fontSizes.stat4_label ? { fontSize: fontSizes.stat4_label } : undefined}>{home.stat4_label ?? "Total Bookings"}</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-primary-foreground" style={fontSizes.stat2_value ? { fontSize: fontSizes.stat2_value } : undefined}>{home.stat2_value ?? "24/7"}</div>

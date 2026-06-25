@@ -244,13 +244,18 @@ function isExternalUserTypeSnapshot(ut: string | null | undefined): boolean {
 function canPerformAction(booking: BookingDetailCardBooking, action: ActionType, isOperator: boolean): boolean {
   if (!action) return false;
   const status = booking.status.toUpperCase();
+  /** Sample Lifecycle "Analyzed" (trace COMPLETED) is the same workflow step as Actions → Complete; no second complete. */
+  const traceHasAnalyzed = (booking.sample_trace ?? []).some(
+    (e) => String(e.status || "").toUpperCase() === "COMPLETED"
+  );
   if (isOperator) {
-    if (action === "complete" && status === "BOOKED") return true;
+    if (action === "complete" && status === "BOOKED") return !traceHasAnalyzed;
     if (action === "not_utilized") return canMarkBookingNotUtilized(booking);
     return false;
   }
   switch (action) {
     case "complete":
+      if (traceHasAnalyzed) return false;
       return status === "BOOKED";
     case "refund":
       return status !== "REFUNDED" && status !== "COMPLETED";
@@ -1984,6 +1989,10 @@ export function BookingDetailCard({
                 if (isOperatorOrManager && !isFinanceUser) return false;
                 return true;
               })()}
+              canSetHeldForwardedActions={
+                // Accounts can do Held/Forwarded; Admin may also.
+                isFinanceUser || normalizedCurrentUserType === "admin"
+              }
               showHeldForwardedDespiteHideSampleActions={
                 isFinanceUser && isExternalBookingType && !traceHasReturned
               }

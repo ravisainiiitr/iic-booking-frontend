@@ -1,22 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Package, Loader2, Search } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { toast } from "sonner";
 import { type EquipmentData } from "@/data/equipmentData";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,12 +39,35 @@ interface ApiEquipment {
   location: string;
   image_url: string;
   category_name?: string | null;
+  internal_department?: number | null;
+  internal_department_name?: string | null;
   avg_rating?: number | null;
   rating_count?: number | null;
   created_at: string;
   updated_at: string;
 }
 
+const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
+  list
+    .filter((eq) => eq.status_display !== "Disposed")
+    .map((eq) => ({
+      id: eq.equipment_id,
+      name: eq.name,
+      category: eq.category_name || "",
+      description: eq.name,
+      image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+      video: "",
+      available: eq.status === "ACTIVE",
+      status: eq.status,
+      statusDisplay: eq.status_display,
+      address: eq.location || "",
+      technicalPerson: "",
+      contactNumber: "",
+      internalRate: 0,
+      externalRate: 0,
+      avgRating: eq.avg_rating ?? null,
+      ratingCount: eq.rating_count ?? null,
+    }));
 
 const EquipmentList = () => {
   const navigate = useNavigate();
@@ -59,6 +75,7 @@ const EquipmentList = () => {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
@@ -68,12 +85,26 @@ const EquipmentList = () => {
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const canChangeSlotStatus = ["admin", "manager", "operator"].includes(userTypeStr);
-  const canBookForUser = ["admin", "manager", "operator"].includes(userTypeStr);
+
+  const [authReady, setAuthReady] = useState(false);
+
+  const fetchEquipment = useCallback(
+    async (search?: string, departmentId: DepartmentFilterValue = "all") => {
+      const response = await apiClient.getEquipments(search, undefined, undefined, true, departmentId);
+      if (response.error) {
+        throw new Error(response.error || "Failed to load equipment");
+      }
+      const rawList = response.data?.equipments;
+      const list = Array.isArray(rawList) ? rawList : [];
+      return transformApiEquipment(list);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
+    const checkAuth = async () => {
       const token = apiClient.getToken();
       if (!token) {
         setLoading(false);
@@ -88,59 +119,31 @@ const EquipmentList = () => {
         navigate("/auth");
         return;
       }
+      setAuthReady(true);
+    };
 
+    checkAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!authReady) return;
+
+    let cancelled = false;
+
+    const reload = async () => {
       try {
         setLoading(true);
-        // Request rating aggregates so cards can display overall rating (avg + count).
-        const response = await apiClient.getEquipments(undefined, undefined, undefined, true);
-        if (cancelled) return;
-
-        if (response.error) {
-          toast.error(response.error || "Failed to load equipment");
-          setEquipment([]);
-          return;
-        }
-
-        const rawList = response.data?.equipments;
-        const list = Array.isArray(rawList) ? rawList : [];
-        if (list.length === 0) {
-          toast.info("No equipment available");
-          setEquipment([]);
-          return;
-        }
-
-        const ut = userResponse.data?.user_type;
-        const userTypeStrForFilter = ut != null ? String(ut).toLowerCase() : "";
-        const canChangeSlotStatusFilter = ["admin", "manager", "operator"].includes(userTypeStrForFilter);
-
-        const transformedEquipment: Equipment[] = list
-          .filter((eq: ApiEquipment) => {
-            // Never hide maintenance statuses from regular users; only hide truly disposed equipment.
-            return eq.status_display !== "Disposed";
-          })
-          .map((eq: ApiEquipment) => ({
-            id: eq.equipment_id,
-            name: eq.name,
-            category: eq.category_name || "",
-            description: eq.name,
-            image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
-            video: "",
-            available: eq.status === "ACTIVE",
-            status: eq.status,
-            statusDisplay: eq.status_display,
-            address: eq.location || "",
-            technicalPerson: "",
-            contactNumber: "",
-            internalRate: 0,
-            externalRate: 0,
-            avgRating: eq.avg_rating ?? null,
-            ratingCount: eq.rating_count ?? null,
-          }));
-
-        setEquipment(transformedEquipment);
-      } catch (error: any) {
+        const transformed = await fetchEquipment(
+          searchQuery.trim() || undefined,
+          selectedDepartmentId,
+        );
+        if (!cancelled) setEquipment(transformed);
+      } catch (error: unknown) {
         if (!cancelled) {
-          toast.error(error.message || "Failed to load equipment");
+          toast.error(error instanceof Error ? error.message : "Failed to load equipment");
           setEquipment([]);
         }
       } finally {
@@ -148,44 +151,12 @@ const EquipmentList = () => {
       }
     };
 
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const fetchEquipment = async () => {
-    try {
-      const response = await apiClient.getEquipments(undefined, undefined, undefined, true);
-      if (response.error) {
-        toast.error(response.error || "Failed to load equipment");
-        return;
-      }
-      const rawList = response.data?.equipments;
-      const list = Array.isArray(rawList) ? rawList : [];
-      const transformedEquipment: Equipment[] = list
-        .filter((eq: ApiEquipment) => eq.status_display !== "Disposed")
-        .map((eq: ApiEquipment) => ({
-          id: eq.equipment_id,
-          name: eq.name,
-          category: eq.category_name || "",
-          description: eq.name,
-          image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
-          video: "",
-          available: eq.status === "ACTIVE",
-          status: eq.status,
-          statusDisplay: eq.status_display,
-          address: eq.location || "",
-          technicalPerson: "",
-          contactNumber: "",
-          internalRate: 0,
-          externalRate: 0,
-          avgRating: eq.avg_rating ?? null,
-          ratingCount: eq.rating_count ?? null,
-        }));
-      setEquipment(transformedEquipment);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load equipment");
-    }
-  };
+    const timeoutId = setTimeout(reload, searchQuery.trim() ? 500 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [authReady, searchQuery, selectedDepartmentId, fetchEquipment]);
 
   const handleStatusToggle = async (equipmentId: number, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => {
     setStatusUpdatingId(equipmentId);
@@ -203,7 +174,8 @@ const EquipmentList = () => {
             ? "Maintenance Scheduled"
             : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
-      await fetchEquipment();
+      const transformed = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
+      setEquipment(transformed);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
     } finally {
@@ -211,18 +183,9 @@ const EquipmentList = () => {
     }
   };
 
-  const q = searchQuery.trim().toLowerCase();
-  const filteredEquipment = q
-    ? equipment.filter(
-        (item) =>
-          (item.name && item.name.toLowerCase().includes(q)) ||
-          (item.category && item.category.toLowerCase().includes(q)) ||
-          (item.description && item.description.toLowerCase().includes(q)) ||
-          (item.address && item.address.toLowerCase().includes(q))
-      )
-    : equipment;
+  const hasActiveFilters = selectedDepartmentId !== "all" || searchQuery.trim().length > 0;
 
-  if (loading) {
+  if (loading && equipment.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
         <DashboardHeader />
@@ -243,7 +206,6 @@ const EquipmentList = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        {/* Hero section */}
         <div className="mb-10 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-600 p-8 text-white shadow-xl">
           <Button
             variant="ghost"
@@ -260,9 +222,7 @@ const EquipmentList = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold">Browse Equipment</h1>
-              <p className="text-white/90 mt-0.5">
-                Explore and book laboratory equipment
-              </p>
+              <p className="text-white/90 mt-0.5">Explore and book laboratory equipment</p>
             </div>
           </div>
         </div>
@@ -271,16 +231,26 @@ const EquipmentList = () => {
           Equipment catalog
         </p>
 
-        <div className="mb-6">
-          <div className="relative max-w-md">
+        <div className="mb-6 flex flex-col sm:flex-row gap-3 max-w-3xl">
+          <DepartmentFilter
+            value={selectedDepartmentId}
+            onChange={setSelectedDepartmentId}
+            className="sm:w-64 shrink-0"
+            triggerClassName="h-11 rounded-xl w-full"
+            disabled={loading}
+          />
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search by name, category, or description..."
+              placeholder="Search by name or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm"
             />
+            {loading && (
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+            )}
           </div>
         </div>
 
@@ -288,48 +258,46 @@ const EquipmentList = () => {
           <Card className="overflow-hidden border-0 shadow-lg rounded-2xl max-w-md mx-auto">
             <CardContent className="flex flex-col items-center justify-center py-16 px-8 text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-indigo-100 dark:from-sky-900/30 dark:to-indigo-900/30 text-sky-600 dark:text-sky-400 mb-6">
-                <Package className="h-10 w-10" />
+                {hasActiveFilters ? <Search className="h-10 w-10" /> : <Package className="h-10 w-10" />}
               </div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">No equipment available</h3>
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                {hasActiveFilters ? "No matching equipment" : "No equipment available"}
+              </h3>
               <p className="text-muted-foreground text-sm mb-6">
-                There is no active equipment in the catalog at the moment. Check back later.
+                {hasActiveFilters
+                  ? "No equipment matches the selected department or search. Try different filters."
+                  : "There is no active equipment in the catalog at the moment. Check back later."}
               </p>
-              <Button variant="outline" onClick={() => navigate("/dashboard")}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </CardContent>
-          </Card>
-        ) : filteredEquipment.length === 0 ? (
-          <Card className="overflow-hidden border-0 shadow-lg rounded-2xl max-w-md mx-auto">
-            <CardContent className="flex flex-col items-center justify-center py-16 px-8 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600 dark:text-amber-400 mb-6">
-                <Search className="h-10 w-10" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">No matching equipment</h3>
-              <p className="text-muted-foreground text-sm mb-6">
-                No equipment matches &quot;{searchQuery}&quot;. Try a different search term or clear the filter.
-              </p>
-              <Button variant="outline" onClick={() => setSearchQuery("")}>
-                Clear search
-              </Button>
+              {hasActiveFilters ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedDepartmentId("all");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => navigate("/dashboard")}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Dashboard
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredEquipment.map((item, index) => {
-              const accent = accentForEquipmentId(item.id);
-              return (
-                <EquipmentCatalogCard
-                  key={item.id}
-                  item={item}
-                  accent={accent}
-                  canChangeSlotStatus={canChangeSlotStatus}
-                  statusUpdatingId={statusUpdatingId}
-                  onRequestStatusChange={(next) => setPendingStatusChange(next)}
-                />
-              );
-            })}
+            {equipment.map((item) => (
+              <EquipmentCatalogCard
+                key={item.id}
+                item={item}
+                accent={accentForEquipmentId(item.id)}
+                canChangeSlotStatus={canChangeSlotStatus}
+                statusUpdatingId={statusUpdatingId}
+                onRequestStatusChange={(next) => setPendingStatusChange(next)}
+              />
+            ))}
           </div>
         )}
       </main>
@@ -360,7 +328,10 @@ const EquipmentList = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => pendingStatusChange && handleStatusToggle(pendingStatusChange.equipmentId, pendingStatusChange.newStatus)}
+              onClick={() =>
+                pendingStatusChange &&
+                handleStatusToggle(pendingStatusChange.equipmentId, pendingStatusChange.newStatus)
+              }
             >
               Confirm
             </AlertDialogAction>

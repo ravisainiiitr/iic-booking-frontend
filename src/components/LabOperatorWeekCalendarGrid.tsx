@@ -182,16 +182,25 @@ export function LabOperatorWeekCalendarGrid({
 }: LabOperatorWeekCalendarGridProps) {
   const currentWeekStart = parseISO(weekStartIso.length >= 10 ? weekStartIso.slice(0, 10) : weekStartIso);
 
-  const getSlotData = useMemo(() => {
+  const slotIndex = useMemo(() => {
+    const m = new Map<string, LabCalendarSlot>();
     const daily = slotsPayload?.slots ?? [];
+    for (const slot of daily) {
+      const dateStr = calendarDateStrFromSlot(slot);
+      const timeKey = timeKeyFromDailySlot(slot);
+      if (!dateStr || !timeKey) continue;
+      m.set(`${dateStr}|${timeKey}`, slot);
+    }
+    return m;
+  }, [slotsPayload]);
+
+  const getSlotData = useMemo(() => {
     return (day: Date, timeOrSlotKey: string) => {
       const expectedDateStr = format(startOfDay(day), "yyyy-MM-dd");
       const timeKey = normalizeSlotGridTimeKey(timeOrSlotKey);
-      return daily.find((slot) => {
-        return calendarDateStrFromSlot(slot) === expectedDateStr && timeKeyFromDailySlot(slot) === timeKey;
-      });
+      return slotIndex.get(`${expectedDateStr}|${timeKey}`);
     };
-  }, [slotsPayload]);
+  }, [slotIndex]);
 
   const allRows = useMemo(() => {
     if (!slotsPayload) return [];

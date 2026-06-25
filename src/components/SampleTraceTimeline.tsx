@@ -101,6 +101,8 @@ interface SampleTraceTimelineProps {
   bookingComplete?: boolean;
   /** When true (internal users: students/faculty), the Held at Office / Forwarded to Lab step is hidden from the timeline. */
   hideHeldForwardedStep?: boolean;
+  /** When false, Held at Office / Forwarded to Lab action buttons are hidden even for staff. */
+  canSetHeldForwardedActions?: boolean;
   /** When true, staff sample status action buttons (Accepted/Rejected/Processing) are hidden (e.g. for external users). */
   hideSampleStatusActions?: boolean;
   /** When true, booking-user interactions other than "Sample Sent" are hidden (e.g. external users shouldn't reply/upload). */
@@ -126,6 +128,7 @@ export default function SampleTraceTimeline({
   onUpdated,
   bookingComplete = false,
   hideHeldForwardedStep = false,
+  canSetHeldForwardedActions = true,
   hideSampleStatusActions = false,
   restrictBookingUserActionsToSampleSent = false,
   showHeldForwardedDespiteHideSampleActions = false,
@@ -703,6 +706,7 @@ export default function SampleTraceTimeline({
           !bookingComplete &&
           !lifecycleTerminal &&
           !hideHeldForwardedStep &&
+          canSetHeldForwardedActions &&
           (!hideSampleStatusActions || showHeldForwardedDespiteHideSampleActions) && (
           <>
             <Button

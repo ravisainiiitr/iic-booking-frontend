@@ -219,6 +219,59 @@ function formatSlotWindowReference(weekday: number, timeStr: string): string {
   return `${day} at ${time}`;
 }
 
+/** Monday-start weeks that overlap [minDateStr, maxDateStr] from the slots API. */
+function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: string): Date[] {
+  const minDate = startOfDay(parseISO(minDateStr));
+  const maxDate = startOfDay(parseISO(maxDateStr));
+  const weeks: Date[] = [];
+  let w = startOfWeek(minDate, { weekStartsOn: 1 });
+  for (let i = 0; i < 52; i++) {
+    const weekSunday = addDays(w, 6);
+    if (w <= maxDate && weekSunday >= minDate) {
+      weeks.push(w);
+    }
+    w = addWeeks(w, 1);
+    if (w > maxDate) break;
+  }
+  return weeks;
+}
+
+/** Default value for a dynamic input field when equipment is loaded or booking form resets. */
+function getInitialDynamicInputValue(field: any): string | boolean | string[] | number {
+  const fieldType = String(field.field_type || "").toUpperCase().trim();
+  if (fieldType === "TOGGLE") {
+    return field.default_value === "true" || field.default_value === true;
+  }
+  if (fieldType === "MULTI_SELECT") {
+    return field.default_value ? field.default_value.split(",") : [];
+  }
+  if (fieldType === "PERIODIC_TABLE") {
+    const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
+    return isNaN(count) ? 0 : count;
+  }
+  if (fieldType === "ICPMS_STANDARD_COVERAGE") {
+    return 0;
+  }
+  if (fieldType === "TABLE") {
+    const cols = Array.isArray(field.options) ? field.options.length : 0;
+    return cols ? [Array(cols).fill("")] : [];
+  }
+  if ((field.field_key === "A" || field.field_key === "B") && fieldType === "NUMERIC") {
+    const num = Number(field.default_value);
+    return String(Number.isNaN(num) || num < 1 ? 1 : num);
+  }
+  if (fieldType === "RADIO" || fieldType === "COMBO") {
+    if (field.default_value) return field.default_value;
+    const opts = field.options;
+    if (Array.isArray(opts) && opts.length > 0) {
+      const first = opts[0];
+      return String((first && typeof first === "object" && "value" in first) ? first.value : first);
+    }
+    return "";
+  }
+  return field.default_value || "";
+}
+
 function toFiniteNumber(value: unknown): number | undefined {
   if (value == null) return undefined;
   const n = typeof value === "number" ? value : Number(String(value).trim());
@@ -1356,31 +1409,14 @@ const BookEquipment = () => {
       // Initialize input field values with default values
       if (eq.input_fields && eq.input_fields.length > 0) {
         
-        const initialValues: Record<string, string | boolean | string[]> = {};
+        const initialValues: Record<string, string | boolean | string[] | number> = {};
         eq.input_fields.forEach((field: any) => {
           const fieldType = String(field.field_type || '').toUpperCase().trim();
-          if (fieldType === 'TOGGLE') {
-            initialValues[field.field_key] = field.default_value === 'true' || field.default_value === true;
-          } else if (fieldType === 'MULTI_SELECT') {
-            initialValues[field.field_key] = field.default_value ? field.default_value.split(',') : [];
-          } else if (fieldType === 'PERIODIC_TABLE') {
-            const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
-            initialValues[field.field_key] = isNaN(count) ? 0 : count;
+          if (fieldType === 'PERIODIC_TABLE') {
+            initialValues[field.field_key] = getInitialDynamicInputValue(field);
             initialValues[field.field_key + '_elements'] = (field.options && Array.isArray(field.options) ? field.options.join(',') : '') || '';
-          } else if (fieldType === 'ICPMS_STANDARD_COVERAGE') {
-            initialValues[field.field_key] = 0;
-          } else if (fieldType === 'TABLE') {
-            const cols = Array.isArray(field.options) ? field.options.length : 0;
-            initialValues[field.field_key] = cols ? [Array(cols).fill('')] : [];
           } else {
-            // TEXT, NUMERIC, RADIO, COMBO - all use string values
-            // A and B (when present) must be at least 1
-            if ((field.field_key === 'A' || field.field_key === 'B') && fieldType === 'NUMERIC') {
-              const num = Number(field.default_value);
-              initialValues[field.field_key] = String(Number.isNaN(num) || num < 1 ? 1 : num);
-            } else {
-              initialValues[field.field_key] = field.default_value || '';
-            }
+            initialValues[field.field_key] = getInitialDynamicInputValue(field);
           }
         });
         setInputFieldValues(initialValues);
@@ -1578,15 +1614,23 @@ const BookEquipment = () => {
           return;
         }
       }
-      // Parameters A and B (when present) must be at least 1
+      // Parameters A and B (when present) must be at least 1 for NUMERIC fields; RADIO/COMBO must have a selection.
       const abKeys = ['A', 'B'];
       for (const key of abKeys) {
         const field = equipmentDetail.input_fields.find((f: any) => f.field_key === key);
         if (field) {
+          const fieldType = String(field.field_type || '').toUpperCase().trim();
           const raw = inputFieldValues[key];
+          const label = field.field_label || key;
+          if (fieldType === 'RADIO' || fieldType === 'COMBO') {
+            if (raw === undefined || raw === null || raw === '') {
+              toast.error(`Please select "${label}".`);
+              return;
+            }
+            continue;
+          }
           const num = typeof raw === 'number' ? raw : Number(raw);
           if (Number.isNaN(num) || num < 1) {
-            const label = field.field_label || key;
             toast.error(`"${label}" must be at least 1.`);
             return;
           }
@@ -3107,24 +3151,8 @@ const BookEquipment = () => {
       }
       const minDate = parseISO(minDateStr);
       const maxDate = parseISO(maxDateStr);
-      const previousWeek = subWeeks(currentWeek, 1);
-      const nextWeekSunday = addDays(nextWeek, 6);
-      const nextWeekAvailable = nextWeekSunday <= maxDate;
-      if (!nextWeekAvailable) {
-        return (
-          weekStartNormalized.getTime() === currentWeekNormalized.getTime() &&
-          addDays(currentWeek, 6) >= minDate &&
-          currentWeek <= maxDate
-        );
-      }
-      const candidateWeeks = isUrgentHoldMode
-        ? [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)]
-        : [previousWeek, currentWeek, nextWeek];
-      return candidateWeeks.some((w) => {
-        if (startOfWeek(w, { weekStartsOn: 1 }).getTime() !== weekStartNormalized.getTime()) return false;
-        const weekSunday = addDays(w, 6);
-        return weekSunday >= minDate && w <= maxDate;
-      });
+      const weekSunday = addDays(weekStartNormalized, 6);
+      return weekSunday >= minDate && weekStartNormalized <= maxDate;
     }
 
     // External (and similar): can move backward from the bookable week down to the current week (Mon–Sun grid).
@@ -3185,23 +3213,19 @@ const BookEquipment = () => {
       }
       const minDate = parseISO(minDateStr);
       const maxDate = parseISO(maxDateStr);
-      const previousWeek = subWeeks(currentWeek, 1);
-      const nextWeekSunday = addDays(nextWeek, 6);
-      const nextWeekAvailable = nextWeekSunday <= maxDate;
-      if (!nextWeekAvailable) {
-        return [currentWeek];
-      }
-      const weeks: Date[] = [];
-      const candidateWeeks = isUrgentHoldMode
-        ? [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)]
-        : [previousWeek, currentWeek, nextWeek];
-      for (const weekStart of candidateWeeks) {
-        const weekSunday = addDays(weekStart, 6);
-        if (weekSunday >= minDate && weekStart <= maxDate) {
-          weeks.push(weekStart);
+      if (isUrgentHoldMode) {
+        const previousWeek = subWeeks(currentWeek, 1);
+        const candidateWeeks = [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)];
+        const weeks: Date[] = [];
+        for (const weekStart of candidateWeeks) {
+          const weekSunday = addDays(weekStart, 6);
+          if (weekSunday >= minDate && weekStart <= maxDate) {
+            weeks.push(weekStart);
+          }
         }
+        return weeks;
       }
-      return weeks;
+      return getAllowedWeeksFromSlotWindowBounds(minDateStr, maxDateStr);
     }
     if (isExternalUserTypeNormalized(normalizedType)) {
       const lastNavWeek = isUrgentHoldMode ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
@@ -3631,29 +3655,14 @@ const BookEquipment = () => {
     setBookAnyAvailableSlots(false);
     setBookEvenIfSingleSlotAvailable(false);
     if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
-      const initialValues: Record<string, string | boolean | string[]> = {};
+      const initialValues: Record<string, string | boolean | string[] | number> = {};
       equipmentDetail.input_fields.forEach((field: any) => {
         const fieldType = String(field.field_type || '').toUpperCase().trim();
-        if (fieldType === 'TOGGLE') {
-          initialValues[field.field_key] = field.default_value === 'true' || field.default_value === true;
-        } else if (fieldType === 'MULTI_SELECT') {
-          initialValues[field.field_key] = field.default_value ? field.default_value.split(',') : [];
-        } else if (fieldType === 'PERIODIC_TABLE') {
-          const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
-          initialValues[field.field_key] = isNaN(count) ? 0 : count;
+        if (fieldType === 'PERIODIC_TABLE') {
+          initialValues[field.field_key] = getInitialDynamicInputValue(field);
           initialValues[field.field_key + '_elements'] = (field.options && Array.isArray(field.options) ? field.options.join(',') : '') || '';
-        } else if (fieldType === 'ICPMS_STANDARD_COVERAGE') {
-          initialValues[field.field_key] = 0;
-        } else if (fieldType === 'TABLE') {
-          const cols = Array.isArray(field.options) ? field.options.length : 0;
-          initialValues[field.field_key] = cols ? [Array(cols).fill('')] : [];
         } else {
-          if ((field.field_key === 'A' || field.field_key === 'B') && fieldType === 'NUMERIC') {
-            const num = Number(field.default_value);
-            initialValues[field.field_key] = String(Number.isNaN(num) || num < 1 ? 1 : num);
-          } else {
-            initialValues[field.field_key] = field.default_value || '';
-          }
+          initialValues[field.field_key] = getInitialDynamicInputValue(field);
         }
       });
       setInputFieldValues(initialValues);
@@ -5839,14 +5848,12 @@ const BookEquipment = () => {
                       {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
                     </h3>
                     <div className="space-y-2">
-                      {getEffectiveWeeklyViewDisplay() !== 'SLOT_ID' && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Total Time:</span>
-                          <span className="text-sm">
-                            {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Total Time:</span>
+                        <span className="text-sm">
+                          {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
+                        </span>
+                      </div>
                       {calculatedCharge.charge_breakdown && calculatedCharge.charge_breakdown.length > 0 && (
                         <div className="mt-4 space-y-1">
                           <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
@@ -6202,11 +6209,13 @@ const BookEquipment = () => {
                               ? (() => { const [h, m] = time.split(":").map(Number); const d = new Date(day); d.setHours(h, m || 0, 0, 0); return d < new Date(); })()
                               : false);
                           
-                          const isAvailable = slotExists && !isBooked && !isPast;
-                          
                           // Get slot status from the actual slot data; prefer booking status if booking exists, else slot status (never empty when slot exists)
                           const slotStatus = slotData?.status ?? "";
                           const slotStatusUpper = String(slotStatus || "").toUpperCase();
+                          
+                          // Only truly bookable/green when API slot status is AVAILABLE.
+                          // (Weekend/holiday "NOT_AVAILABLE" rows still exist but must not be treated as available.)
+                          const isAvailable = slotExists && !isBooked && !isPast && slotStatusUpper === "AVAILABLE";
                           const isSlotBookedStatus = slotStatus !== "" && slotStatus !== "AVAILABLE";
                           const dateStr = format(day, "yyyy-MM-dd");
                           const dayOfWeekJs = day.getDay();
@@ -6316,7 +6325,13 @@ const BookEquipment = () => {
                           if (slotExists) {
                             // Priority: Show booking status if slot has booking (even on holidays/Saturday/Sunday). Admin: only BOOKED is non-selectable; admin can book past/weekend/holiday.
                             if (considerBooked) {
-                              displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
+                              // Holiday clarity: when the slot is closed due to a holiday/weekend (NOT_AVAILABLE),
+                              // show the holiday name instead of the generic status label.
+                              if (holidayName && slotStatusUpper === "NOT_AVAILABLE") {
+                                displayStatus = holidayName;
+                              } else {
+                                displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
+                              }
                               isDisabled = true;
                             } else if (isSelected) {
                               displayStatus = "Selected";
@@ -6381,10 +6396,23 @@ const BookEquipment = () => {
                           const saturdayColor = equipmentDetail?.calendar_colors?.saturday_color || "#c7d2fe";
                           const sundayColor = equipmentDetail?.calendar_colors?.sunday_color || "#fbcfe8";
                           let cellStyle: CSSProperties | undefined;
+                          // Closed calendar days (holiday / Sat / Sun) should always use the calendar-day colors
+                          // from `/calendar-colors` when the slot is still the default "closed" NOT_AVAILABLE.
+                          const isClosedCalendarDay =
+                            !isSelected &&
+                            slotExists &&
+                            slotStatusUpper === "NOT_AVAILABLE" &&
+                            Boolean(rawHoliday || isSaturdayCol || isSundayCol);
                           if (useHolidayBg && holidayColor && !isWeekendCell) {
                             cellStyle = { backgroundColor: holidayColor, color: getContrastTextColor(holidayColor) };
                           } else if (isSelected) {
                             cellStyle = undefined; // use Tailwind primary
+                          } else if (isClosedCalendarDay) {
+                            const bg =
+                              rawHoliday && holidayColor
+                                ? holidayColor
+                                : (isSaturdayCol ? saturdayColor : isSundayCol ? sundayColor : holidayDefault);
+                            cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                           } else if (slotExists) {
                             // Use RESERVED_FOR_EXTERNAL / NOT_AVAILABLE from calendar-colors when applicable
                             let statusForColor = slotStatus;

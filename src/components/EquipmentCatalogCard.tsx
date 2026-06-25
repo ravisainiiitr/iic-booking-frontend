@@ -56,7 +56,7 @@ export default function EquipmentCatalogCard({
 
   return (
     <Card
-      className={`cursor-pointer overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
+      className={`flex h-full cursor-pointer flex-col overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
       onClick={() => navigate(`/equipment/${item.id}`)}
     >
       <div className="relative aspect-video overflow-hidden bg-muted">
@@ -102,10 +102,10 @@ export default function EquipmentCatalogCard({
         ) : null}
       </div>
 
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg line-clamp-2">{item.name}</CardTitle>
-        {count > 0 && avg != null ? (
-          <div className="mt-1">
+      <CardHeader className="flex-1 pb-2">
+        <CardTitle className="text-lg leading-snug line-clamp-2 min-h-[3.25rem]">{item.name}</CardTitle>
+        <div className="mt-1 min-h-[1.25rem]">
+          {count > 0 && avg != null ? (
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground" title={`${avg.toFixed(1)}/5 (${count})`}>
               <span className="inline-flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((s) => {
@@ -117,9 +117,11 @@ export default function EquipmentCatalogCard({
               <span className="font-medium text-foreground">{avg.toFixed(1)}</span>
               <span className="text-muted-foreground">({count})</span>
             </span>
-          </div>
-        ) : null}
-        <CardDescription className="text-sm line-clamp-2">{item.description || item.name}</CardDescription>
+          ) : null}
+        </div>
+        <CardDescription className="text-sm line-clamp-2 min-h-[2.5rem] leading-snug">
+          {item.description || item.name}
+        </CardDescription>
         <div className={`h-1 w-12 rounded-full bg-gradient-to-r ${accent.bar} mt-3`} />
         {(() => {
           const r = item.internalRate;
@@ -130,7 +132,7 @@ export default function EquipmentCatalogCard({
         })()}
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="mt-auto flex-shrink-0 pt-0">
         <div className="flex flex-col gap-3">
           {canChangeSlotStatus && onRequestStatusChange ? (
             <div
