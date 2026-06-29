@@ -26,8 +26,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, Wallet } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import {
   Dialog,
@@ -600,6 +601,12 @@ const BookEquipment = () => {
     wallet_faculty_owner: { name: string; email: string } | null;
     wallet_balance: string;
   } | null>(null);
+  const [equipmentDeptWalletBalance, setEquipmentDeptWalletBalance] = useState<{
+    balance: string;
+    is_zero: boolean;
+    has_wallet: boolean;
+    department_id: number | null;
+  } | null>(null);
   const [usersList, setUsersList] = useState<Array<{ id: number; name?: string; email?: string; user_type?: string }>>([]);
   const [adminUserTypeFilter, setAdminUserTypeFilter] = useState<string>(USER_TYPE_FILTER_ALL);
   const [userComboboxOpen, setUserComboboxOpen] = useState(false);
@@ -936,6 +943,47 @@ const BookEquipment = () => {
     })();
     return () => { cancelled = true; };
   }, [adminBookForUserId]);
+
+  // Wallet balance for this equipment's internal department (same sub-wallet used at booking).
+  useEffect(() => {
+    const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
+    const isAdmin = String(userType ?? "").toLowerCase() === "admin";
+    if (!equipmentId) {
+      setEquipmentDeptWalletBalance(null);
+      return;
+    }
+    if (adminManageMode === "status") {
+      setEquipmentDeptWalletBalance(null);
+      return;
+    }
+    if (isAdmin && adminManageMode === "book" && !adminBookForUserId) {
+      setEquipmentDeptWalletBalance(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const userId =
+        isAdmin && adminManageMode === "book" && adminBookForUserId
+          ? adminBookForUserId
+          : undefined;
+      const res = await apiClient.getEquipmentDepartmentWalletBalance(equipmentId, userId);
+      if (cancelled) return;
+      if (res.data) {
+        setEquipmentDeptWalletBalance({
+          balance: res.data.balance,
+          is_zero: res.data.is_zero,
+          has_wallet: res.data.has_wallet,
+          department_id: res.data.department_id ?? null,
+        });
+      } else {
+        setEquipmentDeptWalletBalance(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [equipmentDetail?.equipment_id, selectedEquipment?.id, adminManageMode, adminBookForUserId, userType]);
 
   useEffect(() => {
     if (!isAdminUser() || !adminBookForUserId) {
@@ -4112,9 +4160,47 @@ const BookEquipment = () => {
       <DashboardHeader />
       <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <h1 className="text-3xl font-bold">
-            {canAccessManageEquipmentModes() ? "Manage" : "Book"} {selectedEquipment.name}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold">
+              {canAccessManageEquipmentModes() ? "Manage" : "Book"} {selectedEquipment.name}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+              <EquipmentDepartmentLabel
+                name={(equipmentDetail as any)?.internal_department_name}
+                code={(equipmentDetail as any)?.internal_department_code}
+              />
+              {equipmentDeptWalletBalance?.is_zero && (
+                <div className="inline-flex flex-wrap items-center gap-3">
+                  <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500 animate-pulse">
+                    Wallet balance for this department is ₹0 — please recharge before booking.
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="shrink-0 font-semibold"
+                    onClick={() => {
+                      const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
+                      const params = new URLSearchParams({ recharge: "1" });
+                      const deptId = equipmentDeptWalletBalance?.department_id;
+                      if (deptId != null) {
+                        params.set("department_id", String(deptId));
+                      }
+                      if (equipmentId != null) {
+                        sessionStorage.setItem(
+                          "returnToBookEquipment",
+                          `/book-equipment?equipment_id=${equipmentId}`,
+                        );
+                      }
+                      navigate(`/wallet?${params.toString()}`);
+                    }}
+                  >
+                    <Wallet className="h-4 w-4 mr-2" />
+                    Recharge Wallet
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Admin: mode selector (Manage this Equipment) */}

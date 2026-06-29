@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, User as UserIcon, MessageSquare, Package, LifeBuoy, Target, Inbox, Wallet, Shield, Trophy } from "lucide-react";
+import { ArrowLeft, User as UserIcon, MessageSquare, Package, LifeBuoy, Target, Inbox, Wallet, Shield, Trophy, Database } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -99,6 +99,20 @@ const AdminSettings = () => {
                 <CardTitle className="text-base">Wallet Management</CardTitle>
                 <CardDescription className="text-sm">
                   Manual credits, file import, IMAP, and wallet recharge history
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+          {isAdmin && (
+            <Card
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate("/admin-settings/legacy-wallet-import")}
+            >
+              <CardHeader>
+                <Database className="h-8 w-8 text-primary mb-2" />
+                <CardTitle className="text-base">Legacy Wallet Lookup</CardTitle>
+                <CardDescription className="text-sm">
+                  Test legacy MySQL balance lookup by emp_id (no CSV import)
                 </CardDescription>
               </CardHeader>
             </Card>

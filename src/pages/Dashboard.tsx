@@ -5,7 +5,6 @@ import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +17,7 @@ import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, Tr
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
@@ -224,6 +224,10 @@ function labDashPanelTitle(panel: NonNullable<LabDashPanel>): string {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated, refreshUser, logout } = useAuth();
+
+  const handleProfileAvatarUploaded = useCallback(async () => {
+    await refreshUser();
+  }, [refreshUser]);
   const [loading, setLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [hasWallet, setHasWallet] = useState(false);
@@ -1188,16 +1192,16 @@ const Dashboard = () => {
           >
             {!showsLabStyleDashboard && (
               <div className="flex justify-center border-b border-white/15 bg-white/[0.07] px-6 py-8 backdrop-blur-sm lg:w-[12rem] lg:shrink-0 lg:flex-col lg:items-center lg:justify-center lg:border-b-0 lg:border-r lg:border-white/15 lg:py-10">
-                <Avatar className="h-28 w-28 shrink-0 rounded-2xl border-[3px] border-white/55 shadow-xl shadow-black/25 ring-4 ring-white/15">
-                  <AvatarImage
-                    src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined}
-                    alt={user?.name || "Profile"}
-                    className="object-cover"
-                  />
-                  <AvatarFallback className="rounded-2xl bg-white/25 text-3xl font-bold text-white">
-                    {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <ClickableProfileAvatar
+                  userId={user?.id}
+                  userName={user?.name}
+                  userEmail={user?.email}
+                  hasProfilePicture={Boolean(user?.profile_picture)}
+                  onUploaded={handleProfileAvatarUploaded}
+                  avatarClassName="h-28 w-28 shrink-0 rounded-2xl border-[3px] border-white/55 shadow-xl shadow-black/25 ring-4 ring-white/15"
+                  fallbackClassName="rounded-2xl bg-white/25 text-3xl font-bold text-white"
+                  overlayRoundedClassName="rounded-2xl"
+                />
               </div>
             )}
             <div
@@ -1209,16 +1213,16 @@ const Dashboard = () => {
               {showsLabStyleDashboard ? (
                 <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
                   <div className="flex min-w-0 flex-1 flex-row items-center gap-3 sm:gap-4">
-                    <Avatar className="h-16 w-16 shrink-0 rounded-full border-2 border-white/50 shadow-md shadow-black/20 ring-2 ring-white/15 sm:h-[4.5rem] sm:w-[4.5rem]">
-                      <AvatarImage
-                        src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined}
-                        alt={user?.name || "Profile"}
-                        className="object-cover"
-                      />
-                      <AvatarFallback className="rounded-full bg-white/25 text-lg font-bold text-white sm:text-xl">
-                        {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <ClickableProfileAvatar
+                      userId={user?.id}
+                      userName={user?.name}
+                      userEmail={user?.email}
+                      hasProfilePicture={Boolean(user?.profile_picture)}
+                      onUploaded={handleProfileAvatarUploaded}
+                      avatarClassName="h-16 w-16 shrink-0 rounded-full border-2 border-white/50 shadow-md shadow-black/20 ring-2 ring-white/15 sm:h-[4.5rem] sm:w-[4.5rem]"
+                      fallbackClassName="rounded-full bg-white/25 text-lg font-bold text-white sm:text-xl"
+                      overlayRoundedClassName="rounded-full"
+                    />
                     <div className="min-w-0 flex-1">
                       <h2 className="text-xl font-bold leading-tight tracking-tight text-white drop-shadow-sm sm:text-2xl">
                         {user?.name || "—"}

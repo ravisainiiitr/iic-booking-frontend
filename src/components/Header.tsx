@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import { apiClient, type CmsMenuItem } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,37 +12,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FlaskConical, ChevronDown, Settings, User as UserIcon, Wallet, LogOut, HelpCircle, Package, ClipboardList } from "lucide-react";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
+import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
-import TicketForm from "@/components/TicketForm";
 import { toast } from "sonner";
+import IITRBanner from "@/components/IITRBanner";
 
 const Header = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [menuItems, setMenuItems] = useState<CmsMenuItem[] | null>(null);
   const checkingRef = useRef(false);
   const hasCheckedRef = useRef(false);
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : '';
   const canManageBookings = ['admin', 'operator', 'manager'].includes(userTypeStr);
 
-  useEffect(() => {
-    apiClient.getCmsMenu().then((res) => {
-      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-        setMenuItems(res.data);
-      }
-    }).catch(() => {});
-  }, []);
-  
   useEffect(() => {
     // Only check admin status once if authenticated
     if (isAuthenticated && user && !hasCheckedRef.current && !checkingRef.current) {
@@ -119,187 +102,14 @@ const Header = () => {
   
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           <div 
             className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => navigate("/")}
           >
-            <img 
-              src="/IITR_Logo.svg" 
-              alt="IITR Logo" 
-              className="h-8 w-8"
-            />
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              INSTITUTE INSTRUMENTATION CENTRE - IIC
-            </span>
+            <IITRBanner size="sm" />
           </div>
-          
-          <nav className="hidden md:flex items-center gap-8">
-            {menuItems && menuItems.length > 0 ? (
-              <>
-                {menuItems.map((item) => {
-                  const isTrigger = item.link_type === "trigger" || item.label.toLowerCase() === "contact us";
-                  const docUrl = item.document_url;
-                  const pageSlug = item.page_slug;
-                  const href = docUrl
-                    ? docUrl
-                    : pageSlug
-                      ? `/page/${pageSlug}`
-                      : item.link_type === "internal_route"
-                        ? item.url
-                        : item.url
-                          ? (item.link_type === "external_url" ? item.url : `${window.location.pathname === "/" ? "" : "/"}${item.url}`)
-                          : "#";
-                  if (item.children && item.children.length > 0) {
-                    return (
-                      <NavigationMenu key={item.id}>
-                        <NavigationMenuList>
-                          <NavigationMenuItem>
-                            <NavigationMenuTrigger className="text-sm font-medium">
-                              {item.label}
-                            </NavigationMenuTrigger>
-                            <NavigationMenuContent>
-                              <ul className="grid w-[200px] gap-1 p-2">
-                                {item.children.map((child) => {
-                                  const childDocUrl = child.document_url;
-                                  const childPageSlug = child.page_slug;
-                                  const childHref = childDocUrl
-                                    ? childDocUrl
-                                    : childPageSlug
-                                      ? `/page/${childPageSlug}`
-                                      : child.link_type === "internal_route"
-                                        ? child.url
-                                        : child.url || "#";
-                                  const isChildInternalRoute = child.link_type === "internal_route" && !childDocUrl && !childPageSlug;
-                                  return (
-                                    <li key={child.id}>
-                                      <NavigationMenuLink asChild>
-                                        {isChildInternalRoute ? (
-                                          <a
-                                            href={child.url}
-                                            onClick={(e) => { e.preventDefault(); navigate(child.url); }}
-                                            className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                                          >
-                                            {child.label}
-                                          </a>
-                                        ) : (
-                                          <a
-                                            href={childHref}
-                                            onClick={childPageSlug ? (e) => { e.preventDefault(); navigate(childHref); } : undefined}
-                                            className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                                            {...(child.open_in_new_tab || childDocUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                                          >
-                                            {child.label}
-                                          </a>
-                                        )}
-                                      </NavigationMenuLink>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </NavigationMenuContent>
-                          </NavigationMenuItem>
-                        </NavigationMenuList>
-                      </NavigationMenu>
-                    );
-                  }
-                  if (isTrigger) {
-                    return (
-                      <TicketForm
-                        key={item.id}
-                        trigger={
-                          <button className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1">
-                            {item.label}
-                          </button>
-                        }
-                      />
-                    );
-                  }
-                  if ((item.link_type === "internal_route" && !docUrl) || pageSlug) {
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => navigate(pageSlug ? `/page/${pageSlug}` : (item.url || "/"))}
-                        className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  }
-                  const isAnchor = item.link_type === "internal_anchor" && href.startsWith("#") && !docUrl && !pageSlug;
-                  if (isAnchor && window.location.pathname !== "/") {
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => { navigate("/"); setTimeout(() => document.querySelector(href)?.scrollIntoView({ behavior: "smooth" }), 100); }}
-                        className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  }
-                  return (
-                    <a
-                      key={item.id}
-                      href={href}
-                      onClick={pageSlug ? (e) => { e.preventDefault(); navigate(href); } : undefined}
-                      className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                      {...(item.open_in_new_tab || docUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                    >
-                      {item.label}
-                    </a>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => {
-                    if (window.location.pathname === "/") {
-                      document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth" });
-                    } else {
-                      navigate("/");
-                      setTimeout(() => document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth" }), 100);
-                    }
-                  }}
-                  className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                >
-                  Facilities
-                </button>
-                <NavigationMenu>
-                  <NavigationMenuList>
-                    <NavigationMenuItem>
-                      <NavigationMenuTrigger className="text-sm font-medium">Our Team</NavigationMenuTrigger>
-                      <NavigationMenuContent>
-                        <ul className="grid w-[200px] gap-1 p-2">
-                          {[
-                            { label: "Head", anchor: "#team-head" },
-                            { label: "Faculty", anchor: "#team-faculty" },
-                            { label: "CAC", anchor: "#team-cac" },
-                            { label: "Officers", anchor: "#team-officers" },
-                            { label: "Other Staff", anchor: "#team-staff" },
-                            { label: "Students", anchor: "#team-students" },
-                          ].map(({ label, anchor }) => (
-                            <li key={anchor}>
-                              <NavigationMenuLink asChild>
-                                <a href={anchor} className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
-                                  {label}
-                                </a>
-                              </NavigationMenuLink>
-                            </li>
-                          ))}
-                        </ul>
-                      </NavigationMenuContent>
-                    </NavigationMenuItem>
-                  </NavigationMenuList>
-                </NavigationMenu>
-                <a href="#outreach" className="text-sm font-medium text-foreground hover:text-primary transition-colors">Outreach</a>
-                <a href="#important-links" className="text-sm font-medium text-foreground hover:text-primary transition-colors">Important Links</a>
-                <TicketForm trigger={<button className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1">Contact Us</button>} />
-              </>
-            )}
-          </nav>
 
           <div className="flex items-center gap-3">
             {isAuthenticated ? (

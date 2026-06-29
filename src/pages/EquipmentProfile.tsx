@@ -12,6 +12,7 @@ import { Info } from "lucide-react";
 import { Calendar } from "lucide-react";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
+import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +27,48 @@ function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? "#1f2937" : "#ffffff";
 }
 
+const COLLAPSIBLE_SPEC_CHAR_LIMIT = 200;
+
+const COLLAPSIBLE_SPEC_KEYS = new Set([
+  "general information",
+  "specifications",
+  "sample requirements and preparation",
+]);
+
+function normalizeSpecKey(key: string): string {
+  return (key || "").trim().replace(/-+\s*$/, "").toLowerCase();
+}
+
+function isCollapsibleSpecKey(specKey: string): boolean {
+  return COLLAPSIBLE_SPEC_KEYS.has(normalizeSpecKey(specKey));
+}
+
+function CollapsibleSpecValue({ specKey, value }: { specKey: string; value: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = value || "";
+  const collapsible = isCollapsibleSpecKey(specKey) && text.length > COLLAPSIBLE_SPEC_CHAR_LIMIT;
+  const display =
+    collapsible && !expanded
+      ? `${text.slice(0, COLLAPSIBLE_SPEC_CHAR_LIMIT).trimEnd()}…`
+      : text;
+
+  return (
+    <div>
+      <div className="text-base text-muted-foreground whitespace-pre-line">{display}</div>
+      {collapsible && (
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto px-0 mt-2 text-primary"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? "Show less" : "Expand"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 interface EquipmentProfile {
   equipment_id: number;
   code: string;
@@ -36,6 +79,8 @@ interface EquipmentProfile {
   status: string;
   status_display: string;
   location: string;
+  internal_department_name?: string | null;
+  internal_department_code?: string | null;
   important_instruction?: string | null;
   image_url: string;
   specifications: Array<{
@@ -473,19 +518,22 @@ const EquipmentProfile = () => {
                         {equipment.status_display}
                       </Badge>
                     </div>
-                    <CardDescription className="text-lg mt-2">
-                      {equipment.description}
-                    </CardDescription>
-                    <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        <span className="whitespace-pre-line">{equipment.location}</span>
-                      </div>
+                    <div className="mt-3">
+                      <EquipmentDepartmentLabel
+                        name={equipment.internal_department_name}
+                        code={equipment.internal_department_code}
+                      />
                     </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                {equipment.location ? (
+                  <div className="flex items-start gap-2 text-lg font-medium text-foreground">
+                    <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
+                    <span className="whitespace-pre-line leading-snug">{equipment.location}</span>
+                  </div>
+                ) : null}
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
                   <img
                     src={displayEquipmentImage}
@@ -493,6 +541,9 @@ const EquipmentProfile = () => {
                     className="w-full h-full object-contain"
                   />
                 </div>
+                {equipment.description ? (
+                  <p className="text-lg text-muted-foreground whitespace-pre-line">{equipment.description}</p>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -746,6 +797,58 @@ const EquipmentProfile = () => {
                 </div>
               )}
 
+              {/* Operators */}
+              {equipment.operators && equipment.operators.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      Lab Operators
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {equipment.operators.map((operator) => (
+                        <div key={operator.equipment_operator_id}>
+                          <UserProfile
+                            name={operator.operator_name}
+                            email={operator.operator_email}
+                            phone={operator.operator_phone}
+                            profilePicture={operator.operator_profile_picture && operator.operator != null ? apiClient.getProfilePictureUrl(operator.operator) : undefined}
+                            size="md"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Managers */}
+              {equipment.managers && equipment.managers.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      Officers in Charge
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {equipment.managers.map((manager) => (
+                        <div key={manager.equipment_manager_id}>
+                          <UserProfile
+                            name={manager.manager_name}
+                            email={manager.manager_email}
+                            phone={manager.manager_phone}
+                            profilePicture={manager.manager_profile_picture && manager.manager != null ? apiClient.getProfilePictureUrl(manager.manager) : undefined}
+                            size="md"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Equipment specifications: one section per spec_key */}
               {equipment.specifications && equipment.specifications.length > 0 &&
                 equipment.specifications.map((spec) => (
@@ -756,9 +859,7 @@ const EquipmentProfile = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-base text-muted-foreground whitespace-pre-line">
-                        {spec.spec_value}
-                      </div>
+                      <CollapsibleSpecValue specKey={spec.spec_key} value={spec.spec_value} />
                     </CardContent>
                   </Card>
                 ))}
@@ -809,58 +910,6 @@ const EquipmentProfile = () => {
                               {accessory.additional_accessory_description}
                             </p>
                           )}
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Operators */}
-              {equipment.operators && equipment.operators.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      Lab Operators
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {equipment.operators.map((operator) => (
-                        <div key={operator.equipment_operator_id}>
-                          <UserProfile
-                            name={operator.operator_name}
-                            email={operator.operator_email}
-                            phone={operator.operator_phone}
-                            profilePicture={operator.operator_profile_picture && operator.operator != null ? apiClient.getProfilePictureUrl(operator.operator) : undefined}
-                            size="md"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Managers */}
-              {equipment.managers && equipment.managers.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      Officers in Charge
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {equipment.managers.map((manager) => (
-                        <div key={manager.equipment_manager_id}>
-                          <UserProfile
-                            name={manager.manager_name}
-                            email={manager.manager_email}
-                            phone={manager.manager_phone}
-                            profilePicture={manager.manager_profile_picture && manager.manager != null ? apiClient.getProfilePictureUrl(manager.manager) : undefined}
-                            size="md"
-                          />
                         </div>
                       ))}
                     </div>

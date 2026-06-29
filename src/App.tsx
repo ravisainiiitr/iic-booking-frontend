@@ -61,6 +61,7 @@ import EquipmentProfile from "./pages/EquipmentProfile";
 import Tickets from "./pages/Tickets";
 import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
 import WalletRechargeParse from "./pages/WalletRechargeParse";
+import LegacyWalletImportTest from "./pages/LegacyWalletImportTest";
 import CmsPageView from "./pages/CmsPageView";
 import ExternalUserManagement from "./pages/ExternalUserManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
@@ -134,6 +135,7 @@ const App = () => (
                 <Route path="/admin-settings/communication" element={<AdminCommunication />} />
                 <Route path="/admin-settings/inbox-email" element={<InboxEmail />} />
                 <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
+                <Route path="/admin-settings/legacy-wallet-import" element={<LegacyWalletImportTest />} />
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
                 <Route path="/inventory-management" element={<InventoryManagement />} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />

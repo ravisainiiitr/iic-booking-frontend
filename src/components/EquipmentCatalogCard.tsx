@@ -6,6 +6,7 @@ import { CalendarClock, Play, Star, StarHalf } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 
 export type EquipmentCardAccent = {
   gradient: string;
@@ -26,6 +27,8 @@ export type EquipmentCatalogCardItem = {
   internalRate?: number | string | null;
   avgRating?: number | null;
   ratingCount?: number | null;
+  departmentName?: string | null;
+  departmentCode?: string | null;
 };
 
 type Props = {
@@ -96,7 +99,7 @@ export default function EquipmentCatalogCard({
         )}
         <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${accent.bar}`} />
         {item.category ? (
-          <span className="absolute top-3 left-3 rounded-full bg-white/90 dark:bg-black/50 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
+          <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium tracking-wide text-foreground/90 backdrop-blur-sm dark:bg-black/55 dark:text-foreground">
             {item.category}
           </span>
         ) : null}
@@ -104,7 +107,16 @@ export default function EquipmentCatalogCard({
 
       <CardHeader className="flex-1 pb-2">
         <CardTitle className="text-lg leading-snug line-clamp-2 min-h-[3.25rem]">{item.name}</CardTitle>
-        <div className="mt-1 min-h-[1.25rem]">
+        {(item.departmentName || item.departmentCode) ? (
+          <EquipmentDepartmentLabel
+            name={item.departmentName}
+            code={item.departmentCode}
+            size="compact"
+            accentBarClassName={accent.bar}
+            className="mt-2"
+          />
+        ) : null}
+        <div className="mt-1.5 min-h-[1.25rem]">
           {count > 0 && avg != null ? (
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground" title={`${avg.toFixed(1)}/5 (${count})`}>
               <span className="inline-flex items-center gap-0.5">
@@ -119,9 +131,11 @@ export default function EquipmentCatalogCard({
             </span>
           ) : null}
         </div>
-        <CardDescription className="text-sm line-clamp-2 min-h-[2.5rem] leading-snug">
-          {item.description || item.name}
-        </CardDescription>
+        {item.description && item.description.trim() !== item.name.trim() ? (
+          <CardDescription className="text-sm line-clamp-2 min-h-[2.5rem] leading-snug text-muted-foreground">
+            {item.description}
+          </CardDescription>
+        ) : null}
         <div className={`h-1 w-12 rounded-full bg-gradient-to-r ${accent.bar} mt-3`} />
         {(() => {
           const r = item.internalRate;

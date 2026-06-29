@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
@@ -165,6 +166,28 @@ interface Booking extends BookingRef {
 
 const PAGE_SIZE = 50;
 
+type BookingDailySlot = Booking["daily_slots"][number];
+
+function slotHasStarted(slot: Pick<BookingDailySlot, "start_datetime">): boolean {
+  return new Date(slot.start_datetime).getTime() <= Date.now();
+}
+
+function getDefaultCancelSlotIds(booking: Booking, allowStartedSlots: boolean): number[] {
+  const slots = [...(booking.daily_slots ?? [])].sort(
+    (a, b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+  );
+  return slots.filter((s) => allowStartedSlots || !slotHasStarted(s)).map((s) => s.id);
+}
+
+function calculateCancelRefundAmount(booking: Booking, selectedSlotIds: number[]): number {
+  const slots = booking.daily_slots ?? [];
+  if (slots.length === 0 || selectedSlotIds.length === 0) return 0;
+  const totalCharge = Number(booking.total_charge);
+  if (selectedSlotIds.length >= slots.length) return totalCharge;
+  // Equal share per slot (matches backend partial-cancel refund).
+  return (totalCharge / slots.length) * selectedSlotIds.length;
+}
+
 const MyBookings = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -179,6 +202,8 @@ const MyBookings = () => {
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
+  const [cancelSlotIds, setCancelSlotIds] = useState<number[]>([]);
+  const [cancelSlotsLoading, setCancelSlotsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [resultsCache, setResultsCache] = useState<Record<string, { exists: boolean; files: Array<{ name: string; download_url: string }> }>>({});
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
@@ -636,15 +661,50 @@ const MyBookings = () => {
     canUseCancelButton(booking) &&
     (isWaitlistedEntry(booking) || !restrictedExternalUserType);
 
+  const openCancelDialog = async (booking: Booking) => {
+    setCancelNotes("");
+    setCancelSlotIds([]);
+    setSelectedBooking(booking);
+    setCancelDialogOpen(true);
+
+    if (isWaitlistedEntry(booking)) {
+      return;
+    }
+
+    const backendId = getRealBookingId(booking);
+    if (backendId == null) {
+      setCancelSlotIds(getDefaultCancelSlotIds(booking, isAdminOrOIC()));
+      return;
+    }
+
+    setCancelSlotsLoading(true);
+    try {
+      const res = await apiClient.getBookings({ booking_id: backendId, limit: 1 });
+      const fullBooking = res.data?.bookings?.[0] as unknown as Booking | undefined;
+      if (!res.error && fullBooking) {
+        setSelectedBooking(fullBooking);
+        setCancelSlotIds(getDefaultCancelSlotIds(fullBooking, isAdminOrOIC()));
+      } else {
+        setCancelSlotIds(getDefaultCancelSlotIds(booking, isAdminOrOIC()));
+        if (res.error) {
+          toast.error(res.error || "Could not load booking slots");
+        }
+      }
+    } catch {
+      setCancelSlotIds(getDefaultCancelSlotIds(booking, isAdminOrOIC()));
+      toast.error("Could not load booking slots");
+    } finally {
+      setCancelSlotsLoading(false);
+    }
+  };
+
   const handleCancelClick = (booking: Booking) => {
     if (isRepeatBooking(booking)) {
       toast.error("Repeat sample bookings cannot be cancelled. Please contact admin if you need to cancel.");
       return;
     }
     if (isWaitlistedEntry(booking)) {
-      setSelectedBooking(booking);
-      setCancelNotes("");
-      setCancelDialogOpen(true);
+      openCancelDialog(booking);
       return;
     }
     // Check if cancel is allowed based on time threshold (maintenance disruption: always allowed)
@@ -662,9 +722,7 @@ const MyBookings = () => {
       return;
     }
     
-    setSelectedBooking(booking);
-    setCancelNotes("");
-    setCancelDialogOpen(true);
+    openCancelDialog(booking);
   };
 
   const handleRescheduleClick = (booking: Booking) => {
@@ -694,6 +752,7 @@ const MyBookings = () => {
       setCancelDialogOpen(false);
       setSelectedBooking(null);
       setCancelNotes("");
+      setCancelSlotIds([]);
       return;
     }
 
@@ -730,10 +789,18 @@ const MyBookings = () => {
         setActionLoading(false);
         return;
       }
+      if ((selectedBooking.daily_slots?.length ?? 0) > 0 && cancelSlotIds.length === 0) {
+        toast.error("Select at least one slot to cancel.");
+        setActionLoading(false);
+        return;
+      }
+      const slotIdsPayload =
+        (selectedBooking.daily_slots?.length ?? 0) > 0 ? cancelSlotIds : undefined;
       const response = await apiClient.userCancelBooking(
         backendId,
         true, // Always refund
-        cancelNotes || undefined
+        cancelNotes || undefined,
+        slotIdsPayload
       );
 
       if (response.error) {
@@ -752,6 +819,7 @@ const MyBookings = () => {
       setCancelDialogOpen(false);
       setSelectedBooking(null);
       setCancelNotes("");
+      setCancelSlotIds([]);
       setSelectedBookingId(null);
       setOverrideBooking(null);
       await fetchBookings(undefined, page);
@@ -1245,10 +1313,7 @@ const MyBookings = () => {
                     onUserCancelClick={
                       isLabOperatorUser || isAccountsFinanceUser
                         ? undefined
-                        : (b) => {
-                            setSelectedBooking(b as unknown as Booking);
-                            setCancelDialogOpen(true);
-                          }
+                        : (b) => openCancelDialog(b as unknown as Booking)
                     }
                   />
                 );
@@ -1267,10 +1332,7 @@ const MyBookings = () => {
                   onUserCancelClick={
                     isLabOperatorUser || isAccountsFinanceUser
                       ? undefined
-                      : (b) => {
-                          setSelectedBooking(b as Booking);
-                          setCancelDialogOpen(true);
-                        }
+                      : (b) => openCancelDialog(b as Booking)
                   }
                 />
               );
@@ -1409,15 +1471,21 @@ const MyBookings = () => {
             // Keep dialog open while cancellation request is in progress so progress bar stays visible.
             if (actionLoading) return;
             setCancelDialogOpen(open);
+            if (!open) {
+              setCancelSlotIds([]);
+              setCancelSlotsLoading(false);
+            }
           }}
         >
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>{selectedBooking && isWaitlistedEntry(selectedBooking) ? "Cancel Waitlisted Booking" : "Cancel Booking"}</AlertDialogTitle>
               <AlertDialogDescription>
                 {selectedBooking && isWaitlistedEntry(selectedBooking)
                   ? "Are you sure you want to cancel this waitlisted booking? This action cannot be undone."
-                  : "Are you sure you want to cancel this booking? This action cannot be undone."}
+                  : selectedBooking && (selectedBooking.daily_slots?.length ?? 0) > 1
+                    ? "Select the slot(s) you want to cancel. Checked slots will be cancelled. This action cannot be undone."
+                    : "Are you sure you want to cancel this booking? This action cannot be undone."}
                 {actionLoading && (
                   <div className="mt-3 space-y-2">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1433,14 +1501,7 @@ const MyBookings = () => {
                     {isWaitlistedEntry(selectedBooking) ? (
                       <p><strong>Queue Position:</strong> {selectedBooking.waitlist_code || `WL${selectedBooking.waitlist_position ?? "—"}`}</p>
                     ) : (
-                      <>
-                        <p><strong>{shouldShowTimeDisplay(selectedBooking) ? "Start Time:" : "Date:"}</strong>{" "}
-                          {shouldShowTimeDisplay(selectedBooking)
-                            ? new Date(selectedBooking.start_time).toLocaleString()
-                            : new Date(selectedBooking.start_time).toLocaleDateString()}
-                        </p>
-                        <p><strong>Total Charge:</strong> ₹{Number(selectedBooking.total_charge).toFixed(2)}</p>
-                      </>
+                      <p><strong>Total Charge:</strong> ₹{Number(selectedBooking.total_charge).toFixed(2)}</p>
                     )}
                   </div>
                 )}
@@ -1448,15 +1509,96 @@ const MyBookings = () => {
             </AlertDialogHeader>
             <div className="space-y-4 py-4">
               {selectedBooking && !isWaitlistedEntry(selectedBooking) && (
+                <div className="space-y-2">
+                  <Label>Slots to cancel</Label>
+                  {cancelSlotsLoading ? (
+                    <div className="rounded-md border p-4 text-sm text-muted-foreground">
+                      Loading slots…
+                    </div>
+                  ) : (selectedBooking.daily_slots?.length ?? 0) > 0 ? (
+                  <div className="rounded-md border divide-y max-h-48 overflow-y-auto">
+                    {[...(selectedBooking.daily_slots ?? [])]
+                      .sort(
+                        (a, b) =>
+                          new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+                      )
+                      .map((slot) => {
+                        const allowStartedSlots = isAdminOrOIC();
+                        const started = slotHasStarted(slot);
+                        const slotDisabled = !allowStartedSlots && started;
+                        const checked = cancelSlotIds.includes(slot.id);
+                        const slotLabel = shouldShowTimeDisplay(selectedBooking)
+                          ? `${new Date(slot.start_datetime).toLocaleString()} – ${new Date(slot.end_datetime).toLocaleTimeString()}`
+                          : new Date(slot.start_datetime).toLocaleDateString();
+                        return (
+                          <label
+                            key={slot.id}
+                            htmlFor={`cancel-slot-${slot.id}`}
+                            className={`flex items-start gap-3 p-3 cursor-pointer ${
+                              slotDisabled ? "bg-muted/60 text-muted-foreground cursor-not-allowed" : ""
+                            }`}
+                          >
+                            <Checkbox
+                              id={`cancel-slot-${slot.id}`}
+                              checked={checked}
+                              disabled={slotDisabled || actionLoading || cancelSlotsLoading}
+                              onCheckedChange={(value) => {
+                                if (slotDisabled) return;
+                                setCancelSlotIds((prev) =>
+                                  value
+                                    ? [...prev, slot.id]
+                                    : prev.filter((id) => id !== slot.id)
+                                );
+                              }}
+                              className="mt-0.5"
+                            />
+                            <span className="text-sm leading-snug">
+                              {slotLabel}
+                              {slotDisabled ? (
+                                <span className="block text-xs text-muted-foreground mt-0.5">
+                                  Already started — cannot be cancelled
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                  ) : (
+                    <div className="rounded-md border p-4 text-sm text-muted-foreground">
+                      No slot details available for this booking.
+                    </div>
+                  )}
+                  {!cancelSlotsLoading && !isAdminOrOIC() && (selectedBooking.daily_slots ?? []).some((s) => slotHasStarted(s)) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Slots that have already started cannot be cancelled. Contact the Officer in Charge or admin if you need help.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              {selectedBooking && !isWaitlistedEntry(selectedBooking) && (
                 <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
                   <p className="font-medium text-blue-900 mb-1">Refund Information</p>
                   <p className="text-blue-800">
-                    The booking will be cancelled and ₹{Number(selectedBooking.total_charge).toFixed(2)} will be refunded to your wallet immediately.
+                    {(() => {
+                      if (cancelSlotsLoading) {
+                        return "Loading slot details…";
+                      }
+                      const refundAmount = calculateCancelRefundAmount(selectedBooking, cancelSlotIds);
+                      const allSlots = selectedBooking.daily_slots ?? [];
+                      const isPartial =
+                        cancelSlotIds.length > 0 && cancelSlotIds.length < allSlots.length;
+                      if (cancelSlotIds.length === 0) {
+                        return "Select at least one slot to see the refund amount.";
+                      }
+                      if (isPartial) {
+                        return `₹${refundAmount.toFixed(2)} will be refunded to your wallet for the selected slot(s). The remaining slot(s) stay booked.`;
+                      }
+                      return `The booking will be cancelled and ₹${refundAmount.toFixed(2)} will be refunded to your wallet immediately.`;
+                    })()}
                   </p>
                 </div>
               )}
-              <div className="space-y-2">
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="cancel-notes">Cancellation Notes (Optional)</Label>
                 <Textarea
@@ -1476,7 +1618,14 @@ const MyBookings = () => {
                   e.preventDefault();
                   handleCancelConfirm();
                 }}
-                disabled={actionLoading}
+                disabled={
+                  actionLoading ||
+                  cancelSlotsLoading ||
+                  (!!selectedBooking &&
+                    !isWaitlistedEntry(selectedBooking) &&
+                    (selectedBooking.daily_slots?.length ?? 0) > 0 &&
+                    cancelSlotIds.length === 0)
+                }
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {actionLoading ? "Cancelling..." : "Confirm Cancellation"}

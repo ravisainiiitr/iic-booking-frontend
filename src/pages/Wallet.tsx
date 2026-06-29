@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,7 @@ declare global {
 
 const Wallet = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { alert, confirm, AlertComponent, ConfirmComponent } = useAlert();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -250,9 +251,12 @@ const Wallet = () => {
   const [txEquipmentFilter, setTxEquipmentFilter] = useState("");
   const [txBookedByFilter, setTxBookedByFilter] = useState("");
 
-  const openRechargeDialog = useCallback(() => {
+  const openRechargeDialog = useCallback((departmentId?: number | null) => {
     if (isFacultyEffective) {
       setRechargeType("request");
+    }
+    if (departmentId != null) {
+      setRechargeDepartmentId(departmentId);
     }
     setShowRechargeDialog(true);
   }, [isFacultyEffective]);
@@ -260,7 +264,24 @@ const Wallet = () => {
   useEffect(() => {
     checkAuthAndFetchWallet();
     fetchRechargeRequests();
-    
+
+    const rechargeFromUrl = searchParams.get("recharge");
+    if (rechargeFromUrl === "1") {
+      const deptRaw = searchParams.get("department_id");
+      let deptId: number | null = null;
+      if (deptRaw) {
+        const parsed = parseInt(deptRaw, 10);
+        if (!Number.isNaN(parsed)) {
+          deptId = parsed;
+        }
+      }
+      navigate("/wallet", { replace: true });
+      setTimeout(() => {
+        openRechargeDialog(deptId);
+      }, 300);
+      return;
+    }
+
     // Check if user returned from profile page and reopen recharge dialog
     const returnToRecharge = sessionStorage.getItem('returnToWalletRecharge');
     if (returnToRecharge === 'true') {
@@ -270,6 +291,7 @@ const Wallet = () => {
         setShowRechargeDialog(true);
       }, 500);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount for URL / session restore
   }, []);
 
   useEffect(() => {

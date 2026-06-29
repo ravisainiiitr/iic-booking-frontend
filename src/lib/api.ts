@@ -512,6 +512,59 @@ export interface WalletRechargeParseRow {
   source_imap_uid?: string;
 }
 
+/** Legacy wallet balance lookup (direct MySQL by emp_id). */
+export interface LegacyWalletLookupResult {
+  emp_id_input: string;
+  emp_id_normalized: string;
+  legacy_mysql_configured: boolean;
+  connection_source?: 'request' | 'environment';
+  legacy_mysql_host?: string;
+  legacy_mysql_database?: string;
+  status:
+    | 'ready'
+    | 'not_found'
+    | 'invalid_emp_id'
+    | 'invalid_balance'
+    | 'zero_balance'
+    | 'unmatched_new_system'
+    | 'already_imported'
+    | 'not_configured'
+    | 'connection_error';
+  error?: string;
+  legacy?: {
+    legacy_user_id: number;
+    emp_id: string;
+    email: string;
+    balance: string;
+    balance_valid: boolean;
+  } | null;
+  new_system?: {
+    user_id: number;
+    user_email: string;
+    user_name: string;
+    emp_id: string | null;
+    department: string | null;
+  } | null;
+}
+
+export interface LegacyWalletBalanceRow {
+  legacy_user_id: number;
+  emp_id: string;
+  name: string;
+  email: string;
+  balance: string;
+}
+
+export interface LegacyWalletBalanceListResult {
+  row_count: number;
+  total_balance: string;
+  legacy_mysql_host?: string;
+  legacy_mysql_database?: string;
+  rows: LegacyWalletBalanceRow[];
+  status?: 'not_configured' | 'connection_error';
+  error?: string;
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -1957,6 +2010,25 @@ class ApiClient {
     return this.request<{ balance: string }>('/wallet/balance/');
   }
 
+  /** Sub-wallet balance for equipment's department (booking debit target). Admin may pass userId. */
+  async getEquipmentDepartmentWalletBalance(
+    equipmentId: number | string,
+    userId?: number | string | null,
+  ) {
+    const q = new URLSearchParams({ equipment_id: String(equipmentId) });
+    if (userId != null && String(userId).trim() !== '') {
+      q.set('user_id', String(userId));
+    }
+    return this.request<{
+      balance: string;
+      has_wallet: boolean;
+      department_id: number | null;
+      department_name: string;
+      department_code: string | null;
+      is_zero: boolean;
+    }>(`/wallet/equipment-department-balance/?${q.toString()}`);
+  }
+
   /** IITR Faculty: shared-wallet spend / recharges by linked students (optional date + equipment filter). */
   async getFacultyWalletExpenseReport(params: {
     date_from?: string;
@@ -2403,6 +2475,56 @@ class ApiClient {
       return { error: (data as any).error || 'Failed to parse file', data: undefined };
     }
     return { data: data as { rows: WalletRechargeParseRow[]; count: number; message?: string }, error: undefined };
+  }
+
+  /** Fetch legacy wallet balance for emp_id from legacy MySQL (admin). Uses server LEGACY_MYSQL_* env. */
+  async lookupLegacyWalletBalance(
+    empId: string,
+    options?: {
+      batchId?: string;
+      department?: 'general' | 'user';
+      departmentId?: number | null;
+    },
+  ): Promise<{ data?: LegacyWalletLookupResult; error?: string }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/legacy-wallet/balance/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body: Record<string, unknown> = {
+      emp_id: empId,
+      department: options?.department ?? 'general',
+    };
+    if (options?.batchId) body.batch_id = options.batchId;
+    if (options?.departmentId != null) body.department_id = options.departmentId;
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    const payload = data as LegacyWalletLookupResult & { error?: string };
+    if (payload.status === 'connection_error' || payload.status === 'not_configured') {
+      return { data: payload, error: payload.error };
+    }
+    if (!res.ok) {
+      return { error: payload.error || `HTTP error! status: ${res.status}`, data: undefined };
+    }
+    return { data: payload, error: undefined };
+  }
+
+  /** List all legacy users with non-zero wallet balance (admin). Uses server LEGACY_MYSQL_* env. */
+  async listLegacyWalletBalances(): Promise<{ data?: LegacyWalletBalanceListResult; error?: string }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/legacy-wallet/balances/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'GET', headers });
+    const data = await res.json().catch(() => ({}));
+    const payload = data as LegacyWalletBalanceListResult & { error?: string; status?: string };
+    if (payload.status === 'connection_error' || payload.status === 'not_configured') {
+      return { data: payload, error: payload.error };
+    }
+    if (!res.ok) {
+      return { error: payload.error || `HTTP error! status: ${res.status}`, data: undefined };
+    }
+    return { data: payload, error: undefined };
   }
 
   /** Process (credit) selected parsed recharge rows. Admin only. Credits wallet, sends email to owner, marks processed. */
@@ -3302,25 +3424,35 @@ class ApiClient {
     });
   }
 
-  async cancelBooking(bookingId: number, refund: boolean = false, notes?: string) {
+  async cancelBooking(bookingId: number, refund: boolean = false, notes?: string, slotIds?: number[]) {
     return this.request<{
       message: string;
       booking: any;
       refund_amount?: string;
+      partial_cancellation?: boolean;
     }>(`/bookings/${bookingId}/cancel/`, {
       method: 'POST',
-      body: JSON.stringify({ refund, notes }),
+      body: JSON.stringify({
+        refund,
+        notes,
+        ...(slotIds && slotIds.length > 0 ? { slot_ids: slotIds } : {}),
+      }),
     });
   }
 
-  async userCancelBooking(bookingId: number, refund: boolean = false, notes?: string) {
+  async userCancelBooking(bookingId: number, refund: boolean = false, notes?: string, slotIds?: number[]) {
     return this.request<{
       message: string;
       booking: any;
       refund_amount?: string;
+      partial_cancellation?: boolean;
     }>(`/bookings/${bookingId}/user-cancel/`, {
       method: 'POST',
-      body: JSON.stringify({ refund, notes }),
+      body: JSON.stringify({
+        refund,
+        notes,
+        ...(slotIds && slotIds.length > 0 ? { slot_ids: slotIds } : {}),
+      }),
     });
   }
 

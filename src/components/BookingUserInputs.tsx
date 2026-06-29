@@ -378,7 +378,17 @@ export function BookingUserInputs({
       }
 
       setEditFormValues(nextValues);
-      await onUpdate(nextValues);
+
+      const allowedKeys = new Set<string>(["comments"]);
+      editableFields.forEach((f) => {
+        allowedKeys.add(f.field_key);
+        allowedKeys.add(`${f.field_key}_elements`);
+      });
+      const payload = Object.fromEntries(
+        Object.entries(nextValues).filter(([k]) => allowedKeys.has(k))
+      );
+
+      await onUpdate(payload);
       toast.success("User inputs updated");
       setEditDialogOpen(false);
     } catch (e) {

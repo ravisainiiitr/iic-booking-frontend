@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
+import IITRBanner from "@/components/IITRBanner";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -274,14 +275,7 @@ const DashboardHeader = () => {
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => navigate("/")}
         >
-          <img 
-            src="/IITR_Logo.svg" 
-            alt="IITR Logo" 
-            className="h-10 w-10"
-          />
-          <h1 className="text-2xl font-bold">
-            INSTITUTE INSTRUMENTATION CENTRE - IIC
-          </h1>
+          <IITRBanner size="md" />
         </div>
         <div className="flex items-center gap-4">
           <button

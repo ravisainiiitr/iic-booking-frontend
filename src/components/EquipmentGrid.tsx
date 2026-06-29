@@ -109,6 +109,8 @@ const EquipmentGrid = () => {
       available: eq.status === "ACTIVE",
       status: eq.status,
       statusDisplay: eq.status_display,
+      departmentName: eq.internal_department_name || null,
+      departmentCode: eq.internal_department_code || null,
       avgRating: eq.avg_rating ?? null,
       ratingCount: eq.rating_count ?? null,
       ratingDist: eq.rating_dist ?? null,

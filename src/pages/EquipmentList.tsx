@@ -41,6 +41,7 @@ interface ApiEquipment {
   category_name?: string | null;
   internal_department?: number | null;
   internal_department_name?: string | null;
+  internal_department_code?: string | null;
   avg_rating?: number | null;
   rating_count?: number | null;
   created_at: string;
@@ -60,6 +61,8 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       available: eq.status === "ACTIVE",
       status: eq.status,
       statusDisplay: eq.status_display,
+      departmentName: eq.internal_department_name || null,
+      departmentCode: eq.internal_department_code || null,
       address: eq.location || "",
       technicalPerson: "",
       contactNumber: "",
