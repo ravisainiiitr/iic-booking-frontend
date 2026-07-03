@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { setPostLoginRedirect } from "@/lib/authRedirect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -13,10 +14,10 @@ import { Calendar } from "lucide-react";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
-import Header from "@/components/Header";
+import EquipmentImage from "@/components/EquipmentImage";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
+import { TruncatableText } from "@/components/TruncatableText";
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -25,48 +26,6 @@ function getContrastTextColor(hex: string): string {
   const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? "#1f2937" : "#ffffff";
-}
-
-const COLLAPSIBLE_SPEC_CHAR_LIMIT = 200;
-
-const COLLAPSIBLE_SPEC_KEYS = new Set([
-  "general information",
-  "specifications",
-  "sample requirements and preparation",
-]);
-
-function normalizeSpecKey(key: string): string {
-  return (key || "").trim().replace(/-+\s*$/, "").toLowerCase();
-}
-
-function isCollapsibleSpecKey(specKey: string): boolean {
-  return COLLAPSIBLE_SPEC_KEYS.has(normalizeSpecKey(specKey));
-}
-
-function CollapsibleSpecValue({ specKey, value }: { specKey: string; value: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const text = value || "";
-  const collapsible = isCollapsibleSpecKey(specKey) && text.length > COLLAPSIBLE_SPEC_CHAR_LIMIT;
-  const display =
-    collapsible && !expanded
-      ? `${text.slice(0, COLLAPSIBLE_SPEC_CHAR_LIMIT).trimEnd()}…`
-      : text;
-
-  return (
-    <div>
-      <div className="text-base text-muted-foreground whitespace-pre-line">{display}</div>
-      {collapsible && (
-        <Button
-          type="button"
-          variant="link"
-          className="h-auto px-0 mt-2 text-primary"
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          {expanded ? "Show less" : "Expand"}
-        </Button>
-      )}
-    </div>
-  );
 }
 
 interface EquipmentProfile {
@@ -142,14 +101,8 @@ const EquipmentProfile = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
-  const hasEquipmentImage = !!equipment?.image_url;
-  const equipmentImageUrl = useEquipmentImageUrl(equipment?.equipment_id ?? null, hasEquipmentImage, user?.id);
-  // Always use proxy URL for display (never presigned image_url — it expires). Prefer blob URL when available for auth.
-  const displayEquipmentImage =
-    equipmentImageUrl ??
-    (hasEquipmentImage && equipment ? apiClient.getEquipmentImageUrl(equipment.equipment_id) : "/placeholder.svg");
   const [loading, setLoading] = useState(true);
-  const [userType, setUserType] = useState<number | string | null>(null);
+  const userType = user?.user_type ?? null;
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [apiSlots, setApiSlots] = useState<Array<{
     id: number;
@@ -239,29 +192,7 @@ const EquipmentProfile = () => {
     if (id) {
       fetchEquipmentProfile();
     }
-    fetchCurrentUser();
   }, [id]);
-
-  const fetchCurrentUser = async () => {
-    try {
-      // First try to get from localStorage
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        setUserType(user.user_type);
-        return;
-      }
-
-      // If not in localStorage, fetch from API
-      const response = await apiClient.getCurrentUser();
-      if (response.data) {
-        setUserType(response.data.user_type);
-        localStorage.setItem('user', JSON.stringify(response.data));
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  };
 
   // Admin-only: true when user_type is admin (for "Manage this Equipment" label and visibility)
   const isAdminUser = (): boolean => {
@@ -304,6 +235,26 @@ const EquipmentProfile = () => {
   const isEquipmentOperational = (): boolean => {
     const st = String((equipment as any)?.status || "").trim().toUpperCase();
     return st === "ACTIVE" || st === "OPERATIONAL";
+  };
+
+  const shouldShowBookingCard = (): boolean => {
+    if (canManageEquipment() || canBookEquipment()) return true;
+    return !isAuthenticated;
+  };
+
+  const handleBookOrManageClick = () => {
+    if (!equipment) return;
+    if (!canManageEquipment() && !isEquipmentOperational()) {
+      toast.error("This equipment is not operational and cannot be booked.");
+      return;
+    }
+    const bookingUrl = `/book-equipment?equipment_id=${equipment.equipment_id}`;
+    if (!canManageEquipment() && !isAuthenticated) {
+      setPostLoginRedirect(bookingUrl);
+      navigate("/auth");
+      return;
+    }
+    navigate(bookingUrl);
   };
 
   const fetchEquipmentProfile = async () => {
@@ -383,6 +334,19 @@ const EquipmentProfile = () => {
     return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
   };
 
+  const formatSlotRowTimeLabel = (startTimeKey: string, durationMinutes: number): string => {
+    const start = startTimeKey.includes(":") ? startTimeKey.substring(0, 5) : startTimeKey;
+    if (!start.includes(":")) return start;
+    const parts = start.split(":");
+    const startM = parseInt(parts[0] || "0", 10) * 60 + parseInt(parts[1] || "0", 10);
+    const duration = Math.max(1, durationMinutes || 60);
+    const endM = startM + duration;
+    const endH = Math.floor(endM / 60) % 24;
+    const endMin = endM % 60;
+    const end = `${String(endH).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`;
+    return `${start} – ${end}`;
+  };
+
   /** Admin and OIC always see time on the vertical axis; setting has no effect for them. */
   const isAdminOrOIC = (): boolean => {
     if (userType == null) return false;
@@ -399,9 +363,10 @@ const EquipmentProfile = () => {
   const getWeeklyRowKeysAndLabels = (): { key: string; label: string }[] => {
     const hideTime = getEffectiveWeeklyViewDisplay() === "SLOT_ID";
     const times = getTimeSlotsForGrid();
+    const slotDuration = getSlotDuration() || slotWindow.slot_duration_minutes || 60;
     return times.map((t, index) => ({
       key: t,
-      label: hideTime ? `Slot ${index + 1}` : t,
+      label: hideTime ? `Slot ${index + 1}` : formatSlotRowTimeLabel(t, slotDuration),
     }));
   };
 
@@ -499,7 +464,7 @@ const EquipmentProfile = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {isAuthenticated ? <DashboardHeader /> : <Header />}
+      <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -521,7 +486,6 @@ const EquipmentProfile = () => {
                     <div className="mt-3">
                       <EquipmentDepartmentLabel
                         name={equipment.internal_department_name}
-                        code={equipment.internal_department_code}
                       />
                     </div>
                   </div>
@@ -535,8 +499,9 @@ const EquipmentProfile = () => {
                   </div>
                 ) : null}
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
-                  <img
-                    src={displayEquipmentImage}
+                  <EquipmentImage
+                    equipmentId={equipment.equipment_id}
+                    enabled
                     alt={equipment.name}
                     className="w-full h-full object-contain"
                   />
@@ -746,20 +711,14 @@ const EquipmentProfile = () => {
           <div className="lg:col-span-1 space-y-6">
             <div className="sticky top-6 space-y-6">
               {/* Book / Manage Equipment Button */}
-              {(canBookEquipment() || canManageEquipment()) && (
+              {(shouldShowBookingCard()) && (
                 <Card>
                   <CardContent className="pt-6 space-y-3">
                     <Button
                       className="w-full"
                       size="lg"
                       disabled={!canManageEquipment() && !isEquipmentOperational()}
-                      onClick={() => {
-                        if (!canManageEquipment() && !isEquipmentOperational()) {
-                          toast.error("This equipment is not operational and cannot be booked.");
-                          return;
-                        }
-                        navigate(`/book-equipment?equipment_id=${equipment.equipment_id}`);
-                      }}
+                      onClick={handleBookOrManageClick}
                     >
                       {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
                     </Button>
@@ -789,9 +748,10 @@ const EquipmentProfile = () => {
                     <Info className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <div>
                       <p className="font-semibold text-amber-800 dark:text-amber-200 mb-1">Important Instruction</p>
-                      <p className="text-sm text-amber-900/90 dark:text-amber-100/90 whitespace-pre-line">
-                        {equipment.important_instruction}
-                      </p>
+                      <TruncatableText
+                        text={equipment.important_instruction}
+                        className="text-sm text-amber-900/90 dark:text-amber-100/90"
+                      />
                     </div>
                   </div>
                 </div>
@@ -859,7 +819,10 @@ const EquipmentProfile = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <CollapsibleSpecValue specKey={spec.spec_key} value={spec.spec_value} />
+                      <TruncatableText
+                        text={spec.spec_value}
+                        className="text-base text-muted-foreground"
+                      />
                     </CardContent>
                   </Card>
                 ))}

@@ -1,72 +1,81 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 
+/** In-memory blob URLs keyed by equipmentId + auth token (survives re-renders). */
+const blobCache = new Map<string, string>();
+
+function cacheKey(equipmentId: number, token: string | null): string {
+  return `${equipmentId}:${token || "anon"}`;
+}
+
+function revokeCacheEntry(key: string): void {
+  const blobUrl = blobCache.get(key);
+  if (blobUrl) {
+    URL.revokeObjectURL(blobUrl);
+    blobCache.delete(key);
+  }
+}
+
 /**
- * Fetches equipment image with auth and returns a blob URL so <img> displays correctly.
- * Browser <img> requests do not send Authorization, so the backend image proxy sees
- * anonymous and returns 404 for non-public equipment. This hook fetches with the
- * token and returns a blob URL that works after login/re-login.
- * Pass authKey (e.g. user id or token) so that when the user logs in again the image refetches.
+ * Fetches equipment image with Authorization and returns a stable blob URL.
+ * Browser <img> cannot send auth headers; we fetch once and cache the blob so
+ * re-renders and Cache-Control: no-store on the proxy do not clear the image.
  */
 export function useEquipmentImageUrl(
   equipmentId: number | null | undefined,
   enabled: boolean,
   authKey?: string | number | null
 ): string | null {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const revokedRef = useRef<string | null>(null);
+  const token = apiClient.getToken();
+  const [blobUrl, setBlobUrl] = useState<string | null>(() => {
+    if (equipmentId == null) return null;
+    return blobCache.get(cacheKey(equipmentId, token)) ?? null;
+  });
 
   useEffect(() => {
-    if (!enabled || equipmentId == null) {
+    if (equipmentId == null) {
       setBlobUrl(null);
       return;
     }
 
-    const token = apiClient.getToken();
-    if (!token) {
+    const key = cacheKey(equipmentId, token);
+    const cached = blobCache.get(key);
+    if (cached) {
+      setBlobUrl(cached);
+      if (!enabled) return;
+    } else if (!enabled) {
       setBlobUrl(null);
       return;
     }
 
     let cancelled = false;
-    const url = apiClient.getEquipmentImageUrl(equipmentId);
+    const url = apiClient.getEquipmentImageProxyPath(equipmentId);
+    const headers: HeadersInit = token ? { Authorization: `Token ${token}` } : {};
 
-    fetch(url, {
-      headers: { Authorization: `Token ${token}` },
-      credentials: "same-origin",
-    })
+    fetch(url, { headers, credentials: "same-origin" })
       .then((res) => {
         if (cancelled || !res.ok) return null;
         return res.blob();
       })
       .then((blob) => {
-        if (cancelled || !blob) {
-          setBlobUrl(null);
-          return;
+        if (cancelled || !blob) return;
+        for (const existingKey of blobCache.keys()) {
+          if (existingKey.startsWith(`${equipmentId}:`) && existingKey !== key) {
+            revokeCacheEntry(existingKey);
+          }
         }
         const next = URL.createObjectURL(blob);
+        blobCache.set(key, next);
         setBlobUrl(next);
-        if (revokedRef.current) {
-          URL.revokeObjectURL(revokedRef.current);
-          revokedRef.current = null;
-        }
-        revokedRef.current = next;
       })
       .catch(() => {
-        if (!cancelled) setBlobUrl(null);
+        /* keep last cached blob on transient errors */
       });
 
     return () => {
       cancelled = true;
-      setBlobUrl((prev) => {
-        if (prev) {
-          URL.revokeObjectURL(prev);
-          revokedRef.current = null;
-        }
-        return null;
-      });
     };
-  }, [equipmentId, enabled, authKey]);
+  }, [equipmentId, enabled, token, authKey]);
 
   return blobUrl;
 }

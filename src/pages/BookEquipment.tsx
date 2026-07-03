@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
   readProformaLineItemsFromStorage,
   writeProformaLineItemsToStorage,
@@ -195,6 +196,19 @@ function parseTimeToMinutes(timeStr: string): number {
 /** Convert HH:mm:ss to HH:mm for display. */
 function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
+}
+
+/** Start–end label for a slot row when weekly view shows time (e.g. "09:00 – 10:00"). */
+function formatSlotRowTimeLabel(startTimeKey: string, durationMinutes: number): string {
+  const start = normalizeSlotGridTimeKey(startTimeKey);
+  if (!start.includes(":")) return start;
+  const startM = parseTimeToMinutes(start);
+  const duration = Math.max(1, durationMinutes || 60);
+  const endM = startM + duration;
+  const endH = Math.floor(endM / 60) % 24;
+  const endMin = endM % 60;
+  const end = `${String(endH).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`;
+  return `${start} – ${end}`;
 }
 
 /** Normalize grid row keys so "9:00" / "09:00:00" / ISO fragments all match `getSlotData` lookups. */
@@ -1484,7 +1498,7 @@ const BookEquipment = () => {
         name: eq.name,
         category: eq.category_name || "",
         description: eq.description || eq.name,
-        image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+        image: eq.image_url ? apiClient.getEquipmentImageProxyPath(eq.equipment_id) : "/placeholder.svg",
         video: "", // API doesn't provide video_url in detail response
         available: eq.status === "ACTIVE",
         address: eq.location || "",
@@ -2506,12 +2520,16 @@ const BookEquipment = () => {
   const checkAuth = async () => {
     const token = apiClient.getToken();
     if (!token) {
+      const returnPath = `${window.location.pathname}${window.location.search}`;
+      setPostLoginRedirect(returnPath);
       navigate("/auth");
       return;
     }
 
     const userResponse = await apiClient.getCurrentUser();
     if (userResponse.error || !userResponse.data) {
+      const returnPath = `${window.location.pathname}${window.location.search}`;
+      setPostLoginRedirect(returnPath);
       navigate("/auth");
       return;
     }
@@ -3092,9 +3110,10 @@ const BookEquipment = () => {
         : fromWindow.length > 0
           ? fromWindow
           : DEFAULT_TIME_SLOTS;
+    const slotDuration = equipmentDetail?.slot_duration_minutes || 60;
     return timeSlots.map((t, index) => ({
       key: t,
-      label: hideTime ? `Slot ${index + 1}` : t,
+      label: hideTime ? `Slot ${index + 1}` : formatSlotRowTimeLabel(t, slotDuration),
     }));
   };
 
@@ -3417,8 +3436,12 @@ const BookEquipment = () => {
   // Handle input field changes - charge will auto-calculate via useEffect
   const handleInputFieldChange = (fieldKey: string, value: string | boolean | string[] | number) => {
     if (repeatSourceBooking) return;
-    // Field keys A and B must not be less than 1 (enforce minimum in UI)
-    if (fieldKey === 'A' || fieldKey === 'B') {
+    const changedField = equipmentDetail?.input_fields?.find(
+      (f: any) => String(f?.field_key || "").toUpperCase() === String(fieldKey || "").toUpperCase()
+    );
+    const changedFieldType = String(changedField?.field_type || "").toUpperCase().trim();
+    // A/B must be >= 1 only for NUMERIC fields (MULTI_PARAM B is often RADIO with text param codes).
+    if ((fieldKey === 'A' || fieldKey === 'B') && changedFieldType === 'NUMERIC') {
       if (typeof value === 'number') {
         if (value < 1 || Number.isNaN(value)) value = 1;
       } else if (typeof value === 'string') {
@@ -3951,12 +3974,14 @@ const BookEquipment = () => {
           return;
         }
         logBookingServerTimings(res);
-        // Success: API returns { data: { booking_id, daily_slots, input_values_adjusted?, input_values? } }
         const resData = (res as {
           data?: {
             booking_id?: number;
+            real_booking_id?: number;
             id?: number;
             daily_slots?: DailySlot[];
+            payment_required?: boolean;
+            amount_due?: string;
             input_values_adjusted?: boolean;
             input_values?: Record<string, string | boolean | string[] | number>;
             reward?: {
@@ -3965,6 +3990,14 @@ const BookEquipment = () => {
             };
           };
         }).data;
+        const realId = resData?.real_booking_id ?? resData?.booking_id ?? resData?.id;
+        if (resData?.payment_required && realId != null && bookingAsExternalTarget) {
+          resetBookingPageToDefaults();
+          navigate(`/bookings/${realId}/payment`);
+          toast.info(`Booking reserved. Please pay ₹${Number(resData.amount_due || 0).toFixed(2)} to confirm.`);
+          return;
+        }
+        // Success: API returns { data: { booking_id, daily_slots, input_values_adjusted?, input_values? } }
         // Merge returned slots into equipment detail so grid shows booked state immediately
         const updatedSlots = resData?.daily_slots;
         if (equipmentDetail && updatedSlots && Array.isArray(updatedSlots) && updatedSlots.length > 0) {
@@ -3978,6 +4011,12 @@ const BookEquipment = () => {
         if (resData?.input_values_adjusted && resData?.input_values && typeof resData.input_values === "object") {
           setInputFieldValues((prev) => ({ ...prev, ...resData.input_values }));
           toast.info("Booking created with reduced parameters (1 slot) as requested. Input values have been updated.");
+        }
+        if (bookingAsExternalTarget && realId != null && !resData?.payment_required) {
+          resetBookingPageToDefaults();
+          navigate(`/bookings/${realId}/next-steps`);
+          toast.success("Booking confirmed. Complete I-STEM steps on the next page.");
+          return;
         }
         resetBookingPageToDefaults();
         setBookingResultDialog({
@@ -4159,46 +4198,47 @@ const BookEquipment = () => {
       )}
       <DashboardHeader />
       <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-bold">
-              {canAccessManageEquipmentModes() ? "Manage" : "Book"} {selectedEquipment.name}
-            </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
-              <EquipmentDepartmentLabel
-                name={(equipmentDetail as any)?.internal_department_name}
-                code={(equipmentDetail as any)?.internal_department_code}
-              />
-              {equipmentDeptWalletBalance?.is_zero && (
-                <div className="inline-flex flex-wrap items-center gap-3">
-                  <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500 animate-pulse">
-                    Wallet balance for this department is ₹0 — please recharge before booking.
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="shrink-0 font-semibold"
-                    onClick={() => {
-                      const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
-                      const params = new URLSearchParams({ recharge: "1" });
-                      const deptId = equipmentDeptWalletBalance?.department_id;
-                      if (deptId != null) {
-                        params.set("department_id", String(deptId));
-                      }
-                      if (equipmentId != null) {
-                        sessionStorage.setItem(
-                          "returnToBookEquipment",
-                          `/book-equipment?equipment_id=${equipmentId}`,
-                        );
-                      }
-                      navigate(`/wallet?${params.toString()}`);
-                    }}
-                  >
-                    <Wallet className="h-4 w-4 mr-2" />
-                    Recharge Wallet
-                  </Button>
-                </div>
-              )}
+        <div className="max-w-6xl mx-auto mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold">
+                {canAccessManageEquipmentModes() ? `Manage ${selectedEquipment.name}` : selectedEquipment.name}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+                <EquipmentDepartmentLabel
+                  name={(equipmentDetail as any)?.internal_department_name}
+                />
+                {equipmentDeptWalletBalance?.is_zero && (
+                  <div className="inline-flex flex-wrap items-center gap-3">
+                    <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500 animate-pulse">
+                      Wallet balance for this department is ₹0 — please recharge before booking.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0 font-semibold"
+                      onClick={() => {
+                        const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
+                        const params = new URLSearchParams({ recharge: "1" });
+                        const deptId = equipmentDeptWalletBalance?.department_id;
+                        if (deptId != null) {
+                          params.set("department_id", String(deptId));
+                        }
+                        if (equipmentId != null) {
+                          sessionStorage.setItem(
+                            "returnToBookEquipment",
+                            `/book-equipment?equipment_id=${equipmentId}`,
+                          );
+                        }
+                        navigate(`/wallet?${params.toString()}`);
+                      }}
+                    >
+                      <Wallet className="h-4 w-4 mr-2" />
+                      Recharge Wallet
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -5033,7 +5073,7 @@ const BookEquipment = () => {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>Book {selectedEquipment.name}</CardTitle>
+                    <CardTitle>{selectedEquipment.name}</CardTitle>
                     <CardDescription>
                       {Number(selectedEquipment.internalRate) > 0 && (
                         <>₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour</>

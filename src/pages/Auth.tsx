@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { consumePostLoginRedirect } from "@/lib/authRedirect";
 import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -179,7 +180,7 @@ const Auth = () => {
     // Check if user is already authenticated using AuthContext
     if (isAuthenticated && !hasRedirected) {
           hasRedirected = true;
-          navigate("/dashboard");
+          navigate(consumePostLoginRedirect());
     }
     
     // Set checking auth to false
@@ -501,9 +502,9 @@ const Auth = () => {
         // Check if token is provided (immediate login) or if email verification is required
         if (response.data.token) {
           // Token provided - user is logged in immediately
-          toast.success("Account created successfully! Redirecting to dashboard...");
+          toast.success("Account created successfully! Redirecting…");
           setTimeout(() => {
-            navigate("/dashboard");
+            navigate(consumePostLoginRedirect());
           }, 1000);
         } else {
           // No token - email verification required
@@ -681,7 +682,7 @@ const Auth = () => {
       // Login successful
         toast.success("Signed in successfully!");
       // User already set from login response; skip refresh to avoid 401 redirect race
-        navigate("/dashboard");
+        navigate(consumePostLoginRedirect());
     } catch (error: any) {
       // Check if error message contains email verification or pending approval
       const errorMessage = error.message || "Failed to sign in";
@@ -756,7 +757,7 @@ const Auth = () => {
       }
       toast.success("Signed in successfully!");
       if (res.data?.user) setUserFromAuth(res.data.user);
-      navigate("/dashboard");
+      navigate(consumePostLoginRedirect());
     } catch (err: any) {
       toast.error(err?.message || "Verification failed.");
     } finally {

@@ -163,7 +163,7 @@ const Wallet = () => {
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [recharging, setRecharging] = useState(false);
-  const [rechargeType, setRechargeType] = useState<"razorpay" | "request">("razorpay");
+  const [rechargeType, setRechargeType] = useState<"sbiepay" | "request">("sbiepay");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [projects, setProjects] = useState<Array<{
     id: number;
@@ -1407,76 +1407,20 @@ const Wallet = () => {
     }
     try {
       setRecharging(true);
-      const orderResponse = await apiClient.createRazorpayOrder(amount, rechargeDepartmentId);
-      if (orderResponse.error) {
-        toast.error(orderResponse.error || "Failed to create payment order");
-        return;
-      }
-
-      const { order_id, key, amount: orderAmount } = orderResponse.data!;
-
-      // Initialize Razorpay checkout
-      const options = {
-        key: key,
-        amount: orderAmount,
-        currency: 'INR',
-        name: 'IIC Booking',
-        description: `Wallet Recharge - ₹${amount.toFixed(2)}`,
-        order_id: order_id,
-        handler: async function (response: any) {
-          try {
-            // Verify payment
-            const verifyResponse = await apiClient.verifyRazorpayPayment(
-              response.razorpay_order_id,
-              response.razorpay_payment_id,
-              response.razorpay_signature,
-              orderAmount
-            );
-
-            if (verifyResponse.error) {
-              toast.error(verifyResponse.error || "Payment verification failed");
-              return;
-            }
-
-            toast.success(verifyResponse.data?.message || `Successfully recharged ₹${amount.toFixed(2)}`);
-            setShowRechargeDialog(false);
-            setRechargeAmount("");
-            setRechargeDepartmentId(null);
-            // Refresh wallet data
-            await fetchWalletData();
-          } catch (error: any) {
-            toast.error(error.message || "Failed to verify payment");
-          }
-        },
-        prefill: {
-          name: user?.name || user?.email || '',
-          email: user?.email || '',
-          contact: user?.phone_number || '',
-        },
-        theme: {
-          color: '#2563eb',
-        },
-        modal: {
-          ondismiss: function() {
-            setRecharging(false);
-          }
-        }
-      };
-
-      // Check if Razorpay is loaded
-      if (typeof window.Razorpay === 'undefined') {
-        toast.error("Payment gateway is loading. Please try again in a moment.");
-        setRecharging(false);
-        return;
-      }
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.on('payment.failed', function (response: any) {
-        toast.error(`Payment failed: ${response.error.description || 'Unknown error'}`);
-        setRecharging(false);
+      const orderResponse = await apiClient.initiateSbiepayPayment({
+        purpose: "WALLET_RECHARGE",
+        amount,
+        department_id: rechargeDepartmentId,
       });
-      
-      razorpay.open();
+      if (orderResponse.error || !orderResponse.data) {
+        toast.error(orderResponse.error || "Failed to start SBIePay payment");
+        setRecharging(false);
+        return;
+      }
+      apiClient.submitSbiepayForm({
+        gateway_url: orderResponse.data.gateway_url,
+        form_fields: orderResponse.data.form_fields,
+      });
     } catch (error: any) {
       toast.error(error.message || "Failed to initiate payment");
       setRecharging(false);
@@ -1600,7 +1544,7 @@ const Wallet = () => {
     setRechargeAmount("");
     setRechargeDepartmentId(null);
     setSelectedProjectId(null);
-    setRechargeType(isFacultyEffective ? "request" : "razorpay");
+    setRechargeType(isFacultyEffective ? "request" : "sbiepay");
     setOtpStep("form");
     setUserOtp("");
     setTempRequestId(null);
@@ -2172,27 +2116,27 @@ const Wallet = () => {
                           </Button>
                           <Button
                             type="button"
-                            variant={rechargeType === "razorpay" ? "default" : "ghost"}
+                            variant={rechargeType === "sbiepay" ? "default" : "ghost"}
                             className="rounded-b-none border-b-2 border-transparent opacity-60"
-                            onClick={() => setRechargeType("razorpay")}
+                            onClick={() => setRechargeType("sbiepay")}
                             disabled
                             title="Online payment is not available for faculty recharge"
                           >
                             <CreditCard className="h-4 w-4 mr-2" />
-                            Online Payment
+                            SBIePay (Online)
                           </Button>
                         </>
                       ) : (
                         <>
                           <Button
                             type="button"
-                            variant={rechargeType === "razorpay" ? "default" : "ghost"}
+                            variant={rechargeType === "sbiepay" ? "default" : "ghost"}
                             className="rounded-b-none border-b-2 border-transparent"
-                            onClick={() => setRechargeType("razorpay")}
+                            onClick={() => setRechargeType("sbiepay")}
                             disabled={recharging || requestingRecharge}
                           >
                             <CreditCard className="h-4 w-4 mr-2" />
-                            Online Payment
+                            SBIePay (Online)
                           </Button>
                           <Button
                             type="button"
@@ -2228,8 +2172,8 @@ const Wallet = () => {
                       <Input
                         id="recharge-amount"
                         type="number"
-                        min={rechargeType === "razorpay" ? "1" : "100"}
-                        max={rechargeType === "razorpay" ? "100000" : undefined}
+                        min={rechargeType === "sbiepay" ? "1" : "100"}
+                        max={rechargeType === "sbiepay" ? "100000" : undefined}
                         step="0.01"
                         placeholder="Enter amount"
                         value={rechargeAmount}
@@ -2237,13 +2181,13 @@ const Wallet = () => {
                         disabled={recharging || requestingRecharge}
                       />
                       <p className="text-xs text-muted-foreground">
-                        {rechargeType === "razorpay"
+                        {rechargeType === "sbiepay"
                           ? "Minimum: ₹1 | Maximum: ₹1,00,000"
                           : "Minimum ₹100 | Maximum: No Limit"}
                       </p>
                     </div>
 
-                    {rechargeType === "razorpay" && (
+                    {rechargeType === "sbiepay" && (
                       <>
                         <div className="flex gap-2">
                           <Button

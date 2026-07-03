@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
+import EquipmentImage from "@/components/EquipmentImage";
 
 export type EquipmentCardAccent = {
   gradient: string;
@@ -29,6 +30,9 @@ export type EquipmentCatalogCardItem = {
   ratingCount?: number | null;
   departmentName?: string | null;
   departmentCode?: string | null;
+  hasImage?: boolean;
+  make?: string | null;
+  showMakeOnCard?: boolean;
 };
 
 type Props = {
@@ -73,8 +77,9 @@ export default function EquipmentCatalogCard({
           />
         ) : (
           <>
-            <img
-              src={item.image}
+            <EquipmentImage
+              equipmentId={Number(item.id)}
+              enabled={item.hasImage !== false && !!item.image}
               alt={item.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
@@ -107,10 +112,14 @@ export default function EquipmentCatalogCard({
 
       <CardHeader className="flex-1 pb-2">
         <CardTitle className="text-lg leading-snug line-clamp-2 min-h-[3.25rem]">{item.name}</CardTitle>
-        {(item.departmentName || item.departmentCode) ? (
+        {item.showMakeOnCard && item.make?.trim() ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground/80">Make:</span> {item.make.trim()}
+          </p>
+        ) : null}
+        {(item.departmentName) ? (
           <EquipmentDepartmentLabel
             name={item.departmentName}
-            code={item.departmentCode}
             size="compact"
             accentBarClassName={accent.bar}
             className="mt-2"

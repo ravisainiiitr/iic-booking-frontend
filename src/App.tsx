@@ -16,6 +16,8 @@ import Dashboard from "./pages/Dashboard";
 import ProformaInvoice from "./pages/ProformaInvoice";
 import EquipmentList from "./pages/EquipmentList";
 import BookEquipment from "./pages/BookEquipment";
+import BookingPayment from "./pages/BookingPayment";
+import BookingNextSteps from "./pages/BookingNextSteps";
 import MyBookings from "./pages/MyBookings";
 import BookingManagement from "./pages/BookingManagement";
 import UrgentRequests from "./pages/UrgentRequests";
@@ -98,6 +100,8 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/equipments" element={<EquipmentList />} />
                 <Route path="/book-equipment" element={<BookEquipment />} />
+                <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />
+                <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
                 <Route path="/equipment/:id" element={<EquipmentProfile />} />
                 <Route path="/my-bookings" element={<MyBookings />} />
                 <Route path="/booking-management" element={<BookingManagement />} />

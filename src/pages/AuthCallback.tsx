@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { consumePostLoginRedirect } from "@/lib/authRedirect";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
@@ -63,9 +64,9 @@ const AuthCallback = () => {
           setStatus('success');
           toast.success('Authentication successful!');
 
-          // Redirect to dashboard after short delay
+          // Redirect after short delay
           setTimeout(() => {
-            navigate("/dashboard");
+            navigate(consumePostLoginRedirect());
           }, 1500);
           return;
         } catch (err: any) {
@@ -113,9 +114,9 @@ const AuthCallback = () => {
         setStatus('success');
         toast.success('Authentication successful!');
 
-        // Redirect to dashboard after short delay
+        // Redirect after short delay
         setTimeout(() => {
-          navigate("/dashboard");
+          navigate(consumePostLoginRedirect());
         }, 1500);
       } catch (err: any) {
         setStatus('error');
@@ -187,7 +188,7 @@ const AuthCallback = () => {
             <div className="text-center">
               <p className="text-lg font-semibold">Authentication Successful!</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Redirecting to dashboard...
+                Redirecting…
               </p>
             </div>
           </div>

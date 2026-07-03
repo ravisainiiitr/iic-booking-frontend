@@ -42,6 +42,8 @@ interface ApiEquipment {
   internal_department?: number | null;
   internal_department_name?: string | null;
   internal_department_code?: string | null;
+  make?: string | null;
+  show_make_on_card?: boolean;
   avg_rating?: number | null;
   rating_count?: number | null;
   created_at: string;
@@ -56,13 +58,16 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       name: eq.name,
       category: eq.category_name || "",
       description: eq.name,
-      image: eq.image_url ? apiClient.getEquipmentImageUrl(eq.equipment_id) : "/placeholder.svg",
+      image: eq.image_url ? apiClient.getEquipmentImageProxyPath(eq.equipment_id) : "/placeholder.svg",
+      hasImage: !!eq.image_url,
       video: "",
       available: eq.status === "ACTIVE",
       status: eq.status,
       statusDisplay: eq.status_display,
       departmentName: eq.internal_department_name || null,
       departmentCode: eq.internal_department_code || null,
+      make: eq.make || null,
+      showMakeOnCard: Boolean(eq.show_make_on_card),
       address: eq.location || "",
       technicalPerson: "",
       contactNumber: "",

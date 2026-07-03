@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
+import EquipmentImage from "@/components/EquipmentImage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import TicketForm from "@/components/TicketForm";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
+import { TruncatableText } from "@/components/TruncatableText";
 
 interface EquipmentCardProps {
   name: string;
@@ -61,6 +62,7 @@ interface EquipmentDetail {
   name: string;
   description: string;
   location: string;
+  important_instruction?: string | null;
   specifications?: Array<{
     equipment_specification_id: number;
     spec_key: string;
@@ -169,8 +171,12 @@ const EquipmentCard = ({
   const [ratingHasMore, setRatingHasMore] = useState(false);
 
   const equipmentIdForImage = id != null && isEquipmentProxyImage(image) ? Number(id) : null;
-  const authImageUrl = useEquipmentImageUrl(equipmentIdForImage, !!equipmentIdForImage, user?.id);
-  const displayImage = authImageUrl ?? image;
+  const displayImage =
+    equipmentIdForImage != null
+      ? user
+        ? apiClient.getEquipmentImageUrl(equipmentIdForImage)
+        : apiClient.getEquipmentImageProxyPath(equipmentIdForImage)
+      : image;
 
   const ratingSummaryCount = Number(ratingCount ?? 0);
   const ratingSummaryAvg = avgRating != null ? Number(avgRating) : null;
@@ -312,9 +318,17 @@ const EquipmentCard = ({
               </button>
             )}
           </>
+        ) : equipmentIdForImage ? (
+          <EquipmentImage
+            equipmentId={equipmentIdForImage}
+            enabled
+            alt={name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            fallback={image || "/placeholder.svg"}
+          />
         ) : (
           <img 
-            src={displayImage} 
+            src={image} 
             alt={name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
@@ -506,6 +520,20 @@ const EquipmentCard = ({
                   ) : null;
                 })()}
 
+                {/* Important Instruction */}
+                {equipmentDetail?.important_instruction && (
+                  <div className="rounded-lg border-2 border-amber-500/80 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/60 p-4">
+                    <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
+                      <Info className="h-4 w-4" />
+                      Important Instruction
+                    </h4>
+                    <TruncatableText
+                      text={equipmentDetail.important_instruction}
+                      className="text-sm text-amber-900/90 dark:text-amber-100/90"
+                    />
+                  </div>
+                )}
+
                 {/* Equipment specifications: one section per spec_key */}
                 {equipmentDetail?.specifications && equipmentDetail.specifications.length > 0 &&
                   equipmentDetail.specifications.map((spec) => (
@@ -515,7 +543,10 @@ const EquipmentCard = ({
                         {spec.spec_key}
                       </h4>
                       <div className="bg-muted/50 rounded-md p-3">
-                        <p className="text-sm text-muted-foreground whitespace-pre-line">{spec.spec_value}</p>
+                        <TruncatableText
+                          text={spec.spec_value}
+                          className="text-sm text-muted-foreground"
+                        />
                       </div>
                     </div>
                   ))}

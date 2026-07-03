@@ -2155,6 +2155,87 @@ class ApiClient {
     });
   }
 
+  /** SBIePay: initiate wallet recharge or booking shortfall payment. */
+  async initiateSbiepayPayment(payload: {
+    purpose: 'WALLET_RECHARGE' | 'BOOKING_SHORTFALL';
+    amount: number | string;
+    department_id: number;
+    booking_id?: number;
+  }) {
+    return this.request<{
+      gateway_url: string;
+      encrypt_trans: string;
+      merchant_order_ref: string;
+      form_method: string;
+      form_fields: Record<string, string>;
+    }>('/payments/sbiepay/initiate/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getSbiepayTransactionStatus(ref: string) {
+    return this.request<{
+      merchant_order_ref: string;
+      status: string;
+      amount: string;
+      purpose: string;
+      booking_id: number | null;
+      verified_at: string | null;
+    }>(`/payments/sbiepay/status/?ref=${encodeURIComponent(ref)}`);
+  }
+
+  async submitPaymentUtr(payload: {
+    utr_reference: string;
+    amount: number | string;
+    department_id: number;
+    purpose: 'WALLET_RECHARGE' | 'BOOKING_SHORTFALL';
+    booking_id?: number;
+    recharge_request_id?: number;
+    payment_date?: string;
+  }) {
+    return this.request<{ message: string; receipt: unknown }>('/payments/utr/submit/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getFinancePaymentReceipts(params?: { status?: string; department_id?: number }) {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.department_id != null) qs.set('department_id', String(params.department_id));
+    const q = qs.toString();
+    const endpoint = q ? `/finance/payment-receipts/?${q}` : "/finance/payment-receipts/";
+    return this.request<{ receipts: unknown[]; count: number }>(endpoint);
+  }
+
+  async processFinancePaymentReceipt(receiptId: number, remarks?: string) {
+    return this.request<{ message: string; receipt: unknown }>(
+      `/finance/payment-receipts/${receiptId}/process/`,
+      { method: 'POST', body: JSON.stringify({ remarks: remarks || '' }) },
+    );
+  }
+
+  /** Open SBIePay in a new window via auto-submitting POST form. */
+  submitSbiepayForm(payload: {
+    gateway_url: string;
+    form_fields: Record<string, string>;
+  }) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payload.gateway_url;
+    form.target = '_self';
+    Object.entries(payload.form_fields).forEach(([k, v]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = v;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  }
+
   // User roles endpoints
   /** Returns true if user_type is one of admin, manager, operator, finance (matches backend get_admin_panel_codes). */
   isAdminPanelUser(userType: string | number | undefined | null): boolean {
@@ -3424,7 +3505,13 @@ class ApiClient {
     });
   }
 
-  async cancelBooking(bookingId: number, refund: boolean = false, notes?: string, slotIds?: number[]) {
+  async cancelBooking(
+    bookingId: number,
+    refund: boolean = false,
+    notes?: string,
+    slotIds?: number[],
+    reducedInputValues?: Record<string, number | string>
+  ) {
     return this.request<{
       message: string;
       booking: any;
@@ -3436,11 +3523,20 @@ class ApiClient {
         refund,
         notes,
         ...(slotIds && slotIds.length > 0 ? { slot_ids: slotIds } : {}),
+        ...(reducedInputValues && Object.keys(reducedInputValues).length > 0
+          ? { reduced_input_values: reducedInputValues }
+          : {}),
       }),
     });
   }
 
-  async userCancelBooking(bookingId: number, refund: boolean = false, notes?: string, slotIds?: number[]) {
+  async userCancelBooking(
+    bookingId: number,
+    refund: boolean = false,
+    notes?: string,
+    slotIds?: number[],
+    reducedInputValues?: Record<string, number | string>
+  ) {
     return this.request<{
       message: string;
       booking: any;
@@ -3452,7 +3548,33 @@ class ApiClient {
         refund,
         notes,
         ...(slotIds && slotIds.length > 0 ? { slot_ids: slotIds } : {}),
+        ...(reducedInputValues && Object.keys(reducedInputValues).length > 0
+          ? { reduced_input_values: reducedInputValues }
+          : {}),
       }),
+    });
+  }
+
+  async partialCancelPreview(
+    bookingId: number,
+    payload: { slot_ids?: number[]; reduced_input_values?: Record<string, number | string> }
+  ) {
+    return this.request<{
+      refund_amount: string;
+      new_charge: string;
+      new_total_time_minutes: number;
+      new_input_values: Record<string, string | boolean | string[] | number>;
+      slots_to_release: Array<{ id: number; start_datetime: string | null; end_datetime: string | null }>;
+      slots_to_keep_count: number;
+      slots_to_release_count: number;
+      partial_cancel_mode: "input_reduction" | "slot_selection";
+      reduction_field_key: string | null;
+      reduction_field_label: string | null;
+      current_input_values: Record<string, string | boolean | string[] | number>;
+      equipment_profile_type: string | null;
+    }>(`/bookings/${bookingId}/partial-cancel-preview/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
@@ -3623,6 +3745,14 @@ class ApiClient {
       endpoint,
       { method: 'PATCH', body: JSON.stringify({ reply }) }
     );
+  }
+
+  async getBooking(bookingId: number) {
+    const res = await this.getBookings({ booking_id: bookingId, limit: 1 });
+    if (res.error) return { error: res.error };
+    const list = (res.data as any)?.bookings ?? [];
+    if (!list.length) return { error: "Booking not found." };
+    return { data: list[0] };
   }
 
   async getBookings(params?: {
@@ -6531,10 +6661,20 @@ class ApiClient {
     }>(`${endpoint}${equipmentId}/booking-requesters/`, { method: 'GET' });
   }
 
-  /** Stable API URL that streams the equipment image from storage (no expiring signed URLs). Use as img src. */
-  getEquipmentImageUrl(equipmentId: number): string {
+  /** Path for the equipment image proxy (no query token — use with Authorization header). */
+  getEquipmentImageProxyPath(equipmentId: number): string {
     const base = this.baseURL.replace(/\/$/, '');
     return `${base}/equipments/${equipmentId}/image/`;
+  }
+
+  /** Stable API URL that streams the equipment image from storage (no expiring signed URLs). Use as img src. */
+  getEquipmentImageUrl(equipmentId: number): string {
+    const url = this.getEquipmentImageProxyPath(equipmentId);
+    const token = this.getToken();
+    if (token) {
+      return `${url}?token=${encodeURIComponent(token)}`;
+    }
+    return url;
   }
 
   /** Upload equipment image (admin). */

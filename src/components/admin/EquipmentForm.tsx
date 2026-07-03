@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
-import { useEquipmentImageUrl } from "@/hooks/useEquipmentImageUrl";
+import EquipmentImage from "@/components/EquipmentImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +20,10 @@ export type EquipmentFormData = {
   code?: string;
   description?: string | null;
   important_instruction?: string | null;
+  make?: string | null;
+  show_make_on_card?: boolean;
+  booking_email_extra_text?: string | null;
+  completion_email_extra_text?: string | null;
   status?: string | null;
   location?: string | null;
   profile_type?: string | null;
@@ -94,7 +97,6 @@ type Props = {
 };
 
 export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, saving }: Props) {
-  const { user } = useAuth();
   const [choices, setChoices] = useState<EquipmentFormChoices | null>(null);
   const [choicesLoading, setChoicesLoading] = useState(true);
   const [choicesError, setChoicesError] = useState<string | null>(null);
@@ -103,6 +105,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     code: "",
     description: "",
     important_instruction: "",
+    make: "",
+    show_make_on_card: false,
+    booking_email_extra_text: "",
+    completion_email_extra_text: "",
     status: "ACTIVE",
     location: "",
     profile_type: null,
@@ -143,8 +149,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const [videoFile, setVideoFile] = useState<File | null>(null);
 
   const hasEquipmentImage = !!formData.image_url && equipmentId;
-  const equipmentImageUrl = useEquipmentImageUrl(equipmentId ?? null, !!hasEquipmentImage, user?.id);
-  const displayEquipmentImage = equipmentImageUrl ?? (equipmentId ? apiClient.getEquipmentImageUrl(equipmentId) : (formData.image_url ?? ""));
+  const localImagePreview = useMemo(
+    () => (imageFile ? URL.createObjectURL(imageFile) : null),
+    [imageFile],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (localImagePreview) URL.revokeObjectURL(localImagePreview);
+    };
+  }, [localImagePreview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +197,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         code: (d.code as string) ?? "",
         description: (d.description as string) ?? "",
         important_instruction: (d.important_instruction as string) ?? "",
+        make: (d.make as string) ?? "",
+        show_make_on_card: Boolean(d.show_make_on_card),
+        booking_email_extra_text: (d.booking_email_extra_text as string) ?? "",
+        completion_email_extra_text: (d.completion_email_extra_text as string) ?? "",
         status: (d.status as string) ?? "ACTIVE",
         location: (d.location as string) ?? "",
         profile_type: (d.profile_type as string | null) ?? null,
@@ -233,6 +251,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       code: formData.code || undefined,
       description: formData.description || null,
       important_instruction: formData.important_instruction ?? null,
+      make: formData.make?.trim() || "",
+      show_make_on_card: Boolean(formData.show_make_on_card),
+      booking_email_extra_text: formData.booking_email_extra_text?.trim() || "",
+      completion_email_extra_text: formData.completion_email_extra_text?.trim() || "",
       status: formData.status || null,
       location: formData.location || null,
       profile_type: formData.profile_type || null,
@@ -467,17 +489,75 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         rows={3}
       />
 
+      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Catalog card — Make</h3>
+      <p className="text-muted-foreground text-xs">Optional manufacturer/make line on equipment catalog cards, above department.</p>
+      <div className="space-y-2">
+        <Label htmlFor="equipment-make">Make</Label>
+        <Input
+          id="equipment-make"
+          value={formData.make ?? ""}
+          onChange={(e) => setFormData((p) => ({ ...p, make: e.target.value }))}
+          placeholder='e.g. Zeiss, Thermo Fisher'
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="equipment-show-make-on-card"
+          checked={Boolean(formData.show_make_on_card)}
+          onCheckedChange={(checked) =>
+            setFormData((p) => ({ ...p, show_make_on_card: checked === true }))
+          }
+        />
+        <Label htmlFor="equipment-show-make-on-card" className="text-sm font-normal cursor-pointer">
+          Show Make on equipment catalog card
+        </Label>
+      </div>
+
+      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Booking &amp; completion emails</h3>
+      <p className="text-muted-foreground text-xs">
+        Optional extra text per equipment. Completion email text is appended when a booking is marked complete; paste URLs for clickable links in HTML mail.
+      </p>
+      <div className="space-y-2">
+        <Label htmlFor="booking-email-extra">Extra text — booking confirmation &amp; reminders</Label>
+        <Textarea
+          id="booking-email-extra"
+          value={formData.booking_email_extra_text ?? ""}
+          onChange={(e) => setFormData((p) => ({ ...p, booking_email_extra_text: e.target.value }))}
+          rows={3}
+          placeholder="Plain text appended to booking confirmation and reminder emails"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="completion-email-extra">Extra text — completion email</Label>
+        <Textarea
+          id="completion-email-extra"
+          value={formData.completion_email_extra_text ?? ""}
+          onChange={(e) => setFormData((p) => ({ ...p, completion_email_extra_text: e.target.value }))}
+          rows={3}
+          placeholder="Appended when booking is completed. Example: Download results from https://..."
+        />
+      </div>
+
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Image</h3>
       <p className="text-muted-foreground text-xs">Upload a new image or view the current one. Images are stored in S3 and displayed via a stable URL.</p>
-      {formData.image_url && (
+      {formData.image_url || imageFile ? (
         <div className="rounded border p-2">
-          <img
-            src={displayEquipmentImage}
-            alt="Equipment"
-            className="max-h-32 object-contain"
-          />
+          {localImagePreview ? (
+            <img
+              src={localImagePreview}
+              alt="Equipment preview"
+              className="max-h-32 object-contain"
+            />
+          ) : (
+            <EquipmentImage
+              equipmentId={equipmentId ?? null}
+              enabled={!!hasEquipmentImage}
+              alt="Equipment"
+              className="max-h-32 object-contain"
+            />
+          )}
         </div>
-      )}
+      ) : null}
       <div>
         <Label className="text-muted-foreground text-xs">Upload new image</Label>
         <Input

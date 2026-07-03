@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -286,6 +287,8 @@ const DashboardHeader = () => {
             <Home className="h-4 w-4" />
             <span>Home</span>
           </button>
+          {isAuthenticated ? (
+            <>
           <NotificationPanel />
           {hasWallet && (
             <div className="text-sm">
@@ -356,6 +359,12 @@ const DashboardHeader = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
+              Sign In
+            </Button>
+          )}
         </div>
       </div>
     </header>
