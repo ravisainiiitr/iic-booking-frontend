@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "@/lib/api";
+import { apiClient, type PrintAnalysisResult } from "@/lib/api";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,9 +39,12 @@ import {
 import { toast } from "sonner";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import BookingUserInputs from "@/components/BookingUserInputs";
+import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
+import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Trash2, Loader2, Wrench } from "lucide-react";
+import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
@@ -168,17 +172,23 @@ export interface BookingDetailCardBooking extends BookingRef {
   booking_attempt_slots_requested?: number | null;
   /** Equipment slot length; used with slots_requested if total_time_minutes is missing. */
   equipment_slot_duration_minutes?: number | null;
-  /** I-STEM FBR workflow (external bookings). */
+  /** I-STEM FBR workflow (when required by charge profile). */
   istem_fbr_number?: string | null;
   istem_fbr_status?: string | null;
   istem_fbr_status_display?: string | null;
   istem_fbr_invalid_reason?: string | null;
   istem_fbr_executed_at?: string | null;
+  istem_portal_url?: string | null;
+  istem_fbr_status_url?: string | null;
+  require_istem_fbr?: boolean;
   sample_return_after_analysis?: boolean;
   return_shipping_fee_amount?: string;
   return_shipping_company?: string;
   return_shipping_tracking_id?: string;
   return_shipping_tracking_updated_at?: string | null;
+  equipment_profile_type?: string;
+  print_analysis?: PrintAnalysisResult | null;
+  print_analyses?: PrintAnalysisResult[];
 }
 
 type ActionType =
@@ -237,8 +247,7 @@ function canMarkBookingNotUtilized(booking: BookingDetailCardBooking): boolean {
 }
 
 function isExternalUserTypeSnapshot(ut: string | null | undefined): boolean {
-  const n = (ut || "").toLowerCase();
-  return n === "external" || n === "rnd" || n === "industry" || n === "other";
+  return isExternalBookingUserType(ut);
 }
 
 function canPerformAction(booking: BookingDetailCardBooking, action: ActionType, isOperator: boolean): boolean {
@@ -517,7 +526,7 @@ export function BookingDetailCard({
       !(isOperator || isManagerOrAdmin) &&
       currentUserId != null &&
       booking.user === currentUserId &&
-      ["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase());
+      isExternalBookingUserType(booking.user_type_snapshot);
     if (
       isOperator ||
       externalSelf ||
@@ -844,7 +853,12 @@ export function BookingDetailCard({
   const handleProcessChargeRecalcRefund = async (b: BookingDetailCardBooking) => {
     setChargeRecalcActionLoading(true);
     try {
-      const res = await apiClient.processChargeRecalculationRefund(b.booking_id);
+      const backendId = getRealBookingId(b);
+      if (backendId == null) {
+        toast.error("This booking cannot be processed right now.");
+        return;
+      }
+      const res = await apiClient.processChargeRecalculationRefund(backendId);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -861,7 +875,12 @@ export function BookingDetailCard({
   const handleProcessChargeRecalcPayNow = async (b: BookingDetailCardBooking) => {
     setChargeRecalcActionLoading(true);
     try {
-      const res = await apiClient.processChargeRecalculationPayNow(b.booking_id);
+      const backendId = getRealBookingId(b);
+      if (backendId == null) {
+        toast.error("This booking cannot be processed right now.");
+        return;
+      }
+      const res = await apiClient.processChargeRecalculationPayNow(backendId);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -906,7 +925,7 @@ export function BookingDetailCard({
         toast.error(res.error);
         return;
       }
-      toast.success("FBR marked as executed.");
+      toast.success("FBR marked as verified.");
       setFbrInvalidateReason("");
       await refreshBookingDetail();
       onUpdated();
@@ -956,7 +975,7 @@ export function BookingDetailCard({
     booking.lab_in_charge.user_id === currentUserId;
   const isLabInchargeUser = isLabInchargeType || isCurrentUserLabInchargeContact;
   const bookingUserTypeLower = (booking.user_type_snapshot || "").toLowerCase();
-  const isExternalBookingType = ["external", "rnd", "industry", "other"].includes(bookingUserTypeLower);
+  const isExternalBookingType = isExternalBookingUserType(booking.user_type_snapshot);
   const isExternalSelfView = !isOperatorOrManager && currentUserId != null && booking.user === currentUserId && isExternalBookingType;
 
   const canSubmitRating =
@@ -1012,8 +1031,15 @@ export function BookingDetailCard({
   const hasDownloadableResults = !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0);
   const showIstemWorkflow =
     !isWaitlistedEntry &&
-    isExternalUserTypeSnapshot(booking.user_type_snapshot) &&
-    booking.istem_fbr_status != null;
+    (Boolean(booking.require_istem_fbr) || booking.istem_fbr_status != null);
+  const istemPortalUrl = (booking.istem_portal_url || "https://www.istem.gov.in/").trim();
+  const istemFbrStatusUrl = (booking.istem_fbr_status_url || "").trim();
+  const canSubmitIstemFbr =
+    booking.istem_fbr_status === "PENDING_FBR" ||
+    booking.istem_fbr_status === "INVALID" ||
+    (Boolean(booking.require_istem_fbr) && !booking.istem_fbr_status);
+  const isBookingOwnerView =
+    !isOperatorOrManager && currentUserId != null && booking.user === currentUserId;
   const equipmentRepeatSampleRequestEnabled =
     booking.equipment_repeat_sample_request_days != null &&
     Number(booking.equipment_repeat_sample_request_days) > 0;
@@ -1040,8 +1066,14 @@ export function BookingDetailCard({
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-xl">{booking.equipment_name}</CardTitle>
-              <p className="text-xl font-semibold text-foreground mt-1 tracking-tight">
-                Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+              <p className="text-xl font-semibold text-foreground mt-1 tracking-tight flex flex-wrap items-center gap-2">
+                <span>Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}</span>
+                <IstemFbrSeal
+                  requireIstemFbr={booking.require_istem_fbr}
+                  istemFbrStatus={booking.istem_fbr_status}
+                  size="md"
+                  showLabel
+                />
               </p>
               <div className="mt-2">
                 <UserProfile
@@ -1117,18 +1149,42 @@ export function BookingDetailCard({
           {showIstemWorkflow && (
             <div className="rounded-lg border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/90 dark:bg-amber-950/25 p-4 mb-4 space-y-3">
               <p className="font-semibold text-foreground">I-STEM (national portal)</p>
-              <p className="text-sm text-muted-foreground">
-                Parallel booking on the Government of India portal is required. Register and book at{" "}
-                <a
-                  href="https://www.istem.gov.in/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary font-medium underline"
-                >
-                  https://www.istem.gov.in/
-                </a>
-                , then enter your Facility Booking Record (FBR) number here for verification by the Officer in Charge.
-              </p>
+              {isManagerOrAdmin ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Verify the user&apos;s FBR number on I-STEM before marking it verified or rejected.
+                  </p>
+                  {istemFbrStatusUrl ? (
+                    <>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={istemFbrStatusUrl} target="_blank" rel="noopener noreferrer">
+                          Check FBR Status
+                        </a>
+                      </Button>
+                      <p className="text-xs text-muted-foreground break-all">{istemFbrStatusUrl}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-amber-800 dark:text-amber-300">
+                      FBR status check URL is not configured for this equipment. Add it under equipment settings
+                      (I-STEM FBR status check URL).
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Parallel booking on the Government of India portal is required. Create your booking on I-STEM using
+                    the link below, then enter your Facility Booking Record (FBR) number for verification by the
+                    Officer in Charge.
+                  </p>
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={istemPortalUrl} target="_blank" rel="noopener noreferrer">
+                      Open I-STEM booking page
+                    </a>
+                  </Button>
+                  <p className="text-xs text-muted-foreground break-all">{istemPortalUrl}</p>
+                </>
+              )}
               <div className="text-sm space-y-1">
                 <p>
                   <span className="text-muted-foreground">Status: </span>
@@ -1144,8 +1200,7 @@ export function BookingDetailCard({
                   <p className="text-destructive whitespace-pre-wrap">{booking.istem_fbr_invalid_reason}</p>
                 ) : null}
               </div>
-              {isExternalSelfView &&
-                (booking.istem_fbr_status === "PENDING_FBR" || booking.istem_fbr_status === "INVALID") && (
+              {isBookingOwnerView && canSubmitIstemFbr && (
                   <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="istem-fbr-input">I-STEM FBR number</Label>
@@ -1164,7 +1219,16 @@ export function BookingDetailCard({
                 )}
               {isManagerOrAdmin && booking.istem_fbr_status === "PENDING_OIC" && (
                 <div className="space-y-3 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
-                  <p className="text-sm font-medium">OIC: verify this FBR on I-STEM, then mark below.</p>
+                  <p className="text-sm font-medium">
+                    OIC: use Check FBR Status on I-STEM to verify, then mark below.
+                  </p>
+                  {istemFbrStatusUrl ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={istemFbrStatusUrl} target="_blank" rel="noopener noreferrer">
+                        Check FBR Status
+                      </a>
+                    </Button>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -1173,7 +1237,7 @@ export function BookingDetailCard({
                       disabled={fbrReviewLoading !== null}
                       onClick={() => void executeIstemFbrReview()}
                     >
-                      {fbrReviewLoading === "execute" ? "Working…" : "Mark FBR executed"}
+                      {fbrReviewLoading === "execute" ? "Working…" : "Mark FBR Verified"}
                     </Button>
                   </div>
                   <div className="space-y-2">
@@ -1697,7 +1761,7 @@ export function BookingDetailCard({
                   booking.status.toUpperCase() === "WAITLISTED" ||
                   (booking as any).is_waitlist_entry === true) &&
                 !booking.source_booking_id &&
-                (currentUserId != null && booking.user === currentUserId && !["external", "rnd", "industry", "other"].includes((booking.user_type_snapshot || "").toLowerCase()) || (!isOperator && !isExternalSelfView)) && (
+                (currentUserId != null && booking.user === currentUserId && !isExternalBookingUserType(booking.user_type_snapshot) || (!isOperator && !isExternalSelfView)) && (
                   <Button size="sm" variant="destructive" onClick={() => onUserCancelClick(booking)}>
                     <XCircle className="h-4 w-4 mr-2" />
                     {isWaitlistedEntry ? "Cancel waitlist" : "Cancel booking"}
@@ -1949,7 +2013,7 @@ export function BookingDetailCard({
               )}
           </div>
 
-          {!isWaitlistedEntry && (
+          {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
             <div className="mt-4 pt-4 border-t no-print">
             {isHold && (
               <p className="text-sm text-muted-foreground mb-2">
@@ -2156,6 +2220,50 @@ export function BookingDetailCard({
             </DialogContent>
           </Dialog>
 
+          {booking.equipment_profile_type === "PRINT_3D" &&
+            (booking.print_analyses?.length || booking.print_analysis) && (
+            <div className="rounded-lg border p-4 space-y-2">
+              <p className="text-sm font-medium">Print files</p>
+              <ul className="text-sm space-y-1">
+                {(booking.print_analyses?.length
+                  ? booking.print_analyses
+                  : booking.print_analysis
+                    ? [booking.print_analysis]
+                    : []
+                ).map((file) => (
+                  <li key={file.id} className="flex justify-between gap-2">
+                    <span className="truncate">{file.stl_filename || file.id}</span>
+                    <span className="text-muted-foreground shrink-0">
+                      {file.weight_grams != null ? formatPrintWeightGrams(file.weight_grams) : "—"}
+                      {file.estimated_time_minutes != null ? ` · ${file.estimated_time_minutes} min` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {booking.print_analysis && booking.equipment_profile_type === "PRINT_3D" && bookingPk != null && (
+            <Print3DBookingActuals
+              printAnalysis={booking.print_analysis}
+              bookingId={bookingPk}
+              enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation && !booking.source_booking_id}
+              canEdit={isManagerOrAdmin && !booking.source_booking_id && booking.status.toUpperCase() === "BOOKED"}
+              onUpdated={(payload) => {
+                const updated = payload?.booking;
+                if (updated) {
+                  setBooking(updated as BookingDetailCardBooking);
+                } else {
+                  void apiClient.getBooking(bookingPk).then((res) => {
+                    if (res.data) setBooking(res.data as BookingDetailCardBooking);
+                  });
+                }
+                // Intentionally do NOT trigger parent list refresh here.
+                // Refreshing the list can make the detail panel jump/close, which blocks quick Refund/Deduct actions.
+              }}
+            />
+          )}
+
           {booking.input_values && Object.keys(booking.input_values).length > 0 && (
             <BookingUserInputs
               inputValues={booking.input_values}
@@ -2252,10 +2360,14 @@ export function BookingDetailCard({
                       <span>Refund amount</span>
                       <span>₹{Math.abs(Number(booking.charge_recalculation_pending_amount)).toFixed(2)}</span>
                     </div>
-                    <p className="text-muted-foreground text-xs mt-2">Click Refund to credit this amount to the associated wallet.</p>
+                    <p className="text-muted-foreground text-xs mt-2">
+                      {isManagerOrAdmin
+                        ? "Click Refund Money to credit this amount to the user's wallet."
+                        : "Click Refund to credit this amount to the associated wallet."}
+                    </p>
                     <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
                       <RotateCcw className="h-4 w-4 mr-2" />
-                      {chargeRecalcActionLoading ? "Processing…" : "Refund"}
+                      {chargeRecalcActionLoading ? "Processing…" : (isManagerOrAdmin ? "Refund Money" : "Refund")}
                     </Button>
                   </>
                 ) : (
@@ -2264,10 +2376,14 @@ export function BookingDetailCard({
                       <span>Extra amount to pay</span>
                       <span>₹{Number(booking.charge_recalculation_pending_amount).toFixed(2)}</span>
                     </div>
-                    <p className="text-muted-foreground text-xs mt-2">Click Pay Now to debit this amount from the associated wallet.</p>
+                    <p className="text-muted-foreground text-xs mt-2">
+                      {isManagerOrAdmin
+                        ? "Click Deduct Money to debit this amount from the user's wallet."
+                        : "Click Pay Now to debit this amount from the associated wallet."}
+                    </p>
                     <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_pay", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
                       <Banknote className="h-4 w-4 mr-2" />
-                      {chargeRecalcActionLoading ? "Processing…" : "Pay Now"}
+                      {chargeRecalcActionLoading ? "Processing…" : (isManagerOrAdmin ? "Deduct Money" : "Pay Now")}
                     </Button>
                   </>
                 )}
@@ -2522,8 +2638,8 @@ export function BookingDetailCard({
               {confirmAction.type === "absent" && "Confirm Operator Unavailable"}
               {confirmAction.type === "reschedule" && "Confirm Reschedule"}
               {confirmAction.type === "not_utilized" && "Confirm Booking Not Utilized"}
-              {confirmAction.type === "charge_recalc_refund" && "Confirm Refund (charge recalculation)"}
-              {confirmAction.type === "charge_recalc_pay" && "Confirm Pay Now (charge recalculation)"}
+              {confirmAction.type === "charge_recalc_refund" && (isManagerOrAdmin ? "Confirm Refund Money" : "Confirm Refund (charge recalculation)")}
+              {confirmAction.type === "charge_recalc_pay" && (isManagerOrAdmin ? "Confirm Deduct Money" : "Confirm Pay Now (charge recalculation)")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "complete" && "Are you sure you want to mark this booking as completed? This action cannot be undone."}
@@ -2532,8 +2648,12 @@ export function BookingDetailCard({
                 "Are you sure you want to mark this booking as Operator Unavailable? The user will be asked to choose cancel (refund) or reschedule by email; no immediate refund."}
               {confirmAction.type === "reschedule" && "Are you sure you want to reschedule this booking to the selected slot(s)? This will update the booking time."}
               {confirmAction.type === "not_utilized" && "Are you sure you want to mark this booking as Not Utilized? No refund will be issued. The user and optionally the supervisor will be notified by email. This action cannot be undone."}
-              {confirmAction.type === "charge_recalc_refund" && "Are you sure you want to process this refund? The amount will be credited to the user's wallet."}
-              {confirmAction.type === "charge_recalc_pay" && "Are you sure you want to debit this amount from the user's wallet? This will complete the charge recalculation payment."}
+              {confirmAction.type === "charge_recalc_refund" && (isManagerOrAdmin
+                ? "Are you sure you want to refund this amount? It will be credited to the user's wallet immediately and an email will be sent."
+                : "Are you sure you want to process this refund? The amount will be credited to the user's wallet.")}
+              {confirmAction.type === "charge_recalc_pay" && (isManagerOrAdmin
+                ? "Are you sure you want to deduct this amount? It will be debited from the user's wallet immediately and an email will be sent."
+                : "Are you sure you want to debit this amount from the user's wallet? This will complete the charge recalculation payment.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

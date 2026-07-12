@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { consumePostLoginRedirect } from "@/lib/authRedirect";
 import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -206,14 +207,16 @@ const Auth = () => {
     const selectedType = userTypes.find((t) =>
       t.alias ? `${t.code}|${t.name}` === userType : t.code === userType
     );
-    const useInternalDepartments = Boolean(selectedType?.alias);
+    const resolvedCode = userType.includes("|") ? userType.split("|")[0]! : userType;
+    const useInternalDepartments =
+      Boolean(selectedType?.alias) || resolvedCode === "startup_incubated_iitr";
     setDepartment("");
 
-    const resolvedCode = userType.includes("|") ? userType.split("|")[0]! : userType;
     const externalSubcategoryByCode: Record<string, string> = {
       external: "educational_institute",   // Educational Institute
       RND: "govt_rnd",                     // Govt R&D Organizations
       Industry: "industries",               // Industry
+      external_startup_msme: "external_startup_msme",
     };
     const externalSubcategory = externalSubcategoryByCode[resolvedCode];
     const needsStateForDepts = Boolean(!useInternalDepartments && externalSubcategory);
@@ -221,7 +224,7 @@ const Auth = () => {
     if (useInternalDepartments) {
       const selectedName = selectedType?.name ?? "";
       const internalSubcategory =
-        selectedName === "IITR Startups"
+        selectedName === "IITR Startups" || resolvedCode === "startup_incubated_iitr"
           ? "startups"
           : selectedName === "IITR Post Doctoral Fellows" || selectedName === "IITR Research Associates in Projects"
             ? "iit_roorkee_dept_centres"
@@ -402,9 +405,13 @@ const Auth = () => {
       return;
     }
     const resolvedCode = userType.includes("|") ? userType.split("|")[0]! : userType;
-    const isExternalType = resolvedCode === "external" || resolvedCode === "RND" || resolvedCode === "Industry";
+    const isExternalType =
+      resolvedCode === "external" ||
+      resolvedCode === "RND" ||
+      resolvedCode === "Industry" ||
+      resolvedCode === "external_startup_msme";
     if (isExternalType && !selectedStateUt) {
-      toast.error("State/Union Territory is required for Educational Institute, Govt R&D Organizations, and Industry");
+      toast.error("State/Union Territory is required for Educational Institute, Govt R&D Organizations, Industry, and External Startup/MSME");
       return;
     }
     if (isExternalType && email.trim().toLowerCase().endsWith("@iitr.ac.in")) {
@@ -1584,7 +1591,11 @@ const Auth = () => {
                       !userType ||
                       (() => {
                         const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                        const needsState = code === "external" || code === "RND" || code === "Industry";
+                        const needsState =
+                          code === "external" ||
+                          code === "RND" ||
+                          code === "Industry" ||
+                          code === "external_startup_msme";
                         return needsState && !selectedStateUt;
                       })()
                     }
@@ -1596,15 +1607,21 @@ const Auth = () => {
                             ? "Select user type first"
                             : (() => {
                                 const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                                const needsState = code === "external" || code === "RND" || code === "Industry";
+                                const needsState =
+                          code === "external" ||
+                          code === "RND" ||
+                          code === "Industry" ||
+                          code === "external_startup_msme";
                                 if (needsState && !selectedStateUt) {
                                   return "Select State / Union Territory first";
                                 }
                                 const selected = userTypes.find((t) => (t.alias ? `${t.code}|${t.name}` === userType : t.code === userType));
-                                if (selected?.alias) {
-                                  return selected.name === "IITR Startups" ? "Select internal Startup" : "Select internal department";
+                                if (selected?.alias || code === "startup_incubated_iitr") {
+                                  return code === "startup_incubated_iitr" || selected?.name === "IITR Startups"
+                                    ? "Select internal Startup"
+                                    : "Select internal department";
                                 }
-                                if (code === "RND" || code === "Industry") {
+                                if (code === "RND" || code === "Industry" || code === "external_startup_msme") {
                                   return loadingDepartments ? "Loading organizations..." : "Select organization";
                                 }
                                 if (code === "external") {

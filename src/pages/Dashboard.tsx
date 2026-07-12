@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { getUserTypeDisplayName, isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,22 +69,7 @@ interface Booking extends BookingRef {
 /** Map user_type to display category (e.g. IITR Student, Faculty). Use user_type_display from API when present (alias). */
 function getUserCategoryLabel(userType: number | string | undefined | null, userTypeDisplay?: string | null): string {
   if (userTypeDisplay != null && String(userTypeDisplay).trim() !== "") return String(userTypeDisplay).trim();
-  if (userType == null) return "—";
-  const t = String(userType).toLowerCase();
-  const map: Record<string, string> = {
-    admin: "Admin",
-    manager: "Officer In Charge",
-    operator: "Lab Incharge",
-    finance: "Accounts In Charge",
-    student: "IITR Student",
-    individual_student: "Individual Student",
-    faculty: "Faculty",
-    external: "Educational Institute",
-    rnd: "Govt R&D Organizations",
-    industry: "Industry",
-    other: "Other",
-  };
-  return map[t] || String(userType);
+  return getUserTypeDisplayName(userType == null ? null : String(userType));
 }
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
@@ -522,7 +508,7 @@ const Dashboard = () => {
           currentUserTypeStr === "operator" || currentUserTypeStr === "manager" || currentUserTypeStr === "admin";
         const isStudent = currentUserTypeStr === "student" || currentUserTypeStr === "individual_student";
         const isIitrStudent = currentUserTypeStr === "student";
-        const isExternalUser = ["external", "rnd", "industry", "other"].includes(currentUserTypeStr);
+        const isExternalUser = isExternalBookingUserType(currentUserTypeStr);
 
         // Determine what to show (before any await)
         const shouldShowWallet = userCanHaveWallet || isStudent;

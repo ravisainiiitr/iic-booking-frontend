@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -219,7 +220,7 @@ const MyUrgentRequests = () => {
         const currentWeekEndStr = endStr;
         const nowMs = Date.now();
         const currentUserType = String(user?.user_type || "").toLowerCase();
-        const isExternalUser = ["external", "rnd", "industry", "other"].includes(currentUserType);
+        const isExternalUser = isExternalBookingUserType(currentUserType);
         const hasAvailableIn = (slots: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }>) =>
           slots.some((s) => {
             if ((s.status || "").toUpperCase() !== "AVAILABLE") return false;

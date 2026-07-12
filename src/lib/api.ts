@@ -21,6 +21,57 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+export interface PrintMaterial {
+  id: number;
+  code: string;
+  name: string;
+  density_g_per_cm3: string;
+  price_per_gram: string;
+  user_type?: string | null;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface PrintAnalysisResult {
+  id: string;
+  batch_id?: string | null;
+  sequence?: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  analysis_method?: string;
+  weight_grams?: string | number | null;
+  actual_weight_grams?: string | number | null;
+  volume_cm3?: string | number | null;
+  estimated_time_minutes?: number | null;
+  actual_time_minutes?: number | null;
+  bounding_box?: Record<string, unknown>;
+  warnings?: string[];
+  error_message?: string;
+  material_code_snapshot?: string;
+  price_per_gram_snapshot?: string | number | null;
+  material_name?: string;
+  stl_filename?: string;
+  stl_download_url?: string | null;
+  cancelled_at?: string | null;
+  slicer_settings?: {
+    layer_height_mm?: number;
+    infill_percent?: number;
+    density_percent?: number;
+    [key: string]: unknown;
+  };
+}
+
+export interface PrintAnalysisBatchResult {
+  id: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "PARTIAL";
+  original_filename?: string;
+  slicer_settings?: PrintAnalysisResult["slicer_settings"];
+  error_message?: string;
+  items: PrintAnalysisResult[];
+  total_weight_grams?: number;
+  total_estimated_time_minutes?: number;
+  material_code_snapshot?: string;
+}
+
 type NullableBookingRef = Omit<BookingRef, "booking_id"> & { booking_id: BookingRef["booking_id"] | null };
 
 /** Base URL for Django Admin (same origin as API, path /admin/). Used for admin dashboard links. */
@@ -40,6 +91,16 @@ export const getAdminBaseUrl = (): string => {
     origin = base.replace(/\/api\/?$/, "");
   }
   return `${origin}/admin/`;
+};
+
+/** Backend API origin (scheme://host:port), used to build absolute download URLs. */
+export const getApiOrigin = (): string => {
+  const base =
+    (typeof window !== "undefined" && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL)
+      ? (window as any).__RUNTIME_CONFIG__.VITE_API_URL
+      : import.meta.env.VITE_API_URL || (typeof window !== "undefined" ? "/api" : "http://127.0.0.1:8000/api");
+  if (base.startsWith("/")) return "http://127.0.0.1:8000";
+  return base.replace(/\/api\/?$/, "");
 };
 
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
@@ -1698,6 +1759,10 @@ class ApiClient {
       user_id?: number | string;
       reward_points_to_redeem?: number | string;
       sample_return_after_analysis?: boolean;
+      print_analysis_id?: string;
+      print_analysis_batch_id?: string;
+      /** Estimate charges for this user type (standard charge profile). */
+      user_type?: string;
     }
   ) {
     // Convert field values to query parameters
@@ -1718,6 +1783,15 @@ class ApiClient {
     }
     if (options?.sample_return_after_analysis != null) {
       params.append('sample_return_after_analysis', options.sample_return_after_analysis ? 'true' : 'false');
+    }
+    if (options?.print_analysis_id) {
+      params.append('print_analysis_id', options.print_analysis_id);
+    }
+    if (options?.print_analysis_batch_id) {
+      params.append('print_analysis_batch_id', options.print_analysis_batch_id);
+    }
+    if (options?.user_type) {
+      params.append('user_type', String(options.user_type));
     }
     const queryString = params.toString();
     const endpoint = queryString
@@ -1749,6 +1823,96 @@ class ApiClient {
         message: string | null;
       };
     }>(endpoint);
+  }
+
+  async getEquipmentPrintMaterials(equipmentId: number | string, options?: { user_type?: string }) {
+    const params = new URLSearchParams();
+    if (options?.user_type) {
+      params.append("user_type", options.user_type);
+    }
+    const qs = params.toString();
+    const endpoint = qs
+      ? `/equipments/${equipmentId}/print-materials/?${qs}`
+      : `/equipments/${equipmentId}/print-materials/`;
+    return this.request<{ materials: PrintMaterial[] }>(endpoint);
+  }
+
+  async analyzeEquipmentStl(
+    equipmentId: number | string,
+    params: {
+      file: File;
+      material_id: string | number;
+      density_percent?: number;
+      /** @deprecated use density_percent */
+      infill_percent?: number;
+    },
+  ) {
+    const formData = new FormData();
+    formData.append("file", params.file);
+    formData.append("material_id", String(params.material_id));
+    const density = params.density_percent ?? params.infill_percent;
+    if (density != null) formData.append("density_percent", String(density));
+    const url = `${this.baseURL.replace(/\/$/, "")}/equipments/${equipmentId}/analyze-stl/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: "POST", headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    }
+    if (Array.isArray((data as PrintAnalysisBatchResult).items)) {
+      return { data: data as PrintAnalysisBatchResult };
+    }
+    return { data: data as PrintAnalysisResult };
+  }
+
+  async getPrintAnalysisBatch(batchId: string) {
+    return this.request<PrintAnalysisBatchResult>(`/print-analysis-batches/${batchId}/`);
+  }
+
+  async recalculatePrintAnalysisBatch(
+    batchId: string,
+    params: {
+      material_id: string | number;
+      density_percent?: number;
+      infill_percent?: number;
+    },
+  ) {
+    const density = params.density_percent ?? params.infill_percent;
+    return this.request<PrintAnalysisBatchResult>(`/print-analysis-batches/${batchId}/recalculate/`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        material_id: params.material_id,
+        density_percent: density,
+      }),
+    });
+  }
+
+  async getPrintAnalysis(analysisId: string) {
+    return this.request<PrintAnalysisResult>(`/print-analyses/${analysisId}/`);
+  }
+
+  async getPrintAnalysisStlPresign(analysisId: string) {
+    return this.request<{ url: string }>(`/print-analyses/${analysisId}/stl-presign/`);
+  }
+
+  async recalculatePrintAnalysis(
+    analysisId: string,
+    params: {
+      material_id: string | number;
+      density_percent?: number;
+      infill_percent?: number;
+    },
+  ) {
+    const density = params.density_percent ?? params.infill_percent;
+    return this.request<PrintAnalysisResult>(`/print-analyses/${analysisId}/recalculate/`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        material_id: params.material_id,
+        density_percent: density,
+      }),
+    });
   }
 
   /** Download proforma invoice PDF (IIT Roorkee letterhead, user details, date/time, disclaimer). */
@@ -3535,7 +3699,8 @@ class ApiClient {
     refund: boolean = false,
     notes?: string,
     slotIds?: number[],
-    reducedInputValues?: Record<string, number | string>
+    reducedInputValues?: Record<string, number | string>,
+    printAnalysisIds?: string[],
   ) {
     return this.request<{
       message: string;
@@ -3551,13 +3716,20 @@ class ApiClient {
         ...(reducedInputValues && Object.keys(reducedInputValues).length > 0
           ? { reduced_input_values: reducedInputValues }
           : {}),
+        ...(printAnalysisIds && printAnalysisIds.length > 0
+          ? { print_analysis_ids: printAnalysisIds }
+          : {}),
       }),
     });
   }
 
   async partialCancelPreview(
     bookingId: number,
-    payload: { slot_ids?: number[]; reduced_input_values?: Record<string, number | string> }
+    payload: {
+      slot_ids?: number[];
+      reduced_input_values?: Record<string, number | string>;
+      print_analysis_ids?: string[];
+    }
   ) {
     return this.request<{
       refund_amount: string;
@@ -3567,11 +3739,12 @@ class ApiClient {
       slots_to_release: Array<{ id: number; start_datetime: string | null; end_datetime: string | null }>;
       slots_to_keep_count: number;
       slots_to_release_count: number;
-      partial_cancel_mode: "input_reduction" | "slot_selection";
+      partial_cancel_mode: "input_reduction" | "slot_selection" | "print_items";
       reduction_field_key: string | null;
       reduction_field_label: string | null;
       current_input_values: Record<string, string | boolean | string[] | number>;
       equipment_profile_type: string | null;
+      print_analysis_ids_to_cancel?: string[];
     }>(`/bookings/${bookingId}/partial-cancel-preview/`, {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -3769,6 +3942,8 @@ class ApiClient {
     user_type_filter?: string;
     /** Filter by rating: "unrated", "2_and_below", "3_and_below", "4_and_below", or "5" (admin/OIC/lab only) */
     rating?: string;
+    /** Filter I-STEM FBR seal: "verified" or "unverified" (admin/OIC only) */
+    istem_fbr?: string;
     ordering?: string;
     limit?: number;
     offset?: number;
@@ -3809,6 +3984,9 @@ class ApiClient {
     }
     if (params?.rating && (params.rating === 'unrated' || ['2_and_below', '3_and_below', '4_and_below', '5'].includes(params.rating))) {
       queryParams.append('rating', params.rating);
+    }
+    if (params?.istem_fbr && ['verified', 'unverified'].includes(params.istem_fbr)) {
+      queryParams.append('istem_fbr', params.istem_fbr);
     }
     if (params?.ordering) {
       queryParams.append('ordering', params.ordering);
@@ -4097,6 +4275,10 @@ class ApiClient {
     waitlist_on_failure?: boolean;
     /** Optional TA reward points to redeem against this booking charge. */
     reward_points_to_redeem?: number | string;
+    /** 3D print: STL analysis id from analyze-stl endpoint */
+    print_analysis_id?: string;
+    /** 3D print: ZIP batch id when multiple STL files were uploaded */
+    print_analysis_batch_id?: string;
   }) {
     return this.request<{
       id: number;
@@ -4149,6 +4331,27 @@ class ApiClient {
       `/bookings/${bookingId}/input-values/`,
       { method: 'PATCH', body: JSON.stringify({ input_values: inputValues }) }
     );
+  }
+
+  /** Admin/OIC: set post-print actual weight and time on a 3D print booking. */
+  async updateBookingPrintActuals(
+    bookingId: number,
+    data: { actual_weight_grams?: number; actual_time_minutes?: number }
+  ) {
+    return this.request<{
+      message: string;
+      booking: any;
+      print_analysis?: PrintAnalysisResult;
+      charge_recalculation_summary?: {
+        previous_charge: string;
+        new_charge: string;
+        refund_amount: string | null;
+        extra_amount: string | null;
+      };
+    }>(`/bookings/${bookingId}/print-actuals/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   /** Process pending refund after charge recalculation (credit wallet). */

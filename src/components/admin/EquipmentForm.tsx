@@ -24,6 +24,9 @@ export type EquipmentFormData = {
   show_make_on_card?: boolean;
   booking_email_extra_text?: string | null;
   completion_email_extra_text?: string | null;
+  print_3d_stl_notification_email?: string | null;
+  istem_portal_url?: string | null;
+  istem_fbr_status_url?: string | null;
   status?: string | null;
   location?: string | null;
   profile_type?: string | null;
@@ -72,8 +75,9 @@ export type EquipmentFormData = {
   equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean }>;
   equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean }>;
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
-  charge_profiles?: Array<{ user_type: string; is_active?: boolean; primary_unit_charge: string | number; secondary_unit_charge?: string | number; breakpoint?: string | number | null; time_formula?: string | null }>;
+  charge_profiles?: Array<{ user_type: string; is_active?: boolean; require_istem_fbr?: boolean; primary_unit_charge: string | number; secondary_unit_charge?: string | number; breakpoint?: string | number | null; time_formula?: string | null }>;
   input_fields?: Array<{ field_key: string; field_label: string; field_type: string; is_required?: boolean; default_value?: string; options?: string[]; help_text?: string }>;
+  print_materials?: Array<{ code: string; name: string; density_g_per_cm3?: string | number; price_per_gram: string | number; user_type?: string | null; is_active?: boolean; display_order?: number }>;
 };
 
 type EquipmentFormChoices = {
@@ -109,6 +113,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     show_make_on_card: false,
     booking_email_extra_text: "",
     completion_email_extra_text: "",
+    print_3d_stl_notification_email: "",
+    istem_portal_url: "",
+    istem_fbr_status_url: "",
     status: "ACTIVE",
     location: "",
     profile_type: null,
@@ -143,6 +150,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     slot_masters: [],
     charge_profiles: [],
     input_fields: [],
+    print_materials: [],
     ...initialData,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -201,6 +209,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         show_make_on_card: Boolean(d.show_make_on_card),
         booking_email_extra_text: (d.booking_email_extra_text as string) ?? "",
         completion_email_extra_text: (d.completion_email_extra_text as string) ?? "",
+        print_3d_stl_notification_email: (d.print_3d_stl_notification_email as string) ?? "",
+        istem_portal_url: (d.istem_portal_url as string) ?? "",
+        istem_fbr_status_url: (d.istem_fbr_status_url as string) ?? "",
         status: (d.status as string) ?? "ACTIVE",
         location: (d.location as string) ?? "",
         profile_type: (d.profile_type as string | null) ?? null,
@@ -238,8 +249,27 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false })) : prev.equipment_accessories ?? [],
         equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false })) : prev.equipment_additional_accessories ?? [],
         slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? s.close_time : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
-        charge_profiles: Array.isArray(profiles) ? profiles.map((p) => ({ user_type: String(p.user_type ?? ""), is_active: p.is_active !== false, primary_unit_charge: p.primary_unit_charge ?? 0, secondary_unit_charge: p.secondary_unit_charge ?? 0, breakpoint: p.breakpoint ?? null, time_formula: p.time_formula ?? null })) : prev.charge_profiles ?? [],
+        charge_profiles: Array.isArray(profiles) ? profiles.map((p) => ({
+          user_type: String(p.user_type ?? ""),
+          is_active: p.is_active !== false,
+          require_istem_fbr: Boolean(p.require_istem_fbr),
+          primary_unit_charge: p.primary_unit_charge ?? 0,
+          secondary_unit_charge: p.secondary_unit_charge ?? 0,
+          breakpoint: p.breakpoint ?? null,
+          time_formula: p.time_formula ?? null,
+        })) : prev.charge_profiles ?? [],
         input_fields: Array.isArray(inputs) ? inputs.map((i) => ({ field_key: String(i.field_key ?? ""), field_label: String(i.field_label ?? ""), field_type: String(i.field_type ?? "text"), is_required: i.is_required === true, default_value: String(i.default_value ?? ""), options: Array.isArray(i.options) ? i.options as string[] : [], help_text: String(i.help_text ?? "") })) : prev.input_fields ?? [],
+        print_materials: Array.isArray(d.print_materials)
+          ? (d.print_materials as Array<Record<string, unknown>>).map((m) => ({
+              code: String(m.code ?? ""),
+              name: String(m.name ?? ""),
+              density_g_per_cm3: m.density_g_per_cm3 ?? "1.24",
+              price_per_gram: m.price_per_gram ?? "0",
+              user_type: (m.user_type as string | null) ?? null,
+              is_active: m.is_active !== false,
+              display_order: Number(m.display_order ?? 0),
+            }))
+          : prev.print_materials ?? [],
       }));
     }
   }, [initialData]);
@@ -255,6 +285,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       show_make_on_card: Boolean(formData.show_make_on_card),
       booking_email_extra_text: formData.booking_email_extra_text?.trim() || "",
       completion_email_extra_text: formData.completion_email_extra_text?.trim() || "",
+      print_3d_stl_notification_email: formData.print_3d_stl_notification_email?.trim() || "",
+      istem_portal_url: formData.istem_portal_url?.trim() || "",
+      istem_fbr_status_url: formData.istem_fbr_status_url?.trim() || "",
       status: formData.status || null,
       location: formData.location || null,
       profile_type: formData.profile_type || null,
@@ -303,6 +336,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       slot_masters: formData.slot_masters ?? [],
       charge_profiles: formData.charge_profiles ?? [],
       input_fields: formData.input_fields ?? [],
+      print_materials: formData.print_materials ?? [],
     };
     onSave(payload, { imageFile: imageFile ?? undefined, videoFile: videoFile ?? undefined });
   };
@@ -459,6 +493,108 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </div>
       </div>
 
+      {formData.profile_type === "PRINT_3D" && (
+        <div className="rounded-lg border p-4 space-y-4">
+          <div className="space-y-2 max-w-xl">
+            <Label htmlFor="print-3d-stl-notification-email">STL notification email</Label>
+            <Input
+              id="print-3d-stl-notification-email"
+              type="email"
+              value={formData.print_3d_stl_notification_email ?? ""}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, print_3d_stl_notification_email: e.target.value }))
+              }
+              placeholder="lab@example.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              When a booking is confirmed, the user&apos;s STL file(s) and booking details are sent to this address.
+              Leave empty to disable.
+            </p>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold">3D print materials</h3>
+              <p className="text-sm text-muted-foreground">Filament catalog with dynamic price per gram.</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setFormData((p) => ({
+                  ...p,
+                  print_materials: [
+                    ...(p.print_materials ?? []),
+                    { code: "", name: "", density_g_per_cm3: "1.24", price_per_gram: "2.5", is_active: true, display_order: (p.print_materials?.length ?? 0) },
+                  ],
+                }))
+              }
+            >
+              Add material
+            </Button>
+          </div>
+          {(formData.print_materials ?? []).map((mat, idx) => (
+            <div key={idx} className="grid gap-3 sm:grid-cols-8 border rounded-md p-3 items-center">
+              <Input placeholder="Code" value={mat.code} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], code: e.target.value }; return { ...p, print_materials: rows }; })} />
+              <Input placeholder="Name" value={mat.name} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], name: e.target.value }; return { ...p, print_materials: rows }; })} />
+              <Input placeholder="Density" type="number" step="0.001" value={String(mat.density_g_per_cm3 ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], density_g_per_cm3: e.target.value }; return { ...p, print_materials: rows }; })} />
+              <Input placeholder="₹/gram" type="number" step="0.01" value={String(mat.price_per_gram ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], price_per_gram: e.target.value }; return { ...p, print_materials: rows }; })} />
+              <Input
+                placeholder="Order"
+                type="number"
+                step="1"
+                value={String(mat.display_order ?? 0)}
+                onChange={(e) =>
+                  setFormData((p) => {
+                    const rows = [...(p.print_materials ?? [])];
+                    const n = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                    rows[idx] = { ...rows[idx], display_order: Number.isFinite(n) ? n : 0 };
+                    return { ...p, print_materials: rows };
+                  })
+                }
+              />
+              <Select
+                value={(mat.user_type ?? "") || ""}
+                onValueChange={(value) =>
+                  setFormData((p) => {
+                    const rows = [...(p.print_materials ?? [])];
+                    rows[idx] = { ...rows[idx], user_type: value ? value : null };
+                    return { ...p, print_materials: rows };
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="User type (all)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All user types</SelectItem>
+                  {(choices?.user_type_choices ?? []).map((ut) => (
+                    <SelectItem key={ut.value} value={ut.value}>
+                      {ut.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={mat.is_active !== false}
+                  onCheckedChange={(checked) =>
+                    setFormData((p) => {
+                      const rows = [...(p.print_materials ?? [])];
+                      rows[idx] = { ...rows[idx], is_active: checked === true };
+                      return { ...p, print_materials: rows };
+                    })
+                  }
+                  aria-label="Enable material"
+                />
+                <span className="text-xs text-muted-foreground">Enabled</span>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setFormData((p) => ({ ...p, print_materials: (p.print_materials ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="equipment-description">Description</Label>
         <Textarea
@@ -537,6 +673,130 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           placeholder="Appended when booking is completed. Example: Download results from https://..."
         />
       </div>
+
+      <h3 className="text-sm font-semibold border-b pb-2 pt-2">I-STEM portal</h3>
+      <p className="text-muted-foreground text-xs">
+        Configure separate links for booking users and for OIC/Admin FBR verification.
+      </p>
+      <div className="space-y-4 max-w-2xl">
+        <div className="space-y-2">
+          <Label htmlFor="istem-portal-url">I-STEM booking page URL (for users)</Label>
+          <Input
+            id="istem-portal-url"
+            type="url"
+            value={formData.istem_portal_url ?? ""}
+            onChange={(e) => setFormData((p) => ({ ...p, istem_portal_url: e.target.value }))}
+            placeholder="https://www.istem.gov.in/..."
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="istem-fbr-status-url">I-STEM FBR status check URL (for OIC / Admin)</Label>
+          <Input
+            id="istem-fbr-status-url"
+            type="url"
+            value={formData.istem_fbr_status_url ?? ""}
+            onChange={(e) => setFormData((p) => ({ ...p, istem_fbr_status_url: e.target.value }))}
+            placeholder="https://www.istem.gov.in/.../fbr-status"
+          />
+        </div>
+      </div>
+
+      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Charge profiles</h3>
+      <p className="text-muted-foreground text-xs">
+        Per user-type pricing. Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
+      </p>
+      <div className="rounded border divide-y">
+        {(formData.charge_profiles ?? []).length === 0 ? (
+          <p className="p-3 text-sm text-muted-foreground">No charge profiles yet. Add rows below or save equipment first in Django admin.</p>
+        ) : (
+          (formData.charge_profiles ?? []).map((cp, idx) => {
+            const label =
+              (choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type;
+            return (
+              <div key={`${cp.user_type}-${idx}`} className="p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                <div className="space-y-1">
+                  <Label>User type</Label>
+                  <p className="text-sm font-medium">{label}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`cp-primary-${idx}`}>Primary charge</Label>
+                  <Input
+                    id={`cp-primary-${idx}`}
+                    type="number"
+                    step="0.01"
+                    value={String(cp.primary_unit_charge ?? "")}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.charge_profiles ?? [])];
+                        arr[idx] = { ...arr[idx], primary_unit_charge: e.target.value };
+                        return { ...p, charge_profiles: arr };
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center gap-2 pb-2">
+                  <Checkbox
+                    id={`cp-active-${idx}`}
+                    checked={cp.is_active !== false}
+                    onCheckedChange={(v) =>
+                      setFormData((p) => {
+                        const arr = [...(p.charge_profiles ?? [])];
+                        arr[idx] = { ...arr[idx], is_active: v === true };
+                        return { ...p, charge_profiles: arr };
+                      })
+                    }
+                  />
+                  <Label htmlFor={`cp-active-${idx}`} className="text-sm font-normal">Active</Label>
+                </div>
+                <div className="flex items-center gap-2 pb-2">
+                  <Checkbox
+                    id={`cp-istem-${idx}`}
+                    checked={Boolean(cp.require_istem_fbr)}
+                    onCheckedChange={(v) =>
+                      setFormData((p) => {
+                        const arr = [...(p.charge_profiles ?? [])];
+                        arr[idx] = { ...arr[idx], require_istem_fbr: v === true };
+                        return { ...p, charge_profiles: arr };
+                      })
+                    }
+                  />
+                  <Label htmlFor={`cp-istem-${idx}`} className="text-sm font-normal">Require I-STEM FBR</Label>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+      {(choices.user_type_choices ?? []).length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <Select
+            value="__add__"
+            onValueChange={(v) => {
+              if (!v || v === "__add__") return;
+              if ((formData.charge_profiles ?? []).some((cp) => cp.user_type === v)) return;
+              setFormData((p) => ({
+                ...p,
+                charge_profiles: [
+                  ...(p.charge_profiles ?? []),
+                  { user_type: v, is_active: true, require_istem_fbr: false, primary_unit_charge: 0, secondary_unit_charge: 0 },
+                ],
+              }));
+            }}
+          >
+            <SelectTrigger className="w-[280px]">
+              <SelectValue placeholder="Add charge profile" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__add__" disabled>Add charge profile</SelectItem>
+              {(choices.user_type_choices ?? [])
+                .filter((c) => !(formData.charge_profiles ?? []).some((cp) => cp.user_type === c.value))
+                .map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Image</h3>
       <p className="text-muted-foreground text-xs">Upload a new image or view the current one. Images are stored in S3 and displayed via a stable URL.</p>

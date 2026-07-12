@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,7 +215,7 @@ const Profile = () => {
       // External users: prefill billing/shipping profile (invoice / shipping label)
       const ut = response.data.user_type;
       const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
-      const isExternal = ["external", "rnd", "industry", "other"].includes(utStr);
+      const isExternal = isExternalBookingUserType(utStr);
       if (isExternal) {
         setLoadingExternalBilling(true);
         apiClient
@@ -439,7 +440,7 @@ const Profile = () => {
       // Save external billing/shipping details first (if applicable)
       const ut = profileData.user_type ?? user?.user_type;
       const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
-      const isExternal = ["external", "rnd", "industry", "other"].includes(utStr);
+      const isExternal = isExternalBookingUserType(utStr);
       if (isExternal) {
         const resBilling = await apiClient.updateExternalBillingProfileMe(externalBilling);
         if (resBilling.error) {
@@ -626,9 +627,9 @@ const Profile = () => {
                     <SelectItem value="external">Educational Institute</SelectItem>
                     <SelectItem value="RND">Govt R&D Organizations</SelectItem>
                     <SelectItem value="Industry">Industry</SelectItem>
+                    <SelectItem value="startup_incubated_iitr">Startup Incubated at IIT Roorkee</SelectItem>
+                    <SelectItem value="external_startup_msme">External Startup/MSME</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
-                    <SelectItem value="type_9">Type 9</SelectItem>
-                    <SelectItem value="type_10">Type 10</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">User type (read-only)</p>
@@ -744,7 +745,7 @@ const Profile = () => {
             {(() => {
               const ut = profileData.user_type ?? user?.user_type;
               const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
-              const isExternal = ["external", "rnd", "industry", "other"].includes(utStr);
+              const isExternal = isExternalBookingUserType(utStr);
               if (!isExternal) return null;
               return (
                 <>

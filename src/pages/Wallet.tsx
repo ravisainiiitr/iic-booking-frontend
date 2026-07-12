@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -435,7 +436,7 @@ const Wallet = () => {
 
     const userTypeRaw: any = userResponse.data?.user_type;
     const userTypeStr = userTypeRaw != null ? String(userTypeRaw).toLowerCase() : "";
-    const isExternal = ["external", "rnd", "industry", "other"].includes(userTypeStr);
+    const isExternal = isExternalBookingUserType(userTypeStr);
     setIsExternalUser(isExternal);
 
     // Check if user can have wallet using the can_have_wallet field

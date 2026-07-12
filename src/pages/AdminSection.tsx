@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { apiClient, ADMIN_SECTION_ENDPOINTS } from "@/lib/api";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -140,6 +141,8 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "external", label: "Educational Institute" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
+  { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { value: "external_startup_msme", label: "External Startup/MSME" },
   { value: "other", label: "Other" },
 ];
 
@@ -155,6 +158,8 @@ const USER_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "external", label: "External (Educational Institute)" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
+  { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { value: "external_startup_msme", label: "External Startup/MSME" },
   { value: "other", label: "Other" },
   { value: "student|IITR Post Doctoral Fellows", label: "IITR Post Doctoral Fellows" },
   { value: "student|IITR Research Associates in Projects", label: "IITR Research Associates in Projects" },
@@ -426,7 +431,13 @@ export default function AdminSection() {
     if (!ut) return null;
     const key = ut.toLowerCase();
     // Backend user_type codes include: external, RND, Industry, other
-    const externalCodes = new Set(["external", "rnd", "industry", "other"]);
+    const externalCodes = new Set([
+      "external",
+      "rnd",
+      "industry",
+      "other",
+      "external_startup_msme",
+    ]);
     return externalCodes.has(key) ? "external" : "internal";
   };
 

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
 import { apiClient } from "@/lib/api";
+import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: str
 }
 
 function isExternalBookingUserType(normalized: string | null): boolean {
-  return normalized != null && ["external", "rnd", "industry", "other"].includes(normalized);
+  return normalized != null && isExternalBookingUserType(normalized);
 }
 
 /** Return black or white for readable text on the given hex background. */
@@ -373,7 +374,7 @@ export default function RescheduleSlotPicker({
     if (isAdminUser()) return slot.status !== "BOOKED";
     // External users: only AVAILABLE (reserved for external) slots are selectable
     const ut = String(userType ?? "").toLowerCase();
-    const isExternal = ["external", "rnd", "industry", "other"].includes(ut);
+    const isExternal = isExternalBookingUserType(ut);
     if (isExternal) return slot.status === "AVAILABLE";
     // Internal users: only AVAILABLE slots that are NOT reserved for external are selectable
     return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;

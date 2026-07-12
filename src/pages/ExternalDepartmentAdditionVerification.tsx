@@ -28,6 +28,7 @@ const EXTERNAL_SUBCATEGORIES = [
   { value: "educational_institute", label: "Educational Institute" },
   { value: "govt_rnd", label: "Govt R&D Organizations" },
   { value: "industries", label: "Industry" },
+  { value: "external_startup_msme", label: "External Startup/MSME" },
 ] as const;
 
 /** Row from API: either an organization request or a standalone (admin-added) external department. */

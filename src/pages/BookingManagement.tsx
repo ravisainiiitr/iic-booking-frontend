@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight, Star, Loader2 } from "lucide-react";
+import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -100,6 +101,8 @@ interface Booking extends BookingRef {
     created_by_name: string | null;
   }>;
   rating?: number | null;
+  istem_fbr_status?: string | null;
+  require_istem_fbr?: boolean;
   rating_feedback?: string | null;
   rated_at?: string | null;
   equipment_enable_charge_recalculation?: boolean;
@@ -128,6 +131,7 @@ const BookingManagement = () => {
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
   const [ratingFilter, setRatingFilter] = useState<string>("all");
+  const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
@@ -235,6 +239,7 @@ const BookingManagement = () => {
       if (!isLabInchargeUser && supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
       if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
       if (ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
+      if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
       const response = await apiClient.getBookings(params);
       if (response.data && response.data.bookings) {
         setBookings(response.data.bookings);
@@ -438,6 +443,21 @@ const BookingManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {isManagerOrAdmin && (
+                  <div className="space-y-2">
+                    <Label>I-STEM FBR</Label>
+                    <Select value={istemFbrFilter} onValueChange={setIstemFbrFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All I-STEM" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All I-STEM</SelectItem>
+                        <SelectItem value="verified">Verified</SelectItem>
+                        <SelectItem value="unverified">Unverified</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Equipment</Label>
                   <Select value={equipmentFilter || "all"} onValueChange={setEquipmentFilter}>
@@ -516,6 +536,10 @@ const BookingManagement = () => {
                             }`}
                           >
                             {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+                            <IstemFbrSeal
+                              requireIstemFbr={booking.require_istem_fbr}
+                              istemFbrStatus={booking.istem_fbr_status}
+                            />
                             <ExternalLink className="h-3.5 w-3.5 opacity-70" />
                           </button>
                         </TableCell>

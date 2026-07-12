@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { isExternalBookingUserType } from "@/lib/userTypes";
+import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -137,6 +140,9 @@ interface Booking extends BookingRef {
   istem_fbr_status_display?: string | null;
   istem_fbr_invalid_reason?: string | null;
   istem_fbr_executed_at?: string | null;
+  istem_portal_url?: string | null;
+  istem_fbr_status_url?: string | null;
+  require_istem_fbr?: boolean;
   repeat_sample_request_status?: string | null;
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
@@ -164,6 +170,30 @@ interface Booking extends BookingRef {
   equipment_is_operational?: boolean;
   equipment_profile_type?: string | null;
   equipment_profile_type_display?: string | null;
+  print_analyses?: Array<{
+    id: string;
+    stl_filename?: string;
+    weight_grams?: string | number | null;
+    estimated_time_minutes?: number | null;
+    status?: string;
+    cancelled_at?: string | null;
+  }>;
+  print_analysis_batch?: {
+    items?: Array<{
+      id: string;
+      stl_filename?: string;
+      weight_grams?: string | number | null;
+      estimated_time_minutes?: number | null;
+      status?: string;
+      cancelled_at?: string | null;
+    }>;
+  };
+  print_analysis?: {
+    id: string;
+    stl_filename?: string;
+    weight_grams?: string | number | null;
+    estimated_time_minutes?: number | null;
+  } | null;
 }
 
 const SAMPLE_BASED_PROFILE_TYPES = new Set(["SAMPLE", "SAMPLE_ELEMENT", "MULTI_PARAM"]);
@@ -171,6 +201,25 @@ const SAMPLE_BASED_PROFILE_TYPES = new Set(["SAMPLE", "SAMPLE_ELEMENT", "MULTI_P
 function usesInputReductionForPartialCancel(booking: Booking | null): boolean {
   const pt = (booking?.equipment_profile_type || "").toUpperCase();
   return SAMPLE_BASED_PROFILE_TYPES.has(pt);
+}
+
+function isPrint3dProfile(booking: Booking | null): boolean {
+  return String(booking?.equipment_profile_type || "").toUpperCase() === "PRINT_3D";
+}
+
+function getActivePrintFiles(booking: Booking | null) {
+  if (!booking) return [];
+  const fromList = (booking.print_analyses ?? []).filter((f) => !f.cancelled_at && f.status === "COMPLETED");
+  if (fromList.length > 0) return fromList;
+  const batchItems = (booking as Booking & { print_analysis_batch?: { items?: typeof fromList } })
+    .print_analysis_batch?.items;
+  if (batchItems?.length) {
+    return batchItems.filter((f) => !f.cancelled_at && f.status === "COMPLETED");
+  }
+  if (booking.print_analysis?.id) {
+    return [booking.print_analysis];
+  }
+  return [];
 }
 
 function getCurrentReductionValue(booking: Booking, fieldKey: string): number {
@@ -224,6 +273,7 @@ const MyBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelSlotIds, setCancelSlotIds] = useState<number[]>([]);
+  const [cancelPrintItemIds, setCancelPrintItemIds] = useState<string[]>([]);
   const [cancelSlotsLoading, setCancelSlotsLoading] = useState(false);
   const [cancelEntireBooking, setCancelEntireBooking] = useState(true);
   const [cancelReducedValue, setCancelReducedValue] = useState<number>(1);
@@ -287,6 +337,45 @@ const MyBookings = () => {
     const backendId = getRealBookingId(selectedBooking);
     if (backendId == null) return;
 
+    if (isPrint3dProfile(selectedBooking)) {
+      if (cancelEntireBooking) {
+        setCancelPreview(null);
+        return;
+      }
+      if (cancelPrintItemIds.length === 0) {
+        setCancelPreview(null);
+        return;
+      }
+      const activeFiles = getActivePrintFiles(selectedBooking);
+      if (cancelPrintItemIds.length >= activeFiles.length) {
+        setCancelPreview(null);
+        return;
+      }
+      const timer = window.setTimeout(async () => {
+        setCancelPreviewLoading(true);
+        try {
+          const res = await apiClient.partialCancelPreview(backendId, {
+            print_analysis_ids: cancelPrintItemIds,
+          });
+          if (res.data && !res.error) {
+            setCancelPreview({
+              refund_amount: res.data.refund_amount,
+              slots_to_release_count: res.data.slots_to_release_count,
+              slots_to_keep_count: res.data.slots_to_keep_count,
+              new_charge: res.data.new_charge,
+            });
+          } else {
+            setCancelPreview(null);
+          }
+        } catch {
+          setCancelPreview(null);
+        } finally {
+          setCancelPreviewLoading(false);
+        }
+      }, 300);
+      return () => window.clearTimeout(timer);
+    }
+
     const inputReduction = usesInputReductionForPartialCancel(selectedBooking);
     if (cancelEntireBooking) {
       setCancelPreview(null);
@@ -348,6 +437,7 @@ const MyBookings = () => {
     cancelEntireBooking,
     cancelReducedValue,
     cancelSlotIds,
+    cancelPrintItemIds,
   ]);
 
   const isAdminOrOIC = (): boolean => {
@@ -752,8 +842,7 @@ const MyBookings = () => {
   };
 
   const restrictedExternalUserType =
-    currentUserType &&
-    ["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase());
+    currentUserType && isExternalBookingUserType(currentUserType);
 
   /** Table Cancel: waitlisted users may cancel queue entry even when external; normal bookings keep existing external restriction. */
   const canShowTableCancelButton = (booking: Booking) =>
@@ -765,6 +854,7 @@ const MyBookings = () => {
   const openCancelDialog = async (booking: Booking) => {
     setCancelNotes("");
     setCancelSlotIds([]);
+    setCancelPrintItemIds([]);
     setCancelEntireBooking(true);
     setCancelPreview(null);
     setCancelReducedValue(getCurrentReductionValue(booking, "A"));
@@ -862,6 +952,18 @@ const MyBookings = () => {
       return;
     }
 
+    if (isPrint3dProfile(selectedBooking) && !cancelEntireBooking) {
+      const activeFiles = getActivePrintFiles(selectedBooking);
+      if (cancelPrintItemIds.length === 0) {
+        toast.error("Select at least one print file to cancel.");
+        return;
+      }
+      if (cancelPrintItemIds.length >= activeFiles.length) {
+        toast.error("To cancel all print files, cancel the entire booking instead.");
+        return;
+      }
+    }
+
     setActionLoading(true);
     try {
       if (isWaitlistedEntry(selectedBooking)) {
@@ -896,32 +998,41 @@ const MyBookings = () => {
         return;
       }
       if ((selectedBooking.daily_slots?.length ?? 0) > 0 && !cancelEntireBooking) {
-        const inputReduction = usesInputReductionForPartialCancel(selectedBooking);
-        if (inputReduction) {
-          const { key } = getReductionFieldMeta(selectedBooking);
-          const current = getCurrentReductionValue(selectedBooking, key);
-          if (cancelReducedValue >= current || cancelReducedValue < 1) {
-            toast.error(`Enter a reduced ${getReductionFieldMeta(selectedBooking).label.toLowerCase()} less than ${current}.`);
+        if (isPrint3dProfile(selectedBooking)) {
+          // validated above
+        } else {
+          const inputReduction = usesInputReductionForPartialCancel(selectedBooking);
+          if (inputReduction) {
+            const { key } = getReductionFieldMeta(selectedBooking);
+            const current = getCurrentReductionValue(selectedBooking, key);
+            if (cancelReducedValue >= current || cancelReducedValue < 1) {
+              toast.error(`Enter a reduced ${getReductionFieldMeta(selectedBooking).label.toLowerCase()} less than ${current}.`);
+              setActionLoading(false);
+              return;
+            }
+          } else if (cancelSlotIds.length === 0) {
+            toast.error("Select at least one slot to cancel.");
             setActionLoading(false);
             return;
           }
-        } else if (cancelSlotIds.length === 0) {
-          toast.error("Select at least one slot to cancel.");
-          setActionLoading(false);
-          return;
         }
       }
 
       let slotIdsPayload: number[] | undefined;
       let reducedInputValues: Record<string, number> | undefined;
+      let printAnalysisIdsPayload: string[] | undefined;
       const slotCount = selectedBooking.daily_slots?.length ?? 0;
 
-      if (slotCount > 0 && !cancelEntireBooking) {
-        if (usesInputReductionForPartialCancel(selectedBooking)) {
-          const { key } = getReductionFieldMeta(selectedBooking);
-          reducedInputValues = { [key]: cancelReducedValue };
-        } else {
-          slotIdsPayload = cancelSlotIds;
+      if (!cancelEntireBooking) {
+        if (isPrint3dProfile(selectedBooking)) {
+          printAnalysisIdsPayload = cancelPrintItemIds;
+        } else if (slotCount > 0) {
+          if (usesInputReductionForPartialCancel(selectedBooking)) {
+            const { key } = getReductionFieldMeta(selectedBooking);
+            reducedInputValues = { [key]: cancelReducedValue };
+          } else {
+            slotIdsPayload = cancelSlotIds;
+          }
         }
       }
 
@@ -930,7 +1041,8 @@ const MyBookings = () => {
         true, // Always refund
         cancelNotes || undefined,
         slotIdsPayload,
-        reducedInputValues
+        reducedInputValues,
+        printAnalysisIdsPayload,
       );
 
       if (response.error) {
@@ -1273,6 +1385,10 @@ const MyBookings = () => {
                               }`}
                             >
                               {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+                              <IstemFbrSeal
+                                requireIstemFbr={booking.require_istem_fbr}
+                                istemFbrStatus={booking.istem_fbr_status}
+                              />
                               <ExternalLink className="h-3.5 w-3.5 opacity-70" />
                             </button>
                           )}
@@ -1336,7 +1452,7 @@ const MyBookings = () => {
                             {!isAccountsFinanceUser &&
                               !isLabOperatorUser &&
                               (!currentUserType ||
-                                !["external", "rnd", "industry", "other"].includes(String(currentUserType).toLowerCase())) &&
+                                !isExternalBookingUserType(currentUserType)) &&
                               canCancelOrReschedule(booking.status) &&
                               canReschedule(booking) && (
                               <Button
@@ -1605,6 +1721,7 @@ const MyBookings = () => {
             setCancelDialogOpen(open);
             if (!open) {
               setCancelSlotIds([]);
+              setCancelPrintItemIds([]);
               setCancelSlotsLoading(false);
               setCancelEntireBooking(true);
               setCancelPreview(null);
@@ -1617,7 +1734,9 @@ const MyBookings = () => {
               <AlertDialogDescription>
                 {selectedBooking && isWaitlistedEntry(selectedBooking)
                   ? "Are you sure you want to cancel this waitlisted booking? This action cannot be undone."
-                  : selectedBooking && !cancelEntireBooking && usesInputReductionForPartialCancel(selectedBooking)
+                  : selectedBooking && !cancelEntireBooking && isPrint3dProfile(selectedBooking)
+                    ? "Select the STL file(s) to cancel. The refund and released slots are based on the remaining files."
+                    : selectedBooking && !cancelEntireBooking && usesInputReductionForPartialCancel(selectedBooking)
                     ? `Reduce ${getReductionFieldMeta(selectedBooking).label.toLowerCase()} to release unused slots. Unused slots will be made available again.`
                     : selectedBooking && !cancelEntireBooking && (selectedBooking.daily_slots?.length ?? 0) > 1
                       ? "Select the slot(s) you want to cancel. Checked slots will be cancelled. This action cannot be undone."
@@ -1649,9 +1768,12 @@ const MyBookings = () => {
                 const inputReduction = usesInputReductionForPartialCancel(selectedBooking);
                 const { key, label } = getReductionFieldMeta(selectedBooking);
                 const currentReduction = getCurrentReductionValue(selectedBooking, key);
-                const canOfferPartialCancel = inputReduction
-                  ? currentReduction > 1 || slotCount > 1
-                  : slotCount > 1;
+                const printFiles = getActivePrintFiles(selectedBooking);
+                const canOfferPartialCancel = isPrint3dProfile(selectedBooking)
+                  ? printFiles.length > 1
+                  : (inputReduction
+                    ? currentReduction > 1 || slotCount > 1
+                    : slotCount > 1);
 
                 return (
                   <>
@@ -1665,7 +1787,9 @@ const MyBookings = () => {
                             const partial = Boolean(checked);
                             setCancelEntireBooking(!partial);
                             if (partial) {
-                              if (inputReduction && currentReduction > 1) {
+                              if (isPrint3dProfile(selectedBooking)) {
+                                setCancelPrintItemIds([]);
+                              } else if (inputReduction && currentReduction > 1) {
                                 setCancelReducedValue(currentReduction - 1);
                               } else if (!inputReduction) {
                                 setCancelSlotIds([]);
@@ -1677,11 +1801,61 @@ const MyBookings = () => {
                         <label htmlFor="cancel-partial-only" className="text-sm leading-snug cursor-pointer">
                           <span className="font-medium">Partial cancellation only</span>
                           <span className="block text-muted-foreground mt-0.5">
-                            {inputReduction
+                            {isPrint3dProfile(selectedBooking)
+                              ? "Cancel individual STL files; remaining files stay booked."
+                              : inputReduction
                               ? `Keep part of the booking by reducing ${label.toLowerCase()}.`
                               : "Release only some slots; the rest stay booked."}
                           </span>
                         </label>
+                      </div>
+                    ) : null}
+
+                    {!cancelEntireBooking && isPrint3dProfile(selectedBooking) && printFiles.length > 0 ? (
+                      <div className="space-y-2">
+                        <Label>Print files to cancel</Label>
+                        <div className="rounded-md border divide-y max-h-48 overflow-y-auto">
+                          {printFiles.map((file) => {
+                            const checked = cancelPrintItemIds.includes(file.id);
+                            return (
+                              <label
+                                key={file.id}
+                                htmlFor={`cancel-print-${file.id}`}
+                                className="flex items-start gap-3 p-3 cursor-pointer"
+                              >
+                                <Checkbox
+                                  id={`cancel-print-${file.id}`}
+                                  checked={checked}
+                                  disabled={actionLoading || cancelPreviewLoading}
+                                  onCheckedChange={(value) => {
+                                    if (value) setCancelEntireBooking(false);
+                                    setCancelPrintItemIds((prev) =>
+                                      value
+                                        ? [...prev, file.id]
+                                        : prev.filter((id) => id !== file.id),
+                                    );
+                                  }}
+                                  className="mt-0.5"
+                                />
+                                <span className="text-sm leading-snug">
+                                  <span className="font-medium block truncate">
+                                    {file.stl_filename || file.id}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatPrintWeightGrams(file.weight_grams)} ·{" "}
+                                    {file.estimated_time_minutes ?? 0} min
+                                  </span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {cancelPreview && cancelPreview.slots_to_release_count > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            {cancelPreview.slots_to_release_count} slot(s) will be released;{" "}
+                            {cancelPreview.slots_to_keep_count} will remain booked.
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1714,7 +1888,7 @@ const MyBookings = () => {
                       </div>
                     ) : null}
 
-                    {!cancelEntireBooking && !inputReduction && slotCount > 0 ? (
+                    {!cancelEntireBooking && !inputReduction && !isPrint3dProfile(selectedBooking) && slotCount > 0 ? (
                       <div className="space-y-2">
                         <Label>Slots to cancel</Label>
                         {cancelSlotsLoading ? (
@@ -1789,6 +1963,18 @@ const MyBookings = () => {
                       if (cancelSlotsLoading || cancelPreviewLoading) {
                         return "Calculating refund…";
                       }
+                      if (!cancelEntireBooking && isPrint3dProfile(selectedBooking)) {
+                        if (cancelPrintItemIds.length === 0) {
+                          return "Select at least one print file to see the refund amount.";
+                        }
+                        if (cancelPreview) {
+                          return `₹${Number(cancelPreview.refund_amount).toFixed(2)} will be refunded to your wallet. Revised charge: ₹${Number(cancelPreview.new_charge).toFixed(2)}.`;
+                        }
+                        return cancelPreviewLoading ? "Calculating refund…" : "Could not calculate refund for selected file(s).";
+                      }
+                      if (cancelEntireBooking && isPrint3dProfile(selectedBooking)) {
+                        return `The booking will be cancelled and ₹${Number(selectedBooking.total_charge).toFixed(2)} will be refunded to your wallet immediately.`;
+                      }
                       if (!cancelEntireBooking && cancelPreview) {
                         const refundAmount = Number(cancelPreview.refund_amount);
                         if (cancelPreview.slots_to_release_count > 0) {
@@ -1847,6 +2033,15 @@ const MyBookings = () => {
                     (() => {
                       const slotCount = selectedBooking.daily_slots?.length ?? 0;
                       if (slotCount === 0) return false;
+                      if (isPrint3dProfile(selectedBooking)) {
+                        const activeFiles = getActivePrintFiles(selectedBooking);
+                        return (
+                          !cancelEntireBooking &&
+                          (cancelPrintItemIds.length === 0 ||
+                            cancelPrintItemIds.length >= activeFiles.length ||
+                            !cancelPreview)
+                        );
+                      }
                       if (usesInputReductionForPartialCancel(selectedBooking)) {
                         const { key } = getReductionFieldMeta(selectedBooking);
                         const current = getCurrentReductionValue(selectedBooking, key);

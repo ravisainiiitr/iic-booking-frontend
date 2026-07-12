@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { flushSync } from "react-dom";
 import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type PrintMaterial } from "@/lib/api";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
   readProformaLineItemsFromStorage,
@@ -13,6 +13,14 @@ import {
   type ProformaLineItemField,
 } from "@/lib/proformaInvoiceStorage";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
+import {
+  CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
+  getChargeEstimateUserTypeLabel,
+  isExternalBookingUserType,
+  normalizeUserTypeCode,
+  getUserTypeDisplayName,
+} from "@/lib/userTypes";
+import { Print3DBookingPanel, type Print3DBookingValues, PRINT_3D_TENTATIVE_CHARGE_NOTE } from "@/components/Print3DBookingPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -178,6 +186,8 @@ const USER_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "external", label: "Educational Institute" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
+  { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { value: "external_startup_msme", label: "External Startup/MSME" },
   { value: "admin", label: "Admin" },
   { value: "manager", label: "Officer In Charge" },
   { value: "operator", label: "Lab Incharge" },
@@ -501,12 +511,68 @@ function logBookingServerTimings(res: { bookingPerf?: string }) {
   }
 }
 
+type ChargeCalcHashInput = {
+  inputFieldValues: Record<string, string | boolean | string[] | number>;
+  printAnalysisId: string | null;
+  printAnalysisBatchId: string | null;
+  sampleReturnAfterAnalysis: boolean;
+  chargeEstimateUserType: string | null;
+};
+
+function buildChargeCalculationHash(input: ChargeCalcHashInput): string {
+  return JSON.stringify({
+    inputFieldValues: input.inputFieldValues,
+    printAnalysisId: input.printAnalysisId,
+    printAnalysisBatchId: input.printAnalysisBatchId,
+    sample_return_after_analysis: input.sampleReturnAfterAnalysis,
+    charge_estimate_user_type: input.chargeEstimateUserType,
+  });
+}
+
+function inputsReadyForChargeEstimate(
+  equipmentDetail: { input_fields?: Array<{ field_key?: string; field_type?: string; is_required?: boolean }>; profile_type?: string } | null,
+  inputFieldValues: Record<string, string | boolean | string[] | number>
+): boolean {
+  const fields = equipmentDetail?.input_fields;
+  if (!fields || fields.length === 0) return true;
+
+  const requiredFields = fields.filter((field) => field.is_required);
+  const requiredOk = requiredFields.every((field) => {
+    const value = inputFieldValues[field.field_key ?? ""];
+    return (
+      value !== undefined &&
+      value !== null &&
+      value !== "" &&
+      !(Array.isArray(value) && value.length === 0) &&
+      !(typeof value === "number" && value === 0)
+    );
+  });
+  if (!requiredOk) return false;
+
+  if (equipmentDetail?.profile_type === "PRINT_3D") return true;
+
+  for (const key of ["A", "B"]) {
+    const field = fields.find((f) => f.field_key === key);
+    if (!field) continue;
+    const fieldType = String(field.field_type || "").toUpperCase().trim();
+    if (fieldType !== "NUMERIC") continue;
+    const raw = inputFieldValues[key];
+    const num = typeof raw === "number" ? raw : Number(raw);
+    if (raw === undefined || raw === null || raw === "" || Number.isNaN(num) || num < 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const BookEquipment = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const debugSlots = searchParams.get("debug_slots") === "1";
   /** Build proforma line item from charge step only (no slot booking). */
   const isProformaFlow = searchParams.get("proforma") === "1";
+  /** Charge estimate only — inputs + calculation, no slot booking. */
+  const isCalculateChargesFlow = searchParams.get("mode") === "calculate";
   const proformaEditLineIndex = useMemo((): number | null => {
     const raw = searchParams.get("proformaLineIndex");
     if (raw == null || raw === "") return null;
@@ -526,6 +592,10 @@ const BookEquipment = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [inputFieldValues, setInputFieldValues] = useState<Record<string, string | boolean | string[] | number>>({});
+  const [printAnalysisId, setPrintAnalysisId] = useState<string | null>(null);
+  const [printAnalysisBatchId, setPrintAnalysisBatchId] = useState<string | null>(null);
+  const [print3dAnalyzing, setPrint3dAnalyzing] = useState(false);
+  const [chargeProgress, setChargeProgress] = useState(0);
   const [icpmsCoverageByFieldKey, setIcpmsCoverageByFieldKey] = useState<
     Record<
       string,
@@ -572,6 +642,17 @@ const BookEquipment = () => {
     };
   } | null>(null);
   const [loadingCharge, setLoadingCharge] = useState(false);
+  useEffect(() => {
+    if (!loadingCharge) {
+      setChargeProgress(0);
+      return;
+    }
+    setChargeProgress(12);
+    const interval = setInterval(() => {
+      setChargeProgress((p) => Math.min(p + 6, 94));
+    }, 220);
+    return () => clearInterval(interval);
+  }, [loadingCharge]);
   const [showSlots, setShowSlots] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
@@ -594,11 +675,14 @@ const BookEquipment = () => {
     [lastFetchedWeek, step3WeekKey, loadingSlots]
   );
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
+  const [chargeEstimateUserType, setChargeEstimateUserType] = useState<string>("");
+  const [exportingChargePdf, setExportingChargePdf] = useState(false);
   const [autoSlotSelection, setAutoSlotSelection] = useState<boolean>(true);
   const [userAutoSlotSelectionPref, setUserAutoSlotSelectionPref] = useState<boolean>(true);
   const userAutoSlotSelectionPrefRef = useRef<boolean>(true);
   const autoSlotSelectionRef = useRef<boolean>(true);
   const lastCalculatedValuesRef = useRef<string>('');
+  const chargeRequestSeqRef = useRef(0);
   // Admin manage-equipment: 'book' = book for user, 'status' = change slot status, null = show mode selector
   const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(null);
   const [adminBookForUserId, setAdminBookForUserId] = useState<string | null>(null);
@@ -644,19 +728,22 @@ const BookEquipment = () => {
   /** True when current user is external (Educational Institute, RND, Industry, Other). Used to decide if reserved_for_external slots are selectable. */
   const isExternalUser = useMemo(() => {
     const ut = String(userType ?? "").toLowerCase();
-    return ["external", "rnd", "industry", "other"].includes(ut);
+    return isExternalBookingUserType(ut);
   }, [userType]);
 
   /** True when Step 3 rules should treat the booking target as external (self or admin booking for external-type user). */
   const bookingAsExternalTarget = useMemo(() => {
+    if (isCalculateChargesFlow && chargeEstimateUserType) {
+      return isExternalBookingUserType(chargeEstimateUserType);
+    }
     if (isExternalUser) return true;
     if (String(userType ?? "").toLowerCase() === "admin" && adminManageMode === "book" && adminBookForUserId) {
       const u = usersList.find((x) => String(x.id) === String(adminBookForUserId));
       const ut = String(u?.user_type || "").toLowerCase();
-      return ["external", "rnd", "industry", "other"].includes(ut);
+      return isExternalBookingUserType(ut);
     }
     return false;
-  }, [isExternalUser, userType, adminManageMode, adminBookForUserId, usersList]);
+  }, [isCalculateChargesFlow, chargeEstimateUserType, isExternalUser, userType, adminManageMode, adminBookForUserId, usersList]);
 
   /** External logistics: return samples after analysis (adds return shipping fee before GST). */
   const [sampleReturnAfterAnalysis, setSampleReturnAfterAnalysis] = useState<boolean>(false);
@@ -887,8 +974,14 @@ const BookEquipment = () => {
   }, []);
 
   useEffect(() => {
+    const isGuestCalculateFlow =
+      new URLSearchParams(window.location.search).get("mode") === "calculate";
+
     // Get user ID and type from localStorage (set by DashboardHeader) to avoid duplicate API calls
     const storedUser = localStorage.getItem('user');
+    if (isGuestCalculateFlow && !storedUser && !apiClient.getToken()) {
+      return;
+    }
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
@@ -960,6 +1053,10 @@ const BookEquipment = () => {
 
   // Wallet balance for this equipment's internal department (same sub-wallet used at booking).
   useEffect(() => {
+    if (isCalculateChargesFlow && !apiClient.getToken()) {
+      setEquipmentDeptWalletBalance(null);
+      return;
+    }
     const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
     const isAdmin = String(userType ?? "").toLowerCase() === "admin";
     if (!equipmentId) {
@@ -997,7 +1094,7 @@ const BookEquipment = () => {
     return () => {
       cancelled = true;
     };
-  }, [equipmentDetail?.equipment_id, selectedEquipment?.id, adminManageMode, adminBookForUserId, userType]);
+  }, [equipmentDetail?.equipment_id, selectedEquipment?.id, adminManageMode, adminBookForUserId, userType, isCalculateChargesFlow]);
 
   useEffect(() => {
     if (!isAdminUser() || !adminBookForUserId) {
@@ -1540,10 +1637,11 @@ const BookEquipment = () => {
   }, [searchParams, selectedEquipment, loadingEquipmentDetail, handleEquipmentSelect, navigate]);
 
   useEffect(() => {
+    if (isCalculateChargesFlow && !apiClient.getToken()) return;
     apiClient.getMyRewardSummary().then((res) => {
       if (res.data) setRewardSummary(res.data as { points_balance: string; currency_per_point: string; config?: { is_enabled: boolean } });
     }).catch(() => setRewardSummary(null));
-  }, [selectedEquipment?.id]);
+  }, [selectedEquipment?.id, isCalculateChargesFlow]);
 
   // Repeat-sample flow: when repeatOf is in URL, load that booking and prefill form (read-only params, zero charge, user picks slots)
   useEffect(() => {
@@ -1641,6 +1739,15 @@ const BookEquipment = () => {
     }
   }, [equipmentDetail]);
 
+  useEffect(() => {
+    if (!isCalculateChargesFlow || !equipmentDetail) return;
+    const codes = CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((o) => o.code);
+    const loggedInType = normalizeUserTypeCode(userType);
+    const initial =
+      loggedInType && codes.includes(loggedInType) ? loggedInType : codes[0];
+    setChargeEstimateUserType((prev) => (prev && codes.includes(prev) ? prev : initial));
+  }, [isCalculateChargesFlow, equipmentDetail, userType]);
+
   // Calculate charge based on input fields
   const calculateCharge = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail) {
@@ -1650,15 +1757,26 @@ const BookEquipment = () => {
       return;
     }
 
-    // Skip if already loading to prevent concurrent calls
-    if (loadingCharge) {
+    if (isCalculateChargesFlow && !chargeEstimateUserType) {
       return;
     }
 
-    // Create a hash of current input values to check if we already calculated for these values
-    const currentValuesHash = JSON.stringify({
+    if (equipmentDetail.profile_type === "PRINT_3D" && !printAnalysisId && !printAnalysisBatchId) {
+      return;
+    }
+
+    // Skip if already loading to prevent concurrent calls (booking flow only; estimate re-queues)
+    if (loadingCharge && !isCalculateChargesFlow) {
+      return;
+    }
+
+    const sampleReturnFlag = bookingAsExternalTarget ? sampleReturnAfterAnalysis : false;
+    const currentValuesHash = buildChargeCalculationHash({
       inputFieldValues,
-      sample_return_after_analysis: bookingAsExternalTarget ? sampleReturnAfterAnalysis : false,
+      printAnalysisId,
+      printAnalysisBatchId,
+      sampleReturnAfterAnalysis: sampleReturnFlag,
+      chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
     });
     if (lastCalculatedValuesRef.current === currentValuesHash) {
       return; // Already calculated for these values
@@ -1677,8 +1795,9 @@ const BookEquipment = () => {
         }
       }
       // Parameters A and B (when present) must be at least 1 for NUMERIC fields; RADIO/COMBO must have a selection.
-      const abKeys = ['A', 'B'];
-      for (const key of abKeys) {
+      if (equipmentDetail.profile_type !== "PRINT_3D") {
+        const abKeys = ['A', 'B'];
+        for (const key of abKeys) {
         const field = equipmentDetail.input_fields.find((f: any) => f.field_key === key);
         if (field) {
           const fieldType = String(field.field_type || '').toUpperCase().trim();
@@ -1686,22 +1805,25 @@ const BookEquipment = () => {
           const label = field.field_label || key;
           if (fieldType === 'RADIO' || fieldType === 'COMBO') {
             if (raw === undefined || raw === null || raw === '') {
-              toast.error(`Please select "${label}".`);
+              if (!isCalculateChargesFlow) toast.error(`Please select "${label}".`);
               return;
             }
             continue;
           }
           const num = typeof raw === 'number' ? raw : Number(raw);
           if (Number.isNaN(num) || num < 1) {
-            toast.error(`"${label}" must be at least 1.`);
+            if (!isCalculateChargesFlow) toast.error(`"${label}" must be at least 1.`);
             return;
           }
         }
+      }
       }
     }
 
     // If no input fields, we still need to call the API with empty values
     // This ensures slots only appear after successful charge calculation
+
+    const requestSeq = ++chargeRequestSeqRef.current;
 
     try {
       setLoadingCharge(true);
@@ -1709,13 +1831,23 @@ const BookEquipment = () => {
         selectedEquipment.id,
         inputFieldValues,
         {
-          ...(isAdminUser() && adminBookForUserId ? { user_id: adminBookForUserId } : {}),
-          ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
+          ...(isCalculateChargesFlow && chargeEstimateUserType
+            ? { user_type: chargeEstimateUserType }
+            : isAdminUser() && adminBookForUserId
+              ? { user_id: adminBookForUserId }
+              : {}),
+          ...(rewardPointsToRedeem.trim() && !isCalculateChargesFlow ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
+          ...(equipmentDetail.profile_type === "PRINT_3D" && printAnalysisBatchId
+            ? { print_analysis_batch_id: printAnalysisBatchId }
+            : equipmentDetail.profile_type === "PRINT_3D" && printAnalysisId
+              ? { print_analysis_id: printAnalysisId }
+              : {}),
         }
       );
 
       if (response.error) {
+        if (requestSeq !== chargeRequestSeqRef.current) return;
         // Set failed state to show "coming soon" message
         setChargeCalculationFailed(true);
         setChargeCalculated(false);
@@ -1731,6 +1863,7 @@ const BookEquipment = () => {
       }
 
       if (response.data) {
+        if (requestSeq !== chargeRequestSeqRef.current) return;
         const totalMinutes = response.data.total_time_minutes ?? 0;
         const abFields = equipmentDetail.input_fields?.filter(
           (f: any) => f.field_key === 'A' || f.field_key === 'B'
@@ -1755,7 +1888,7 @@ const BookEquipment = () => {
           reward: response.data.reward,
         });
         setChargeCalculated(true);
-        setShowSlots(searchParams.get("proforma") !== "1");
+        setShowSlots(!isProformaFlow && !isCalculateChargesFlow);
         setChargeCalculationFailed(false); // Reset failed state on success
         // When charge is (re)calculated, deselect all slots and turn off auto-select
         const wasAutoSelectOn = autoSlotSelectionRef.current;
@@ -1769,6 +1902,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = currentValuesHash;
       }
     } catch (error: any) {
+      if (requestSeq !== chargeRequestSeqRef.current) return;
       // Set failed state to show "coming soon" message
       setChargeCalculationFailed(true);
       setChargeCalculated(false);
@@ -1778,9 +1912,83 @@ const BookEquipment = () => {
       lastCalculatedValuesRef.current = currentValuesHash;
       // Don't show error toast, just show "coming soon" message
     } finally {
-      setLoadingCharge(false);
+      if (requestSeq === chargeRequestSeqRef.current) {
+        setLoadingCharge(false);
+      }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow]);
+
+  const handleExportChargeEstimatePdf = useCallback(async () => {
+    if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
+      toast.error("Complete the inputs and wait for charge calculation first.");
+      return;
+    }
+    setExportingChargePdf(true);
+    try {
+      const labelMap: Record<string, string> = {};
+      equipmentDetail.input_fields?.forEach((f: { field_key?: string; field_label?: string }) => {
+        if (f.field_key) labelMap[f.field_key] = f.field_label || f.field_key;
+      });
+      const input_labels_and_values: Record<string, string | number> = {};
+      Object.entries(inputFieldValues).forEach(([k, v]) => {
+        if (v === "" || v === undefined || v === null) return;
+        if (k.endsWith("_elements")) return;
+        if (Array.isArray(v)) {
+          input_labels_and_values[labelMap[k] ?? k] = v.join(", ");
+          return;
+        }
+        input_labels_and_values[labelMap[k] ?? k] = typeof v === "boolean" ? (v ? "Yes" : "No") : v;
+      });
+      if (isCalculateChargesFlow && chargeEstimateUserType) {
+        input_labels_and_values["User type"] = getChargeEstimateUserTypeLabel(chargeEstimateUserType);
+      }
+      const base = calculatedCharge.base_charge ?? calculatedCharge.total_charge;
+      const gst = calculatedCharge.gst_amount ?? "0";
+      const res = await apiClient.proformaInvoiceDownloadPdf({
+        line_items: [
+          {
+            equipment_id: selectedEquipment.id,
+            equipment_code: equipmentDetail.code ?? "",
+            equipment_name: equipmentDetail.name ?? selectedEquipment.name,
+            input_values: inputValuesForProformaStorage(inputFieldValues),
+            input_labels_and_values,
+            charge_breakdown: calculatedCharge.charge_breakdown,
+            base_charge: String(base),
+            gst_amount: String(gst),
+            total_charge: calculatedCharge.total_charge,
+          },
+        ],
+        subtotal: String(base),
+        total_gst: String(gst),
+        total_amount: calculatedCharge.total_charge,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.blob) {
+        const url = URL.createObjectURL(res.blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const code = equipmentDetail.code || `equipment_${selectedEquipment.id}`;
+        a.download = `charge_estimate_${code}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Charge estimate downloaded.");
+      }
+    } finally {
+      setExportingChargePdf(false);
+    }
+  }, [
+    selectedEquipment,
+    equipmentDetail,
+    chargeCalculated,
+    calculatedCharge,
+    chargeCalculationFailed,
+    inputFieldValues,
+    isCalculateChargesFlow,
+    chargeEstimateUserType,
+  ]);
 
   const handleProformaAddToInvoice = useCallback(() => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -1901,7 +2109,11 @@ const BookEquipment = () => {
     }
 
     // Admin in "book for user" mode: require a selected user before calculating
-    if (isAdminUser() && adminManageMode === 'book' && !adminBookForUserId) {
+    if (!isCalculateChargesFlow && isAdminUser() && adminManageMode === 'book' && !adminBookForUserId) {
+      return;
+    }
+
+    if (isCalculateChargesFlow && !chargeEstimateUserType) {
       return;
     }
 
@@ -1910,12 +2122,23 @@ const BookEquipment = () => {
       return;
     }
 
-    // Skip if already loading
-    if (loadingCharge) {
+    if (equipmentDetail.profile_type === "PRINT_3D" && !printAnalysisId && !printAnalysisBatchId) {
+      if (chargeCalculated || chargeCalculationFailed) {
+        setChargeCalculated(false);
+        setCalculatedCharge(null);
+        setShowSlots(false);
+        setChargeCalculationFailed(false);
+        lastCalculatedValuesRef.current = '';
+      }
       return;
     }
 
-    // Check if all required fields are filled (if there are input fields)
+    // Skip if already loading (booking flow only; estimate mode re-queues below)
+    if (loadingCharge && !isCalculateChargesFlow) {
+      return;
+    }
+
+    const sampleReturnFlag = bookingAsExternalTarget ? sampleReturnAfterAnalysis : false;
     const hasInputFields = equipmentDetail.input_fields && equipmentDetail.input_fields.length > 0;
     let allRequiredFilled = true;
 
@@ -1929,14 +2152,18 @@ const BookEquipment = () => {
       });
     }
 
-    // Calculate charge if:
-    // 1. No input fields (always calculate with empty values)
-    // 2. Has input fields and all required fields are filled
-    if (!hasInputFields || allRequiredFilled) {
-      // Create hash of current values
-      const currentValuesHash = JSON.stringify({
+    const readyToCalculate = isCalculateChargesFlow
+      ? Boolean(chargeEstimateUserType) && inputsReadyForChargeEstimate(equipmentDetail, inputFieldValues)
+      : (!hasInputFields || allRequiredFilled);
+
+    // Calculate charge when inputs are sufficient
+    if (readyToCalculate) {
+      const currentValuesHash = buildChargeCalculationHash({
         inputFieldValues,
-        sample_return_after_analysis: bookingAsExternalTarget ? sampleReturnAfterAnalysis : false,
+        printAnalysisId,
+        printAnalysisBatchId,
+        sampleReturnAfterAnalysis: sampleReturnFlag,
+        chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
       });
       
       // Skip if we already calculated (or failed) for these exact values
@@ -1951,7 +2178,7 @@ const BookEquipment = () => {
 
       // Admin booking for user with no input fields: run immediately so charge/slots/confirm populate
       const isAdminBookForUserNoInputs = isAdminUser() && adminManageMode === "book" && adminBookForUserId && !hasInputFields;
-      const debounceMs = isAdminBookForUserNoInputs ? 0 : 500;
+      const debounceMs = isCalculateChargesFlow ? 250 : isAdminBookForUserNoInputs ? 0 : 500;
 
       calculationTimeoutRef.current = setTimeout(() => {
         calculateCharge();
@@ -1972,7 +2199,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis]);
+  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
@@ -2518,8 +2745,10 @@ const BookEquipment = () => {
   }, [userAutoSlotSelectionPref]);
 
   const checkAuth = async () => {
+    const isGuestCalculateFlow = searchParams.get("mode") === "calculate";
     const token = apiClient.getToken();
     if (!token) {
+      if (isGuestCalculateFlow) return;
       const returnPath = `${window.location.pathname}${window.location.search}`;
       setPostLoginRedirect(returnPath);
       navigate("/auth");
@@ -2528,6 +2757,7 @@ const BookEquipment = () => {
 
     const userResponse = await apiClient.getCurrentUser();
     if (userResponse.error || !userResponse.data) {
+      if (isGuestCalculateFlow) return;
       const returnPath = `${window.location.pathname}${window.location.search}`;
       setPostLoginRedirect(returnPath);
       navigate("/auth");
@@ -3131,25 +3361,11 @@ const BookEquipment = () => {
   };
 
   // Normalize user type to string for comparison
-  const normalizeUserType = (type: string | number | null): string | null => {
-    if (type === null || type === undefined) return null;
-    if (typeof type === 'string') return type.toLowerCase();
-    if (typeof type === 'number') {
-      // Map common number codes to strings (adjust based on your backend mapping)
-      // Common mappings: 1=student, 2=faculty, etc.
-      const typeMap: Record<number, string> = {
-        1: 'student',
-        2: 'faculty',
-        // Add other mappings as needed
-      };
-      return typeMap[type] || String(type);
-    }
-    return null;
-  };
+  const normalizeUserType = (type: string | number | null): string | null => normalizeUserTypeCode(type);
 
   /** Normalized types that use the external booking window (reserved slots + today+15 rule). */
   const isExternalUserTypeNormalized = (normalizedType: string | null): boolean =>
-    normalizedType != null && ["external", "rnd", "industry", "other"].includes(normalizedType);
+    normalizedType != null && isExternalBookingUserType(normalizedType);
 
   const isAdminUser = (): boolean => {
     if (!userType) return false;
@@ -3475,7 +3691,32 @@ const BookEquipment = () => {
       ...prev,
       [fieldKey]: value
     }));
+    if (searchParams.get("mode") === "calculate") {
+      lastCalculatedValuesRef.current = "";
+    }
   };
+
+  const handlePrint3DReady = useCallback((values: Print3DBookingValues | null) => {
+    if (!values) {
+      setPrintAnalysisId(null);
+      setPrintAnalysisBatchId(null);
+      lastCalculatedValuesRef.current = '';
+      setChargeCalculated(false);
+      setCalculatedCharge(null);
+      setShowSlots(false);
+      setChargeCalculationFailed(false);
+      return;
+    }
+    setPrintAnalysisId(values.batchId ? null : values.analysisId ?? null);
+    setPrintAnalysisBatchId(values.batchId ?? null);
+    lastCalculatedValuesRef.current = '';
+    setInputFieldValues((prev) => ({
+      ...prev,
+      A: values.weightGrams,
+      B: values.materialCode,
+      C: values.timeMinutes,
+    }));
+  }, []);
 
   /** Prefer admin-configured source; otherwise first PERIODIC_TABLE field on this equipment. */
   const resolvePeriodicFieldKey = useCallback(
@@ -3658,6 +3899,7 @@ const BookEquipment = () => {
       }
 
       setInputFieldValues((prev) => ({ ...prev, ...nextInputUpdates }));
+      lastCalculatedValuesRef.current = "";
       if (options?.openPeriodicDialogAfter) {
         setPeriodicTableFieldKey(periodicFieldKeyParam);
       } else {
@@ -3838,6 +4080,20 @@ const BookEquipment = () => {
       return;
     }
 
+    if (equipmentDetail?.profile_type === "PRINT_3D" && !printAnalysisId && !printAnalysisBatchId) {
+      toast.error("Upload and analyze STL file(s) before booking.");
+      return;
+    }
+
+    const print3dBookExtras =
+      equipmentDetail?.profile_type === "PRINT_3D"
+        ? printAnalysisBatchId
+          ? { print_analysis_batch_id: printAnalysisBatchId }
+          : printAnalysisId
+            ? { print_analysis_id: printAnalysisId }
+            : {}
+        : {};
+
     setIsSubmittingBooking(true);
 
     try {
@@ -3851,6 +4107,7 @@ const BookEquipment = () => {
           request_waitlist_without_slot_selection: true,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...print3dBookExtras,
         });
         const errRes = res as { error?: string; waitlist_position?: number; waitlist_code?: string };
         if (res.error || errRes.waitlist_position != null || errRes.waitlist_code) {
@@ -3899,6 +4156,7 @@ const BookEquipment = () => {
               book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
               book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
               ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
+              ...print3dBookExtras,
             });
             if (res.error) {
               toast.error((res as { error: string }).error);
@@ -3955,6 +4213,7 @@ const BookEquipment = () => {
           book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
           ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
           ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...print3dBookExtras,
         });
         if (res.error) {
           const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string };
@@ -3984,6 +4243,9 @@ const BookEquipment = () => {
             amount_due?: string;
             input_values_adjusted?: boolean;
             input_values?: Record<string, string | boolean | string[] | number>;
+            require_istem_fbr?: boolean;
+            istem_portal_url?: string;
+            istem_fbr_status?: string | null;
             reward?: {
               points_used?: string;
               discount_amount?: string;
@@ -4012,11 +4274,16 @@ const BookEquipment = () => {
           setInputFieldValues((prev) => ({ ...prev, ...resData.input_values }));
           toast.info("Booking created with reduced parameters (1 slot) as requested. Input values have been updated.");
         }
-        if (bookingAsExternalTarget && realId != null && !resData?.payment_required) {
-          resetBookingPageToDefaults();
-          navigate(`/bookings/${realId}/next-steps`);
-          toast.success("Booking confirmed. Complete I-STEM steps on the next page.");
-          return;
+        if (realId != null && !resData?.payment_required) {
+          const needsIstemNextSteps =
+            resData?.require_istem_fbr === true ||
+            resData?.istem_fbr_status != null;
+          if (needsIstemNextSteps) {
+            resetBookingPageToDefaults();
+            navigate(`/bookings/${realId}/next-steps`);
+            toast.success("Booking confirmed. Complete I-STEM steps on the next page.");
+            return;
+          }
         }
         resetBookingPageToDefaults();
         setBookingResultDialog({
@@ -4117,6 +4384,7 @@ const BookEquipment = () => {
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...print3dBookExtras,
         });
       });
 
@@ -4202,7 +4470,11 @@ const BookEquipment = () => {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-3xl font-bold">
-                {canAccessManageEquipmentModes() ? `Manage ${selectedEquipment.name}` : selectedEquipment.name}
+                {isCalculateChargesFlow
+                  ? `Calculate Charges — ${selectedEquipment.name}`
+                  : canAccessManageEquipmentModes()
+                    ? `Manage ${selectedEquipment.name}`
+                    : selectedEquipment.name}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
                 <EquipmentDepartmentLabel
@@ -4244,7 +4516,7 @@ const BookEquipment = () => {
         </div>
 
         {/* Admin: mode selector (Manage this Equipment) */}
-        {canAccessManageEquipmentModes() && adminManageMode === null && (
+        {canAccessManageEquipmentModes() && adminManageMode === null && !isCalculateChargesFlow && (
           <div className="max-w-2xl mx-auto mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card
               className="cursor-pointer hover:shadow-lg transition-shadow"
@@ -4272,7 +4544,7 @@ const BookEquipment = () => {
         )}
 
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
-        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && (
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
           <Card className="w-full max-w-none mx-auto mb-8 overflow-hidden border-2 border-primary/20 shadow-xl bg-gradient-to-b from-card to-card/95">
             <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 py-5 text-white">
               <div className="flex justify-between items-center flex-wrap gap-4">
@@ -5067,7 +5339,7 @@ const BookEquipment = () => {
         </Dialog>
 
         {/* Booking flow: hide when admin and mode not yet chosen or when in status mode */}
-        {(!isAdminUser() || adminManageMode === 'book') && (
+        {((!isAdminUser() || adminManageMode === 'book') || isCalculateChargesFlow) && (
         <div className="max-w-6xl mx-auto">
           <Card>
               <CardHeader>
@@ -5075,23 +5347,29 @@ const BookEquipment = () => {
                   <div>
                     <CardTitle>{selectedEquipment.name}</CardTitle>
                     <CardDescription>
-                      {Number(selectedEquipment.internalRate) > 0 && (
-                        <>₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour</>
-                      )}
-                      {equipmentDetail?.slot_duration_minutes && (
+                      {isCalculateChargesFlow ? (
+                        <>Select user type and parameters to estimate charges. No time slots are required.</>
+                      ) : (
                         <>
-                          {Number(selectedEquipment.internalRate) > 0 && ' • '}
-                          {equipmentDetail.slot_duration_minutes >= 60 ? (
-                            <>
-                              Slot Duration: {Math.floor(equipmentDetail.slot_duration_minutes / 60)}h
-                              {equipmentDetail.slot_duration_minutes % 60 > 0 && ` ${equipmentDetail.slot_duration_minutes % 60}m`}
-                            </>
-                          ) : (
-                            <>Slot Duration: {equipmentDetail.slot_duration_minutes} {equipmentDetail.slot_duration_minutes === 1 ? 'minute' : 'minutes'}</>
+                          {Number(selectedEquipment.internalRate) > 0 && (
+                            <>₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour</>
                           )}
+                          {equipmentDetail?.slot_duration_minutes && (
+                            <>
+                              {Number(selectedEquipment.internalRate) > 0 && ' • '}
+                              {equipmentDetail.slot_duration_minutes >= 60 ? (
+                                <>
+                                  Slot Duration: {Math.floor(equipmentDetail.slot_duration_minutes / 60)}h
+                                  {equipmentDetail.slot_duration_minutes % 60 > 0 && ` ${equipmentDetail.slot_duration_minutes % 60}m`}
+                                </>
+                              ) : (
+                                <>Slot Duration: {equipmentDetail.slot_duration_minutes} {equipmentDetail.slot_duration_minutes === 1 ? 'minute' : 'minutes'}</>
+                              )}
+                            </>
+                          )}
+                          {' - Select your preferred time slots'}
                         </>
                       )}
-                      {' - Select your preferred time slots'}
                     </CardDescription>
                   </div>
                   <Button
@@ -5111,7 +5389,7 @@ const BookEquipment = () => {
               </CardHeader>
               <CardContent>
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
-                {canAccessManageEquipmentModes() && adminManageMode === 'book' && (
+                {canAccessManageEquipmentModes() && adminManageMode === 'book' && !isCalculateChargesFlow && (
                   <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -5262,6 +5540,54 @@ const BookEquipment = () => {
                   </div>
                 )}
 
+                {isCalculateChargesFlow && (
+                  <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-3">
+                    <h3 className="text-lg font-semibold">Select User Type</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Charges are estimated using the standard rate for the selected user type.
+                    </p>
+                    <div className="max-w-md space-y-2">
+                      <Label htmlFor="charge-estimate-user-type">User type</Label>
+                      <Select
+                        value={chargeEstimateUserType}
+                        onValueChange={(value) => {
+                          setChargeEstimateUserType(value);
+                          setChargeCalculated(false);
+                          setCalculatedCharge(null);
+                          setChargeCalculationFailed(false);
+                          lastCalculatedValuesRef.current = "";
+                        }}
+                      >
+                        <SelectTrigger id="charge-estimate-user-type">
+                          <SelectValue placeholder="Select user type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.code} value={opt.code}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {equipmentDetail?.profile_type === "PRINT_3D" && selectedEquipment && !repeatSourceBooking && (
+                  <Print3DBookingPanel
+                    equipmentId={selectedEquipment.id}
+                    materials={
+                      isCalculateChargesFlow
+                        ? undefined
+                        : (equipmentDetail as { print_materials?: PrintMaterial[] }).print_materials
+                    }
+                    estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
+                    onReady={handlePrint3DReady}
+                    onAnalyzingChange={setPrint3dAnalyzing}
+                    disabled={!!repeatSourceBooking}
+                  />
+                )}
+
                 {/* Step 1: Input Fields Section */}
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold mb-4">Step 1: Provide Additional Information</h3>
@@ -5273,7 +5599,12 @@ const BookEquipment = () => {
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
                     <div className="mb-4 p-4 rounded-lg">
                       <div className="grid grid-cols-1 gap-4">
-                        {equipmentDetail.input_fields.map((field: any) => {
+                        {equipmentDetail.input_fields
+                          .filter((field: any) => {
+                            if (equipmentDetail?.profile_type !== "PRINT_3D") return true;
+                            return !["A", "B", "C"].includes(String(field.field_key || "").toUpperCase());
+                          })
+                          .map((field: any) => {
                           // Normalize field_type to uppercase for case-insensitive matching
                           const fieldType = String(field.field_type || '').toUpperCase().trim();
                           
@@ -5948,11 +6279,22 @@ const BookEquipment = () => {
                     </DialogContent>
                   </Dialog>
                   
-                  {/* Loading indicator for auto-calculation */}
-                  {loadingCharge && (
-                    <div className="flex justify-center items-center gap-2 mt-4 text-sm text-muted-foreground">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      Calculating charge...
+                  {/* Progress while STL analysis or charge calculation is running */}
+                  {(print3dAnalyzing || loadingCharge) && (
+                    <div className="mt-4 space-y-2 rounded-lg border bg-muted/30 p-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {print3dAnalyzing && loadingCharge
+                            ? "Analyzing STL and calculating charges…"
+                            : print3dAnalyzing
+                              ? "Analyzing STL file…"
+                              : "Calculating charge and print time…"}
+                        </span>
+                        <span className="font-medium tabular-nums">
+                          {loadingCharge ? `${Math.round(chargeProgress)}%` : "…"}
+                        </span>
+                      </div>
+                      {loadingCharge && <Progress value={chargeProgress} className="h-2" />}
                     </div>
                   )}
                   
@@ -5973,6 +6315,9 @@ const BookEquipment = () => {
                     <h3 className="text-lg font-semibold mb-4">
                       {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
                     </h3>
+                    {equipmentDetail?.profile_type === "PRINT_3D" && (
+                      <p className="text-sm font-bold text-amber-900 mb-4">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
+                    )}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Total Time:</span>
@@ -5997,7 +6342,7 @@ const BookEquipment = () => {
                           <span>₹{Number(calculatedCharge.total_charge).toFixed(2)}</span>
                         </div>
                       </div>
-                      {rewardSummary?.config?.is_enabled && (
+                      {rewardSummary?.config?.is_enabled && !isCalculateChargesFlow && (
                         <div className="pt-3 border-t space-y-2">
                           <p className="text-xs text-muted-foreground">
                             Available reward points: <span className="font-medium text-foreground">{rewardSummary.points_balance}</span>
@@ -6052,8 +6397,45 @@ const BookEquipment = () => {
                   </div>
                 )}
 
+                {isCalculateChargesFlow && chargeCalculated && calculatedCharge && !chargeCalculationFailed && (
+                  <div className="mb-6 flex flex-wrap gap-3 items-center rounded-lg border border-primary/30 bg-primary/5 p-4">
+                    <p className="text-sm text-muted-foreground w-full sm:w-auto sm:flex-1">
+                      Charge estimate for{" "}
+                      <span className="font-medium text-foreground">
+                        {getChargeEstimateUserTypeLabel(chargeEstimateUserType)}
+                      </span>
+                      . Export a PDF or return to the equipment page to book.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={exportingChargePdf}
+                      onClick={() => void handleExportChargeEstimatePdf()}
+                    >
+                      {exportingChargePdf ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Exporting…
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Export as PDF
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(`/equipment/${selectedEquipment.id}`)}
+                    >
+                      Back to equipment
+                    </Button>
+                  </div>
+                )}
+
                 {/* Step 3: Slot Selection (only shown after charge calculation) */}
-                {showSlots && chargeCalculated && !isProformaFlow && (
+                {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && (
                   <>
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-4">

@@ -59,6 +59,7 @@ import SetupTestUsers from "./pages/SetupTestUsers";
 import Profile from "./pages/Profile";
 import PeriodicTable from "./pages/PeriodicTable";
 import IcpmsStandardsTest from "./pages/IcpmsStandardsTest";
+import Print3DAnalyzerTest from "./pages/Print3DAnalyzerTest";
 import EquipmentProfile from "./pages/EquipmentProfile";
 import Tickets from "./pages/Tickets";
 import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
@@ -153,6 +154,7 @@ const App = () => (
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/periodic-table" element={<PeriodicTable />} />
                 <Route path="/test/icpms-standards" element={<IcpmsStandardsTest />} />
+                <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
                 <Route path="/tickets" element={<Tickets />} />
                 <Route path="/page/:slug" element={<CmsPageView />} />
                 {/* Wallet recharge request action pages - redirect to Django backend */}

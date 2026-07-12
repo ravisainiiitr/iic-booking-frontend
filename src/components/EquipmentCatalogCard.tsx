@@ -235,7 +235,7 @@ export default function EquipmentCatalogCard({
               navigate(`/equipment/${item.id}`);
             }}
           >
-            View Details
+            View Details and Charges
           </Button>
         </div>
       </CardContent>

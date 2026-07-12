@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -213,7 +214,7 @@ const EquipmentProfile = () => {
     if (!userType) return false;
     if (isAdminUser()) return true; // Admin can see the button (labeled "Manage this Equipment")
 
-    const allowedStringTypes = ['student', 'faculty', 'external', 'rnd', 'industry'];
+    const allowedStringTypes = ['student', 'faculty', 'external', 'rnd', 'industry', 'startup_incubated_iitr', 'external_startup_msme'];
     
     // Handle string user_type (case-insensitive)
     if (typeof userType === 'string') {
@@ -255,6 +256,11 @@ const EquipmentProfile = () => {
       return;
     }
     navigate(bookingUrl);
+  };
+
+  const handleCalculateChargesClick = () => {
+    if (!equipment) return;
+    navigate(`/book-equipment?equipment_id=${equipment.equipment_id}&mode=calculate`);
   };
 
   const fetchEquipmentProfile = async () => {
@@ -721,6 +727,14 @@ const EquipmentProfile = () => {
                       onClick={handleBookOrManageClick}
                     >
                       {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      size="lg"
+                      onClick={handleCalculateChargesClick}
+                    >
+                      View and Calculate Charges
                     </Button>
                     {!canManageEquipment() && !isEquipmentOperational() && (
                       <p className="text-sm text-amber-600 font-medium">
