@@ -54,6 +54,7 @@ const USERS_SECTIONS: SectionItem[] = [
 
 const AdminPanel = () => {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isStrictAdmin, setIsStrictAdmin] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -78,6 +79,7 @@ const AdminPanel = () => {
 
       const isAdminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
       const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
+      setIsStrictAdmin(String(userResponse.data.user_type ?? "").toLowerCase() === "admin");
       const isAdminValue = isAdminByType || adminCheck.data?.is_admin === true;
       if (!isAdminValue) {
         toast({
@@ -125,6 +127,7 @@ const AdminPanel = () => {
         </div>
 
         <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-3">
+          {isStrictAdmin && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -149,6 +152,7 @@ const AdminPanel = () => {
               </button>
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader>

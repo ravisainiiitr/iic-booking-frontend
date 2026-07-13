@@ -332,6 +332,21 @@ const Dashboard = () => {
     isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
   const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
 
+  // OIC dashboard cards: Admin always; manager only when enabled in Django admin for that user.
+  const canSeeOicTaNomination =
+    isAdmin || (isOicUser && user?.oic_enable_ta_nomination === true);
+  const canSeeOicTaDutyAssignments =
+    isAdmin || (isOicUser && user?.oic_enable_ta_duty_assignments === true);
+  const canSeeOicLeaveManagement =
+    isAdmin || (isOicUser && user?.oic_enable_leave_management === true);
+  const canSeeOicRewardConfig =
+    isAdmin || (isOicUser && user?.oic_enable_reward_config === true);
+  // Students still need TA duty assignments without OIC flags.
+  const canSeeTaDutyAssignmentsCard =
+    canSeeOicTaDutyAssignments ||
+    userTypeStr === "student" ||
+    userTypeStr === "individual_student";
+
   // Admin and OIC (manager, operator, finance) can see booking attempt log
   const canAccessBookingAttemptLog =
     apiClient.isAdminPanelUser(user?.user_type) ||
@@ -2151,7 +2166,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           )}
-          {(isOicUser || isAdmin) && (
+          {canSeeOicLeaveManagement && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800 h-full"
               onClick={() => navigate("/oic-leave-management")}
@@ -2560,7 +2575,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isOperatorOrManager && !isLabInchargeUser && (
+          {canSeeOicTaNomination && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => navigate("/ta-nomination-call")}
@@ -2585,7 +2600,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {((isOperatorOrManager && !isLabInchargeUser) || userTypeStr === "student" || userTypeStr === "individual_student") && (
+          {canSeeTaDutyAssignmentsCard && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/ta-assignments")}
@@ -2612,7 +2627,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isOperatorOrManager && !isLabInchargeUser && (
+          {canSeeOicRewardConfig && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
               onClick={() => navigate("/admin-settings/rewards")}
@@ -2665,7 +2680,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {canAccessAdminTools && (!showsLabStyleDashboard || isOicUser) && (
+          {isAdmin && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
               onClick={() => navigate("/manage/external-user-management")}
@@ -2742,7 +2757,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {apiClient.isAdminPanelUser(user?.user_type) && (
+          {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/equipment-lifecycle")}
@@ -2767,7 +2782,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {apiClient.isAdminPanelUser(user?.user_type) && (
+          {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
               onClick={() => navigate("/procurement-workflow")}
@@ -2792,7 +2807,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {apiClient.isAdminPanelUser(user?.user_type) && (
+          {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
               onClick={() => navigate("/inventory-management")}
@@ -2817,7 +2832,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {(isAdmin || isOicUser) && (
+          {isAdmin && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
               onClick={() => navigate("/content-management")}

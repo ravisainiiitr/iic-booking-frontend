@@ -33,6 +33,11 @@ interface User {
   last_login?: string | null;
   /** Set by backend from admin Auth settings (inactivity timeout is disabled; this is unused). */
   auth_inactivity_timeout_seconds?: number;
+  /** Officer In Charge dashboard feature flags (Django admin). */
+  oic_enable_ta_nomination?: boolean;
+  oic_enable_ta_duty_assignments?: boolean;
+  oic_enable_leave_management?: boolean;
+  oic_enable_reward_config?: boolean;
 }
 
 interface AuthContextType {

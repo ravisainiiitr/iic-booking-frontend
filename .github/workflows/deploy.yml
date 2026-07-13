@@ -1,0 +1,24 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Show Runner Information
+        run: |
+          echo "Runner: $(hostname)"
+          pwd
+
+      - name: Deploy Frontend
+        run: |
+          cd /home/ubuntu
+          ./deploy-frontend.sh

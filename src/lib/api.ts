@@ -251,6 +251,11 @@ interface User {
   is_staff?: boolean;
   /** External users: must confirm I-STEM portal registration before booking. */
   istem_portal_acknowledged?: boolean;
+  /** Officer In Charge dashboard feature flags (set in Django admin). */
+  oic_enable_ta_nomination?: boolean;
+  oic_enable_ta_duty_assignments?: boolean;
+  oic_enable_leave_management?: boolean;
+  oic_enable_reward_config?: boolean;
 }
 
 /** Student equipment operating nomination (semester-wise, supervisor nominates). */

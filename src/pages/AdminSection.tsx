@@ -180,6 +180,8 @@ export default function AdminSection() {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  /** Only Admin user_type may manage/update users (Actions / Update). */
+  const [isStrictAdmin, setIsStrictAdmin] = useState(false);
   const [menuDocumentFile, setMenuDocumentFile] = useState<File | null>(null);
   const [pagesList, setPagesList] = useState<Record<string, unknown>[]>([]);
   const [fetchUrl, setFetchUrl] = useState("");
@@ -306,6 +308,7 @@ export default function AdminSection() {
         navigate("/admin");
         return;
       }
+      setIsStrictAdmin(String(userRes.data.user_type ?? "").toLowerCase() === "admin");
       setAuthChecked(true);
     };
     check();
@@ -1023,7 +1026,8 @@ export default function AdminSection() {
             <CardTitle>{title}</CardTitle>
             <CardDescription>View, add, edit, and delete records. No Django Admin login required.</CardDescription>
             <div className="flex justify-end">
-              {sectionKey !== "repeatSampleRequests" && (
+              {sectionKey !== "repeatSampleRequests" &&
+                !(sectionKey === "users" && !isStrictAdmin) && (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add
@@ -1630,7 +1634,7 @@ export default function AdminSection() {
                           <TableHead>Email Verified</TableHead>
                           <TableHead>Admin Approved</TableHead>
                           <TableHead>Active</TableHead>
-                          <TableHead className="w-[100px]">Actions</TableHead>
+                          {isStrictAdmin && <TableHead className="w-[100px]">Actions</TableHead>}
                         </TableRow>
                       ) : (
                         <TableRow>
@@ -1856,22 +1860,30 @@ export default function AdminSection() {
                         ? list.map((row) => (
                             <TableRow key={row[idField] ?? row.id}>
                               <TableCell>
-                                <button
-                                  type="button"
-                                  onClick={() => openEdit(row)}
-                                  className="text-primary font-medium underline underline-offset-2 hover:no-underline text-left"
-                                >
-                                  {row.email != null && row.email !== "" ? String(row.email) : "—"}
-                                </button>
+                                {isStrictAdmin ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEdit(row)}
+                                    className="text-primary font-medium underline underline-offset-2 hover:no-underline text-left"
+                                  >
+                                    {row.email != null && row.email !== "" ? String(row.email) : "—"}
+                                  </button>
+                                ) : (
+                                  <span>{row.email != null && row.email !== "" ? String(row.email) : "—"}</span>
+                                )}
                               </TableCell>
                               <TableCell>
-                                <button
-                                  type="button"
-                                  onClick={() => openEdit(row)}
-                                  className="text-primary font-medium underline underline-offset-2 hover:no-underline text-left"
-                                >
-                                  {row.name != null && row.name !== "" ? String(row.name) : "—"}
-                                </button>
+                                {isStrictAdmin ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEdit(row)}
+                                    className="text-primary font-medium underline underline-offset-2 hover:no-underline text-left"
+                                  >
+                                    {row.name != null && row.name !== "" ? String(row.name) : "—"}
+                                  </button>
+                                ) : (
+                                  <span>{row.name != null && row.name !== "" ? String(row.name) : "—"}</span>
+                                )}
                               </TableCell>
                               <TableCell>{row.user_type_display != null ? String(row.user_type_display) : (row.user_type != null ? String(row.user_type) : "—")}</TableCell>
                               <TableCell>
@@ -1884,6 +1896,7 @@ export default function AdminSection() {
                               <TableCell>{row.email_verified === true || row.email_verified === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>{row.admin_approved === true || row.admin_approved === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>{row.is_active === true || row.is_active === "true" ? "Yes" : "No"}</TableCell>
+                              {isStrictAdmin && (
                               <TableCell>
                                 <div className="flex gap-2">
                                   {!(row.is_active === true || row.is_active === "true") && (
@@ -1925,6 +1938,7 @@ export default function AdminSection() {
                                   </Button>
                                 </div>
                               </TableCell>
+                              )}
                             </TableRow>
                           ))
                         : list.map((row, idx) => (
@@ -3566,6 +3580,7 @@ export default function AdminSection() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
+                  {isStrictAdmin && (
                   <Button
                     onClick={() => handleUsersUpdateWithDiscountedProfiles()}
                     disabled={saving || !String(formData.name ?? "").trim()}
@@ -3573,6 +3588,7 @@ export default function AdminSection() {
                     {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Update
                   </Button>
+                  )}
                 </DialogFooter>
               </>
             )) : (

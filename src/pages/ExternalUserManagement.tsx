@@ -1,11 +1,50 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Building2, UserCheck } from "lucide-react";
+import { ArrowLeft, Building2, UserCheck, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const ExternalUserManagement = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [allowed, setAllowed] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      const token = apiClient.getToken();
+      if (!token) {
+        navigate("/auth");
+        return;
+      }
+      const userRes = await apiClient.getCurrentUser();
+      if (userRes.error || !userRes.data) {
+        navigate("/auth");
+        return;
+      }
+      if (String(userRes.data.user_type ?? "").toLowerCase() !== "admin") {
+        toast({
+          title: "Access Denied",
+          description: "Only Admin can manage external users.",
+          variant: "destructive",
+        });
+        navigate("/dashboard");
+        return;
+      }
+      setAllowed(true);
+    };
+    check();
+  }, [navigate, toast]);
+
+  if (!allowed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
