@@ -1,16 +1,13 @@
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: ./compose/production/Dockerfile
-      args:
-        - VITE_API_URL=${VITE_API_URL:-http://15.206.88.2:8080/api}
-    image: iic_booking_production_frontend
-    container_name: iic_booking_production_frontend
-    env_file:
-      - ./.envs/.production/.frontend
-    environment:
-      - VITE_API_URL=${VITE_API_URL:-http://15.206.88.2:8080/api}
+build:
+  context: .
+  dockerfile: ./compose/production/Dockerfile
+  args:
+    - VITE_API_URL=${VITE_API_URL:-/api}
+
+environment:
+  - VITE_API_URL=${VITE_API_URL:-/api}
     ports:
       - '8000:80'
     restart: unless-stopped

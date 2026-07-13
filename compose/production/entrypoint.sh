@@ -5,7 +5,7 @@ set -e
 # This script injects environment variables into the built app at runtime
 
 # Default API URL if not set (production API)
-API_URL="${VITE_API_URL:-http://15.206.88.2:8080/api}"
+API_URL="${VITE_API_URL:-/api}"
 
 # Create a config.js file that can be loaded at runtime
 # This allows changing the API URL without rebuilding the Docker image
