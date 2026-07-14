@@ -1010,8 +1010,13 @@ const BookEquipment = () => {
           normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
         }
         
-        if (normalizedType === 'admin' || normalizedType === 'student' || normalizedType === 'faculty') {
-          // Admin / Students / Faculty: Start with current week
+        if (
+          normalizedType === "admin" ||
+          normalizedType === "manager" ||
+          normalizedType === "student" ||
+          normalizedType === "faculty"
+        ) {
+          // Admin / OIC / Students / Faculty: Start with current week
           setCurrentWeekStart(currentWeek);
         } else {
           // Other users: Start with week beginning 15 days from current date
@@ -2833,8 +2838,13 @@ const BookEquipment = () => {
       normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
     }
     
-    if (normalizedType === 'admin' || normalizedType === 'student' || normalizedType === 'faculty') {
-      // Admin / Students / Faculty: Start with current week
+    if (
+      normalizedType === "admin" ||
+      normalizedType === "manager" ||
+      normalizedType === "student" ||
+      normalizedType === "faculty"
+    ) {
+      // Admin / OIC / Students / Faculty: Start with current week
       setCurrentWeekStart(currentWeek);
     } else {
       // Other users: Start with week beginning 15 days from current date
@@ -3448,7 +3458,8 @@ const BookEquipment = () => {
 
   // Check if a week is allowed (must align with getAllowedWeeks() so slot fetch runs for every navigable week, including urgent extension)
   const isWeekAllowed = (weekStart: Date): boolean => {
-    if (isAdminUser()) return true;
+    // Admin and OIC may navigate any week when booking for users (no slot-window / +15-day restriction).
+    if (isAdminOrOIC()) return true;
     if (!userType) return false;
 
     const normalizedType = normalizeUserType(userType);
@@ -3507,7 +3518,7 @@ const BookEquipment = () => {
     return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
   };
 
-  // Get allowed weeks for navigation (admin or repeat-sample: any week; others restricted)
+  // Get allowed weeks for navigation (admin/OIC or repeat-sample: any week; others restricted)
   const getAllowedWeeks = (): Date[] => {
     if (!userType) return [];
     if (repeatSourceBooking) {
@@ -3519,7 +3530,7 @@ const BookEquipment = () => {
       }
       return weeks;
     }
-    if (isAdminUser()) {
+    if (isAdminOrOIC()) {
       const now = new Date();
       const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
       const weeks: Date[] = [];
@@ -6589,12 +6600,12 @@ const BookEquipment = () => {
                     <span className="font-semibold">
                       {format(currentWeekStart, "MMM dd")} - {format(addDays(currentWeekStart, 6), "MMM dd, yyyy")}
                     </span>
-                    {isAdminUser() && (
+                    {isAdminOrOIC() && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Available: Any week (no restriction)
                       </p>
                     )}
-                    {userType && !isAdminUser() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (() => {
+                    {userType && !isAdminOrOIC() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (() => {
                       const maxStr = equipmentDetail?.slot_window_max_date;
                       const currentWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
                       const nextWeekSun = addDays(addWeeks(currentWeek, 1), 6);
@@ -6615,7 +6626,7 @@ const BookEquipment = () => {
                         </p>
                       );
                     })()}
-                    {userType && !isAdminUser() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
+                    {userType && !isAdminOrOIC() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Available: One week window starting 15 days from today
                       </p>
@@ -6802,7 +6813,7 @@ const BookEquipment = () => {
                           const bookingId = hasBookedStatus ? (slotData?.booking_id ?? null) : null;
                           // Admin: only BOOKED slots are non-selectable; other statuses (BLOCKED, weekend/holiday) are bookable
                           const isActuallyBooked = hasBookedStatus;
-                          const considerBooked = isAdminUser() ? isActuallyBooked : (isSlotBookedStatus || isBooked || hasBookedStatus);
+                          const considerBooked = isAdminOrOIC() ? isActuallyBooked : (isSlotBookedStatus || isBooked || hasBookedStatus);
                           /** External: show real slot status/colors unless the cell is still default closed (NOT_AVAILABLE) on Sat/Sun/holiday. */
                           const externalCalendarAdminOverride =
                             slotBookableByExternalUser(slotData) ||
@@ -6907,7 +6918,7 @@ const BookEquipment = () => {
                               isDisabled = false; // Allow deselecting
                             } else if (isPast) {
                               displayStatus = considerBooked ? (slotDisplayLabel || slotStatusLabel || "Unavailable") : "No Booking";
-                              isDisabled = !isAdminUser();
+                              isDisabled = !isAdminOrOIC();
                             } else if (chargeNotCalculated) {
                               displayStatus = slotDisplayLabel || slotStatusLabel || "—";
                               isDisabled = true;
@@ -6990,7 +7001,7 @@ const BookEquipment = () => {
                             else if (slotStatus === "BOOKED" && slotData?.booking_status) statusForColor = String(slotData.booking_status).toUpperCase();
                             const status = statusForColor || "AVAILABLE";
                             const bg = slotColors[status] ?? (considerBooked ? slotColors.BOOKED : slotColors.AVAILABLE);
-                            if (isPast && !isAdminUser()) {
+                            if (isPast && !isAdminOrOIC()) {
                               cellStyle = { backgroundColor: "#94a3b8", color: "#ffffff" };
                             } else {
                               cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
@@ -7051,10 +7062,10 @@ const BookEquipment = () => {
                                 p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                 ${!slotExists ? 'cursor-not-allowed' : ''}
                                 ${considerBooked ? 'cursor-not-allowed' : ''}
-                                ${isPast && !considerBooked && slotExists && !isAdminUser() ? 'cursor-not-allowed' : ''}
+                                ${isPast && !considerBooked && slotExists && !isAdminOrOIC() ? 'cursor-not-allowed' : ''}
                                 ${isSelected ? 'bg-primary text-primary-foreground' : ''}
-                                ${(isAvailable || (isAdminUser() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'cursor-pointer hover:opacity-90' : ''}
-                                ${(isAvailable || (isAdminUser() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'cursor-not-allowed opacity-60' : ''}
+                                ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'cursor-pointer hover:opacity-90' : ''}
+                                ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'cursor-not-allowed opacity-60' : ''}
                               `}
                               style={cellStyle}
                             >
