@@ -1034,7 +1034,7 @@ const BookEquipment = () => {
     if ((actor !== "admin" && actor !== "manager") || adminManageMode !== "book") return;
     let cancelled = false;
     (async () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string> = { lite: "1" };
       if (adminUserTypeFilter !== USER_TYPE_FILTER_ALL) {
         // Backend expects exact UserType codes (e.g. RND / Industry keep original casing).
         params.user_type = adminUserTypeFilter;
@@ -1044,14 +1044,17 @@ const BookEquipment = () => {
         params
       );
       if (cancelled) return;
+      if (res.error) {
+        setUsersList([]);
+        toast.error(typeof res.error === "string" ? res.error : "Failed to load users for booking.");
+        return;
+      }
       const raw = res.data as unknown;
-      const list = res.error
-        ? []
-        : Array.isArray(raw)
-          ? raw
-          : Array.isArray((raw as { results?: unknown })?.results)
-            ? ((raw as { results: Array<{ id: number; name?: string; email?: string; user_type?: string }> }).results)
-            : [];
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as { results?: unknown })?.results)
+          ? ((raw as { results: Array<{ id: number; name?: string; email?: string; user_type?: string }> }).results)
+          : [];
       setUsersList(list);
     })();
     return () => {
@@ -1104,8 +1107,16 @@ const BookEquipment = () => {
       setEquipmentDeptWalletBalance(null);
       return;
     }
-    // Staff (admin, OIC, lab/accounts incharge) never need this department-wallet recharge banner.
-    if (!isEndUserBookingType(userType)) {
+    // Staff never need this department-wallet recharge banner (OIC/admin/lab/accounts).
+    // Hide whenever manage modes are available — covers stale localStorage edge cases.
+    const staffType = String(userType ?? "").toLowerCase();
+    if (
+      staffType === "admin" ||
+      staffType === "manager" ||
+      staffType === "operator" ||
+      staffType === "finance" ||
+      !isEndUserBookingType(userType)
+    ) {
       setEquipmentDeptWalletBalance(null);
       return;
     }
@@ -4519,7 +4530,9 @@ const BookEquipment = () => {
                 <EquipmentDepartmentLabel
                   name={(equipmentDetail as any)?.internal_department_name}
                 />
-                {equipmentDeptWalletBalance?.is_zero && isEndUserBookingType(userType) && (
+                {equipmentDeptWalletBalance?.is_zero &&
+                  isEndUserBookingType(userType) &&
+                  !canAccessManageEquipmentModes() && (
                   <div className="inline-flex flex-wrap items-center gap-3">
                     <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500 animate-pulse">
                       Wallet balance for this department is ₹0 — please recharge before booking.
