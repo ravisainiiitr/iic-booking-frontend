@@ -755,15 +755,19 @@ const BookEquipment = () => {
   const [sampleReturnAfterAnalysis, setSampleReturnAfterAnalysis] = useState<boolean>(false);
 
   const isDailySlotSelectableForUserBooking = useCallback((slot: DailySlot): boolean => {
-    const isAdmin = String(userType ?? "").toLowerCase() === "admin";
-    if (isAdmin) {
+    const actor = String(userType ?? "").toLowerCase();
+    // Admin and OIC may book any non-BOOKED slot (weekend / holiday / past / closed-day statuses).
+    if (actor === "admin" || actor === "manager") {
       if (adminManageMode === "book" && adminBookForUserId && bookingAsExternalTarget) {
         return slot.status === "AVAILABLE" && slot.reserved_for_external === true;
       }
       if (adminManageMode === "book" && adminBookForUserId && !bookingAsExternalTarget) {
-        return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
+        // Internal on-behalf: allow non-BOOKED including NOT_AVAILABLE (weekend/holiday).
+        const status = String(slot.status || "").toUpperCase();
+        return status !== "BOOKED" && status !== "BOOKING_NOT_UTILIZED" && slot.reserved_for_external !== true;
       }
-      return slot.status === "AVAILABLE";
+      const status = String(slot.status || "").toUpperCase();
+      return status !== "BOOKED" && status !== "BOOKING_NOT_UTILIZED";
     }
     if (isExternalUser) return slotBookableByExternalUser(slot);
     return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
@@ -2859,11 +2863,12 @@ const BookEquipment = () => {
     if (!slotData) return false;
     const slotStatus = String(slotData.status || "").toUpperCase();
     const hasBookedStatus = slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED";
-    // Admin booking for external target: same bookability as external (reserved + available only)
-    if (isAdminUser()) {
+    // Admin/OIC booking for external target: same bookability as external (reserved + available only)
+    if (isAdminOrOIC()) {
       if (adminManageMode === "book" && adminBookForUserId && bookingAsExternalTarget) {
         return hasBookedStatus || !slotBookableByExternalUser(slotData);
       }
+      // Admin/OIC may select weekend/holiday/past (any non-BOOKED status).
       return hasBookedStatus;
     }
     if (isExternalUser) return !slotBookableByExternalUser(slotData);
@@ -7655,7 +7660,7 @@ const BookEquipment = () => {
         </Dialog>
 
         <Dialog open={bookingResultDialog.open} onOpenChange={(open) => !open && setBookingResultDialog((p) => ({ ...p, open: false }))}>
-          <DialogContent className="max-w-2xl min-w-[min(92vw,640px)] sm:min-w-[640px]">
+          <DialogContent className="max-w-md sm:max-w-lg overflow-hidden">
             <DialogHeader>
               <DialogTitle
                 className={
@@ -7679,11 +7684,11 @@ const BookEquipment = () => {
                 </div>
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
+            <DialogFooter className="flex !flex-col gap-2 pt-4 sm:!flex-col sm:space-x-0 sm:justify-stretch">
               {bookingResultDialog.success && adminBookForUserId && (
                 <Button
                   variant="secondary"
-                  className="w-full sm:flex-1 gap-2"
+                  className="w-full gap-2"
                   onClick={async () => {
                     const displayName = usersList.find((u) => String(u.id) === adminBookForUserId)?.name ||
                       usersList.find((u) => String(u.id) === adminBookForUserId)?.email ||
@@ -7704,7 +7709,7 @@ const BookEquipment = () => {
               )}
               <Button
                 variant="outline"
-                className="w-full sm:flex-1"
+                className="w-full"
                 onClick={() => {
                   setBookingResultDialog((p) => ({ ...p, open: false }));
                 }}
@@ -7712,7 +7717,7 @@ const BookEquipment = () => {
                 Continue booking current equipment
               </Button>
               <Button
-                className="w-full sm:flex-1"
+                className="w-full"
                 onClick={() => {
                   setBookingResultDialog((p) => ({ ...p, open: false }));
                   navigate("/equipments");
