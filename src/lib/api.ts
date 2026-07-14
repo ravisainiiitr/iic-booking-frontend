@@ -1505,9 +1505,8 @@ class ApiClient {
   }
 
   /**
-   * Returns stable proxy URL for a user's profile picture (redirects to fresh S3 signed URL).
-   * Use as img src so avatars do not expire when API responses are cached.
-   * Prefer this over using profile_picture from API when you have the user id.
+   * Stable API proxy URL for a user's profile picture (streams image bytes; does not expire).
+   * Prefer this over using any raw S3 URL from API payloads.
    */
   getProfilePictureUrl(userId: number | string | null | undefined): string {
     if (userId == null || userId === '') return '';
@@ -1516,8 +1515,7 @@ class ApiClient {
   }
 
   /**
-   * Proxy URL for the current user's profile picture (redirects to fresh S3 signed URL).
-   * Use when displaying the logged-in user's avatar and you have their id.
+   * Proxy URL for the current user's profile picture (streams image bytes; does not expire).
    */
   getCurrentUserProfilePictureUrl(): string {
     const base = this.baseURL.replace(/\/$/, '');
@@ -6869,20 +6867,15 @@ class ApiClient {
     }>(`${endpoint}${equipmentId}/booking-requesters/`, { method: 'GET' });
   }
 
-  /** Path for the equipment image proxy (no query token — use with Authorization header). */
+  /** Path for the equipment image proxy (stable; streams bytes — does not expire). */
   getEquipmentImageProxyPath(equipmentId: number): string {
     const base = this.baseURL.replace(/\/$/, '');
     return `${base}/equipments/${equipmentId}/image/`;
   }
 
-  /** Stable API URL that streams the equipment image from storage (no expiring signed URLs). Use as img src. */
+  /** Stable API URL for equipment images. Prefer proxy path without auth token (images are public). */
   getEquipmentImageUrl(equipmentId: number): string {
-    const url = this.getEquipmentImageProxyPath(equipmentId);
-    const token = this.getToken();
-    if (token) {
-      return `${url}?token=${encodeURIComponent(token)}`;
-    }
-    return url;
+    return this.getEquipmentImageProxyPath(equipmentId);
   }
 
   /** Upload equipment image (admin). */

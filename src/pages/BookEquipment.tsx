@@ -16,6 +16,7 @@ import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/li
 import {
   CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
   getChargeEstimateUserTypeLabel,
+  isEndUserBookingType,
   isExternalBookingUserType,
   normalizeUserTypeCode,
   getUserTypeDisplayName,
@@ -176,13 +177,13 @@ const DEFAULT_TIME_SLOTS = [
   "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
 ];
 
-// User type filter options for admin "Book for user" (matches backend UserType codes)
+// User type filter options for admin/OIC "Book for user" (matches backend UserType codes)
 const USER_TYPE_FILTER_ALL = "__all__";
 const USER_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: USER_TYPE_FILTER_ALL, label: "All types" },
-  { value: "student", label: "Student" },
+  { value: "student", label: "IIT Roorkee Students" },
   { value: "individual_student", label: "Individual Student" },
-  { value: "faculty", label: "Faculty" },
+  { value: "faculty", label: "IIT Roorkee Faculty" },
   { value: "external", label: "Educational Institute" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
@@ -731,13 +732,18 @@ const BookEquipment = () => {
     return isExternalBookingUserType(ut);
   }, [userType]);
 
-  /** True when Step 3 rules should treat the booking target as external (self or admin booking for external-type user). */
+  /** True when Step 3 rules should treat the booking target as external (self or admin/OIC booking for external-type user). */
   const bookingAsExternalTarget = useMemo(() => {
     if (isCalculateChargesFlow && chargeEstimateUserType) {
       return isExternalBookingUserType(chargeEstimateUserType);
     }
     if (isExternalUser) return true;
-    if (String(userType ?? "").toLowerCase() === "admin" && adminManageMode === "book" && adminBookForUserId) {
+    const actor = String(userType ?? "").toLowerCase();
+    if (
+      (actor === "admin" || actor === "manager") &&
+      adminManageMode === "book" &&
+      adminBookForUserId
+    ) {
       const u = usersList.find((x) => String(x.id) === String(adminBookForUserId));
       const ut = String(u?.user_type || "").toLowerCase();
       return isExternalBookingUserType(ut);
@@ -1022,22 +1028,48 @@ const BookEquipment = () => {
     }
   }, []);
 
-  // Admin: fetch users list when in "book for user" mode
+  // Admin/OIC: fetch users list when in "book for user" mode (server-side type filter)
   useEffect(() => {
-    if (!isAdminUser() || adminManageMode !== 'book') return;
+    const actor = String(userType ?? "").toLowerCase();
+    if ((actor !== "admin" && actor !== "manager") || adminManageMode !== "book") return;
     let cancelled = false;
     (async () => {
-      const res = await apiClient.adminList<{ id: number; name?: string; email?: string; user_type?: string }>('users');
+      const params: Record<string, string> = {};
+      if (adminUserTypeFilter !== USER_TYPE_FILTER_ALL) {
+        // Backend expects exact UserType codes (e.g. RND / Industry keep original casing).
+        params.user_type = adminUserTypeFilter;
+      }
+      const res = await apiClient.adminList<{ id: number; name?: string; email?: string; user_type?: string }>(
+        "users",
+        params
+      );
       if (cancelled) return;
-      const list = res.error ? [] : (Array.isArray(res.data) ? res.data : []);
+      const raw = res.data as unknown;
+      const list = res.error
+        ? []
+        : Array.isArray(raw)
+          ? raw
+          : Array.isArray((raw as { results?: unknown })?.results)
+            ? ((raw as { results: Array<{ id: number; name?: string; email?: string; user_type?: string }> }).results)
+            : [];
       setUsersList(list);
     })();
-    return () => { cancelled = true; };
-  }, [adminManageMode]);
+    return () => {
+      cancelled = true;
+    };
+  }, [adminManageMode, userType, adminUserTypeFilter]);
 
-  // Admin: fetch selected user's booking info (email, department, Supervisor, balance)
+  // Changing type filter clears prior selection so charge isn't for a user outside the new list
   useEffect(() => {
-    if (!isAdminUser() || !adminBookForUserId) {
+    if (adminManageMode !== "book") return;
+    setAdminBookForUserId(null);
+    setAdminBookForUserInfo(null);
+  }, [adminUserTypeFilter]);
+
+  // Admin/OIC: fetch selected user's booking info (email, department, Supervisor, balance)
+  useEffect(() => {
+    const actor = String(userType ?? "").toLowerCase();
+    if ((actor !== "admin" && actor !== "manager") || !adminBookForUserId) {
       setAdminBookForUserInfo(null);
       return;
     }
@@ -1049,9 +1081,10 @@ const BookEquipment = () => {
       else setAdminBookForUserInfo(null);
     })();
     return () => { cancelled = true; };
-  }, [adminBookForUserId]);
+  }, [adminBookForUserId, userType]);
 
   // Wallet balance for this equipment's internal department (same sub-wallet used at booking).
+  // Only end users (student/faculty/external…); OIC/admin/staff are not prompted to recharge.
   useEffect(() => {
     if (isCalculateChargesFlow && !apiClient.getToken()) {
       setEquipmentDeptWalletBalance(null);
@@ -1068,6 +1101,11 @@ const BookEquipment = () => {
       return;
     }
     if (isAdmin && adminManageMode === "book" && !adminBookForUserId) {
+      setEquipmentDeptWalletBalance(null);
+      return;
+    }
+    // Staff (admin, OIC, lab/accounts incharge) never need this department-wallet recharge banner.
+    if (!isEndUserBookingType(userType)) {
       setEquipmentDeptWalletBalance(null);
       return;
     }
@@ -1097,7 +1135,8 @@ const BookEquipment = () => {
   }, [equipmentDetail?.equipment_id, selectedEquipment?.id, adminManageMode, adminBookForUserId, userType, isCalculateChargesFlow]);
 
   useEffect(() => {
-    if (!isAdminUser() || !adminBookForUserId) {
+    const actor = String(userType ?? "").toLowerCase();
+    if ((actor !== "admin" && actor !== "manager") || !adminBookForUserId) {
       setAdminTargetIstemAcknowledged(null);
       return;
     }
@@ -1114,7 +1153,7 @@ const BookEquipment = () => {
     return () => {
       cancelled = true;
     };
-  }, [adminBookForUserId]);
+  }, [adminBookForUserId, userType]);
 
   // Admin status-change: toggle a single date in selection (month calendar)
   const toggleDateForStatus = (dateStr: string) => {
@@ -1833,7 +1872,7 @@ const BookEquipment = () => {
         {
           ...(isCalculateChargesFlow && chargeEstimateUserType
             ? { user_type: chargeEstimateUserType }
-            : isAdminUser() && adminBookForUserId
+            : isAdminOrOIC() && adminBookForUserId
               ? { user_id: adminBookForUserId }
               : {}),
           ...(rewardPointsToRedeem.trim() && !isCalculateChargesFlow ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
@@ -2108,8 +2147,8 @@ const BookEquipment = () => {
       return;
     }
 
-    // Admin in "book for user" mode: require a selected user before calculating
-    if (!isCalculateChargesFlow && isAdminUser() && adminManageMode === 'book' && !adminBookForUserId) {
+    // Admin/OIC in "book for user" mode: require a selected user before calculating
+    if (!isCalculateChargesFlow && isAdminOrOIC() && adminManageMode === 'book' && !adminBookForUserId) {
       return;
     }
 
@@ -2177,7 +2216,7 @@ const BookEquipment = () => {
       }
 
       // Admin booking for user with no input fields: run immediately so charge/slots/confirm populate
-      const isAdminBookForUserNoInputs = isAdminUser() && adminManageMode === "book" && adminBookForUserId && !hasInputFields;
+      const isAdminBookForUserNoInputs = isAdminOrOIC() && adminManageMode === "book" && adminBookForUserId && !hasInputFields;
       const debounceMs = isCalculateChargesFlow ? 250 : isAdminBookForUserNoInputs ? 0 : 500;
 
       calculationTimeoutRef.current = setTimeout(() => {
@@ -4106,7 +4145,7 @@ const BookEquipment = () => {
           waitlist_on_failure: waitlistIntentEffective,
           request_waitlist_without_slot_selection: true,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
-          ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
         });
         const errRes = res as { error?: string; waitlist_position?: number; waitlist_code?: string };
@@ -4212,7 +4251,7 @@ const BookEquipment = () => {
           book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
           book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
           ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
-          ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
         });
         if (res.error) {
@@ -4383,7 +4422,7 @@ const BookEquipment = () => {
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
-          ...(isAdminUser() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
         });
       });
@@ -4480,7 +4519,7 @@ const BookEquipment = () => {
                 <EquipmentDepartmentLabel
                   name={(equipmentDetail as any)?.internal_department_name}
                 />
-                {equipmentDeptWalletBalance?.is_zero && (
+                {equipmentDeptWalletBalance?.is_zero && isEndUserBookingType(userType) && (
                   <div className="inline-flex flex-wrap items-center gap-3">
                     <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500 animate-pulse">
                       Wallet balance for this department is ₹0 — please recharge before booking.
@@ -5437,9 +5476,16 @@ const BookEquipment = () => {
                                 <CommandGroup>
                                   {usersList
                                     .filter((u) => {
-                                      const typeMatch = adminUserTypeFilter === USER_TYPE_FILTER_ALL || String(u.user_type || "").toLowerCase() === adminUserTypeFilter.toLowerCase();
+                                      const uTypeNorm = String(u.user_type || "").toLowerCase();
+                                      const filterNorm = String(adminUserTypeFilter).toLowerCase();
+                                      const typeMatch =
+                                        adminUserTypeFilter === USER_TYPE_FILTER_ALL ||
+                                        uTypeNorm === filterNorm;
                                       const q = userSearchQuery.trim().toLowerCase();
-                                      const nameMatch = !q || (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+                                      const nameMatch =
+                                        !q ||
+                                        (u.name || "").toLowerCase().includes(q) ||
+                                        (u.email || "").toLowerCase().includes(q);
                                       return typeMatch && nameMatch;
                                     })
                                     .map((u) => {
@@ -5447,7 +5493,7 @@ const BookEquipment = () => {
                                       return (
                                         <CommandItem
                                           key={u.id}
-                                          value={String(u.id)}
+                                          value={`${u.id}-${u.email || ""}-${u.name || ""}`}
                                           onSelect={() => {
                                             setAdminBookForUserId(String(u.id));
                                             setAdminBookForUserInfo(null); // Clear until new fetch completes
@@ -5462,7 +5508,9 @@ const BookEquipment = () => {
                                         >
                                           {label}
                                           {u.user_type ? (
-                                            <span className="ml-2 text-xs text-muted-foreground">({u.user_type})</span>
+                                            <span className="ml-2 text-xs text-muted-foreground">
+                                              ({getUserTypeDisplayName(u.user_type) || u.user_type})
+                                            </span>
                                           ) : null}
                                         </CommandItem>
                                       );
@@ -7126,7 +7174,7 @@ const BookEquipment = () => {
                     <div className="mt-6 flex flex-wrap gap-4">
                       {bookingAsExternalTarget &&
                         ((isExternalUser && !istemPortalAcknowledged) ||
-                          (isAdminUser() &&
+                          (isAdminOrOIC() &&
                             adminManageMode === "book" &&
                             Boolean(adminBookForUserId) &&
                             adminTargetIstemAcknowledged !== true)) && (

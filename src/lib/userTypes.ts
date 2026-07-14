@@ -31,9 +31,9 @@ export const USER_TYPE_DISPLAY_NAMES: Record<string, string> = {
   manager: "Officer In Charge",
   operator: "Lab Incharge",
   finance: "Accounts In Charge",
-  student: "IITR Student",
+  student: "IIT Roorkee Students",
   individual_student: "Individual Student",
-  faculty: "IITR Faculty",
+  faculty: "IIT Roorkee Faculty",
   external: "Educational Institute",
   rnd: "Govt R&D Organizations",
   industry: "Industry",
@@ -42,10 +42,31 @@ export const USER_TYPE_DISPLAY_NAMES: Record<string, string> = {
   other: "Other",
 };
 
+/**
+ * End-user / customer types that use department wallets and pay for bookings.
+ * Staff types (admin, OIC, lab/accounts incharge) are excluded.
+ */
+export const END_USER_BOOKING_TYPE_CODES = [
+  "student",
+  "individual_student",
+  "faculty",
+  "external",
+  "rnd",
+  "industry",
+  "startup_incubated_iitr",
+  "external_startup_msme",
+] as const;
+
+export function isEndUserBookingType(userType: string | number | null | undefined): boolean {
+  const normalized = normalizeUserTypeCode(userType);
+  if (!normalized) return false;
+  return (END_USER_BOOKING_TYPE_CODES as readonly string[]).includes(normalized);
+}
+
 /** Fixed user types for public charge estimate (calculate mode). */
 export const CHARGE_ESTIMATE_USER_TYPE_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
-  { code: "student", label: "IITR Student" },
-  { code: "faculty", label: "IITR Faculty" },
+  { code: "student", label: "IIT Roorkee Students" },
+  { code: "faculty", label: "IIT Roorkee Faculty" },
   { code: "external", label: "Educational Institute" },
   { code: "rnd", label: "Govt R&D Organizations" },
   { code: "industry", label: "Industry" },
