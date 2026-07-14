@@ -7119,9 +7119,7 @@ const BookEquipment = () => {
                           <span className="text-sm text-muted-foreground">Total Cost</span>
                           <span className="text-2xl font-bold">
                             ₹{calculatedCharge
-                              ? (canAccessManageEquipmentModes() && adminManageMode === "book" && adminDiscountAmount > 0
-                                ? Math.max(0, Number(calculatedCharge.total_charge) - adminDiscountAmount).toFixed(2)
-                                : Number(calculatedCharge.total_charge).toFixed(2))
+                              ? Number(calculatedCharge.total_charge).toFixed(2)
                               : calculateTotalCost().toFixed(2)}
                           </span>
                         </div>
