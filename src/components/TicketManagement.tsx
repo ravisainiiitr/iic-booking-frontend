@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, MessageSquare, Send } from "lucide-react";
+import { Eye, MessageSquare, Paperclip, Send } from "lucide-react";
 import { format } from "date-fns";
 
 interface Ticket {
@@ -57,6 +56,8 @@ interface Ticket {
   updated_at: string;
   comments_count: number;
   attachment_url?: string | null;
+  attachment_name?: string | null;
+  resolution_notes?: string | null;
 }
 
 interface TicketComment {
@@ -78,8 +79,6 @@ const TicketManagement = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
-
-  const isStaff = user?.is_staff || false;
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -252,7 +251,10 @@ const TicketManagement = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {/* Ticket types will be loaded dynamically if needed */}
+                <SelectItem value="booking">Booking</SelectItem>
+                <SelectItem value="equipment">Equipment</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="quality_improvement">Quality improvement</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -264,59 +266,85 @@ const TicketManagement = () => {
               No tickets found
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Comments</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tickets.map((ticket) => (
-                  <TableRow key={ticket.ticket_id}>
-                    <TableCell className="font-mono">#{ticket.ticket_id}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{ticket.subject}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{ticket.ticket_type_display}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(ticket.status)}>
-                        {ticket.status_display}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getPriorityBadgeVariant(ticket.priority)}>
-                        {ticket.priority_display}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(ticket.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="h-4 w-4" />
-                        {ticket.comments_count}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewTicket(ticket)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Comments</TableHead>
+                    <TableHead>Attachment</TableHead>
+                    <TableHead className="w-[90px]" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {tickets.map((ticket) => (
+                    <TableRow
+                      key={ticket.ticket_id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => handleViewTicket(ticket)}
+                    >
+                      <TableCell className="font-mono text-muted-foreground">
+                        #{ticket.ticket_id}
+                      </TableCell>
+                      <TableCell className="max-w-[220px]">
+                        <span
+                          className="font-medium text-primary hover:underline truncate block"
+                          title={ticket.subject}
+                        >
+                          {ticket.subject || "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{ticket.ticket_type_display}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(ticket.status)}>
+                          {ticket.status_display}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getPriorityBadgeVariant(ticket.priority)}>
+                          {ticket.priority_display}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(ticket.created_at), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          {ticket.comments_count}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {ticket.attachment_url ? (
+                          <Paperclip className="h-4 w-4 text-primary" aria-label="Has attachment" />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewTicket(ticket);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -358,8 +386,11 @@ const TicketManagement = () => {
                 </div>
 
                 {selectedTicket.attachment_url && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Attachment</p>
+                  <div className="rounded-md border bg-muted/20 p-3">
+                    <p className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                      <Paperclip className="h-4 w-4" />
+                      Attachment
+                    </p>
                     <a
                       href={(() => {
                         const url = selectedTicket.attachment_url!;
@@ -377,8 +408,15 @@ const TicketManagement = () => {
                       rel="noopener noreferrer"
                       className="text-sm text-primary hover:underline break-all"
                     >
-                      {(selectedTicket as { attachment_name?: string }).attachment_name || "View / Download attachment"}
+                      {selectedTicket.attachment_name || "View / Download attachment"}
                     </a>
+                  </div>
+                )}
+
+                {selectedTicket.resolution_notes && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Resolution notes</p>
+                    <p className="whitespace-pre-wrap text-sm">{selectedTicket.resolution_notes}</p>
                   </div>
                 )}
 

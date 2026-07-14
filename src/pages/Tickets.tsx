@@ -1,3 +1,4 @@
+import { useState } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
 import TicketManagement from "@/components/TicketManagement";
 import TicketForm from "@/components/TicketForm";
@@ -5,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
 const Tickets = () => {
+  const [listKey, setListKey] = useState(0);
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
@@ -13,7 +16,7 @@ const Tickets = () => {
           <div>
             <h1 className="text-3xl font-bold">Support Tickets</h1>
             <p className="text-muted-foreground mt-2">
-              Manage your support tickets and track their status
+              Click any ticket to view details, attachments, and updates
             </p>
           </div>
           <TicketForm
@@ -23,13 +26,10 @@ const Tickets = () => {
                 Create New Ticket
               </Button>
             }
-            onSuccess={() => {
-              // Refresh will be handled by TicketManagement component
-              window.location.reload();
-            }}
+            onSuccess={() => setListKey((k) => k + 1)}
           />
         </div>
-        <TicketManagement />
+        <TicketManagement key={listKey} />
       </div>
     </div>
   );
