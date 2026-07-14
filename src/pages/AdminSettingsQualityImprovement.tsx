@@ -65,7 +65,7 @@ const AdminSettingsQualityImprovement = () => {
       setTickets([]);
       return;
     }
-    setTickets((res as { tickets?: TicketRow[] }).tickets ?? []);
+    setTickets(res.data?.tickets ?? []);
   };
 
   useEffect(() => {

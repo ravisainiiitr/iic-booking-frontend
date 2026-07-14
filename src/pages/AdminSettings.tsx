@@ -138,9 +138,9 @@ const AdminSettings = () => {
             >
               <CardHeader>
                 <LifeBuoy className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Support</CardTitle>
+                <CardTitle className="text-base">Support Tickets</CardTitle>
                 <CardDescription className="text-sm">
-                  View and add support tickets (mirrors Django admin /admin/support/ticket/)
+                  Attachments, resolve with comment, and notify the requester
                 </CardDescription>
               </CardHeader>
             </Card>

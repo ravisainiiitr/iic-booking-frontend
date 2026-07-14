@@ -5509,6 +5509,8 @@ class ApiClient {
         assigned_to_name: string | null;
         assigned_to_email: string | null;
         resolution_notes: string | null;
+        attachment_url?: string | null;
+        attachment_name?: string | null;
         created_at: string;
         updated_at: string;
         resolved_at: string | null;
@@ -5576,6 +5578,7 @@ class ApiClient {
       priority: string;
       priority_display: string;
       attachment_url?: string | null;
+      attachment_name?: string | null;
       created_at: string;
     }>('/tickets/', {
       method: 'POST',
@@ -5609,6 +5612,8 @@ class ApiClient {
       assigned_to_name: string | null;
       assigned_to_email: string | null;
       resolution_notes: string | null;
+      attachment_url?: string | null;
+      attachment_name?: string | null;
       created_at: string;
       updated_at: string;
       resolved_at: string | null;

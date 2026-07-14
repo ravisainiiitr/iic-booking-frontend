@@ -361,12 +361,23 @@ const TicketManagement = () => {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-2">Attachment</p>
                     <a
-                      href={selectedTicket.attachment_url}
+                      href={(() => {
+                        const url = selectedTicket.attachment_url!;
+                        const token = apiClient.getToken();
+                        if (!token) return url;
+                        try {
+                          const u = new URL(url, window.location.origin);
+                          u.searchParams.set("token", token);
+                          return u.toString();
+                        } catch {
+                          return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+                        }
+                      })()}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-primary hover:underline break-all"
                     >
-                      View / Download attachment
+                      {(selectedTicket as { attachment_name?: string }).attachment_name || "View / Download attachment"}
                     </a>
                   </div>
                 )}
