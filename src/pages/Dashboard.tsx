@@ -428,6 +428,30 @@ const Dashboard = () => {
     }
   }, [labEquipmentSummariesKey, labDashEquipmentFilter, labOperatorDash?.equipment_summaries]);
 
+  const labAssignedEquipmentList = labOperatorDash?.equipment_summaries ?? [];
+  const labHeroEquipmentIndex = useMemo(() => {
+    const list = labOperatorDash?.equipment_summaries ?? [];
+    if (list.length === 0) return 0;
+    if (typeof labDashEquipmentFilter !== "number") return 0;
+    const idx = list.findIndex((e) => e.equipment_id === labDashEquipmentFilter);
+    return idx >= 0 ? idx : 0;
+  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]);
+
+  const cycleLabHeroEquipment = useCallback(
+    (direction: -1 | 1) => {
+      const list = labOperatorDash?.equipment_summaries ?? [];
+      if (list.length < 2) return;
+      let idx =
+        typeof labDashEquipmentFilter === "number"
+          ? list.findIndex((e) => e.equipment_id === labDashEquipmentFilter)
+          : 0;
+      if (idx < 0) idx = 0;
+      const next = (idx + direction + list.length) % list.length;
+      setLabDashEquipmentFilter(list[next].equipment_id);
+    },
+    [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]
+  );
+
   useEffect(() => {
     if (!user?.id) return;
     const userTypeLower = String(user.user_type || "").toLowerCase();
@@ -1261,6 +1285,7 @@ const Dashboard = () => {
                       const statusUi = labHeroEquipmentStatus;
                       const variant = statusUi?.variant ?? "neutral";
                       const vis = labHeroInstrumentPanelClass(variant);
+                      const multiAssigned = labAssignedEquipmentList.length > 1;
                       return (
                         <div className={cn("overflow-hidden rounded-xl border-2 shadow-lg", vis.shell)}>
                           <div className="px-4 py-3 sm:px-5 sm:py-4">
@@ -1273,6 +1298,9 @@ const Dashboard = () => {
                                   <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-white/85">Assigned equipment</p>
                                   <p className="text-[11px] text-white/55">
                                     {isOicUser ? "Officer In Charge" : "Lab Incharge"}
+                                    {multiAssigned
+                                      ? ` · ${labHeroEquipmentIndex + 1} of ${labAssignedEquipmentList.length}`
+                                      : ""}
                                   </p>
                                 </div>
                               </div>
@@ -1312,9 +1340,31 @@ const Dashboard = () => {
                                 </span>
                               ) : null}
                             </div>
-                            <p className="pt-2.5 text-base font-bold leading-snug tracking-tight text-white [text-wrap:pretty] sm:text-lg">
-                              {labHeroEquipmentTitle || (labOperatorDashLoading ? "…" : "—")}
-                            </p>
+                            <div className="flex items-center gap-2 pt-2.5">
+                              {multiAssigned ? (
+                                <button
+                                  type="button"
+                                  aria-label="Previous assigned equipment"
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-black/15 text-white transition hover:bg-black/30"
+                                  onClick={() => cycleLabHeroEquipment(-1)}
+                                >
+                                  <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
+                                </button>
+                              ) : null}
+                              <p className="min-w-0 flex-1 text-base font-bold leading-snug tracking-tight text-white [text-wrap:pretty] sm:text-lg">
+                                {labHeroEquipmentTitle || (labOperatorDashLoading ? "…" : "—")}
+                              </p>
+                              {multiAssigned ? (
+                                <button
+                                  type="button"
+                                  aria-label="Next assigned equipment"
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-black/15 text-white transition hover:bg-black/30"
+                                  onClick={() => cycleLabHeroEquipment(1)}
+                                >
+                                  <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       );
