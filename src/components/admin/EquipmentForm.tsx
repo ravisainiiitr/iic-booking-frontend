@@ -22,6 +22,8 @@ export type EquipmentFormData = {
   important_instruction?: string | null;
   make?: string | null;
   show_make_on_card?: boolean;
+  model_information?: string | null;
+  show_model_on_card?: boolean;
   booking_email_extra_text?: string | null;
   completion_email_extra_text?: string | null;
   print_3d_stl_notification_email?: string | null;
@@ -111,6 +113,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     important_instruction: "",
     make: "",
     show_make_on_card: false,
+    model_information: "",
+    show_model_on_card: false,
     booking_email_extra_text: "",
     completion_email_extra_text: "",
     print_3d_stl_notification_email: "",
@@ -207,6 +211,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         important_instruction: (d.important_instruction as string) ?? "",
         make: (d.make as string) ?? "",
         show_make_on_card: Boolean(d.show_make_on_card),
+        model_information: (d.model_information as string) ?? "",
+        show_model_on_card: Boolean(d.show_model_on_card),
         booking_email_extra_text: (d.booking_email_extra_text as string) ?? "",
         completion_email_extra_text: (d.completion_email_extra_text as string) ?? "",
         print_3d_stl_notification_email: (d.print_3d_stl_notification_email as string) ?? "",
@@ -283,6 +289,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       important_instruction: formData.important_instruction ?? null,
       make: formData.make?.trim() || "",
       show_make_on_card: Boolean(formData.show_make_on_card),
+      model_information: formData.model_information?.trim() || "",
+      show_model_on_card: Boolean(formData.show_model_on_card),
       booking_email_extra_text: formData.booking_email_extra_text?.trim() || "",
       completion_email_extra_text: formData.completion_email_extra_text?.trim() || "",
       print_3d_stl_notification_email: formData.print_3d_stl_notification_email?.trim() || "",
@@ -625,8 +633,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         rows={3}
       />
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Catalog card — Make</h3>
-      <p className="text-muted-foreground text-xs">Optional manufacturer/make line on equipment catalog cards, above department.</p>
+      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Catalog card — Make &amp; Model</h3>
+      <p className="text-muted-foreground text-xs">Optional manufacturer and model lines on equipment catalog cards, below department.</p>
       <div className="space-y-2">
         <Label htmlFor="equipment-make">Make</Label>
         <Input
@@ -646,6 +654,27 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         />
         <Label htmlFor="equipment-show-make-on-card" className="text-sm font-normal cursor-pointer">
           Show Make on equipment catalog card
+        </Label>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="equipment-model-information">Model</Label>
+        <Input
+          id="equipment-model-information"
+          value={formData.model_information ?? ""}
+          onChange={(e) => setFormData((p) => ({ ...p, model_information: e.target.value }))}
+          placeholder='e.g. Sigma 300, FE-SEM'
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="equipment-show-model-on-card"
+          checked={Boolean(formData.show_model_on_card)}
+          onCheckedChange={(checked) =>
+            setFormData((p) => ({ ...p, show_model_on_card: checked === true }))
+          }
+        />
+        <Label htmlFor="equipment-show-model-on-card" className="text-sm font-normal cursor-pointer">
+          Show Model on equipment catalog card
         </Label>
       </div>
 

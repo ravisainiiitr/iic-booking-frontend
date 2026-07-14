@@ -38,6 +38,8 @@ interface ApiEquipment {
   internal_department_code?: string | null;
   make?: string | null;
   show_make_on_card?: boolean;
+  model_information?: string | null;
+  show_model_on_card?: boolean;
   avg_rating?: number | null;
   rating_count?: number | null;
   rating_dist?: Record<string, number> | null;
@@ -116,6 +118,8 @@ const EquipmentGrid = () => {
       departmentCode: eq.internal_department_code || null,
       make: eq.make || null,
       showMakeOnCard: Boolean(eq.show_make_on_card),
+      modelInformation: eq.model_information || null,
+      showModelOnCard: Boolean(eq.show_model_on_card),
       avgRating: eq.avg_rating ?? null,
       ratingCount: eq.rating_count ?? null,
       ratingDist: eq.rating_dist ?? null,

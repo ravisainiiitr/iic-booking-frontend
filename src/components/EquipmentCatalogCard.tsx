@@ -33,6 +33,8 @@ export type EquipmentCatalogCardItem = {
   hasImage?: boolean;
   make?: string | null;
   showMakeOnCard?: boolean;
+  modelInformation?: string | null;
+  showModelOnCard?: boolean;
 };
 
 type Props = {
@@ -63,9 +65,10 @@ export default function EquipmentCatalogCard({
 
   return (
     <Card
-      className={`flex h-full cursor-pointer flex-col overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
+      className={`relative flex h-full cursor-pointer flex-col overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
       onClick={() => navigate(`/equipment/${item.id}`)}
     >
+      <div className={`absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r ${accent.bar}`} />
       <div className="relative aspect-video overflow-hidden bg-muted">
         {playingVideo && item.video ? (
           <video
@@ -112,11 +115,6 @@ export default function EquipmentCatalogCard({
 
       <CardHeader className="flex-1 pb-2">
         <CardTitle className="text-lg leading-snug line-clamp-2 min-h-[3.25rem]">{item.name}</CardTitle>
-        {item.showMakeOnCard && item.make?.trim() ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground/80">Make:</span> {item.make.trim()}
-          </p>
-        ) : null}
         {(item.departmentName) ? (
           <EquipmentDepartmentLabel
             name={item.departmentName}
@@ -124,6 +122,26 @@ export default function EquipmentCatalogCard({
             accentBarClassName={accent.bar}
             className="mt-2"
           />
+        ) : null}
+        {item.showMakeOnCard && item.make?.trim() ? (
+          <div className="mt-2 min-w-0 pl-[11px]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75">
+              Make
+            </p>
+            <p className="mt-0.5 truncate text-sm font-medium leading-snug text-foreground/90">
+              {item.make.trim()}
+            </p>
+          </div>
+        ) : null}
+        {item.showModelOnCard && item.modelInformation?.trim() ? (
+          <div className="mt-2 min-w-0 pl-[11px]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75">
+              Model
+            </p>
+            <p className="mt-0.5 truncate text-sm font-medium leading-snug text-foreground/90">
+              {item.modelInformation.trim()}
+            </p>
+          </div>
         ) : null}
         <div className="mt-1.5 min-h-[1.25rem]">
           {count > 0 && avg != null ? (
@@ -229,7 +247,7 @@ export default function EquipmentCatalogCard({
 
           <Button
             variant="outline"
-            className="w-full"
+            className="w-full border-[#E4E6F0] bg-[#F7F8FC] text-foreground hover:bg-[#EEF0F8]"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/equipment/${item.id}`);
