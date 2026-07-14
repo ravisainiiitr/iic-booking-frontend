@@ -225,6 +225,11 @@ export default function EquipmentCatalogCard({
                 toast.error("This equipment is not operational and cannot be booked.");
                 return;
               }
+              // Admin/OIC: jump into book-for-user flow with user type + user selectors.
+              if (canChangeSlotStatus) {
+                navigate(`/book-equipment?equipment_id=${item.id}&mode=book`);
+                return;
+              }
               navigate(`/equipment/${item.id}`);
             }}
           >
