@@ -24,10 +24,6 @@ function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: str
   return weeks;
 }
 
-function isExternalBookingUserType(normalized: string | null): boolean {
-  return normalized != null && isExternalBookingUserType(normalized);
-}
-
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
