@@ -6870,6 +6870,7 @@ class ApiClient {
         email: string;
         department_id?: number | null;
         department_name?: string | null;
+        department_code?: string | null;
       }>;
       operators: Array<{
         id: number;
@@ -6877,6 +6878,7 @@ class ApiClient {
         email: string;
         department_id?: number | null;
         department_name?: string | null;
+        department_code?: string | null;
       }>;
       profile_type_choices: Array<{ value: string; label: string }>;
       status_choices: Array<{ value: string; label: string }>;

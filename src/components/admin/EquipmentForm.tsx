@@ -88,6 +88,7 @@ type StaffUserChoice = {
   email: string;
   department_id?: number | null;
   department_name?: string | null;
+  department_code?: string | null;
 };
 
 type EquipmentFormChoices = {
@@ -198,13 +199,29 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     (async () => {
       setChoicesLoading(true);
       setChoicesError(null);
-      const res = await apiClient.getEquipmentFormChoices();
+      const [choicesRes, deptsRes] = await Promise.all([
+        apiClient.getEquipmentFormChoices(),
+        apiClient.getDepartments("internal"),
+      ]);
       if (cancelled) return;
-      if (res.error) {
-        setChoicesError(res.error);
+      if (choicesRes.error) {
+        setChoicesError(choicesRes.error);
         setChoices(null);
-      } else if (res.data) {
-        setChoices(res.data);
+      } else if (choicesRes.data) {
+        const fromUsersDeptApi = (deptsRes.data?.departments || []).map((d) => ({
+          id: d.id,
+          name: d.name,
+          code: d.code || "",
+          department_type: d.department_type || "internal",
+        }));
+        // Prefer /departments/?type=internal so department code matches users.Department.
+        setChoices({
+          ...choicesRes.data,
+          internal_departments:
+            fromUsersDeptApi.length > 0
+              ? fromUsersDeptApi
+              : choicesRes.data.internal_departments,
+        });
       }
       setChoicesLoading(false);
     })();
@@ -1223,7 +1240,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             {managersForDepartment.filter((m) => !(formData.equipment_managers ?? []).some((x) => x.manager === m.id)).map((m) => (
               <SelectItem key={m.id} value={String(m.id)}>
                 {m.name || m.email} ({m.email})
-                {m.department_name ? ` — ${m.department_name}` : ""}
+                {m.department_name
+                  ? ` — ${m.department_name}${m.department_code ? ` (${m.department_code})` : ""}`
+                  : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1263,7 +1282,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             {operatorsForDepartment.filter((o) => !(formData.equipment_operators ?? []).some((x) => x.operator === o.id)).map((o) => (
               <SelectItem key={o.id} value={String(o.id)}>
                 {o.name || o.email} ({o.email})
-                {o.department_name ? ` — ${o.department_name}` : ""}
+                {o.department_name
+                  ? ` — ${o.department_name}${o.department_code ? ` (${o.department_code})` : ""}`
+                  : ""}
               </SelectItem>
             ))}
           </SelectContent>
