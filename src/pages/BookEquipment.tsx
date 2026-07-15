@@ -40,6 +40,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Min
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import {
   Dialog,
   DialogContent,
@@ -108,7 +109,10 @@ interface DailySlot {
   home_department_only?: boolean;
   /** True when slot is bookable by external users (reserved_for_external and status AVAILABLE). */
   available_for_external?: boolean;
-  booking_id?: number | null;
+  /** Display booking id (may be virtual / CODE-pk). Prefer real_booking_id for API calls. */
+  booking_id?: number | string | null;
+  /** Numeric Booking PK for API paths. */
+  real_booking_id?: number | null;
   booking_status?: string | null;
   booking_status_display?: string | null;
   created_at: string;
@@ -731,9 +735,21 @@ const BookEquipment = () => {
   const RESERVED_FOR_EXTERNAL_VALUE = "RESERVED_FOR_EXTERNAL";
   const HOME_DEPARTMENT_ONLY_VALUE = "HOME_DEPARTMENT_ONLY";
   const CLEAR_HOME_DEPARTMENT_ONLY_VALUE = "CLEAR_HOME_DEPARTMENT_ONLY";
+  const RESCHEDULE_OPERATION_VALUE = "RESCHEDULE";
   const [updatingSlotStatus, setUpdatingSlotStatus] = useState(false);
   const [updatingReserveExternal, setUpdatingReserveExternal] = useState(false);
   const [updatingHomeDepartmentOnly, setUpdatingHomeDepartmentOnly] = useState(false);
+  const [statusChangeRescheduleOpen, setStatusChangeRescheduleOpen] = useState(false);
+  const [statusChangeRescheduleLoading, setStatusChangeRescheduleLoading] = useState(false);
+  const [statusChangeRescheduleBooking, setStatusChangeRescheduleBooking] = useState<{
+    booking_id: number;
+    equipment: number;
+    start_time: string;
+    end_time: string;
+    daily_slots: Array<{ id: number; start_datetime: string; end_datetime: string; date: string }>;
+    maintenance_reschedule_extra_week?: boolean;
+    status?: string;
+  } | null>(null);
   /** True when current user is external (Educational Institute, RND, Industry, Other). Used to decide if reserved_for_external slots are selectable. */
   const isExternalUser = useMemo(() => {
     const ut = String(userType ?? "").toLowerCase();
@@ -4895,6 +4911,7 @@ const BookEquipment = () => {
                     <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
                     <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">Home department only</SelectItem>
                     <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">Open to all departments</SelectItem>
+                    <SelectItem value={RESCHEDULE_OPERATION_VALUE} className="text-base">Reschedule</SelectItem>
                     <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
                       <span className="flex items-center gap-2">
                         <Mail className="h-5 w-5" />
@@ -4903,6 +4920,12 @@ const BookEquipment = () => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                {newSlotStatus === RESCHEDULE_OPERATION_VALUE && (
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Open week view, select booked slot(s) from one booking, then Apply to choose new available
+                    slots.
+                  </p>
+                )}
                 {(newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
                   newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE) && (
                   <p className="text-sm text-muted-foreground max-w-md">
@@ -4940,7 +4963,9 @@ const BookEquipment = () => {
                     updatingSlotStatus ||
                     updatingReserveExternal ||
                     updatingHomeDepartmentOnly ||
-                    (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0)
+                    statusChangeRescheduleLoading ||
+                    (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0) ||
+                    (newSlotStatus === RESCHEDULE_OPERATION_VALUE && selectedSlotIdsForStatus.length === 0)
                   }
                   onClick={async () => {
                     const effectiveDates = getEffectiveDatesForStatus();
@@ -4950,9 +4975,152 @@ const BookEquipment = () => {
                       selectedSlotIdsForStatus.length > 0 &&
                       selectedDatesForStatus.length === 0 &&
                       statusChangeSelectedMonths.length === 0;
-                    if (!bySlots && effectiveDates.length === 0) return;
+                    // Reschedule uses selected week-view slots only (do not require bySlots/date mode).
+                    if (
+                      newSlotStatus !== RESCHEDULE_OPERATION_VALUE &&
+                      !bySlots &&
+                      effectiveDates.length === 0
+                    ) {
+                      return;
+                    }
                     if (newSlotStatus === "BOOKING_NOT_UTILIZED" && !bySlots) {
                       toast.error("For 'Booking Not Utilized' please use Week view to select booked slots only.");
+                      return;
+                    }
+                    if (newSlotStatus === RESCHEDULE_OPERATION_VALUE) {
+                      if (!selectedEquipment?.id) {
+                        toast.error("Select equipment first.");
+                        return;
+                      }
+                      if (selectedSlotIdsForStatus.length === 0) {
+                        toast.error("For Reschedule, open Week view and select booked slot(s) from one booking.");
+                        return;
+                      }
+                      const selectedSlots =
+                        (statusChangeSlots || []).filter((s) => selectedSlotIdsForStatus.includes(s.id));
+                      const resolveSlotBookingPk = (s: DailySlot): number | null => {
+                        if (typeof s.real_booking_id === "number" && !Number.isNaN(s.real_booking_id)) {
+                          return s.real_booking_id;
+                        }
+                        return getRealBookingId({
+                          booking_id: s.booking_id as string | number,
+                          real_booking_id: s.real_booking_id,
+                        });
+                      };
+                      const booked = selectedSlots.filter(
+                        (s) =>
+                          String(s.status || "").toUpperCase() === "BOOKED" &&
+                          (s.booking_id != null || s.real_booking_id != null) &&
+                          (s.booking_status || "").toUpperCase() !== "COMPLETED"
+                      );
+                      if (booked.length === 0) {
+                        toast.error("Select at least one booked (non-completed) slot to reschedule.");
+                        return;
+                      }
+                      const bookingIds = [
+                        ...new Set(
+                          booked
+                            .map((s) => resolveSlotBookingPk(s))
+                            .filter((id): id is number => id != null && !Number.isNaN(id))
+                        ),
+                      ];
+                      if (bookingIds.length !== 1) {
+                        toast.error(
+                          bookingIds.length === 0
+                            ? "Could not resolve booking id for the selected slots. Try again or open booking details first."
+                            : "Select slots that belong to the same booking only."
+                        );
+                        return;
+                      }
+                      const bookingPk = bookingIds[0];
+                      setStatusChangeRescheduleLoading(true);
+                      try {
+                        let dailySlots: Array<{
+                          id: number;
+                          start_datetime: string;
+                          end_datetime: string;
+                          date: string;
+                        }> = [];
+                        let startTime = "";
+                        let endTime = "";
+                        let equipmentId = selectedEquipment.id;
+                        let maintenanceExtra = false;
+                        let bookingStatus: string | undefined;
+
+                        const res = await apiClient.getBooking(bookingPk);
+                        if (!res.error && res.data) {
+                          const b = res.data as {
+                            booking_id: number | string;
+                            real_booking_id?: number | null;
+                            equipment: number;
+                            start_time: string;
+                            end_time: string;
+                            status?: string;
+                            maintenance_reschedule_extra_week?: boolean;
+                            daily_slots?: Array<{
+                              id: number;
+                              start_datetime: string;
+                              end_datetime: string;
+                              date: string;
+                            }>;
+                          };
+                          dailySlots = (b.daily_slots ?? []).map((s) => ({
+                            id: s.id,
+                            start_datetime: s.start_datetime,
+                            end_datetime: s.end_datetime,
+                            date: s.date,
+                          }));
+                          startTime = b.start_time;
+                          endTime = b.end_time;
+                          equipmentId = b.equipment ?? selectedEquipment.id;
+                          maintenanceExtra = Boolean(b.maintenance_reschedule_extra_week);
+                          bookingStatus = b.status;
+                        }
+
+                        // Fallback: build from week grid slots of the same booking
+                        if (dailySlots.length === 0) {
+                          const sameBooking = (statusChangeSlots || []).filter(
+                            (s) => resolveSlotBookingPk(s) === bookingPk
+                          );
+                          const source = sameBooking.length > 0 ? sameBooking : booked;
+                          dailySlots = [...source]
+                            .sort(
+                              (a, b) =>
+                                new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+                            )
+                            .map((s) => ({
+                              id: s.id,
+                              start_datetime: s.start_datetime,
+                              end_datetime: s.end_datetime,
+                              date: s.date || calendarDateStrFromSlot(s),
+                            }));
+                          if (dailySlots.length > 0) {
+                            startTime = dailySlots[0].start_datetime;
+                            endTime = dailySlots[dailySlots.length - 1].end_datetime;
+                          }
+                        }
+
+                        if (dailySlots.length === 0 || !startTime || !endTime) {
+                          throw new Error(
+                            res.error || "Could not load booking slots for reschedule."
+                          );
+                        }
+
+                        setStatusChangeRescheduleBooking({
+                          booking_id: bookingPk,
+                          equipment: equipmentId,
+                          start_time: startTime,
+                          end_time: endTime,
+                          daily_slots: dailySlots,
+                          maintenance_reschedule_extra_week: maintenanceExtra,
+                          status: bookingStatus,
+                        });
+                        setStatusChangeRescheduleOpen(true);
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : "Failed to open reschedule.");
+                      } finally {
+                        setStatusChangeRescheduleLoading(false);
+                      }
                       return;
                     }
                     if (
@@ -5083,9 +5251,15 @@ const BookEquipment = () => {
                     }
                   }}
                 >
-                  {updatingSlotStatus || updatingReserveExternal
+                  {statusChangeRescheduleLoading
+                    ? "Opening reschedule…"
+                    : updatingSlotStatus || updatingReserveExternal || updatingHomeDepartmentOnly
                     ? "Applying…"
-                    : selectedSlotIdsForStatus.length > 0
+                    : newSlotStatus === RESCHEDULE_OPERATION_VALUE
+                      ? selectedSlotIdsForStatus.length > 0
+                        ? `Reschedule ${selectedSlotIdsForStatus.length} slot(s)…`
+                        : "Select booked slots to reschedule"
+                      : selectedSlotIdsForStatus.length > 0
                       ? `Apply to ${selectedSlotIdsForStatus.length} slot(s)`
                       : `Apply to ${getEffectiveDatesForStatus().length} date(s)`}
                 </Button>
@@ -5241,7 +5415,7 @@ const BookEquipment = () => {
                     const adminHolidayDefaultColor = equipmentDetail?.calendar_colors?.holiday_default ?? "#f59e0b";
                     const canSelectSlot = (s: DailySlot | null | undefined) => {
                       if (!s) return false;
-                      if (newSlotStatus === "BOOKING_NOT_UTILIZED")
+                      if (newSlotStatus === "BOOKING_NOT_UTILIZED" || newSlotStatus === RESCHEDULE_OPERATION_VALUE)
                         return s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED";
                       if (s.status === "BOOKED" && (s.booking_status || "").toUpperCase() === "COMPLETED") return false;
                       return true;
@@ -5358,7 +5532,16 @@ const BookEquipment = () => {
                                         setExpandedSlotBooking(null);
                                         setExpandedSlotBookingLoading(true);
                                         apiClient
-                                          .getBookings({ booking_id: slot.booking_id!, limit: 1 })
+                                          .getBookings({
+                                            booking_id:
+                                              (typeof slot.real_booking_id === "number"
+                                                ? slot.real_booking_id
+                                                : getRealBookingId({
+                                                    booking_id: slot.booking_id as string | number,
+                                                    real_booking_id: slot.real_booking_id,
+                                                  })) ?? undefined,
+                                            limit: 1,
+                                          })
                                           .then((res) => {
                                             const b = res.data?.bookings?.[0];
                                             if (b) setExpandedSlotBooking(b as BookingDetailCardBooking);
@@ -5431,6 +5614,73 @@ const BookEquipment = () => {
             </div>
           </div>
         )}
+
+        <Dialog
+          open={statusChangeRescheduleOpen}
+          onOpenChange={(open) => {
+            setStatusChangeRescheduleOpen(open);
+            if (!open) setStatusChangeRescheduleBooking(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto z-[100]">
+            <DialogHeader>
+              <DialogTitle>Reschedule booking</DialogTitle>
+              <DialogDescription>
+                Use the week navigator below to pick available consecutive slots, then confirm.
+              </DialogDescription>
+            </DialogHeader>
+            {statusChangeRescheduleBooking && selectedEquipment?.id && (
+              <RescheduleSlotPicker
+                equipmentId={selectedEquipment.id}
+                maintenanceExtraWeekBookingId={
+                  statusChangeRescheduleBooking.maintenance_reschedule_extra_week ||
+                  statusChangeRescheduleBooking.status?.toUpperCase() === "DISRUPTION_PENDING"
+                    ? statusChangeRescheduleBooking.booking_id
+                    : undefined
+                }
+                booking={statusChangeRescheduleBooking}
+                confirmLoading={statusChangeRescheduleLoading}
+                onCancel={() => {
+                  setStatusChangeRescheduleOpen(false);
+                  setStatusChangeRescheduleBooking(null);
+                }}
+                onConfirm={async (startTimeISO, endTimeISO) => {
+                  setStatusChangeRescheduleLoading(true);
+                  try {
+                    const response = await apiClient.rescheduleBooking(
+                      statusChangeRescheduleBooking.booking_id,
+                      startTimeISO,
+                      endTimeISO
+                    );
+                    if (response.error) {
+                      toast.error(response.error);
+                      return;
+                    }
+                    toast.success(
+                      (response.data as { message?: string })?.message ||
+                        "Booking rescheduled successfully"
+                    );
+                    setStatusChangeRescheduleOpen(false);
+                    setStatusChangeRescheduleBooking(null);
+                    setSelectedSlotIdsForStatus([]);
+                    setSelectedDatesForStatus([]);
+                    setLastFetchedWeek(null);
+                    if (statusChangePopupWeekStart) {
+                      await fetchSlotsForWeek(true, statusChangePopupWeekStart);
+                      await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                    } else {
+                      await fetchSlotsForWeek(true);
+                    }
+                  } catch (e: unknown) {
+                    toast.error(e instanceof Error ? e.message : "Failed to reschedule booking");
+                  } finally {
+                    setStatusChangeRescheduleLoading(false);
+                  }
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Bulk email popup: selected user emails + write subject and text */}
         <Dialog open={bulkEmailOpen} onOpenChange={setBulkEmailOpen}>

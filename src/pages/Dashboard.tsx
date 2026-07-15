@@ -43,7 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TicketForm, TICKET_TYPE, QUALITY_IMPROVEMENT_SUBJECT } from "@/components/TicketForm";
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 
 interface Booking extends BookingRef {
@@ -230,7 +229,6 @@ const Dashboard = () => {
   }>>([]);
   const [loadingStats, setLoadingStats] = useState(false);
   const [pendingRatingBookings, setPendingRatingBookings] = useState<Booking[]>([]);
-  const [qualityFormOpen, setQualityFormOpen] = useState(false);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
@@ -2537,7 +2535,7 @@ const Dashboard = () => {
 
           {!isLabInchargeUser && (<Card 
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
-            onClick={() => setQualityFormOpen(true)}
+            onClick={() => navigate("/tickets")}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -2557,16 +2555,6 @@ const Dashboard = () => {
                 <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Feedback / Suggestions</Button>
             </CardContent>
           </Card>)}
-          <TicketForm
-            open={qualityFormOpen}
-            onOpenChange={setQualityFormOpen}
-            initialValues={{
-              ticket_type: TICKET_TYPE.QUALITY_IMPROVEMENT,
-              subject: QUALITY_IMPROVEMENT_SUBJECT,
-            }}
-            hideTicketType
-            onSuccess={() => setQualityFormOpen(false)}
-          />
 
           {isOperatorOrManager && (
             <Card 

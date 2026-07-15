@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList } from "lucide-react";
+import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
@@ -147,6 +147,10 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                       <UserIcon className="mr-2 h-4 w-4" />
                       <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => safeNavigate("/tickets")}>
+                      <HelpCircle className="mr-2 h-4 w-4" />
+                      <span>Support Tickets</span>
                     </DropdownMenuItem>
                     {isAdmin && (
                       <DropdownMenuItem onClick={() => safeNavigate("/dashboard")}>
