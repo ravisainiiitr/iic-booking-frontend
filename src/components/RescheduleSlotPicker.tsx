@@ -117,7 +117,7 @@ export default function RescheduleSlotPicker({
             normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
           }
           
-          if (normalizedType === 'admin' || normalizedType === 'student' || normalizedType === 'faculty') {
+          if (normalizedType === 'admin' || normalizedType === 'manager' || normalizedType === 'operator' || normalizedType === 'student' || normalizedType === 'faculty') {
             setWeekStart(currentWeek);
           } else {
             const fifteenDaysFromNow = addDays(now, 15);
@@ -136,7 +136,7 @@ export default function RescheduleSlotPicker({
             } else if (typeof userTypeValue === 'number') {
               normalizedType = userTypeValue === 1 ? 'student' : userTypeValue === 2 ? 'faculty' : null;
             }
-            if (normalizedType === 'admin' || normalizedType === 'student' || normalizedType === 'faculty') {
+            if (normalizedType === 'admin' || normalizedType === 'manager' || normalizedType === 'operator' || normalizedType === 'student' || normalizedType === 'faculty') {
               setWeekStart(currentWeek);
             } else {
               const fifteenDaysFromNow = addDays(now, 15);
@@ -166,13 +166,15 @@ export default function RescheduleSlotPicker({
     return null;
   };
 
-  const isAdminUser = (): boolean => {
-    return normalizeUserType(userType) === 'admin';
+  const isUnrestrictedStaff = (): boolean => {
+    const t = normalizeUserType(userType);
+    // Admin, OIC (manager), and Lab Operator may navigate any past/future week when rescheduling.
+    return t === "admin" || t === "manager" || t === "operator";
   };
 
   // Check if a week is allowed (align with BookEquipment isWeekAllowed; extended nav mirrors isUrgentHoldMode)
   const isWeekAllowed = (weekStartDate: Date): boolean => {
-    if (isAdminUser()) return true;
+    if (isUnrestrictedStaff()) return true;
     if (!userType) return false;
     const normalizedType = normalizeUserType(userType);
     if (!normalizedType) return false;
@@ -227,9 +229,9 @@ export default function RescheduleSlotPicker({
     return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
   };
 
-  // Get allowed weeks for navigation (admin: not used; nav has no restriction)
+  // Get allowed weeks for navigation (staff: not used; nav has no restriction)
   const getAllowedWeeks = (): Date[] => {
-    if (isAdminUser()) return [];
+    if (isUnrestrictedStaff()) return [];
     if (!userType) return [];
     const normalizedType = normalizeUserType(userType);
     if (!normalizedType) return [];
@@ -368,8 +370,8 @@ export default function RescheduleSlotPicker({
 
   const isAvailable = (slot: RescheduleSlot): boolean => {
     if (currentBookingSlotIds.has(slot.id)) return true;
-    // Admin: can select any slot that is not booked by someone else (including blocked/holiday/maintenance)
-    if (isAdminUser()) return slot.status !== "BOOKED";
+    // Staff (Admin/OIC/Operator): can select any slot that is not booked by someone else
+    if (isUnrestrictedStaff()) return slot.status !== "BOOKED";
     // External users: only AVAILABLE (reserved for external) slots are selectable
     const ut = String(userType ?? "").toLowerCase();
     const isExternal = isExternalBookingUserType(ut);
@@ -386,7 +388,7 @@ export default function RescheduleSlotPicker({
     currentBookingSlotIds.has(slot.id);
 
   const isPast = (slot: RescheduleSlot): boolean => {
-    if (isAdminUser()) return false; // Admin can select any week/day; no past restriction
+    if (isUnrestrictedStaff()) return false; // Staff can select any week/day; no past restriction
     try {
       return parseISO(slot.start_datetime) < new Date();
     } catch {
@@ -501,7 +503,7 @@ export default function RescheduleSlotPicker({
           variant="outline"
           size="sm"
           onClick={() => {
-            if (isAdminUser()) {
+            if (isUnrestrictedStaff()) {
               setWeekStart(subWeeks(weekStart, 1));
               setSelectedSlots([]);
             } else {
@@ -515,7 +517,7 @@ export default function RescheduleSlotPicker({
               }
             }
           }}
-          disabled={!isAdminUser() && (() => {
+          disabled={!isUnrestrictedStaff() && (() => {
             const allowedWeeks = getAllowedWeeks();
             const currentIndex = allowedWeeks.findIndex(week =>
               startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
@@ -530,12 +532,12 @@ export default function RescheduleSlotPicker({
           <Label className="text-sm font-medium shrink-0">
             {format(weekStart, "MMM d")} – {format(addDays(weekStart, 6), "MMM d, yyyy")}
           </Label>
-          {isAdminUser() && (
+          {isUnrestrictedStaff() && (
             <p className="text-xs text-muted-foreground mt-1">
-              No week restriction — select any week
+              No week restriction — navigate to any past or future week
             </p>
           )}
-          {userType && !isAdminUser() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
+          {userType && !isUnrestrictedStaff() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
             <p className="text-xs text-muted-foreground mt-1">
               {slotWindowMinDate && slotWindowMaxDate ? (
                 <>
@@ -554,7 +556,7 @@ export default function RescheduleSlotPicker({
               )}
             </p>
           )}
-          {userType && !isAdminUser() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
+          {userType && !isUnrestrictedStaff() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
             <p className="text-xs text-muted-foreground mt-1">
               Available: One week window starting 15 days from today
             </p>
@@ -565,7 +567,7 @@ export default function RescheduleSlotPicker({
           variant="outline"
           size="sm"
           onClick={() => {
-            if (isAdminUser()) {
+            if (isUnrestrictedStaff()) {
               setWeekStart(addWeeks(weekStart, 1));
               setSelectedSlots([]);
             } else {
@@ -579,7 +581,7 @@ export default function RescheduleSlotPicker({
               }
             }
           }}
-          disabled={!isAdminUser() && (() => {
+          disabled={!isUnrestrictedStaff() && (() => {
             const allowedWeeks = getAllowedWeeks();
             const currentIndex = allowedWeeks.findIndex(week =>
               startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()

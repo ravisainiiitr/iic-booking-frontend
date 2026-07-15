@@ -5624,14 +5624,17 @@ const BookEquipment = () => {
         >
           <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto z-[100]">
             <DialogHeader>
-              <DialogTitle>Reschedule booking</DialogTitle>
+              <DialogTitle>Reschedule Booking</DialogTitle>
               <DialogDescription>
-                Use the week navigator below to pick available consecutive slots, then confirm.
+                Current booking is shown below. Navigate any week (Admin / OIC), select the same number of
+                consecutive available slots, then confirm.
               </DialogDescription>
             </DialogHeader>
             {statusChangeRescheduleBooking && selectedEquipment?.id && (
               <RescheduleSlotPicker
-                equipmentId={selectedEquipment.id}
+                equipmentId={
+                  statusChangeRescheduleBooking.equipment || selectedEquipment.id
+                }
                 maintenanceExtraWeekBookingId={
                   statusChangeRescheduleBooking.maintenance_reschedule_extra_week ||
                   statusChangeRescheduleBooking.status?.toUpperCase() === "DISRUPTION_PENDING"
