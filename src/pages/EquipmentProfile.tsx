@@ -802,7 +802,7 @@ const EquipmentProfile = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      Officers in Charge
+                      Officer In-charge
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

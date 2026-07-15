@@ -294,7 +294,16 @@ const BookingManagement = () => {
   const formatBookingStartDate = (startTime: string) => {
     if (!startTime) return "—";
     const d = new Date(startTime);
-    return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+    if (Number.isNaN(d.getTime())) return "—";
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    const time = d.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return `${dd}/${mm}/${yy} ${time}`;
   };
 
   const formatDuration = (totalMinutes: number) => {

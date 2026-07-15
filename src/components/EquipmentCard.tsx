@@ -647,7 +647,7 @@ const EquipmentCard = ({
                   <div className="border-t pt-4">
                     <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      Officers in Charge
+                      Officer In-charge
                     </h4>
                     <div className="space-y-3">
                       {equipmentDetail.managers.map((manager) => (
