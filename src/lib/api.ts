@@ -6995,6 +6995,57 @@ class ApiClient {
     );
   }
 
+  /** Public: departments for propose-equipment form. */
+  async getEquipmentAdditionFormChoices() {
+    return this.request<{
+      internal_departments: Array<{ id: number; name: string; code: string }>;
+    }>("/equipment-addition-requests/form-choices/");
+  }
+
+  /** Public: submit equipment addition request (JSON or FormData with files). */
+  async submitEquipmentAdditionRequest(payload: Record<string, unknown> | FormData) {
+    return this.request<{ id: number; message: string }>(
+      "/equipment-addition-requests/",
+      {
+        method: "POST",
+        body: payload instanceof FormData ? payload : JSON.stringify(payload),
+      }
+    );
+  }
+
+  /** Admin: list equipment addition requests. */
+  async adminListEquipmentAdditionRequests(status?: string) {
+    const q = status && status !== "ALL" ? `?status=${encodeURIComponent(status)}` : "";
+    return this.request<{
+      results: Array<Record<string, unknown>>;
+      count: number;
+    }>(`/admin/equipment-addition-requests/${q}`);
+  }
+
+  /** Admin: approve equipment addition request. */
+  async adminApproveEquipmentAdditionRequest(id: number | string, review_notes?: string) {
+    return this.request<{
+      message: string;
+      equipment_id: number;
+      equipment_code: string;
+      request: Record<string, unknown>;
+    }>(`/admin/equipment-addition-requests/${id}/approve/`, {
+      method: "POST",
+      body: JSON.stringify({ review_notes: review_notes || "" }),
+    });
+  }
+
+  /** Admin: reject equipment addition request. */
+  async adminRejectEquipmentAdditionRequest(id: number | string, review_notes?: string) {
+    return this.request<{
+      message: string;
+      request: Record<string, unknown>;
+    }>(`/admin/equipment-addition-requests/${id}/reject/`, {
+      method: "POST",
+      body: JSON.stringify({ review_notes: review_notes || "" }),
+    });
+  }
+
   /** Admin/OIC: get waitlist for an equipment. */
   async getEquipmentWaitlist(equipmentId: number) {
     const endpoint = this.getAdminEndpoint('equipment');

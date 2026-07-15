@@ -47,6 +47,8 @@ import AdminSettingsAuth from "./pages/AdminSettingsAuth";
 import AdminCommunication from "./pages/AdminCommunication";
 import InboxEmail from "./pages/InboxEmail";
 import AdminSettingsEquipment from "./pages/AdminSettingsEquipment";
+import ProposeEquipment from "./pages/ProposeEquipment";
+import EquipmentAdditionRequests from "./pages/EquipmentAdditionRequests";
 import AdminSettingsSupport from "./pages/AdminSettingsSupport";
 import AdminSettingsQualityImprovement from "./pages/AdminSettingsQualityImprovement";
 import AdminRewardsConfig from "./pages/AdminRewardsConfig";
@@ -145,6 +147,8 @@ const App = () => (
                 <Route path="/inventory-management" element={<InventoryManagement />} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
                 <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
+                <Route path="/propose-equipment" element={<ProposeEquipment />} />
+                <Route path="/admin/equipment-addition-requests" element={<EquipmentAdditionRequests />} />
                 <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />

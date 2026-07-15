@@ -25,10 +25,12 @@ import {
   CalendarDays,
   ChevronRight,
   Clock,
+  Copy,
   FileText,
   FolderTree,
   Layers,
   Package,
+  PackagePlus,
   RotateCcw,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -46,6 +48,13 @@ type SubCard = {
 };
 
 const EQUIPMENT_SUB_CARDS: SubCard[] = [
+  {
+    key: "equipmentAdditionRequests",
+    label: "Equipment addition requests",
+    description: "Review public proposals and approve or reject before creating equipment",
+    icon: <PackagePlus className="h-6 w-6" />,
+    path: "/admin/equipment-addition-requests",
+  },
   {
     key: "bookingAttemptLogs",
     label: "Booking requests log",
@@ -184,12 +193,35 @@ const AdminSettingsEquipment = () => {
             </Button>
             <h1 className="text-3xl font-bold">Equipment</h1>
             <p className="text-muted-foreground mt-1">
-              Booking requests log, bookings, repeat sample requests, daily slots, equipment, categories, groups and holidays.
+              Booking requests log, addition proposals, bookings, slots, equipment, categories, groups and holidays.
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card
+            className="cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 border-border hover:border-primary/30"
+            onClick={() => {
+              const url = `${window.location.origin}/propose-equipment`;
+              void navigator.clipboard.writeText(url).then(
+                () => toast.success("Copied shareable link: /propose-equipment"),
+                () => toast.message(url)
+              );
+            }}
+          >
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Copy className="h-6 w-6" />
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-base mt-3">Copy propose-equipment link</CardTitle>
+              <CardDescription className="text-sm">
+                Shareable public form for anyone to request adding new equipment (Admin approves before create).
+              </CardDescription>
+            </CardHeader>
+          </Card>
           <Card
             className="cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 border-border hover:border-primary/30"
             onClick={() => setSlotWindowDialogOpen(true)}
