@@ -377,7 +377,8 @@ export default function RescheduleSlotPicker({
     const isExternal = isExternalBookingUserType(ut);
     if (isExternal) return slot.status === "AVAILABLE";
     // Internal users: only AVAILABLE slots that are NOT reserved for external are selectable.
-    // home_department_only is enforced by the API using booker.department vs equipment.internal_department.
+    // Department reservation (home / non-home) is enforced by the API using
+    // booker.department vs equipment.internal_department and reschedule_hours_threshold.
     return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
   };
 

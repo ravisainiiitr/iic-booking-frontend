@@ -485,6 +485,7 @@ const DEFAULT_SLOT_STATUS_COLORS: Record<string, string> = {
   HOLD: "#fef3c7",
   RESERVED_FOR_EXTERNAL: "#94a3b8",
   HOME_DEPARTMENT_ONLY: "#c4b5fd",
+  NON_HOME_RESERVED: "#67e8f9",
 };
 
 const SLOT_STATUS_LABELS: Record<string, string> = {
@@ -498,6 +499,7 @@ const SLOT_STATUS_LABELS: Record<string, string> = {
   HOLD: "Hold",
   RESERVED_FOR_EXTERNAL: "Reserved for External User",
   HOME_DEPARTMENT_ONLY: "Home department only",
+  NON_HOME_RESERVED: "Reserved for other departments",
 };
 
 /** Return black or white for readable text on the given hex background. */
@@ -829,17 +831,37 @@ const BookEquipment = () => {
     }
     if (isExternalUser) return slotBookableByExternalUser(slot);
     if (slot.status !== "AVAILABLE" || slot.reserved_for_external === true) return false;
-    // Home-department-only slots: booker’s department must match equipment.internal_department
+
+    // Department reservation: marked = non-home; unmarked = home-only while policy active;
+    // marked slots open to all within reschedule_hours_threshold before start.
+    const eqDept =
+      (equipmentDetail as { internal_department?: number | null } | null)?.internal_department ??
+      (selectedEquipment as { internal_department?: number | null } | null)?.internal_department ??
+      null;
+    if (eqDept == null) return true;
+
+    const isHome =
+      userDepartmentId != null && Number(userDepartmentId) === Number(eqDept);
+    const weekSlots = (equipmentDetail?.daily_slots || []) as DailySlot[];
+    const policyActive =
+      Boolean(slot.home_department_only) ||
+      weekSlots.some((s) => Boolean(s.home_department_only));
+    if (!policyActive) return true;
+
     if (slot.home_department_only) {
-      const eqDept =
-        (equipmentDetail as { internal_department?: number | null } | null)?.internal_department ??
-        (selectedEquipment as { internal_department?: number | null } | null)?.internal_department ??
-        null;
-      if (eqDept != null && userDepartmentId != null && Number(userDepartmentId) !== Number(eqDept)) {
-        return false;
+      const startRaw = slot.start_datetime;
+      if (startRaw) {
+        const startMs = new Date(startRaw).getTime();
+        const thresholdHours = Number(
+          (equipmentDetail as { reschedule_hours_threshold?: number | null } | null)
+            ?.reschedule_hours_threshold ?? 48
+        );
+        const cutoffMs = startMs - thresholdHours * 60 * 60 * 1000;
+        if (Date.now() >= cutoffMs) return true; // open to all departments
       }
+      return !isHome; // reserved for non-home
     }
-    return true;
+    return isHome; // unmarked → home department only
   }, [
     userType,
     adminManageMode,
@@ -4943,8 +4965,12 @@ const BookEquipment = () => {
                     <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
                     <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available (closed day)</SelectItem>
                     <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
-                    <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">Home department only</SelectItem>
-                    <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">Open to all departments</SelectItem>
+                    <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
+                      Reserve for non-home department
+                    </SelectItem>
+                    <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
+                      Clear non-home reservation (home dept)
+                    </SelectItem>
                     <SelectItem value={RESCHEDULE_OPERATION_VALUE} className="text-base">Reschedule</SelectItem>
                     <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
                       <span className="flex items-center gap-2">
@@ -4962,9 +4988,11 @@ const BookEquipment = () => {
                 )}
                 {(newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
                   newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE) && (
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Unmarked slots: any department. Marked home-department only: only students/faculty of this
-                    equipment&apos;s department. Weekly/monthly quotas still apply.
+                  <p className="text-sm text-muted-foreground max-w-lg">
+                    Marked slots: reserved for non-home department users. Other slots: home department
+                    only (while any upcoming reserved mark exists). Unbooked reserved slots open to all
+                    departments within the equipment&apos;s Reschedule Hours Threshold before start.
+                    Quotas still apply.
                   </p>
                 )}
                 {newSlotStatus === "BLOCKED" && (
@@ -5180,7 +5208,9 @@ const BookEquipment = () => {
                         toast.success(
                           data?.message ??
                             `Marked ${data?.updated ?? 0} slot(s) as ${
-                              mark ? "Home department only" : "Open to all departments"
+                              mark
+                                ? "Reserved for non-home department"
+                                : "Home department (cleared non-home reservation)"
                             }.`
                         );
                         setSelectedDatesForStatus([]);
@@ -5513,8 +5543,18 @@ const BookEquipment = () => {
                             (isSaturdayCol ? adminSaturdayColor : isSundayCol ? adminSundayColor : adminHolidayDefaultColor);
                           // Use calendar-colors (from equipment detail / admin settings) first, then localStorage overrides, then defaults
                           const calendarSlotColors = equipmentDetail?.calendar_colors?.slot_colors;
-                          const rawStatusForColor = slot?.booking_status ?? slot?.status ?? "";
-                          const statusForColor = String(rawStatusForColor).toUpperCase();
+                          let statusForColor = String(slot?.booking_status ?? slot?.status ?? "").toUpperCase();
+                          if (slot?.status === "AVAILABLE") {
+                            if (slot.reserved_for_external) statusForColor = "RESERVED_FOR_EXTERNAL";
+                            else if (slot.status_display === "Reserved for other departments" || slot.home_department_only) {
+                              statusForColor =
+                                slot.status_display === "Available (all departments)"
+                                  ? "AVAILABLE"
+                                  : "NON_HOME_RESERVED";
+                            } else if (slot.status_display === "Home department only") {
+                              statusForColor = "HOME_DEPARTMENT_ONLY";
+                            }
+                          }
                           const statusBgResolved =
                             calendarSlotColors?.[statusForColor] ??
                             statusChangeSlotColors[statusForColor] ??
@@ -7372,6 +7412,7 @@ const BookEquipment = () => {
                             HOLD: "#f59e0b",
                             RESERVED_FOR_EXTERNAL: "#94a3b8",
                             HOME_DEPARTMENT_ONLY: "#c4b5fd",
+                            NON_HOME_RESERVED: "#06b6d4",
                             NOT_AVAILABLE: "#e2e8f0",
                           };
                           const slotColors = {
@@ -7404,8 +7445,14 @@ const BookEquipment = () => {
                             // Use RESERVED_FOR_EXTERNAL / NOT_AVAILABLE from calendar-colors when applicable
                             let statusForColor = slotStatus;
                             if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
-                            if (slotData?.status_display === "Home department only" || slotData?.home_department_only) {
+                            else if (slotData?.status_display === "Reserved for other departments") {
+                              statusForColor = "NON_HOME_RESERVED";
+                            } else if (slotData?.status_display === "Home department only") {
                               statusForColor = "HOME_DEPARTMENT_ONLY";
+                            } else if (slotData?.status_display === "Available (all departments)") {
+                              statusForColor = "AVAILABLE";
+                            } else if (slotData?.home_department_only) {
+                              statusForColor = "NON_HOME_RESERVED";
                             }
                             else if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                             else if (slotStatus === "BOOKED" && slotData?.booking_status) statusForColor = String(slotData.booking_status).toUpperCase();

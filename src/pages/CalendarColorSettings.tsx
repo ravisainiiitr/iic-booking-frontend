@@ -21,6 +21,7 @@ const SLOT_KEYS: { key: string; label: string }[] = [
   { key: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
   { key: "RESERVED_FOR_EXTERNAL", label: "Reserved for External User" },
   { key: "HOME_DEPARTMENT_ONLY", label: "Home department only" },
+  { key: "NON_HOME_RESERVED", label: "Reserved for other departments" },
   { key: "NOT_AVAILABLE", label: "Not Available" },
 ];
 
@@ -35,6 +36,7 @@ const DEFAULT_COLORS: Record<string, string> = {
   BOOKING_NOT_UTILIZED: "#a855f7",
   RESERVED_FOR_EXTERNAL: "#94a3b8",
   HOME_DEPARTMENT_ONLY: "#c4b5fd",
+  NON_HOME_RESERVED: "#06b6d4",
   NOT_AVAILABLE: "#e2e8f0",
   HOLIDAY_DEFAULT: "#f59e0b",
   SATURDAY: "#c7d2fe",
