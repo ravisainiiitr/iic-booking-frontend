@@ -1817,6 +1817,7 @@ class ApiClient {
         description: string;
         amount: number;
       }>;
+      show_charge_breakdown?: boolean;
       reward?: {
         points_balance: string;
         requested_points: string;

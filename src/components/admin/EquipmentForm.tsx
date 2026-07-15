@@ -77,7 +77,16 @@ export type EquipmentFormData = {
   equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean }>;
   equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean }>;
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
-  charge_profiles?: Array<{ user_type: string; is_active?: boolean; require_istem_fbr?: boolean; primary_unit_charge: string | number; secondary_unit_charge?: string | number; breakpoint?: string | number | null; time_formula?: string | null }>;
+  charge_profiles?: Array<{
+    user_type: string;
+    is_active?: boolean;
+    require_istem_fbr?: boolean;
+    show_charge_breakdown?: boolean;
+    primary_unit_charge: string | number;
+    secondary_unit_charge?: string | number;
+    breakpoint?: string | number | null;
+    time_formula?: string | null;
+  }>;
   input_fields?: Array<{ field_key: string; field_label: string; field_type: string; is_required?: boolean; default_value?: string; options?: string[]; help_text?: string }>;
   print_materials?: Array<{ code: string; name: string; density_g_per_cm3?: string | number; price_per_gram: string | number; user_type?: string | null; is_active?: boolean; display_order?: number }>;
 };
@@ -297,6 +306,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           user_type: String(p.user_type ?? ""),
           is_active: p.is_active !== false,
           require_istem_fbr: Boolean(p.require_istem_fbr),
+          show_charge_breakdown: p.show_charge_breakdown !== false,
           primary_unit_charge: p.primary_unit_charge ?? 0,
           secondary_unit_charge: p.secondary_unit_charge ?? 0,
           breakpoint: p.breakpoint ?? null,
@@ -800,6 +810,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Charge profiles</h3>
       <p className="text-muted-foreground text-xs">
         Per user-type pricing. Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
+        <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
       <div className="rounded border divide-y">
         {(formData.charge_profiles ?? []).length === 0 ? (
@@ -809,7 +820,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             const label =
               (choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type;
             return (
-              <div key={`${cp.user_type}-${idx}`} className="p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+              <div key={`${cp.user_type}-${idx}`} className="p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 items-end">
                 <div className="space-y-1">
                   <Label>User type</Label>
                   <p className="text-sm font-medium">{label}</p>
@@ -858,6 +869,20 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   />
                   <Label htmlFor={`cp-istem-${idx}`} className="text-sm font-normal">Require I-STEM FBR</Label>
                 </div>
+                <div className="flex items-center gap-2 pb-2">
+                  <Checkbox
+                    id={`cp-breakdown-${idx}`}
+                    checked={cp.show_charge_breakdown !== false}
+                    onCheckedChange={(v) =>
+                      setFormData((p) => {
+                        const arr = [...(p.charge_profiles ?? [])];
+                        arr[idx] = { ...arr[idx], show_charge_breakdown: v === true };
+                        return { ...p, charge_profiles: arr };
+                      })
+                    }
+                  />
+                  <Label htmlFor={`cp-breakdown-${idx}`} className="text-sm font-normal">Show charge breakdown</Label>
+                </div>
               </div>
             );
           })
@@ -874,7 +899,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 ...p,
                 charge_profiles: [
                   ...(p.charge_profiles ?? []),
-                  { user_type: v, is_active: true, require_istem_fbr: false, primary_unit_charge: 0, secondary_unit_charge: 0 },
+                  {
+                    user_type: v,
+                    is_active: true,
+                    require_istem_fbr: false,
+                    show_charge_breakdown: true,
+                    primary_unit_charge: 0,
+                    secondary_unit_charge: 0,
+                  },
                 ],
               }));
             }}

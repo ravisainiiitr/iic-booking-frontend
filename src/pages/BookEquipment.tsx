@@ -675,6 +675,7 @@ const BookEquipment = () => {
     total_charge: string;
     total_time_minutes: number;
     charge_breakdown: Array<{ description: string; amount: number }>;
+    show_charge_breakdown?: boolean;
     base_charge?: string;
     gst_percent?: number;
     gst_amount?: string;
@@ -2050,6 +2051,7 @@ const BookEquipment = () => {
           total_charge: response.data.total_charge,
           total_time_minutes: response.data.total_time_minutes,
           charge_breakdown: response.data.charge_breakdown || [],
+          show_charge_breakdown: response.data.show_charge_breakdown !== false,
           base_charge: response.data.base_charge,
           gst_percent: response.data.gst_percent ?? 0,
           gst_amount: response.data.gst_amount ?? "0",
@@ -6843,7 +6845,9 @@ const BookEquipment = () => {
                           {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
                         </span>
                       </div>
-                      {calculatedCharge.charge_breakdown && calculatedCharge.charge_breakdown.length > 0 && (
+                      {calculatedCharge.show_charge_breakdown !== false &&
+                        calculatedCharge.charge_breakdown &&
+                        calculatedCharge.charge_breakdown.length > 0 && (
                         <div className="mt-4 space-y-1">
                           <p className="text-sm font-medium mb-2">Charge Breakdown:</p>
                           {calculatedCharge.charge_breakdown.map((item, index) => (
