@@ -855,11 +855,11 @@ const Auth = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-4 top-6 rounded-full text-muted-foreground hover:text-foreground"
+              className="absolute left-3 top-4 h-14 w-14 rounded-xl text-muted-foreground hover:text-foreground"
               onClick={() => navigate("/")}
               title="Go to Home"
             >
-              <Home className="h-5 w-5" />
+              <Home className="h-10 w-10" strokeWidth={2.25} />
             </Button>
             <a
               href="https://en.wikipedia.org/wiki/IIT_Roorkee"
@@ -874,11 +874,8 @@ const Auth = () => {
                 className="h-14 w-auto mx-auto object-contain"
               />
             </a>
-            <p className="mt-2 text-base font-bold tracking-tight text-foreground">
+            <p className="mt-3 text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Indian Institute of Technology Roorkee
-            </p>
-            <p className="mt-1 text-sm font-semibold text-muted-foreground">
-              Institute Instrumentation Centre
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Sign in or create an account
