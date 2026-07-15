@@ -6862,10 +6862,22 @@ class ApiClient {
     return this.request<{
       categories: Array<{ id: number; name: string; code?: string | null }>;
       equipment_groups: Array<{ equipment_group_id: number; name: string; code: string }>;
-      internal_departments: Array<{ id: number; name: string; code: string }>;
+      internal_departments: Array<{ id: number; name: string; code: string; department_type?: string }>;
       user_groups: Array<{ id: number; name: string; code: string }>;
-      managers: Array<{ id: number; name: string; email: string }>;
-      operators: Array<{ id: number; name: string; email: string }>;
+      managers: Array<{
+        id: number;
+        name: string;
+        email: string;
+        department_id?: number | null;
+        department_name?: string | null;
+      }>;
+      operators: Array<{
+        id: number;
+        name: string;
+        email: string;
+        department_id?: number | null;
+        department_name?: string | null;
+      }>;
       profile_type_choices: Array<{ value: string; label: string }>;
       status_choices: Array<{ value: string; label: string }>;
       dynamic_input_field_type_choices: Array<{ value: string; label: string }>;

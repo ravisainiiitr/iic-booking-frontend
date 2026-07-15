@@ -82,13 +82,21 @@ export type EquipmentFormData = {
   print_materials?: Array<{ code: string; name: string; density_g_per_cm3?: string | number; price_per_gram: string | number; user_type?: string | null; is_active?: boolean; display_order?: number }>;
 };
 
+type StaffUserChoice = {
+  id: number;
+  name: string;
+  email: string;
+  department_id?: number | null;
+  department_name?: string | null;
+};
+
 type EquipmentFormChoices = {
   categories: Array<{ id: number; name: string; code?: string | null }>;
   equipment_groups: Array<{ equipment_group_id: number; name: string; code: string }>;
-  internal_departments: Array<{ id: number; name: string; code: string }>;
+  internal_departments: Array<{ id: number; name: string; code: string; department_type?: string }>;
   user_groups: Array<{ id: number; name: string; code: string }>;
-  managers: Array<{ id: number; name: string; email: string }>;
-  operators: Array<{ id: number; name: string; email: string }>;
+  managers: StaffUserChoice[];
+  operators: StaffUserChoice[];
   profile_type_choices: Array<{ value: string; label: string }>;
   status_choices: Array<{ value: string; label: string }>;
   user_type_choices?: Array<{ value: string; label: string }>;
@@ -171,6 +179,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       if (localImagePreview) URL.revokeObjectURL(localImagePreview);
     };
   }, [localImagePreview]);
+
+  /** Officers / Lab Incharge from Internal departments only; optionally match selected internal department. */
+  const managersForDepartment = useMemo(() => {
+    const list = choices?.managers ?? [];
+    if (formData.internal_department == null) return list;
+    return list.filter((m) => Number(m.department_id) === Number(formData.internal_department));
+  }, [choices?.managers, formData.internal_department]);
+
+  const operatorsForDepartment = useMemo(() => {
+    const list = choices?.operators ?? [];
+    if (formData.internal_department == null) return list;
+    return list.filter((o) => Number(o.department_id) === Number(formData.internal_department));
+  }, [choices?.operators, formData.internal_department]);
 
   useEffect(() => {
     let cancelled = false;
@@ -433,10 +454,36 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <Label>Internal Department</Label>
           <Select
             value={formData.internal_department != null ? String(formData.internal_department) : "none"}
-            onValueChange={(v) => setFormData((p) => ({ ...p, internal_department: v === "none" ? null : parseInt(v, 10) }))}
+            onValueChange={(v) => {
+              const nextDept = v === "none" ? null : parseInt(v, 10);
+              setFormData((p) => {
+                const mgrIds = new Set(
+                  (choices?.managers ?? [])
+                    .filter(
+                      (m) =>
+                        nextDept == null || Number(m.department_id) === Number(nextDept)
+                    )
+                    .map((m) => m.id)
+                );
+                const opIds = new Set(
+                  (choices?.operators ?? [])
+                    .filter(
+                      (o) =>
+                        nextDept == null || Number(o.department_id) === Number(nextDept)
+                    )
+                    .map((o) => o.id)
+                );
+                return {
+                  ...p,
+                  internal_department: nextDept,
+                  equipment_managers: (p.equipment_managers ?? []).filter((m) => mgrIds.has(m.manager)),
+                  equipment_operators: (p.equipment_operators ?? []).filter((o) => opIds.has(o.operator)),
+                };
+              });
+            }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select department" />
+              <SelectValue placeholder="Select Internal department" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— None —</SelectItem>
@@ -445,6 +492,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               ))}
             </SelectContent>
           </Select>
+          <p className="text-muted-foreground text-xs">
+            Only departments with type Internal are listed. Officer In Charge / Lab Incharge below are limited to users in Internal departments.
+          </p>
         </div>
         <div className="space-y-2">
           <Label>Visibility Group</Label>
@@ -1153,7 +1203,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
 
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Managers</h3>
-      <p className="text-muted-foreground text-xs">Equipment managers (users with manager type).</p>
+      <p className="text-muted-foreground text-xs">
+        Officer In Charge users belonging to Internal departments
+        {formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value="__add__"
@@ -1167,8 +1220,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <SelectTrigger className="w-[220px]"><SelectValue placeholder="Add manager" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__add__" disabled>Add manager</SelectItem>
-            {(choices.managers ?? []).filter((m) => !(formData.equipment_managers ?? []).some((x) => x.manager === m.id)).map((m) => (
-              <SelectItem key={m.id} value={String(m.id)}>{m.name || m.email} ({m.email})</SelectItem>
+            {managersForDepartment.filter((m) => !(formData.equipment_managers ?? []).some((x) => x.manager === m.id)).map((m) => (
+              <SelectItem key={m.id} value={String(m.id)}>
+                {m.name || m.email} ({m.email})
+                {m.department_name ? ` — ${m.department_name}` : ""}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1187,7 +1243,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
 
       <h3 className="text-sm font-semibold border-b pb-2 pt-2">Operators</h3>
-      <p className="text-muted-foreground text-xs">Equipment operators (users with operator type).</p>
+      <p className="text-muted-foreground text-xs">
+        Lab Incharge users belonging to Internal departments
+        {formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value="__add__"
@@ -1201,8 +1260,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <SelectTrigger className="w-[220px]"><SelectValue placeholder="Add operator" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__add__" disabled>Add operator</SelectItem>
-            {(choices.operators ?? []).filter((o) => !(formData.equipment_operators ?? []).some((x) => x.operator === o.id)).map((o) => (
-              <SelectItem key={o.id} value={String(o.id)}>{o.name || o.email} ({o.email})</SelectItem>
+            {operatorsForDepartment.filter((o) => !(formData.equipment_operators ?? []).some((x) => x.operator === o.id)).map((o) => (
+              <SelectItem key={o.id} value={String(o.id)}>
+                {o.name || o.email} ({o.email})
+                {o.department_name ? ` — ${o.department_name}` : ""}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
