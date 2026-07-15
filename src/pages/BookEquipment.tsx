@@ -104,6 +104,8 @@ interface DailySlot {
   blocked_label?: string | null;
   /** When true, slot is shown as Available to external users; only these can be booked by external users. */
   reserved_for_external?: boolean;
+  /** True when only the equipment's home-department students/faculty may book (default false = any dept). */
+  home_department_only?: boolean;
   /** True when slot is bookable by external users (reserved_for_external and status AVAILABLE). */
   available_for_external?: boolean;
   booking_id?: number | null;
@@ -444,6 +446,7 @@ const DEFAULT_SLOT_STATUS_COLORS: Record<string, string> = {
   BOOKING_NOT_UTILIZED: "#e9d5ff",
   HOLD: "#fef3c7",
   RESERVED_FOR_EXTERNAL: "#94a3b8",
+  HOME_DEPARTMENT_ONLY: "#c4b5fd",
 };
 
 const SLOT_STATUS_LABELS: Record<string, string> = {
@@ -456,6 +459,7 @@ const SLOT_STATUS_LABELS: Record<string, string> = {
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
   HOLD: "Hold",
   RESERVED_FOR_EXTERNAL: "Reserved for External User",
+  HOME_DEPARTMENT_ONLY: "Home department only",
 };
 
 /** Return black or white for readable text on the given hex background. */
@@ -588,6 +592,7 @@ const BookEquipment = () => {
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userType, setUserType] = useState<string | number | null>(null);
+  const [userDepartmentId, setUserDepartmentId] = useState<number | null>(null);
   const [istemPortalAcknowledged, setIstemPortalAcknowledged] = useState(false);
   const [adminTargetIstemAcknowledged, setAdminTargetIstemAcknowledged] = useState<boolean | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -724,8 +729,11 @@ const BookEquipment = () => {
   const [sendEmailToWalletOwnerForNotUtilized, setSendEmailToWalletOwnerForNotUtilized] = useState(true);
   const BULK_EMAIL_OPERATION_VALUE = "__bulk_email__";
   const RESERVED_FOR_EXTERNAL_VALUE = "RESERVED_FOR_EXTERNAL";
+  const HOME_DEPARTMENT_ONLY_VALUE = "HOME_DEPARTMENT_ONLY";
+  const CLEAR_HOME_DEPARTMENT_ONLY_VALUE = "CLEAR_HOME_DEPARTMENT_ONLY";
   const [updatingSlotStatus, setUpdatingSlotStatus] = useState(false);
   const [updatingReserveExternal, setUpdatingReserveExternal] = useState(false);
+  const [updatingHomeDepartmentOnly, setUpdatingHomeDepartmentOnly] = useState(false);
   /** True when current user is external (Educational Institute, RND, Industry, Other). Used to decide if reserved_for_external slots are selectable. */
   const isExternalUser = useMemo(() => {
     const ut = String(userType ?? "").toLowerCase();
@@ -770,8 +778,28 @@ const BookEquipment = () => {
       return status !== "BOOKED" && status !== "BOOKING_NOT_UTILIZED";
     }
     if (isExternalUser) return slotBookableByExternalUser(slot);
-    return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
-  }, [userType, adminManageMode, adminBookForUserId, bookingAsExternalTarget, isExternalUser]);
+    if (slot.status !== "AVAILABLE" || slot.reserved_for_external === true) return false;
+    // Home-department-only slots: booker’s department must match equipment.internal_department
+    if (slot.home_department_only) {
+      const eqDept =
+        (equipmentDetail as { internal_department?: number | null } | null)?.internal_department ??
+        (selectedEquipment as { internal_department?: number | null } | null)?.internal_department ??
+        null;
+      if (eqDept != null && userDepartmentId != null && Number(userDepartmentId) !== Number(eqDept)) {
+        return false;
+      }
+    }
+    return true;
+  }, [
+    userType,
+    adminManageMode,
+    adminBookForUserId,
+    bookingAsExternalTarget,
+    isExternalUser,
+    equipmentDetail,
+    selectedEquipment,
+    userDepartmentId,
+  ]);
 
   const hasBookableSlotInSelectedWeek = useMemo(() => {
     if (!equipmentDetail?.daily_slots?.length) return false;
@@ -997,6 +1025,15 @@ const BookEquipment = () => {
         const user = JSON.parse(storedUser);
         setUserId(String(user.id));
         setUserType(user.user_type || null);
+        setUserDepartmentId(
+          typeof user.department === "number"
+            ? user.department
+            : user.department?.id != null
+              ? Number(user.department.id)
+              : user.department_id != null
+                ? Number(user.department_id)
+                : null
+        );
         setIstemPortalAcknowledged(Boolean(user.istem_portal_acknowledged));
         // Initialize auto slot selection from user preference, default to true if not set
         const pref = user.auto_slot_selection !== undefined ? user.auto_slot_selection : true;
@@ -4856,6 +4893,8 @@ const BookEquipment = () => {
                     <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
                     <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available (closed day)</SelectItem>
                     <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
+                    <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">Home department only</SelectItem>
+                    <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">Open to all departments</SelectItem>
                     <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
                       <span className="flex items-center gap-2">
                         <Mail className="h-5 w-5" />
@@ -4864,6 +4903,13 @@ const BookEquipment = () => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                {(newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
+                  newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE) && (
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Unmarked slots: any department. Marked home-department only: only students/faculty of this
+                    equipment&apos;s department. Weekly/monthly quotas still apply.
+                  </p>
+                )}
                 {newSlotStatus === "BLOCKED" && (
                   <Input
                     placeholder="Blocked label (optional)"
@@ -4893,6 +4939,7 @@ const BookEquipment = () => {
                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                     updatingSlotStatus ||
                     updatingReserveExternal ||
+                    updatingHomeDepartmentOnly ||
                     (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0)
                   }
                   onClick={async () => {
@@ -4906,6 +4953,52 @@ const BookEquipment = () => {
                     if (!bySlots && effectiveDates.length === 0) return;
                     if (newSlotStatus === "BOOKING_NOT_UTILIZED" && !bySlots) {
                       toast.error("For 'Booking Not Utilized' please use Week view to select booked slots only.");
+                      return;
+                    }
+                    if (
+                      newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
+                      newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE
+                    ) {
+                      setUpdatingHomeDepartmentOnly(true);
+                      try {
+                        const mark = newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE;
+                        const payload: {
+                          home_department_only: boolean;
+                          dates?: string[];
+                          slot_ids?: number[];
+                        } = { home_department_only: mark };
+                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
+                        else payload.dates = effectiveDates;
+                        const res = await apiClient.adminEquipmentBulkHomeDepartmentOnly(
+                          selectedEquipment.id,
+                          payload
+                        );
+                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
+                        const data = (res as { data?: { updated?: number; message?: string } }).data;
+                        toast.success(
+                          data?.message ??
+                            `Marked ${data?.updated ?? 0} slot(s) as ${
+                              mark ? "Home department only" : "Open to all departments"
+                            }.`
+                        );
+                        setSelectedDatesForStatus([]);
+                        setSelectedSlotIdsForStatus([]);
+                        setStatusChangeSelectedMonths([]);
+                        setLastFetchedWeek(null);
+                        if (statusChangePopupWeekStart) {
+                          await fetchSlotsForWeek(true, statusChangePopupWeekStart);
+                        } else if (effectiveDates.length > 0) {
+                          const earliest = [...effectiveDates].sort()[0];
+                          await fetchSlotsForWeek(true, parseISO(earliest));
+                        } else {
+                          await fetchSlotsForWeek(true);
+                        }
+                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : "Failed to update home-department marking");
+                      } finally {
+                        setUpdatingHomeDepartmentOnly(false);
+                      }
                       return;
                     }
                     if (newSlotStatus === RESERVED_FOR_EXTERNAL_VALUE) {
@@ -6970,6 +7063,7 @@ const BookEquipment = () => {
                             BOOKING_NOT_UTILIZED: "#a855f7",
                             HOLD: "#f59e0b",
                             RESERVED_FOR_EXTERNAL: "#94a3b8",
+                            HOME_DEPARTMENT_ONLY: "#c4b5fd",
                             NOT_AVAILABLE: "#e2e8f0",
                           };
                           const slotColors = {
@@ -7002,6 +7096,9 @@ const BookEquipment = () => {
                             // Use RESERVED_FOR_EXTERNAL / NOT_AVAILABLE from calendar-colors when applicable
                             let statusForColor = slotStatus;
                             if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
+                            if (slotData?.status_display === "Home department only" || slotData?.home_department_only) {
+                              statusForColor = "HOME_DEPARTMENT_ONLY";
+                            }
                             else if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                             else if (slotStatus === "BOOKED" && slotData?.booking_status) statusForColor = String(slotData.booking_status).toUpperCase();
                             const status = statusForColor || "AVAILABLE";

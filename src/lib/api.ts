@@ -6977,6 +6977,24 @@ class ApiClient {
     );
   }
 
+  /** Admin/OIC: bulk mark slots as home-department only (or open to all). */
+  async adminEquipmentBulkHomeDepartmentOnly(
+    equipmentId: number | string,
+    payload: {
+      home_department_only: boolean;
+      dates?: string[];
+      start_date?: string;
+      end_date?: string;
+      slot_ids?: number[];
+    }
+  ) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{ updated: number; message: string }>(
+      `${endpoint}${equipmentId}/bulk-home-department-only/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
   /** Admin/OIC: get waitlist for an equipment. */
   async getEquipmentWaitlist(equipmentId: number) {
     const endpoint = this.getAdminEndpoint('equipment');

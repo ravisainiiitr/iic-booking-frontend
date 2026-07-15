@@ -49,6 +49,8 @@ export interface RescheduleSlot {
   booking_status?: string | null;
   booking_status_display?: string | null;
   reserved_for_external?: boolean;
+  home_department_only?: boolean;
+  available_for_external?: boolean;
   slot_master?: number;
   slot_number?: number;
   slot_name?: string;
@@ -376,7 +378,8 @@ export default function RescheduleSlotPicker({
     const ut = String(userType ?? "").toLowerCase();
     const isExternal = isExternalBookingUserType(ut);
     if (isExternal) return slot.status === "AVAILABLE";
-    // Internal users: only AVAILABLE slots that are NOT reserved for external are selectable
+    // Internal users: only AVAILABLE slots that are NOT reserved for external are selectable.
+    // home_department_only is enforced by the API using booker.department vs equipment.internal_department.
     return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
   };
 
