@@ -161,10 +161,14 @@ const Wallet = () => {
   const [isOtherUser, setIsOtherUser] = useState(false);
   const [isStudent, setIsStudent] = useState(false);
   const [isIndividualStudent, setIsIndividualStudent] = useState(false);
+  const [iitrStudentRechargeEnabled, setIitrStudentRechargeEnabled] = useState(false);
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [recharging, setRecharging] = useState(false);
   const [rechargeType, setRechargeType] = useState<"sbiepay" | "request">("sbiepay");
+  const [studentReceiptFile, setStudentReceiptFile] = useState<File | null>(null);
+  const [studentReceiptUtr, setStudentReceiptUtr] = useState("");
+  const [submittingStudentReceipt, setSubmittingStudentReceipt] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [projects, setProjects] = useState<Array<{
     id: number;
@@ -252,15 +256,29 @@ const Wallet = () => {
   const [txEquipmentFilter, setTxEquipmentFilter] = useState("");
   const [txBookedByFilter, setTxBookedByFilter] = useState("");
 
+  const canShowWalletRecharge = !isShared || (isStudent && iitrStudentRechargeEnabled);
+  const isIitrStudentReceiptOffline = isStudent && iitrStudentRechargeEnabled;
+
   const openRechargeDialog = useCallback((departmentId?: number | null) => {
     if (isFacultyEffective) {
       setRechargeType("request");
+    } else {
+      setRechargeType("sbiepay");
     }
     if (departmentId != null) {
       setRechargeDepartmentId(departmentId);
     }
     setShowRechargeDialog(true);
   }, [isFacultyEffective]);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await apiClient.getWalletStudentRechargeSettings();
+      if (!res.error && res.data) {
+        setIitrStudentRechargeEnabled(Boolean(res.data.enabled));
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -1551,6 +1569,43 @@ const Wallet = () => {
     setTempRequestId(null);
     setCreditFacilityOfferOpen(false);
     setCreditFacilitySettings(null);
+    setStudentReceiptFile(null);
+    setStudentReceiptUtr("");
+  };
+
+  const handleSubmitStudentReceipt = async () => {
+    if (!rechargeDepartmentId || !rechargeAmount || !studentReceiptFile) {
+      toast.error("Department, amount, and payment receipt file are required.");
+      return;
+    }
+    const amount = parseFloat(rechargeAmount);
+    if (Number.isNaN(amount) || amount < 1) {
+      toast.error("Enter a valid amount.");
+      return;
+    }
+    try {
+      setSubmittingStudentReceipt(true);
+      const res = await apiClient.submitWalletRechargeReceipt({
+        amount,
+        department_id: rechargeDepartmentId,
+        receipt_file: studentReceiptFile,
+        utr_reference: studentReceiptUtr.trim() || undefined,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(
+        res.data?.message ||
+          "Payment receipt submitted. Funds will be parked in the faculty wallet after finance approval."
+      );
+      resetRechargeDialog();
+      await fetchWalletData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to submit payment receipt");
+    } finally {
+      setSubmittingStudentReceipt(false);
+    }
   };
 
   const handleSendSricNotification = async (requestId: number, onSuccess?: () => void) => {
@@ -2013,7 +2068,11 @@ const Wallet = () => {
           <CardHeader>
             <CardTitle>Current Balance</CardTitle>
             <CardDescription>
-              {isShared ? "Available funds in shared wallet" : "Consolidated balance across all department sub-wallets. Recharge a sub-wallet to add funds."}
+              {isShared
+                ? isIitrStudentReceiptOffline
+                  ? "Shared faculty wallet — you may recharge when enabled by admin; funds park in the faculty wallet."
+                  : "Available funds in shared wallet"
+                : "Consolidated balance across all department sub-wallets. Recharge a sub-wallet to add funds."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -2021,7 +2080,7 @@ const Wallet = () => {
               <div className="text-4xl font-bold text-primary">
                 ₹{balance.toFixed(2)}
               </div>
-              {!isShared && (
+              {canShowWalletRecharge && (
                 <Button
                   onClick={() => openRechargeDialog()}
                   className="flex items-center gap-2"
@@ -2050,7 +2109,9 @@ const Wallet = () => {
                       </Button>
                     </div>
                     <CardDescription>
-                      Recharge a department sub-wallet. Select department and amount.
+                      {isIitrStudentReceiptOffline
+                        ? "Select department and amount. Offline recharge requires a payment receipt. Funds credit the faculty wallet."
+                        : "Recharge a department sub-wallet. Select department and amount."}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -2245,7 +2306,68 @@ const Wallet = () => {
                       </>
                     )}
 
-                    {rechargeType === "request" && otpStep === "form" && (
+                    {rechargeType === "request" && otpStep === "form" && isIitrStudentReceiptOffline && (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="student-receipt-file">Payment receipt *</Label>
+                          <Input
+                            id="student-receipt-file"
+                            type="file"
+                            accept="image/*,.pdf,application/pdf"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] ?? null;
+                              setStudentReceiptFile(f);
+                            }}
+                            disabled={submittingStudentReceipt}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Attach a scan or photo of the payment receipt (PDF or image).
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="student-receipt-utr">UTR / reference (optional)</Label>
+                          <Input
+                            id="student-receipt-utr"
+                            type="text"
+                            placeholder="Bank UTR if available"
+                            value={studentReceiptUtr}
+                            onChange={(e) => setStudentReceiptUtr(e.target.value)}
+                            disabled={submittingStudentReceipt}
+                          />
+                        </div>
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <p className="text-sm text-blue-700 dark:text-blue-400">
+                            After finance verifies the receipt, the amount is parked in your faculty member&apos;s wallet for the selected department.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleSubmitStudentReceipt}
+                          disabled={
+                            submittingStudentReceipt ||
+                            !rechargeDepartmentId ||
+                            !rechargeAmount ||
+                            parseFloat(rechargeAmount) < 1 ||
+                            !studentReceiptFile
+                          }
+                          className="w-full"
+                          size="lg"
+                        >
+                          {submittingStudentReceipt ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Submitting...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Submit Payment Receipt
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
+
+                    {rechargeType === "request" && otpStep === "form" && !isIitrStudentReceiptOffline && (
                       <>
                         {isFacultyEffective && (
                           <div className="space-y-2">

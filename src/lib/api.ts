@@ -2367,6 +2367,34 @@ class ApiClient {
     });
   }
 
+  /** IITR Student offline recharge: multipart payment receipt → finance pending. */
+  async submitWalletRechargeReceipt(payload: {
+    amount: number | string;
+    department_id: number;
+    receipt_file: File;
+    utr_reference?: string;
+    payment_date?: string;
+  }) {
+    const formData = new FormData();
+    formData.append('amount', String(payload.amount));
+    formData.append('department_id', String(payload.department_id));
+    formData.append('receipt_file', payload.receipt_file);
+    if (payload.utr_reference) formData.append('utr_reference', payload.utr_reference);
+    if (payload.payment_date) formData.append('payment_date', payload.payment_date);
+    return this.request<{ message: string; receipt: unknown }>(
+      '/payments/wallet-recharge-receipt/',
+      { method: 'POST', body: formData },
+    );
+  }
+
+  async getWalletStudentRechargeSettings() {
+    return this.request<{
+      enabled: boolean;
+      enable_iitr_student_wallet_recharge: boolean;
+      applies_to_current_user: boolean;
+    }>('/wallet/student-recharge/settings/', { method: 'GET' });
+  }
+
   async getFinancePaymentReceipts(params?: { status?: string; department_id?: number }) {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
