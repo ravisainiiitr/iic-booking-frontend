@@ -1,4 +1,4 @@
-import { Calendar, Clock, Shield, Zap } from "lucide-react";
+import { Calendar, Clock, Zap } from "lucide-react";
 
 const features = [
   {
@@ -10,11 +10,6 @@ const features = [
     icon: Clock,
     title: "24/7 Access",
     description: "Book equipment anytime, anywhere. Automated approval process for verified users."
-  },
-  {
-    icon: Shield,
-    title: "Secure Platform",
-    description: "Enterprise-grade security for your research data. GDPR compliant and ISO certified."
   },
   {
     icon: Zap,
@@ -36,7 +31,7 @@ const Features = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
