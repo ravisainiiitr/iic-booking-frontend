@@ -790,7 +790,8 @@ export function BookingDetailCard({
     try {
       const bookingPk = getRealBookingId(actionDialog.booking);
       if (bookingPk == null) throw new Error("Invalid booking reference.");
-      const response = isOperator
+      // Admin / OIC / Lab Operator use staff reschedule (any booking); users use own-booking endpoint.
+      const response = isOperator || isManagerOrAdmin
         ? await apiClient.rescheduleBooking(bookingPk, startTimeISO, endTimeISO)
         : await apiClient.userRescheduleBooking(bookingPk, startTimeISO, endTimeISO);
       if (response.error) {
