@@ -2039,6 +2039,9 @@ class ApiClient {
         booking_status_display?: string | null;
         booking_user_name?: string | null;
         booking_user_department_code?: string | null;
+        booking_user_department_name?: string | null;
+        booking_user_email?: string | null;
+        booking_user_phone?: string | null;
         created_at: string;
         updated_at: string;
       }>;

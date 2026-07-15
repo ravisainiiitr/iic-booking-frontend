@@ -19,6 +19,10 @@ export interface LabCalendarSlot {
   booking_user_name?: string | null;
   /** When BOOKED: department code of the user (second line, optional). */
   booking_user_department_code?: string | null;
+  booking_user_department_name?: string | null;
+  /** Staff-only (Admin / OIC / Operator) contact fields. */
+  booking_user_email?: string | null;
+  booking_user_phone?: string | null;
   slot_open_time?: string | null;
   blocked_label?: string | null;
 }

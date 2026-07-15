@@ -51,6 +51,12 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Table,
   TableBody,
   TableCell,
@@ -115,6 +121,13 @@ interface DailySlot {
   real_booking_id?: number | null;
   booking_status?: string | null;
   booking_status_display?: string | null;
+  /** Booker’s display name (when BOOKED). */
+  booking_user_name?: string | null;
+  booking_user_department_code?: string | null;
+  booking_user_department_name?: string | null;
+  /** Staff-only contact fields from slots API. */
+  booking_user_email?: string | null;
+  booking_user_phone?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -213,6 +226,27 @@ function parseTimeToMinutes(timeStr: string): number {
 /** Convert HH:mm:ss to HH:mm for display. */
 function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
+}
+
+/** Hover lines for booked slots on Change slot status week view (staff). */
+function bookedSlotUserDetailLines(slot: DailySlot): string[] {
+  if (String(slot.status || "").toUpperCase() !== "BOOKED" && !slot.booking_id) return [];
+  const lines: string[] = [];
+  const name = String(slot.booking_user_name || "").trim();
+  if (name) lines.push(`Name: ${name}`);
+  const deptName = String(slot.booking_user_department_name || "").trim();
+  const deptCode = String(slot.booking_user_department_code || "").trim();
+  if (deptName && deptCode) lines.push(`Department: ${deptName} (${deptCode})`);
+  else if (deptName) lines.push(`Department: ${deptName}`);
+  else if (deptCode) lines.push(`Department: ${deptCode}`);
+  const email = String(slot.booking_user_email || "").trim();
+  if (email) lines.push(`Email: ${email}`);
+  const phone = String(slot.booking_user_phone || "").trim();
+  if (phone) lines.push(`Mobile: ${phone}`);
+  if (slot.booking_id != null && String(slot.booking_id).trim() !== "") {
+    lines.push(`Booking ID: ${slot.booking_id}`);
+  }
+  return lines;
 }
 
 /** Start–end label for a slot row when weekly view shows time (e.g. "09:00 – 10:00"). */
@@ -5332,6 +5366,7 @@ const BookEquipment = () => {
                   <span className="animate-pulse">Loading slots…</span>
                 </div>
               ) : (
+                <TooltipProvider delayDuration={200}>
                 <div className="min-w-[900px] rounded-xl border-2 border-primary/10 bg-card overflow-hidden shadow-lg">
                   <div className="grid gap-0 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700" style={{ gridTemplateColumns: "120px 1fr 1fr 1fr 1fr 1fr 1fr 1fr" }}>
                     <div className="font-bold text-base p-4 border-b border-r">Time</div>
@@ -5498,62 +5533,81 @@ const BookEquipment = () => {
                           return (
                             <div key={dayOffset} className="min-h-[64px] p-2 border-r last:border-r-0">
                               {slot ? (
-                                <div className="w-full h-full min-h-[60px] relative flex items-stretch">
-                                  <button
-                                    type="button"
-                                    onClick={() => { if (slotSelectable) toggleStatusChangeSlotSelection(slot.id); }}
-                                    disabled={!slotSelectable}
-                                    className={cn(
-                                      "flex-1 min-h-[60px] p-2 text-sm font-semibold text-left transition-all flex items-center justify-center",
-                                      !slotSelectable && "cursor-not-allowed opacity-75",
-                                      isSelected && "ring-2 ring-primary ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
-                                    )}
-                                    style={
-                                      !isSelected && slot
-                                        ? {
-                                            ...cell3dStyle,
-                                            backgroundColor: displayBg,
-                                            color: getContrastTextColor(displayBg),
-                                          }
-                                        : isSelected ? cell3dStyle : undefined
-                                    }
-                                  >
-                                    {isSelected ? "✓" : displayLabel}
-                                  </button>
-                                  {slot.status === "BOOKED" && slot.booking_id && (
-                                    <button
-                                      type="button"
-                                      aria-label="View booking details"
-                                      className="absolute top-1 right-1 p-1 rounded-md opacity-90 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-                                      style={{ color: getContrastTextColor(displayBg) }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setExpandedSlotBooking(null);
-                                        setExpandedSlotBookingLoading(true);
-                                        apiClient
-                                          .getBookings({
-                                            booking_id:
-                                              (typeof slot.real_booking_id === "number"
-                                                ? slot.real_booking_id
-                                                : getRealBookingId({
-                                                    booking_id: slot.booking_id as string | number,
-                                                    real_booking_id: slot.real_booking_id,
-                                                  })) ?? undefined,
-                                            limit: 1,
-                                          })
-                                          .then((res) => {
-                                            const b = res.data?.bookings?.[0];
-                                            if (b) setExpandedSlotBooking(b as BookingDetailCardBooking);
-                                          })
-                                          .catch(() => toast.error("Failed to load booking details"))
-                                          .finally(() => setExpandedSlotBookingLoading(false));
-                                      }}
-                                    >
-                                      <ExternalLink className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </div>
+                                (() => {
+                                  const userDetailLines = bookedSlotUserDetailLines(slot);
+                                  const cellInner = (
+                                    <div className="w-full h-full min-h-[60px] relative flex items-stretch">
+                                      <button
+                                        type="button"
+                                        onClick={() => { if (slotSelectable) toggleStatusChangeSlotSelection(slot.id); }}
+                                        disabled={!slotSelectable}
+                                        className={cn(
+                                          "flex-1 min-h-[60px] p-2 text-sm font-semibold text-left transition-all flex items-center justify-center",
+                                          !slotSelectable && "cursor-not-allowed opacity-75",
+                                          isSelected && "ring-2 ring-primary ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
+                                        )}
+                                        style={
+                                          !isSelected && slot
+                                            ? {
+                                                ...cell3dStyle,
+                                                backgroundColor: displayBg,
+                                                color: getContrastTextColor(displayBg),
+                                              }
+                                            : isSelected ? cell3dStyle : undefined
+                                        }
+                                      >
+                                        {isSelected ? "✓" : displayLabel}
+                                      </button>
+                                      {slot.status === "BOOKED" && slot.booking_id && (
+                                        <button
+                                          type="button"
+                                          aria-label="View booking details"
+                                          className="absolute top-1 right-1 p-1 rounded-md opacity-90 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+                                          style={{ color: getContrastTextColor(displayBg) }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            setExpandedSlotBooking(null);
+                                            setExpandedSlotBookingLoading(true);
+                                            apiClient
+                                              .getBookings({
+                                                booking_id:
+                                                  (typeof slot.real_booking_id === "number"
+                                                    ? slot.real_booking_id
+                                                    : getRealBookingId({
+                                                        booking_id: slot.booking_id as string | number,
+                                                        real_booking_id: slot.real_booking_id,
+                                                      })) ?? undefined,
+                                                limit: 1,
+                                              })
+                                              .then((res) => {
+                                                const b = res.data?.bookings?.[0];
+                                                if (b) setExpandedSlotBooking(b as BookingDetailCardBooking);
+                                              })
+                                              .catch(() => toast.error("Failed to load booking details"))
+                                              .finally(() => setExpandedSlotBookingLoading(false));
+                                          }}
+                                        >
+                                          <ExternalLink className="h-4 w-4" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                  if (userDetailLines.length === 0) return cellInner;
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-full h-full">{cellInner}</div>
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="z-[120] max-w-xs whitespace-pre-line text-left px-3 py-2"
+                                      >
+                                        {userDetailLines.join("\n")}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })()
                               ) : (
                                 <div
                                   className="w-full min-h-[60px] p-2 rounded-xl text-sm font-semibold flex items-center justify-center border-2 border-white/40"
@@ -5577,6 +5631,7 @@ const BookEquipment = () => {
                     ));
                   })()}
                 </div>
+                </TooltipProvider>
               )}
 
               {/* Inline booking details – shown when user clicks ExternalLink on a booked slot */}
