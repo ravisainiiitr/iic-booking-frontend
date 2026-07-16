@@ -81,7 +81,9 @@ type AdditionRequest = {
 const EquipmentAdditionRequests = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
-  const isAdmin = String(user?.user_type || "").toLowerCase() === "admin";
+  const normalizedUserType = String(user?.user_type || "").toLowerCase();
+  const isAdmin = normalizedUserType === "admin";
+  const isDeptAdmin = normalizedUserType === "dept_admin";
 
   const [statusFilter, setStatusFilter] = useState("PENDING");
   const [rows, setRows] = useState<AdditionRequest[]>([]);
@@ -111,13 +113,13 @@ const EquipmentAdditionRequests = () => {
       navigate("/auth");
       return;
     }
-    if (!isAdmin) {
-      toast.error("Only admin can review equipment addition requests.");
-      navigate("/admin-settings");
+    if (!isAdmin && !isDeptAdmin) {
+      toast.error("Only Main Admin or Department Admin can open equipment addition requests.");
+      navigate("/dashboard");
       return;
     }
     load();
-  }, [authLoading, isAuthenticated, user, isAdmin, navigate, load]);
+  }, [authLoading, isAuthenticated, user, isAdmin, isDeptAdmin, navigate, load]);
 
   const handleApprove = async () => {
     if (!selected) return;
@@ -165,7 +167,7 @@ const EquipmentAdditionRequests = () => {
     }
   };
 
-  if (!isAdmin && !authLoading) return null;
+  if (!isAdmin && !isDeptAdmin && !authLoading) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
@@ -179,7 +181,9 @@ const EquipmentAdditionRequests = () => {
           <div>
             <h1 className="text-3xl font-bold">Equipment addition requests</h1>
             <p className="text-muted-foreground mt-1">
-              Review public proposals from `/propose-equipment`. Approve creates equipment under maintenance.
+              {isAdmin
+                ? "Review public proposals from `/propose-equipment`. Approve creates equipment under maintenance."
+                : "Track your department's equipment addition requests submitted for Main Admin approval."}
             </p>
           </div>
           <div className="w-[200px]">
@@ -238,8 +242,8 @@ const EquipmentAdditionRequests = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => { setSelected(r); setReviewNotes(""); }}>
-                          Review
+                        <Button size="sm" variant="outline" onClick={() => { setSelected(r); setReviewNotes(r.review_notes || ""); }}>
+                          {isAdmin ? "Review" : "View"}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -319,7 +323,7 @@ const EquipmentAdditionRequests = () => {
                     #{selected.created_equipment_id} ({selected.created_equipment_code})
                   </p>
                 )}
-                {selected.status === "PENDING" && (
+                {isAdmin && selected.status === "PENDING" && (
                   <div className="space-y-2 pt-2">
                     <Label htmlFor="review-notes">Review notes</Label>
                     <Textarea
@@ -336,7 +340,7 @@ const EquipmentAdditionRequests = () => {
               <Button variant="outline" onClick={() => setSelected(null)} disabled={actionLoading}>
                 Close
               </Button>
-              {selected?.status === "PENDING" && (
+              {isAdmin && selected?.status === "PENDING" && (
                 <>
                   <Button variant="destructive" onClick={handleReject} disabled={actionLoading}>
                     Reject

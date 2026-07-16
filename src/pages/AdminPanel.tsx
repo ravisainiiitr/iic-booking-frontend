@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   ChevronRight,
   UserCheck,
+  ShieldCheck,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 
@@ -55,6 +56,7 @@ const USERS_SECTIONS: SectionItem[] = [
 const AdminPanel = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isStrictAdmin, setIsStrictAdmin] = useState(false);
+  const [isDeptAdmin, setIsDeptAdmin] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -80,6 +82,7 @@ const AdminPanel = () => {
       const isAdminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
       const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
       setIsStrictAdmin(String(userResponse.data.user_type ?? "").toLowerCase() === "admin");
+      setIsDeptAdmin(String(userResponse.data.user_type ?? "").toLowerCase() === "dept_admin");
       const isAdminValue = isAdminByType || adminCheck.data?.is_admin === true;
       if (!isAdminValue) {
         toast({
@@ -107,6 +110,13 @@ const AdminPanel = () => {
       </div>
     );
   }
+
+  const visibleEquipmentSections = isDeptAdmin
+    ? EQUIPMENT_SECTIONS.filter((section) => ["bookings", "dailySlots", "equipment", "equipmentGroups"].includes(section.key))
+    : EQUIPMENT_SECTIONS;
+  const visibleUserSections = isDeptAdmin
+    ? USERS_SECTIONS.filter((section) => ["departments", "users"].includes(section.key))
+    : USERS_SECTIONS;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
@@ -165,7 +175,7 @@ const AdminPanel = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
-              {EQUIPMENT_SECTIONS.map((section) => (
+              {visibleEquipmentSections.map((section) => (
                 <button
                   key={section.key}
                   type="button"
@@ -199,7 +209,7 @@ const AdminPanel = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
-              {USERS_SECTIONS.map((section) => (
+              {visibleUserSections.map((section) => (
                 <button
                   key={section.key}
                   type="button"
@@ -215,6 +225,35 @@ const AdminPanel = () => {
               ))}
             </CardContent>
           </Card>
+
+          {(isStrictAdmin || isDeptAdmin) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <ShieldCheck className="h-6 w-6" />
+                  Department RBAC
+                </CardTitle>
+                <CardDescription>
+                  {isStrictAdmin
+                    ? "Appoint Department Administrators, set permission caps, and control department access."
+                    : "Grant subordinate permissions within the limits assigned to your department."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/department-rbac")}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                >
+                  <span className="flex items-center gap-3">
+                    <ShieldCheck className="h-5 w-5" />
+                    <span className="font-medium">Open RBAC controls</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </CardContent>
+            </Card>
+          )}
 
         </div>
       </main>

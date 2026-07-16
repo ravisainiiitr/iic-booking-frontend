@@ -40,6 +40,7 @@ import Reports from "./pages/Reports";
 import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
 import AdminSection from "./pages/AdminSection";
+import DepartmentRbacManagement from "./pages/DepartmentRbacManagement";
 import AdminHeroSlides from "./pages/AdminHeroSlides";
 import ContentManagement from "./pages/ContentManagement";
 import AdminSettings from "./pages/AdminSettings";
@@ -131,10 +132,12 @@ const App = () => (
                 <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/admin/external-user-management" element={<ExternalUserManagement />} />
                 <Route path="/admin/section/:section" element={<AdminSection />} />
+                <Route path="/admin/department-rbac" element={<DepartmentRbacManagement />} />
                 <Route path="/manage/external-user-management" element={<ExternalUserManagement />} />
                 <Route path="/manage/external-user-management/departments" element={<ExternalDepartmentAdditionVerification />} />
                 {/* External user verification is handled in AdminSection (users) */}
                 <Route path="/manage/section/:section" element={<AdminSection />} />
+                <Route path="/manage/department-rbac" element={<DepartmentRbacManagement />} />
                 <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
                 <Route path="/content-management" element={<ContentManagement />} />
                 <Route path="/admin-settings" element={<AdminSettings />} />

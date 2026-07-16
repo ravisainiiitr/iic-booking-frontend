@@ -547,6 +547,7 @@ export interface SampleTraceEvent {
   sample_identifiers: string;
   tracking_id?: string;
   reason?: string;
+  results_folder_path?: string;
   user_reply?: string;
   reply_attachments?: SampleTraceReplyAttachment[];
   created_at: string;
@@ -2440,7 +2441,7 @@ class ApiClient {
   isAdminPanelUser(userType: string | number | undefined | null): boolean {
     if (userType == null || userType === undefined) return false;
     const s = String(userType).toLowerCase();
-    return ['admin', 'manager', 'operator', 'finance'].includes(s);
+    return ['admin', 'dept_admin', 'manager', 'operator', 'finance'].includes(s);
   }
 
   async getUserRoles(userId?: string) {
@@ -3929,10 +3930,27 @@ class ApiClient {
     const body: Record<string, string> = { status, sample_identifiers: sampleIdentifiers ?? '' };
     if (trackingId !== undefined) body.tracking_id = trackingId;
     if (reason !== undefined) body.reason = reason;
-    return this.request<{ message: string; sample_trace: SampleTraceEvent[] }>(
+    return this.request<{
+      message: string;
+      sample_trace: SampleTraceEvent[];
+      in_analysis_folder_path?: string;
+      in_analysis_folder_opened?: boolean;
+    }>(
       `/bookings/${bookingId}/sample-trace/set/`,
       { method: 'POST', body: JSON.stringify(body) }
     );
+  }
+
+  /** Staff: create/open the In Analysis results folder for a booking (uses equipment results_base_location). */
+  async ensureBookingResultsFolder(bookingId: number) {
+    return this.request<{
+      message: string;
+      in_analysis_folder_path: string;
+      in_analysis_folder_opened: boolean;
+      exists: boolean;
+      virtual_booking_id?: string;
+      results_base_location?: string;
+    }>(`/bookings/${bookingId}/ensure-results-folder/`, { method: 'POST', body: JSON.stringify({}) });
   }
 
   /** Set booking user reply (text and optional files) to a Sample Rejected or Held at Office event. Only the booking user can set. */
@@ -6170,6 +6188,49 @@ class ApiClient {
   async adminPatch<T = unknown>(section: string, id: number | string, data: Record<string, unknown>) {
     const endpoint = this.getAdminEndpoint(section);
     return this.request<T>(`${endpoint}${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async listPermissionDefinitions() {
+    return this.request<Array<{ id: number; code: string; name: string; description?: string }>>(
+      "/admin/permission-definitions/",
+      { method: "GET" }
+    );
+  }
+
+  async listDeptAdminGrants(params?: { department_id?: number | string; dept_admin_id?: number | string }) {
+    const search = new URLSearchParams();
+    if (params?.department_id != null) search.set("department_id", String(params.department_id));
+    if (params?.dept_admin_id != null) search.set("dept_admin_id", String(params.dept_admin_id));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return this.request<Array<{ id: number; department: number; dept_admin: number; permission: number; permission_code: string; permission_name: string }>>(
+      `/admin/dept-admin-grants/${suffix}`,
+      { method: "GET" }
+    );
+  }
+
+  async syncDeptAdminGrants(payload: { dept_admin_id: number | string; permission_codes: string[] }) {
+    return this.request<Array<{ id: number; department: number; dept_admin: number; permission: number; permission_code: string; permission_name: string }>>(
+      "/admin/dept-admin-grants/sync/",
+      { method: "POST", body: JSON.stringify(payload) }
+    );
+  }
+
+  async listStaffPermissionGrants(params?: { department_id?: number | string; staff_user_id?: number | string }) {
+    const search = new URLSearchParams();
+    if (params?.department_id != null) search.set("department_id", String(params.department_id));
+    if (params?.staff_user_id != null) search.set("staff_user_id", String(params.staff_user_id));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return this.request<Array<{ id: number; department: number; dept_admin: number; staff_user: number; permission: number; permission_code: string; permission_name: string }>>(
+      `/admin/staff-permission-grants/${suffix}`,
+      { method: "GET" }
+    );
+  }
+
+  async syncStaffPermissionGrants(payload: { staff_user_id: number | string; permission_codes: string[] }) {
+    return this.request<Array<{ id: number; department: number; dept_admin: number; staff_user: number; permission: number; permission_code: string; permission_name: string }>>(
+      "/admin/staff-permission-grants/sync/",
+      { method: "POST", body: JSON.stringify(payload) }
+    );
   }
 
   /** Admin: list organization requests + standalone external departments (admin-added, status Approved). */

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban } from "lucide-react";
+import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban, FolderOpen } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -229,6 +229,7 @@ export default function SampleTraceTimeline({
   const [heldReason, setHeldReason] = useState("");
   const [disposeDialogOpen, setDisposeDialogOpen] = useState(false);
   const [disposeReason, setDisposeReason] = useState("");
+  const [folderLoading, setFolderLoading] = useState(false);
   const [detailEvent, setDetailEvent] = useState<SampleTraceEvent | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
@@ -332,7 +333,17 @@ export default function SampleTraceTimeline({
         toast.error(res.error);
         return;
       }
-      toast.success("Status updated.");
+      const folderPath = (res.data as { in_analysis_folder_path?: string } | null)?.in_analysis_folder_path;
+      const folderOpened = (res.data as { in_analysis_folder_opened?: boolean } | null)?.in_analysis_folder_opened;
+      if (status === "PROCESSING" && folderPath) {
+        toast.success(
+          folderOpened
+            ? `In Analysis folder created and opened:\n${folderPath}`
+            : `In Analysis folder created on the server at:\n${folderPath}`
+        );
+      } else {
+        toast.success("Status updated.");
+      }
       onUpdated();
       setSampleSentOpen(false);
       setSampleIdentifiers("");
@@ -346,6 +357,27 @@ export default function SampleTraceTimeline({
       setDisposeReason("");
     } finally {
       setLoading(null);
+    }
+  };
+
+  const ensureResultsFolder = async () => {
+    if (!bookingId) return;
+    setFolderLoading(true);
+    try {
+      const res = await apiClient.ensureBookingResultsFolder(bookingId);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      const path = res.data?.in_analysis_folder_path || "";
+      toast.success(
+        res.data?.in_analysis_folder_opened
+          ? `Results folder ready and opened:\n${path}`
+          : `Results folder ready on the server at:\n${path}`
+      );
+      onUpdated();
+    } finally {
+      setFolderLoading(false);
     }
   };
 
@@ -543,7 +575,13 @@ export default function SampleTraceTimeline({
                   <p className="text-sm mt-0.5 break-words">{detailEvent.tracking_id}</p>
                 </div>
               )}
-              {!detailEvent.reason && !detailEvent.sample_identifiers && !detailEvent.tracking_id && !(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (
+              {detailEvent.results_folder_path && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">Results folder</Label>
+                  <p className="text-sm mt-0.5 break-all font-mono">{detailEvent.results_folder_path}</p>
+                </div>
+              )}
+              {!detailEvent.reason && !detailEvent.sample_identifiers && !detailEvent.tracking_id && !detailEvent.results_folder_path && !(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (
                 <p className="text-sm text-muted-foreground">No additional details for this status.</p>
               )}
               {(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (
@@ -812,6 +850,16 @@ export default function SampleTraceTimeline({
             >
               {loading === "PROCESSING" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
               In Analysis
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={ensureResultsFolder}
+              disabled={!!loading || folderLoading || isNotUtilizedFlow || isRejectedFlow || applyHeldAtOfficeFlowRules}
+              title="Create or reopen the results folder under the equipment Results base location"
+            >
+              {folderLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
+              {inAnalysisDone ? "Open results folder" : "Create results folder"}
             </Button>
             <Button
               size="sm"

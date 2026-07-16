@@ -132,6 +132,7 @@ const DEPARTMENT_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
 /** User type options (mirrors Django admin/users/user/ – UserType.get_choices()). */
 const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "admin", label: "Admin" },
+  { value: "dept_admin", label: "Department Administrator" },
   { value: "manager", label: "Officer In Charge" },
   { value: "operator", label: "Lab Incharge" },
   { value: "finance", label: "Accounts In Charge" },
@@ -149,6 +150,7 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
 /** User type filter options for manage/section/users (restricted list). */
 const USER_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "admin", label: "Admin" },
+  { value: "dept_admin", label: "Department Administrator" },
   { value: "manager", label: "Officer In Charge" },
   { value: "operator", label: "Lab Incharge" },
   { value: "finance", label: "Accounts In Charge" },
@@ -182,6 +184,7 @@ export default function AdminSection() {
   const [authChecked, setAuthChecked] = useState(false);
   /** Only Admin user_type may manage/update users (Actions / Update). */
   const [isStrictAdmin, setIsStrictAdmin] = useState(false);
+  const [currentUserType, setCurrentUserType] = useState("");
   const [menuDocumentFile, setMenuDocumentFile] = useState<File | null>(null);
   const [pagesList, setPagesList] = useState<Record<string, unknown>[]>([]);
   const [fetchUrl, setFetchUrl] = useState("");
@@ -255,6 +258,7 @@ export default function AdminSection() {
   const title = SECTION_TITLES[sectionKey] || sectionKey;
   const idField = SECTION_ID_FIELD[sectionKey] ?? "id";
   const hasEndpoint = sectionKey && ADMIN_SECTION_ENDPOINTS[sectionKey];
+  const canManageUsers = isStrictAdmin || currentUserType === "dept_admin";
 
   // Allows other pages (e.g. External User Management) to open this page with filters pre-selected.
   // We store them in a ref so the initial fetch can use them immediately.
@@ -308,7 +312,9 @@ export default function AdminSection() {
         navigate("/admin");
         return;
       }
-      setIsStrictAdmin(String(userRes.data.user_type ?? "").toLowerCase() === "admin");
+      const nextUserType = String(userRes.data.user_type ?? "").toLowerCase();
+      setCurrentUserType(nextUserType);
+      setIsStrictAdmin(nextUserType === "admin");
       setAuthChecked(true);
     };
     check();
@@ -566,7 +572,7 @@ export default function AdminSection() {
     }
     setFormData(
       sectionKey === "departments"
-        ? { name: "", code: "", department_type: "internal", description: "" }
+        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true }
         : sectionKey === "wallets"
         ? { user: "" }
         : sectionKey === "projects"
@@ -773,6 +779,15 @@ export default function AdminSection() {
             is_enforced: q.is_enforced ?? true,
           };
         }),
+      };
+    }
+    if (sectionKey === "departments") {
+      data = {
+        name: String(formData.name ?? "").trim(),
+        code: String(formData.code ?? "").trim(),
+        department_type: String(formData.department_type ?? "internal"),
+        description: String(formData.description ?? "").trim(),
+        access_enabled: formData.access_enabled === true || formData.access_enabled === "true",
       };
     }
     if (sectionKey === "projects") {
@@ -1027,7 +1042,7 @@ export default function AdminSection() {
             <CardDescription>View, add, edit, and delete records. No Django Admin login required.</CardDescription>
             <div className="flex justify-end">
               {sectionKey !== "repeatSampleRequests" &&
-                !(sectionKey === "users" && !isStrictAdmin) && (
+                !(sectionKey === "users" && !canManageUsers) && (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add
@@ -1605,6 +1620,7 @@ export default function AdminSection() {
                           <TableHead>Department Name</TableHead>
                           <TableHead>Department Code</TableHead>
                           <TableHead>Department Type</TableHead>
+                          <TableHead>Access</TableHead>
                           <TableHead>User Count</TableHead>
                           <TableHead>Equipment Count</TableHead>
                           <TableHead className="w-[100px]">Actions</TableHead>
@@ -1634,7 +1650,7 @@ export default function AdminSection() {
                           <TableHead>Email Verified</TableHead>
                           <TableHead>Admin Approved</TableHead>
                           <TableHead>Active</TableHead>
-                          {isStrictAdmin && <TableHead className="w-[100px]">Actions</TableHead>}
+                          {canManageUsers && <TableHead className="w-[100px]">Actions</TableHead>}
                         </TableRow>
                       ) : (
                         <TableRow>
@@ -1783,6 +1799,7 @@ export default function AdminSection() {
                               </TableCell>
                               <TableCell>{row.code != null && row.code !== "" ? String(row.code) : "—"}</TableCell>
                               <TableCell>{row.department_type_display != null ? String(row.department_type_display) : (row.department_type != null ? String(row.department_type) : "—")}</TableCell>
+                              <TableCell>{row.access_enabled === false || row.access_enabled === "false" ? "Disabled" : "Enabled"}</TableCell>
                               <TableCell>{row.user_count != null ? String(row.user_count) : "—"}</TableCell>
                               <TableCell>{row.equipment_count != null ? String(row.equipment_count) : "—"}</TableCell>
                               <TableCell>
@@ -1860,7 +1877,7 @@ export default function AdminSection() {
                         ? list.map((row) => (
                             <TableRow key={row[idField] ?? row.id}>
                               <TableCell>
-                                {isStrictAdmin ? (
+                                {canManageUsers ? (
                                   <button
                                     type="button"
                                     onClick={() => openEdit(row)}
@@ -1873,7 +1890,7 @@ export default function AdminSection() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                {isStrictAdmin ? (
+                                {canManageUsers ? (
                                   <button
                                     type="button"
                                     onClick={() => openEdit(row)}
@@ -1896,10 +1913,10 @@ export default function AdminSection() {
                               <TableCell>{row.email_verified === true || row.email_verified === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>{row.admin_approved === true || row.admin_approved === "true" ? "Yes" : "No"}</TableCell>
                               <TableCell>{row.is_active === true || row.is_active === "true" ? "Yes" : "No"}</TableCell>
-                              {isStrictAdmin && (
+                              {canManageUsers && (
                               <TableCell>
                                 <div className="flex gap-2">
-                                  {!(row.is_active === true || row.is_active === "true") && (
+                                  {isStrictAdmin && !(row.is_active === true || row.is_active === "true") && (
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -2716,6 +2733,19 @@ export default function AdminSection() {
                         onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                         placeholder="Optional description"
                       />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right" htmlFor="dept-access-enabled">Access enabled</Label>
+                    <div className="col-span-3 flex items-center gap-3">
+                      <Checkbox
+                        id="dept-access-enabled"
+                        checked={formData.access_enabled === true || formData.access_enabled === "true"}
+                        onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, access_enabled: checked === true }))}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        When disabled, departmental admin-panel access is blocked for this internal department.
+                      </span>
                     </div>
                   </div>
                   {(formData.created_at != null || formData.updated_at != null) && (

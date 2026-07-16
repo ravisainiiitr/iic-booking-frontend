@@ -28,6 +28,7 @@ export function isExternalBookingUserType(userType: string | number | null | und
 
 export const USER_TYPE_DISPLAY_NAMES: Record<string, string> = {
   admin: "Admin",
+  dept_admin: "Department Administrator",
   manager: "Officer In Charge",
   operator: "Lab Incharge",
   finance: "Accounts In Charge",
