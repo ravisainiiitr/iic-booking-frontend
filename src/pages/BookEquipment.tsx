@@ -36,7 +36,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, Wallet, Info } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, Wallet } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
@@ -70,7 +70,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { periodicTableElements, getCategoryColor, parseDisabledElementsFromHelpText, type Element } from "@/data/periodicTableData";
+import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { toast } from "sonner";
@@ -1743,8 +1743,17 @@ const BookEquipment = () => {
         eq.input_fields.forEach((field: any) => {
           const fieldType = String(field.field_type || '').toUpperCase().trim();
           if (fieldType === 'PERIODIC_TABLE') {
-            initialValues[field.field_key] = getInitialDynamicInputValue(field);
-            initialValues[field.field_key + '_elements'] = (field.options && Array.isArray(field.options) ? field.options.join(',') : '') || '';
+            const { preselected } = parsePeriodicHelpText(field.help_text);
+            const fromOptions =
+              field.options && Array.isArray(field.options)
+                ? field.options.map((s: string) => String(s).trim()).filter(Boolean)
+                : [];
+            const { all, billable } = mergePeriodicDisplaySymbols(
+              [...fromOptions, ...Array.from(preselected)],
+              field.help_text
+            );
+            initialValues[field.field_key] = billable.length;
+            initialValues[field.field_key + '_elements'] = all.join(',');
           } else {
             initialValues[field.field_key] = getInitialDynamicInputValue(field);
           }
@@ -1979,6 +1988,10 @@ const BookEquipment = () => {
               if (!isCalculateChargesFlow) toast.error(`Please select "${label}".`);
               return;
             }
+            continue;
+          }
+          if (fieldType === 'PERIODIC_TABLE') {
+            // Billable count may be 0 when only locked preselected elements (`/C`) are set.
             continue;
           }
           const num = typeof raw === 'number' ? raw : Number(raw);
@@ -3918,8 +3931,12 @@ const BookEquipment = () => {
       options?: { openPeriodicDialogAfter?: boolean }
     ) => {
       const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicFieldKeyParam);
-      const disabledSet = parseDisabledElementsFromHelpText(field?.help_text);
-      let allowed = normalizeToPeriodicSymbols(rawSymbols).filter((s) => !disabledSet.has(s));
+      const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(field?.help_text);
+      const merged = mergePeriodicDisplaySymbols(
+        [...rawSymbols, ...Array.from(preselectedSet)],
+        field?.help_text
+      );
+      let allowed = merged.all.filter((s) => !disabledSet.has(s));
 
       const icpmsAllCoverageFields = (equipmentDetail?.input_fields ?? []).filter((f: any) => {
         const ft = String(f?.field_type || "").toUpperCase().trim();
@@ -3936,23 +3953,28 @@ const BookEquipment = () => {
 
       const nextInputUpdates: Record<string, string | boolean | string[] | number> = {};
 
-      const enforceMinForKey = (k: string) =>
-        k === "A" || k === "B"
-          ? allowed.length > 0
-            ? Math.max(1, allowed.length)
-            : 0
-          : allowed.length;
+      const syncCountsFromAllowed = (symbols: string[]) => {
+        const nextMerged = mergePeriodicDisplaySymbols(symbols, field?.help_text);
+        const nextAll = nextMerged.all.filter((s) => !disabledSet.has(s));
+        const nextBillable = nextMerged.billable;
+        const countFor = (k: string) =>
+          k === "A" || k === "B"
+            ? nextBillable.length > 0
+              ? Math.max(1, nextBillable.length)
+              : 0
+            : nextBillable.length;
+        nextInputUpdates[periodicFieldKeyParam] = countFor(periodicFieldKeyParam);
+        nextInputUpdates[periodicFieldKeyParam + "_elements"] = nextAll.join(",");
+        for (const f of icpmsCoverageFields) {
+          const srcKey = String(f?.source_element_field_key || "").trim();
+          if (!srcKey) continue;
+          nextInputUpdates[srcKey] = countFor(srcKey);
+          nextInputUpdates[srcKey + "_elements"] = nextAll.join(",");
+        }
+        return nextAll;
+      };
 
-      nextInputUpdates[periodicFieldKeyParam] = enforceMinForKey(periodicFieldKeyParam);
-      nextInputUpdates[periodicFieldKeyParam + "_elements"] = allowed.join(",");
-
-      for (const f of icpmsCoverageFields) {
-        const srcKey = String(f?.source_element_field_key || "").trim();
-        if (!srcKey) continue;
-        nextInputUpdates[srcKey] = enforceMinForKey(srcKey);
-        nextInputUpdates[srcKey + "_elements"] = allowed.join(",");
-      }
-
+      allowed = syncCountsFromAllowed(allowed);
       setSelectedPeriodicSymbols(new Set(allowed));
 
       if (icpmsCoverageFields.length > 0) {
@@ -3973,17 +3995,9 @@ const BookEquipment = () => {
                 );
 
                 if (!exclude) {
-                  setSelectedPeriodicSymbols(new Set());
-
-                  nextInputUpdates[periodicFieldKeyParam] = 0;
-                  nextInputUpdates[periodicFieldKeyParam + "_elements"] = "";
-
-                  for (const f of icpmsCoverageFields) {
-                    const srcKey = String(f?.source_element_field_key || "").trim();
-                    if (!srcKey) continue;
-                    nextInputUpdates[srcKey] = 0;
-                    nextInputUpdates[srcKey + "_elements"] = "";
-                  }
+                  // Keep locked preselected elements; clear only user-billable picks.
+                  allowed = syncCountsFromAllowed(Array.from(preselectedSet));
+                  setSelectedPeriodicSymbols(new Set(allowed));
 
                   for (const f of icpmsCoverageFields) {
                     nextInputUpdates[f.field_key] = 0;
@@ -4003,18 +4017,12 @@ const BookEquipment = () => {
                 }
 
                 const uncoveredSet = new Set(uncovered.map((u: string) => String(u).toUpperCase()));
-                allowed = allowed.filter((s) => !uncoveredSet.has(String(s).toUpperCase()));
+                // Never drop locked preselected elements when excluding uncovered.
+                allowed = allowed.filter(
+                  (s) => preselectedSet.has(s) || !uncoveredSet.has(String(s).toUpperCase())
+                );
+                allowed = syncCountsFromAllowed(allowed);
                 setSelectedPeriodicSymbols(new Set(allowed));
-
-                nextInputUpdates[periodicFieldKeyParam] = enforceMinForKey(periodicFieldKeyParam);
-                nextInputUpdates[periodicFieldKeyParam + "_elements"] = allowed.join(",");
-
-                for (const f of icpmsCoverageFields) {
-                  const srcKey = String(f?.source_element_field_key || "").trim();
-                  if (!srcKey) continue;
-                  nextInputUpdates[srcKey] = enforceMinForKey(srcKey);
-                  nextInputUpdates[srcKey + "_elements"] = allowed.join(",");
-                }
 
                 if (allowed.length === 0) {
                   for (const f of icpmsCoverageFields) {
@@ -6099,6 +6107,18 @@ const BookEquipment = () => {
                   </div>
                 )}
 
+                {!!(equipmentDetail?.important_instruction || "").trim() && (
+                  <div
+                    className="mb-6 rounded-lg border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 dark:border-red-500/50 px-4 py-3"
+                    role="note"
+                  >
+                    <p className="text-base md:text-lg font-bold text-red-700 dark:text-red-400 animate-note-blink whitespace-pre-wrap">
+                      <span className="uppercase tracking-wide">NOTE:</span>{" "}
+                      {(equipmentDetail?.important_instruction || "").trim()}
+                    </p>
+                  </div>
+                )}
+
                 {equipmentDetail?.profile_type === "PRINT_3D" && selectedEquipment && !repeatSourceBooking && (
                   <Print3DBookingPanel
                     equipmentId={selectedEquipment.id}
@@ -6112,18 +6132,6 @@ const BookEquipment = () => {
                     onAnalyzingChange={setPrint3dAnalyzing}
                     disabled={!!repeatSourceBooking}
                   />
-                )}
-
-                {!!(equipmentDetail?.important_instruction || "").trim() && (
-                  <div className="mb-6 rounded-lg border-2 border-amber-500/80 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/60 p-4">
-                    <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
-                      <Info className="h-4 w-4" />
-                      Important Note
-                    </h4>
-                    <p className="text-sm text-amber-900/90 dark:text-amber-100/90 whitespace-pre-wrap">
-                      {(equipmentDetail?.important_instruction || "").trim()}
-                    </p>
-                  </div>
                 )}
 
                 {/* Step 1: Input Fields Section */}
@@ -6334,8 +6342,9 @@ const BookEquipment = () => {
                                 const count = Number(inputFieldValues[field.field_key]) || 0;
                                 const elementsStr = (inputFieldValues[field.field_key + '_elements'] as string) || '';
                                 const elementsList = elementsStr ? elementsStr.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-                                const disabledSet = parseDisabledElementsFromHelpText(field.help_text);
-                                const allowedList = elementsList.filter((s) => !disabledSet.has(s));
+                                const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(field.help_text);
+                                const { all: displayList, billable } = mergePeriodicDisplaySymbols(elementsList, field.help_text);
+                                const allowedList = displayList.filter((s) => !disabledSet.has(s));
                                 return (
                                   <div className="space-y-2">
                                     <Button
@@ -6345,14 +6354,18 @@ const BookEquipment = () => {
                                       disabled={!!repeatSourceBooking}
                                       onClick={() => {
                                         setPeriodicTableFieldKey(field.field_key);
-                                        setSelectedPeriodicSymbols(new Set(allowedList));
+                                        setSelectedPeriodicSymbols(new Set([...allowedList, ...Array.from(preselectedSet)]));
                                       }}
                                     >
                                       Select elements
                                     </Button>
-                                    {count > 0 && (
+                                    {(count > 0 || allowedList.length > 0) && (
                                       <p className="text-sm text-muted-foreground">
-                                        {allowedList.length} element(s) selected{allowedList.length ? `: ${allowedList.join(', ')}` : ''}
+                                        {allowedList.length} element(s) selected
+                                        {preselectedSet.size > 0
+                                          ? ` (${billable.length} for charge; ${Array.from(preselectedSet).join(", ")} locked)`
+                                          : ""}
+                                        {allowedList.length ? `: ${allowedList.join(', ')}` : ''}
                                       </p>
                                     )}
                                   </div>
@@ -6740,22 +6753,30 @@ const BookEquipment = () => {
                       <div className="space-y-4">
                         {(() => {
                           const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicTableFieldKey);
-                          const disabledSet = parseDisabledElementsFromHelpText(field?.help_text);
+                          const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(field?.help_text);
                           const toggle = (symbol: string) => {
-                            if (disabledSet.has(symbol)) return;
+                            if (disabledSet.has(symbol) || preselectedSet.has(symbol)) return;
                             setSelectedPeriodicSymbols((prev) => {
                               const next = new Set(prev);
                               if (next.has(symbol)) next.delete(symbol);
                               else next.add(symbol);
+                              // Always keep locked preselected elements selected.
+                              preselectedSet.forEach((s) => next.add(s));
                               return next;
                             });
                           };
                           return (
                             <>
                               <p className="text-sm text-muted-foreground">
-                                {selectedPeriodicSymbols.size} element(s) selected. Count is stored for charge calculation.
+                                {selectedPeriodicSymbols.size} element(s) selected. Count for charge excludes locked preselected elements.
                                 {disabledSet.size > 0 && (
                                   <span className="block mt-1"> Elements listed in Help text (admin) are disabled and cannot be selected.</span>
+                                )}
+                                {preselectedSet.size > 0 && (
+                                  <span className="block mt-1">
+                                    {" "}
+                                    Locked (Help text <code className="text-xs">/Symbol</code>): {Array.from(preselectedSet).join(", ")} — always selected, not charged, cannot be deselected.
+                                  </span>
                                 )}
                               </p>
                               <div className="overflow-x-auto">
@@ -6770,21 +6791,31 @@ const BookEquipment = () => {
                                       const actinides = periodicTableElements.filter((el) => el.category === "actinide");
                                       const elButton = (el: Element) => {
                                         const isDisabled = disabledSet.has(el.symbol);
+                                        const isLocked = preselectedSet.has(el.symbol);
+                                        const isSelected = selectedPeriodicSymbols.has(el.symbol) || isLocked;
                                         return (
                                           <button
                                             key={el.atomicNumber}
                                             type="button"
                                             onClick={() => toggle(el.symbol)}
-                                            disabled={isDisabled}
-                                            title={isDisabled ? `${el.name} (disabled)` : el.name}
+                                            disabled={isDisabled || isLocked}
+                                            title={
+                                              isDisabled
+                                                ? `${el.name} (disabled)`
+                                                : isLocked
+                                                  ? `${el.name} (locked preselected — not charged)`
+                                                  : el.name
+                                            }
                                             className={cn(
                                               "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative",
                                               getCategoryColor(el.category),
-                                              selectedPeriodicSymbols.has(el.symbol) && "ring-2 ring-primary ring-offset-1 scale-105",
-                                              isDisabled && "opacity-60 cursor-not-allowed pointer-events-none bg-muted border-dashed"
+                                              isSelected && "ring-2 ring-primary ring-offset-1 scale-105",
+                                              isLocked && "ring-2 ring-sky-500 ring-offset-1",
+                                              (isDisabled || isLocked) && "opacity-60 cursor-not-allowed pointer-events-none",
+                                              isDisabled && "bg-muted border-dashed"
                                             )}
                                           >
-                                            {selectedPeriodicSymbols.has(el.symbol) && <Check className="w-3 h-3 absolute top-0 right-0" />}
+                                            {isSelected && <Check className="w-3 h-3 absolute top-0 right-0" />}
                                             <span className="font-bold">{el.symbol}</span>
                                           </button>
                                         );

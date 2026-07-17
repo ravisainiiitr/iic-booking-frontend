@@ -5377,6 +5377,91 @@ class ApiClient {
     });
   }
 
+  /** OIC/Admin: list accessories for managed equipment. */
+  async getOicEquipmentAccessories(equipmentId?: number | string) {
+    const q = equipmentId != null ? `?equipment_id=${encodeURIComponent(String(equipmentId))}` : "";
+    return this.request<{
+      equipments: Array<{
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        accessories: Array<{
+          equipment_accessory_id: number;
+          accessory_name: string;
+          is_optional?: boolean;
+          is_enabled?: boolean;
+        }>;
+        additional_accessories: Array<{
+          equipment_additional_accessory_id: number;
+          additional_accessory_name: string;
+          additional_accessory_description?: string;
+          is_optional?: boolean;
+          is_enabled?: boolean;
+        }>;
+      }>;
+    }>(`/oic/equipment-accessories/${q}`);
+  }
+
+  async setOicEquipmentAccessoryEnabled(accessoryId: number, isEnabled: boolean) {
+    return this.request<{ accessory: { equipment_accessory_id: number; accessory_name: string; is_enabled: boolean } }>(
+      `/oic/equipment-accessories/${accessoryId}/`,
+      { method: "PATCH", body: JSON.stringify({ is_enabled: isEnabled }) }
+    );
+  }
+
+  async setOicEquipmentAdditionalAccessoryEnabled(accessoryId: number, isEnabled: boolean) {
+    return this.request<{
+      additional_accessory: {
+        equipment_additional_accessory_id: number;
+        additional_accessory_name: string;
+        is_enabled: boolean;
+      };
+    }>(`/oic/equipment-additional-accessories/${accessoryId}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_enabled: isEnabled }),
+    });
+  }
+
+  /** OIC/Admin: list equipment groups (with quotas) for managed equipment. */
+  async getOicEquipmentGroupQuotas() {
+    return this.request<{
+      groups: Array<{
+        equipment_group_id: number;
+        name: string;
+        code: string;
+        description?: string;
+        equipment?: Array<{ equipment_id: number; code?: string; name?: string }>;
+        quotas?: Array<{
+          id?: number;
+          quota_type: string;
+          quota_type_display?: string;
+          internal_individual_quota_minutes: number;
+          internal_faculty_quota_minutes: number;
+          external_individual_quota_minutes: number;
+          external_faculty_quota_minutes: number;
+          is_enforced: boolean;
+        }>;
+      }>;
+    }>("/oic/equipment-group-quotas/");
+  }
+
+  async updateOicEquipmentGroupQuotas(
+    groupId: number,
+    quotas: Array<{
+      quota_type: string;
+      internal_individual_quota_minutes: number;
+      internal_faculty_quota_minutes: number;
+      external_individual_quota_minutes: number;
+      external_faculty_quota_minutes: number;
+      is_enforced: boolean;
+    }>
+  ) {
+    return this.request<{ message?: string; group?: unknown }>(`/oic/equipment-group-quotas/${groupId}/`, {
+      method: "PUT",
+      body: JSON.stringify({ quotas }),
+    });
+  }
+
   /** Admin/OIC: allocate a booking duty to an approved TA nomination. */
   async allocateTAAssignment(data: {
     nomination_id: number;

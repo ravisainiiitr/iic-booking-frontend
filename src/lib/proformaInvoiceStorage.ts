@@ -1,4 +1,6 @@
 /** Persisted line items when building a proforma via Book Equipment (?proforma=1). */
+import { mergePeriodicDisplaySymbols } from "@/data/periodicTableData";
+
 export const PROFORMA_LINE_ITEMS_STORAGE_KEY = "proforma_invoice_line_items_v1";
 
 export type ProformaLineItemField = {
@@ -98,10 +100,13 @@ export function mergeProformaLineIntoInputFieldValues(
     } else if (fieldType === "MULTI_SELECT") {
       base[key] = field.default_value ? String(field.default_value).split(",").map((s) => s.trim()).filter(Boolean) : [];
     } else if (fieldType === "PERIODIC_TABLE") {
-      const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
-      base[key] = Number.isNaN(count) ? 0 : count;
-      base[key + "_elements"] =
-        field.options && Array.isArray(field.options) ? (field.options as string[]).join(",") : "";
+      const fromOptions =
+        field.options && Array.isArray(field.options)
+          ? (field.options as string[]).map((s) => String(s).trim()).filter(Boolean)
+          : [];
+      const { all, billable } = mergePeriodicDisplaySymbols(fromOptions, field.help_text);
+      base[key] = billable.length;
+      base[key + "_elements"] = all.join(",");
     } else if (fieldType === "ICPMS_STANDARD_COVERAGE") {
       base[key] = 0;
     } else if (fieldType === "TABLE") {

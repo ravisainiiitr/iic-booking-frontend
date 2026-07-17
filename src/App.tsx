@@ -53,6 +53,8 @@ import EquipmentAdditionRequests from "./pages/EquipmentAdditionRequests";
 import AdminSettingsSupport from "./pages/AdminSettingsSupport";
 import AdminSettingsQualityImprovement from "./pages/AdminSettingsQualityImprovement";
 import AdminRewardsConfig from "./pages/AdminRewardsConfig";
+import OICAccessories from "./pages/OICAccessories";
+import OICQuotaConfigurations from "./pages/OICQuotaConfigurations";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
 import InventoryManagement from "./pages/InventoryManagement";
 import ProcurementWorkflow from "./pages/ProcurementWorkflow";
@@ -156,6 +158,8 @@ const App = () => (
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
                 <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
+                <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
+                <Route path="/oic/quota-configurations" element={<ErrorBoundary fallbackTitle="Quota Configurations" backPath="/dashboard"><OICQuotaConfigurations /></ErrorBoundary>} />
                 <Route path="/user-management" element={<UserManagement />} />
                 <Route path="/setup-test-users" element={<SetupTestUsers />} />
                 <Route path="/profile" element={<Profile />} />

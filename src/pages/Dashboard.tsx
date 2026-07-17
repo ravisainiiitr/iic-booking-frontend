@@ -2706,6 +2706,56 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {(isAdmin || isOicUser) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-cyan-200 dark:hover:border-cyan-800"
+              onClick={() => navigate("/oic/accessories")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-sky-600 text-white shadow-lg">
+                    <Wrench className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Accessories</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Enable or disable equipment accessories and additional accessories
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white">Manage accessories</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isOicUser) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => navigate("/oic/quota-configurations")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-lg">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Quota Configurations</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Weekly and monthly quotas for equipment groups you manage
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Manage quotas</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"

@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
-import { periodicTableElements, getCategoryColor, parseDisabledElementsFromHelpText, type Element } from "@/data/periodicTableData";
+import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 
@@ -710,19 +710,24 @@ export function BookingUserInputs({
                   )}
                   {type === "PERIODIC_TABLE" && (() => {
                     const elementsStr = String(editFormValues[`${f.field_key}_elements`] ?? "").trim();
-                    const disabledSet = parseDisabledElementsFromHelpText(f.help_text);
+                    const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(f.help_text);
                     const selectedSymbols = new Set(
-                      elementsStr ? elementsStr.split(",").map((s) => s.trim()).filter((s) => Boolean(s) && !disabledSet.has(s)) : []
+                      elementsStr
+                        ? elementsStr.split(",").map((s) => s.trim()).filter((s) => Boolean(s) && !disabledSet.has(s))
+                        : []
                     );
+                    preselectedSet.forEach((s) => selectedSymbols.add(s));
                     const toggleSymbol = (symbol: string) => {
-                      if (disabledSet.has(symbol)) return;
+                      if (disabledSet.has(symbol) || preselectedSet.has(symbol)) return;
                       const next = new Set(selectedSymbols);
                       if (next.has(symbol)) next.delete(symbol);
                       else next.add(symbol);
+                      preselectedSet.forEach((s) => next.add(s));
+                      const { all, billable } = mergePeriodicDisplaySymbols(Array.from(next), f.help_text);
                       setEditFormValues((prev) => ({
                         ...prev,
-                        [f.field_key]: next.size,
-                        [`${f.field_key}_elements`]: Array.from(next).join(","),
+                        [f.field_key]: billable.length,
+                        [`${f.field_key}_elements`]: all.join(","),
                       }));
                     };
                     const grid: (Element | null)[][] = Array(7)
@@ -735,22 +740,31 @@ export function BookingUserInputs({
                     const actinides = periodicTableElements.filter((el) => el.category === "actinide");
                     const elButton = (el: Element) => {
                       const isDisabled = disabledSet.has(el.symbol);
+                      const isLocked = preselectedSet.has(el.symbol);
+                      const isSelected = selectedSymbols.has(el.symbol) || isLocked;
                       return (
                         <button
                           key={el.atomicNumber}
                           type="button"
                           onClick={() => toggleSymbol(el.symbol)}
-                          disabled={isDisabled}
-                          title={isDisabled ? `${el.name} (disabled)` : el.name}
+                          disabled={isDisabled || isLocked}
+                          title={
+                            isDisabled
+                              ? `${el.name} (disabled)`
+                              : isLocked
+                                ? `${el.name} (locked preselected — not charged)`
+                                : el.name
+                          }
                           className={cn(
                             "w-9 h-9 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative",
                             getCategoryColor(el.category),
-                            selectedSymbols.has(el.symbol) &&
-                              "ring-2 ring-primary ring-offset-1 scale-105",
-                            isDisabled && "opacity-60 cursor-not-allowed pointer-events-none bg-muted border-dashed"
+                            isSelected && "ring-2 ring-primary ring-offset-1 scale-105",
+                            isLocked && "ring-2 ring-sky-500 ring-offset-1",
+                            (isDisabled || isLocked) && "opacity-60 cursor-not-allowed pointer-events-none",
+                            isDisabled && "bg-muted border-dashed"
                           )}
                         >
-                          {selectedSymbols.has(el.symbol) && (
+                          {isSelected && (
                             <Check className="absolute top-0 right-0 w-3 h-3 text-primary" />
                           )}
                           <span className="font-bold">{el.symbol}</span>
@@ -760,8 +774,13 @@ export function BookingUserInputs({
                     return (
                       <div className="space-y-2 pt-1">
                         <p className="text-sm text-muted-foreground">
-                          {selectedSymbols.size} element(s) selected. Click elements to toggle.
+                          {selectedSymbols.size} element(s) selected
+                          {preselectedSet.size > 0
+                            ? ` (${mergePeriodicDisplaySymbols(Array.from(selectedSymbols), f.help_text).billable.length} for charge; locked: ${Array.from(preselectedSet).join(", ")})`
+                            : ""}
+                          . Click elements to toggle.
                           {disabledSet.size > 0 && " Elements listed in Help text are disabled."}
+                          {preselectedSet.size > 0 && " Slash-prefixed Help text elements are locked and not charged."}
                         </p>
                         <div className="overflow-x-auto rounded-md border p-2 bg-muted/30">
                           <div className="inline-block min-w-max">

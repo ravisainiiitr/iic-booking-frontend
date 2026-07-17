@@ -159,25 +159,94 @@ export const getCategoryColor = (category: string): string => {
 
 /** Parse help_text (one element per line) into a Set of symbols to disable in the periodic selector. */
 export function parseDisabledElementsFromHelpText(helpText: string | null | undefined): Set<string> {
-  const set = new Set<string>();
-  if (!helpText || typeof helpText !== "string") return set;
+  return parsePeriodicHelpText(helpText).disabled;
+}
+
+/** Parse help_text lines starting with `/` (e.g. `/C`) into locked preselected symbols. */
+export function parsePreselectedElementsFromHelpText(helpText: string | null | undefined): Set<string> {
+  return parsePeriodicHelpText(helpText).preselected;
+}
+
+export type PeriodicHelpTextParsed = {
+  /** Excluded from selection (plain lines in Help text). */
+  disabled: Set<string>;
+  /** Forced selected, not billable, not user-deselectable (`/C` lines in Help text). */
+  preselected: Set<string>;
+};
+
+/**
+ * Help text for PERIODIC_TABLE fields:
+ * - Plain line (`C` or `Carbon`) → disabled / excluded from selection
+ * - Slash-prefixed line (`/C` or `/Carbon`) → locked preselected (shown selected, not billable)
+ * If the same element appears in both forms, preselected wins.
+ */
+export function parsePeriodicHelpText(helpText: string | null | undefined): PeriodicHelpTextParsed {
+  const disabled = new Set<string>();
+  const preselected = new Set<string>();
+  if (!helpText || typeof helpText !== "string") return { disabled, preselected };
+
   const bySymbol = new Map<string, string>();
   const byName = new Map<string, string>();
   periodicTableElements.forEach((el) => {
     bySymbol.set(el.symbol.toLowerCase(), el.symbol);
     byName.set(el.name.toLowerCase(), el.symbol);
   });
+
+  const resolve = (raw: string): string | undefined => {
+    const cleaned = raw.replace(/[,;]+/g, " ").trim();
+    if (!cleaned) return undefined;
+    const firstToken = cleaned.split(/\s+/)[0]?.trim() || "";
+    return (
+      bySymbol.get(firstToken.toLowerCase()) ??
+      byName.get(cleaned.toLowerCase()) ??
+      byName.get(firstToken.toLowerCase())
+    );
+  };
+
   helpText
     .split(/\r?\n/)
-    .map((line) => line.replace(/[,;]+/g, " ").trim())
+    .map((line) => line.trim())
     .filter(Boolean)
     .forEach((line) => {
-      const firstToken = line.split(/\s+/)[0]?.trim() || "";
-      const sym =
-        bySymbol.get(firstToken.toLowerCase()) ??
-        byName.get(line.toLowerCase()) ??
-        byName.get(firstToken.toLowerCase());
-      if (sym) set.add(sym);
+      if (line.startsWith("/")) {
+        const sym = resolve(line.slice(1).trim());
+        if (sym) preselected.add(sym);
+        return;
+      }
+      const sym = resolve(line);
+      if (sym) disabled.add(sym);
     });
-  return set;
+
+  // Preselected overrides disabled when both are configured.
+  preselected.forEach((sym) => disabled.delete(sym));
+  return { disabled, preselected };
+}
+
+/** Billable symbols: selected minus disabled minus locked-preselected. */
+export function billablePeriodicSymbols(
+  selectedSymbols: Iterable<string>,
+  helpText: string | null | undefined
+): string[] {
+  const { disabled, preselected } = parsePeriodicHelpText(helpText);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of selectedSymbols) {
+    const sym = String(raw || "").trim();
+    if (!sym || seen.has(sym) || disabled.has(sym) || preselected.has(sym)) continue;
+    seen.add(sym);
+    out.push(sym);
+  }
+  return out;
+}
+
+/** Full display selection: locked preselected first, then billable user picks. */
+export function mergePeriodicDisplaySymbols(
+  selectedSymbols: Iterable<string>,
+  helpText: string | null | undefined
+): { all: string[]; billable: string[]; preselected: string[] } {
+  const { preselected } = parsePeriodicHelpText(helpText);
+  const preselectedList = Array.from(preselected);
+  const billable = billablePeriodicSymbols(selectedSymbols, helpText);
+  const all = [...preselectedList, ...billable.filter((s) => !preselected.has(s))];
+  return { all, billable, preselected: preselectedList };
 }
