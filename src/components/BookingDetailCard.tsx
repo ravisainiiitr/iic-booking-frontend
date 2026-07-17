@@ -2543,7 +2543,7 @@ export function BookingDetailCard({
             />
           )}
 
-          {booking.input_values && Object.keys(booking.input_values).length > 0 && (
+          {booking.input_values && Object.keys(booking.input_values).length > 0 ? (
             <BookingUserInputs
               inputValues={booking.input_values}
               inputFields={booking.input_fields ?? undefined}
@@ -2553,6 +2553,7 @@ export function BookingDetailCard({
               sampleTrace={isWaitlistedEntry ? undefined : (booking.sample_trace ?? undefined)}
               isAdminUser={true}
               disabled={!!booking.source_booking_id}
+              atmosphereSensitiveSample={!!booking.atmosphere_sensitive_sample}
               onUpdate={async (newInputValues) => {
                 if (bookingPk == null) {
                   toast.error("This booking cannot be updated right now.");
@@ -2568,6 +2569,21 @@ export function BookingDetailCard({
                 onUpdated();
               }}
             />
+          ) : (
+            <div className="mt-6 pt-6 border-t border-border/80">
+              <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
+                <ul className="divide-y divide-border/50">
+                  <li className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 sm:gap-4 px-5 py-4 bg-background/50 dark:bg-background/30">
+                    <span className="text-sm font-semibold text-muted-foreground shrink-0 min-w-0">
+                      Atmosphere-sensitive sample
+                    </span>
+                    <span className="text-base font-medium text-foreground sm:text-right">
+                      {booking.atmosphere_sensitive_sample ? "Yes (submit at slot start)" : "No"}
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
           )}
 
           {!isWaitlistedEntry && booking.charge_breakdown && booking.charge_breakdown.length > 0 && (

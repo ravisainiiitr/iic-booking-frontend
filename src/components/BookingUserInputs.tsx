@@ -48,6 +48,8 @@ interface BookingUserInputsProps {
   sampleTrace?: Array<{ status: string }>;
   /** When true, editing is not restricted to BOOKED + not processed (admin/operator can edit in other cases). */
   isAdminUser?: boolean;
+  /** Booking-level flag (not an equipment input field); shown as Yes/No in this card. */
+  atmosphereSensitiveSample?: boolean;
 }
 
 function formatVal(v: unknown): string {
@@ -117,6 +119,7 @@ export function BookingUserInputs({
   enableChargeRecalculation = false,
   sampleTrace,
   isAdminUser = false,
+  atmosphereSensitiveSample,
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -573,6 +576,23 @@ export function BookingUserInputs({
             </li>
           );
         })}
+        {atmosphereSensitiveSample !== undefined && (
+          <li
+            className={cn(
+              "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 sm:gap-4 px-5 py-4",
+              fields.length % 2 === 0
+                ? "bg-background/50 dark:bg-background/30"
+                : "bg-background/30 dark:bg-background/10"
+            )}
+          >
+            <span className="text-sm font-semibold text-muted-foreground shrink-0 min-w-0">
+              Atmosphere-sensitive sample
+            </span>
+            <span className="text-base font-medium text-foreground sm:text-right">
+              {atmosphereSensitiveSample ? "Yes (submit at slot start)" : "No"}
+            </span>
+          </li>
+        )}
       </ul>
       </div>
 
