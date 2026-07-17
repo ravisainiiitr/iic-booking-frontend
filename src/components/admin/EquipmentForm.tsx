@@ -65,6 +65,10 @@ export type EquipmentFormData = {
   booking_not_utilize_window_hours?: number | null;
   /** Hours after last slot end before auto Operator Unavailable (full refund) when staff engaged beyond Sample Sent. 0 = disabled. */
   operator_unavailable_after_booking_end_hours?: number | null;
+  /** Show live time-remaining-to-complete on booking details (starts at Sample Accepted). */
+  show_completion_countdown?: boolean;
+  /** Hours after Sample Accepted for the completion countdown (when enabled). 0 = hide. */
+  completion_countdown_hours?: number | null;
   repeat_sample_request_days?: number | null;
   repeat_sample_disclaimer?: string | null;
   created_at?: string | null;
@@ -162,6 +166,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     max_urgent_requests: null,
     booking_not_utilize_window_hours: 24,
     operator_unavailable_after_booking_end_hours: 24,
+    show_completion_countdown: false,
+    completion_countdown_hours: 48,
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
     equipment_managers: [],
@@ -290,6 +296,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         max_urgent_requests: (d.max_urgent_requests as number | null) ?? null,
         booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
         operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
+        show_completion_countdown: Boolean(d.show_completion_countdown),
+        completion_countdown_hours: (d.completion_countdown_hours as number | null) ?? 48,
         repeat_sample_request_days: (d.repeat_sample_request_days as number | null) ?? null,
         repeat_sample_disclaimer: (d.repeat_sample_disclaimer as string) ?? "",
         created_at: (d.created_at as string) ?? null,
@@ -382,6 +390,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               ? formData.operator_unavailable_after_booking_end_hours
               : parseInt(String(formData.operator_unavailable_after_booking_end_hours), 10))
           : 24,
+      show_completion_countdown: !!formData.show_completion_countdown,
+      completion_countdown_hours:
+        formData.completion_countdown_hours != null && formData.completion_countdown_hours !== ''
+          ? (typeof formData.completion_countdown_hours === 'number'
+              ? formData.completion_countdown_hours
+              : parseInt(String(formData.completion_countdown_hours), 10))
+          : 48,
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
       equipment_managers: formData.equipment_managers ?? [],
@@ -1094,6 +1109,43 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="text-muted-foreground text-xs">
             After the last slot ends, if the booking is still open and lifecycle shows staff work beyond &quot;Sample Sent&quot; but the run is not finished (not analyzed/returned/archived/disposed), the system auto-marks Operator Unavailable (full refund) after this many hours. Set to 0 to disable. User no-shows use manual Booking Not Utilized.
           </p>
+        </div>
+        <div className="space-y-3 sm:col-span-2 rounded-lg border border-border/60 bg-muted/20 p-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="show-completion-countdown"
+              checked={formData.show_completion_countdown ?? false}
+              onCheckedChange={(checked) =>
+                setFormData((p) => ({ ...p, show_completion_countdown: !!checked }))
+              }
+            />
+            <Label htmlFor="show-completion-countdown">Show time remaining to complete on booking details</Label>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Optional. When enabled, booking details show a live countdown after Sample Accepted. Admin/OIC grace extensions update the deadline.
+          </p>
+          {formData.show_completion_countdown && (
+            <div className="space-y-2 max-w-xs">
+              <Label htmlFor="completion-countdown-hours">Completion countdown hours</Label>
+              <Input
+                id="completion-countdown-hours"
+                type="number"
+                min={0}
+                placeholder="Default 48"
+                value={formData.completion_countdown_hours ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  setFormData((p) => ({
+                    ...p,
+                    completion_countdown_hours: v === "" ? 48 : Math.max(0, parseInt(v, 10) || 0),
+                  }));
+                }}
+              />
+              <p className="text-muted-foreground text-xs">
+                Hours allowed after Sample Accepted. Set to 0 to hide the countdown even when the option above is checked.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
