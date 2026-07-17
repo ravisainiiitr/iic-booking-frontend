@@ -65,10 +65,12 @@ export type EquipmentFormData = {
   booking_not_utilize_window_hours?: number | null;
   /** Hours after last slot end before auto Operator Unavailable (full refund) when staff engaged beyond Sample Sent. 0 = disabled. */
   operator_unavailable_after_booking_end_hours?: number | null;
-  /** Show live time-remaining-to-complete on booking details (starts at Sample Accepted). */
-  show_completion_countdown?: boolean;
-  /** Hours after Sample Accepted for the completion countdown (when enabled). 0 = hide. */
-  completion_countdown_hours?: number | null;
+  /** Show sample lifecycle countdowns on booking details. */
+  show_lifecycle_countdowns?: boolean;
+  /** Hours before slot start by which the sample should be submitted (0 = slot start). */
+  sample_submission_lead_hours?: number | null;
+  /** Hours after booking completion to collect sample before discard (0 = hide). */
+  sample_collect_deadline_hours?: number | null;
   repeat_sample_request_days?: number | null;
   repeat_sample_disclaimer?: string | null;
   created_at?: string | null;
@@ -166,8 +168,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     max_urgent_requests: null,
     booking_not_utilize_window_hours: 24,
     operator_unavailable_after_booking_end_hours: 24,
-    show_completion_countdown: false,
-    completion_countdown_hours: 48,
+    show_lifecycle_countdowns: true,
+    sample_submission_lead_hours: 24,
+    sample_collect_deadline_hours: 72,
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
     equipment_managers: [],
@@ -296,8 +299,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         max_urgent_requests: (d.max_urgent_requests as number | null) ?? null,
         booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
         operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
-        show_completion_countdown: Boolean(d.show_completion_countdown),
-        completion_countdown_hours: (d.completion_countdown_hours as number | null) ?? 48,
+        show_lifecycle_countdowns: d.show_lifecycle_countdowns !== false,
+        sample_submission_lead_hours: (d.sample_submission_lead_hours as number | null) ?? 24,
+        sample_collect_deadline_hours: (d.sample_collect_deadline_hours as number | null) ?? 72,
         repeat_sample_request_days: (d.repeat_sample_request_days as number | null) ?? null,
         repeat_sample_disclaimer: (d.repeat_sample_disclaimer as string) ?? "",
         created_at: (d.created_at as string) ?? null,
@@ -390,13 +394,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               ? formData.operator_unavailable_after_booking_end_hours
               : parseInt(String(formData.operator_unavailable_after_booking_end_hours), 10))
           : 24,
-      show_completion_countdown: !!formData.show_completion_countdown,
-      completion_countdown_hours:
-        formData.completion_countdown_hours != null && formData.completion_countdown_hours !== ''
-          ? (typeof formData.completion_countdown_hours === 'number'
-              ? formData.completion_countdown_hours
-              : parseInt(String(formData.completion_countdown_hours), 10))
-          : 48,
+      show_lifecycle_countdowns: formData.show_lifecycle_countdowns !== false,
+      sample_submission_lead_hours:
+        formData.sample_submission_lead_hours != null && formData.sample_submission_lead_hours !== ''
+          ? (typeof formData.sample_submission_lead_hours === 'number'
+              ? formData.sample_submission_lead_hours
+              : parseInt(String(formData.sample_submission_lead_hours), 10))
+          : 24,
+      sample_collect_deadline_hours:
+        formData.sample_collect_deadline_hours != null && formData.sample_collect_deadline_hours !== ''
+          ? (typeof formData.sample_collect_deadline_hours === 'number'
+              ? formData.sample_collect_deadline_hours
+              : parseInt(String(formData.sample_collect_deadline_hours), 10))
+          : 72,
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
       equipment_managers: formData.equipment_managers ?? [],
@@ -1113,37 +1123,60 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         <div className="space-y-3 sm:col-span-2 rounded-lg border border-border/60 bg-muted/20 p-4">
           <div className="flex items-center space-x-2">
             <Checkbox
-              id="show-completion-countdown"
-              checked={formData.show_completion_countdown ?? false}
+              id="show-lifecycle-countdowns"
+              checked={formData.show_lifecycle_countdowns !== false}
               onCheckedChange={(checked) =>
-                setFormData((p) => ({ ...p, show_completion_countdown: !!checked }))
+                setFormData((p) => ({ ...p, show_lifecycle_countdowns: !!checked }))
               }
             />
-            <Label htmlFor="show-completion-countdown">Show time remaining to complete on booking details</Label>
+            <Label htmlFor="show-lifecycle-countdowns">Show sample lifecycle countdowns on booking details</Label>
           </div>
           <p className="text-muted-foreground text-xs">
-            Optional. When enabled, booking details show a live countdown after Sample Accepted. Admin/OIC grace extensions update the deadline.
+            Shows: time to submit sample (before Sample Accepted), booking time to slot end (after Sample Accepted),
+            and time to collect sample (after booking completed).
           </p>
-          {formData.show_completion_countdown && (
-            <div className="space-y-2 max-w-xs">
-              <Label htmlFor="completion-countdown-hours">Completion countdown hours</Label>
-              <Input
-                id="completion-countdown-hours"
-                type="number"
-                min={0}
-                placeholder="Default 48"
-                value={formData.completion_countdown_hours ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value.trim();
-                  setFormData((p) => ({
-                    ...p,
-                    completion_countdown_hours: v === "" ? 48 : Math.max(0, parseInt(v, 10) || 0),
-                  }));
-                }}
-              />
-              <p className="text-muted-foreground text-xs">
-                Hours allowed after Sample Accepted. Set to 0 to hide the countdown even when the option above is checked.
-              </p>
+          {formData.show_lifecycle_countdowns !== false && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="sample-submission-lead-hours">Sample submission lead time (hours before slot start)</Label>
+                <Input
+                  id="sample-submission-lead-hours"
+                  type="number"
+                  min={0}
+                  placeholder="Default 24"
+                  value={formData.sample_submission_lead_hours ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    setFormData((p) => ({
+                      ...p,
+                      sample_submission_lead_hours: v === "" ? 24 : Math.max(0, parseInt(v, 10) || 0),
+                    }));
+                  }}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Users should submit samples this many hours before the slot starts. Atmosphere-sensitive bookings may submit at slot start. 0 = deadline is slot start.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sample-collect-deadline-hours">Collect / discard deadline (hours after completion)</Label>
+                <Input
+                  id="sample-collect-deadline-hours"
+                  type="number"
+                  min={0}
+                  placeholder="Default 72"
+                  value={formData.sample_collect_deadline_hours ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    setFormData((p) => ({
+                      ...p,
+                      sample_collect_deadline_hours: v === "" ? 72 : Math.max(0, parseInt(v, 10) || 0),
+                    }));
+                  }}
+                />
+                <p className="text-muted-foreground text-xs">
+                  After booking completion, hours remaining to collect the sample before discard. 0 = hide this countdown.
+                </p>
+              </div>
             </div>
           )}
         </div>

@@ -814,6 +814,8 @@ const BookEquipment = () => {
 
   /** External logistics: return samples after analysis (adds return shipping fee before GST). */
   const [sampleReturnAfterAnalysis, setSampleReturnAfterAnalysis] = useState<boolean>(false);
+  /** Atmosphere-sensitive: sample may be submitted at slot start instead of the lead-time deadline. */
+  const [atmosphereSensitiveSample, setAtmosphereSensitiveSample] = useState<boolean>(false);
 
   const isDailySlotSelectableForUserBooking = useCallback((slot: DailySlot): boolean => {
     const actor = String(userType ?? "").toLowerCase();
@@ -4279,6 +4281,7 @@ const BookEquipment = () => {
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
+          atmosphere_sensitive_sample: atmosphereSensitiveSample,
           status: "pending",
           waitlist_on_failure: waitlistIntentEffective,
           request_waitlist_without_slot_selection: true,
@@ -4327,6 +4330,7 @@ const BookEquipment = () => {
               status: "pending",
               input_values: inputFieldValues,
               ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
+          atmosphere_sensitive_sample: atmosphereSensitiveSample,
               ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
               create_as_hold: true,
               waitlist_on_failure: waitlistIntentEffective,
@@ -4384,6 +4388,7 @@ const BookEquipment = () => {
           status: "pending",
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
+          atmosphere_sensitive_sample: atmosphereSensitiveSample,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           waitlist_on_failure: waitlistIntentEffective,
           book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
@@ -4559,6 +4564,7 @@ const BookEquipment = () => {
           status: "pending",
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
+          atmosphere_sensitive_sample: atmosphereSensitiveSample,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
@@ -6703,6 +6709,28 @@ const BookEquipment = () => {
                     <p className="text-sm text-muted-foreground mb-4">No additional information required for this equipment.</p>
                   )}
 
+                  {!repeatSourceBooking && !isCalculateChargesFlow && (
+                    <div className="mt-4 p-4 rounded-lg border bg-muted/20 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="atmosphere-sensitive-sample"
+                          checked={atmosphereSensitiveSample}
+                          onCheckedChange={(c) => setAtmosphereSensitiveSample(c === true)}
+                          className="mt-0.5"
+                        />
+                        <div className="space-y-1">
+                          <Label htmlFor="atmosphere-sensitive-sample" className="font-medium cursor-pointer">
+                            Atmosphere-sensitive sample (submit at slot start)
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Select if the sample must be brought at the booking start time instead of the normal submission lead time.
+                            Lab staff will be notified and should not mark the booking as Not Utilized before the slot begins.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Periodic table element selector dialog */}
                   <Dialog open={!!periodicTableFieldKey} onOpenChange={(open) => !open && setPeriodicTableFieldKey(null)}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -7996,6 +8024,7 @@ const BookEquipment = () => {
                         status: "pending",
                         input_values: pendingHoldSelection.inputValues as Record<string, string | boolean | string[]>,
                         create_as_hold: true,
+                        atmosphere_sensitive_sample: atmosphereSensitiveSample,
                         ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
                       });
                       if (res.error) {

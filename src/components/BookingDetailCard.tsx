@@ -89,14 +89,31 @@ export interface BookingDetailCardBooking extends BookingRef {
   notes: string;
   /** Admin/OIC grace deadline for auto Operator Absent jobs (does not change slots). */
   operator_absent_hold_until?: string | null;
+  atmosphere_sensitive_sample?: boolean;
+  lifecycle_countdown?: {
+    enabled: boolean;
+    phase?: "submit_sample" | "booking" | "collect_sample" | string;
+    title?: string;
+    started_at?: string | null;
+    deadline_at: string;
+    remaining_seconds?: number;
+    is_overdue?: boolean;
+    atmosphere_sensitive?: boolean;
+    extended?: boolean;
+    hours?: number;
+  } | null;
+  /** @deprecated use lifecycle_countdown */
   completion_countdown?: {
     enabled: boolean;
-    started_at: string;
+    phase?: string;
+    title?: string;
+    started_at?: string | null;
     deadline_at: string;
-    hours: number;
-    remaining_seconds: number;
-    is_overdue: boolean;
+    remaining_seconds?: number;
+    is_overdue?: boolean;
+    atmosphere_sensitive?: boolean;
     extended?: boolean;
+    hours?: number;
   } | null;
   start_time: string;
   end_time: string;
@@ -248,10 +265,12 @@ function formatCountdownParts(totalSeconds: number): { label: string; parts: { d
   };
 }
 
-function BookingCompletionCountdown({
+function BookingLifecycleCountdown({
   countdown,
 }: {
-  countdown: NonNullable<BookingDetailCardBooking["completion_countdown"]>;
+  countdown: NonNullable<
+    BookingDetailCardBooking["lifecycle_countdown"] | BookingDetailCardBooking["completion_countdown"]
+  >;
 }) {
   const [remaining, setRemaining] = useState(() => {
     const deadline = new Date(countdown.deadline_at).getTime();
@@ -267,27 +286,50 @@ function BookingCompletionCountdown({
   }, [countdown.deadline_at]);
 
   const overdue = remaining < 0;
+  const startedAt = countdown.started_at || null;
   const elapsedFromStart = (() => {
-    const start = new Date(countdown.started_at).getTime();
+    if (!startedAt) return overdue ? 1 : 0;
+    const start = new Date(startedAt).getTime();
     const deadline = new Date(countdown.deadline_at).getTime();
     const windowMs = Math.max(1, deadline - start);
     return Math.min(1, Math.max(0, (Date.now() - start) / windowMs));
   })();
   const ringProgress = overdue ? 1 : elapsedFromStart;
   const { label, parts } = formatCountdownParts(remaining);
+  const phase = String(countdown.phase || "");
+  const title =
+    countdown.title ||
+    (phase === "submit_sample"
+      ? "Time remaining to submit sample"
+      : phase === "collect_sample"
+        ? "Time remaining to collect sample"
+        : "Time remaining to complete booking");
   const tone = overdue
     ? "from-rose-600/90 to-rose-700/90 border-rose-500/40 text-white"
-    : ringProgress > 0.85
-      ? "from-amber-500/15 to-orange-500/10 border-amber-500/35 text-amber-950 dark:text-amber-50"
-      : "from-emerald-500/10 to-teal-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-50";
+    : phase === "submit_sample"
+      ? "from-sky-500/10 to-blue-500/10 border-sky-500/30 text-sky-950 dark:text-sky-50"
+      : phase === "collect_sample"
+        ? "from-violet-500/10 to-purple-500/10 border-violet-500/30 text-violet-950 dark:text-violet-50"
+        : ringProgress > 0.85
+          ? "from-amber-500/15 to-orange-500/10 border-amber-500/35 text-amber-950 dark:text-amber-50"
+          : "from-emerald-500/10 to-teal-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-50";
 
   return (
     <div className={`mb-4 overflow-hidden rounded-2xl border bg-gradient-to-br ${tone} shadow-sm`}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold tracking-tight">
             <Timer className={`h-4 w-4 shrink-0 ${overdue ? "text-white" : ""}`} />
-            <span>{overdue ? "Completion time exceeded" : "Time remaining to complete"}</span>
+            <span>{overdue ? `${title} — overdue` : title}</span>
+            {countdown.atmosphere_sensitive && phase === "submit_sample" && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  overdue ? "bg-white/20 text-white" : "bg-sky-600/15 text-sky-800 dark:text-sky-200"
+                }`}
+              >
+                Atmosphere-sensitive
+              </span>
+            )}
             {countdown.extended && (
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
@@ -299,7 +341,10 @@ function BookingCompletionCountdown({
             )}
           </div>
           <p className={`text-xs ${overdue ? "text-white/85" : "text-muted-foreground"}`}>
-            Started at Sample Accepted · Due {new Date(countdown.deadline_at).toLocaleString()}
+            Due {new Date(countdown.deadline_at).toLocaleString()}
+            {countdown.atmosphere_sensitive && phase === "submit_sample"
+              ? " · Sample may be submitted at slot start"
+              : ""}
           </p>
         </div>
         <div className="flex items-end gap-2 font-mono tabular-nums">
@@ -328,7 +373,15 @@ function BookingCompletionCountdown({
       <div className={`h-1.5 w-full ${overdue ? "bg-white/20" : "bg-black/5 dark:bg-white/10"}`}>
         <div
           className={`h-full transition-[width] duration-1000 ease-linear ${
-            overdue ? "bg-white" : ringProgress > 0.85 ? "bg-amber-500" : "bg-emerald-500"
+            overdue
+              ? "bg-white"
+              : phase === "submit_sample"
+                ? "bg-sky-500"
+                : phase === "collect_sample"
+                  ? "bg-violet-500"
+                  : ringProgress > 0.85
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
           }`}
           style={{ width: `${Math.round(ringProgress * 100)}%` }}
           aria-label={label}
@@ -357,6 +410,10 @@ function getStatusColor(status: string): string {
 function canMarkBookingNotUtilized(booking: BookingDetailCardBooking): boolean {
   if (booking.status.toUpperCase() !== "BOOKED") return false;
   if (!booking.end_time) return false;
+  if (booking.atmosphere_sensitive_sample && booking.start_time) {
+    const startMs = new Date(booking.start_time).getTime();
+    if (Number.isFinite(startMs) && Date.now() < startMs) return false;
+  }
   const endMs = new Date(booking.end_time).getTime();
   if (!Number.isFinite(endMs)) return false;
   // Enabled only after the last slot end-time has passed.
@@ -1268,8 +1325,17 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {booking.completion_countdown?.enabled && booking.completion_countdown.deadline_at && (
-            <BookingCompletionCountdown countdown={booking.completion_countdown} />
+          {(booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
+            (booking.lifecycle_countdown?.deadline_at || booking.completion_countdown?.deadline_at) && (
+            <BookingLifecycleCountdown
+              countdown={(booking.lifecycle_countdown || booking.completion_countdown)!}
+            />
+          )}
+
+          {booking.atmosphere_sensitive_sample && (
+            <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-50/80 dark:bg-sky-950/30 px-3 py-2 text-sm text-sky-900 dark:text-sky-100">
+              Atmosphere-sensitive sample: will be submitted at slot start. Do not mark Booking Not Utilized before the slot begins.
+            </div>
           )}
 
           {showIstemWorkflow && (
