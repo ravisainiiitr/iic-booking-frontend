@@ -4407,6 +4407,20 @@ class ApiClient {
     );
   }
 
+  /** Toggle atmosphere-sensitive sample on an existing Booked booking (before Sample Accepted). */
+  async updateBookingAtmosphereSensitiveSample(
+    bookingId: number,
+    atmosphereSensitiveSample: boolean
+  ) {
+    return this.request<{ message: string; booking: any }>(
+      `/bookings/${bookingId}/atmosphere-sensitive-sample/`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ atmosphere_sensitive_sample: atmosphereSensitiveSample }),
+      }
+    );
+  }
+
   /** Admin/OIC: set post-print actual weight and time on a 3D print booking. */
   async updateBookingPrintActuals(
     bookingId: number,

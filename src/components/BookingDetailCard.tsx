@@ -532,6 +532,7 @@ export function BookingDetailCard({
   const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
   const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
   const [extendHoldLoading, setExtendHoldLoading] = useState(false);
+  const [atmosphereSaving, setAtmosphereSaving] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
   const [ratingCriteriaDraft, setRatingCriteriaDraft] = useState<{
     on_time_operator_availability: boolean | null;
@@ -580,6 +581,31 @@ export function BookingDetailCard({
     const b = res.data?.bookings?.[0];
     if (b) setBooking(b as BookingDetailCardBooking);
   }, [booking]);
+
+  const handleAtmosphereSensitiveChange = async (checked: boolean) => {
+    if (bookingPk == null || atmosphereSaving) return;
+    setAtmosphereSaving(true);
+    try {
+      const res = await apiClient.updateBookingAtmosphereSensitiveSample(bookingPk, checked);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.data?.booking) {
+        setBooking(res.data.booking as BookingDetailCardBooking);
+      } else {
+        await refreshBookingDetail();
+      }
+      toast.success(
+        checked
+          ? "Atmosphere-sensitive sample enabled."
+          : "Atmosphere-sensitive sample disabled."
+      );
+      onUpdated();
+    } finally {
+      setAtmosphereSaving(false);
+    }
+  };
 
   const handleSampleReturnedAction = async () => {
     if (bookingPk == null) return;
@@ -1174,6 +1200,15 @@ export function BookingDetailCard({
   const isBookingNotUtilized = booking.status.toUpperCase() === "BOOKING_NOT_UTILIZED";
   const isHold = booking.status.toUpperCase() === "HOLD";
   const sampleTraceList = booking.sample_trace ?? [];
+  const traceHasSampleAccepted = sampleTraceList.some(
+    (e) => String(e.status || "").toUpperCase() === "SAMPLE_ACCEPTED"
+  );
+  const canEditAtmosphereSensitive =
+    !isWaitlistedEntry &&
+    booking.status.toUpperCase() === "BOOKED" &&
+    !traceHasSampleAccepted &&
+    bookingPk != null &&
+    (isOperatorOrManager || (currentUserId != null && booking.user === currentUserId));
   const traceHasAnalyzed = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "COMPLETED");
   const traceHasReturned = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "RETURNED");
   const traceHasArchived = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "ARCHIVED");
@@ -1332,11 +1367,39 @@ export function BookingDetailCard({
             />
           )}
 
-          {booking.atmosphere_sensitive_sample && (
+          {canEditAtmosphereSensitive ? (
+            <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-2">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="booking-atmosphere-sensitive"
+                  checked={!!booking.atmosphere_sensitive_sample}
+                  disabled={atmosphereSaving}
+                  onCheckedChange={(c) => {
+                    void handleAtmosphereSensitiveChange(c === true);
+                  }}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="booking-atmosphere-sensitive" className="font-medium cursor-pointer">
+                    Atmosphere-sensitive sample (submit at slot start)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    You can turn this on or off until Sample Accepted. When enabled, the sample may be submitted
+                    at slot start and lab staff should not mark Booking Not Utilized before the slot begins.
+                  </p>
+                </div>
+              </div>
+              {booking.atmosphere_sensitive_sample && (
+                <p className="text-sm text-sky-900 dark:text-sky-100 pl-7">
+                  Flagged for staff: sample will be brought at slot start.
+                </p>
+              )}
+            </div>
+          ) : booking.atmosphere_sensitive_sample ? (
             <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-50/80 dark:bg-sky-950/30 px-3 py-2 text-sm text-sky-900 dark:text-sky-100">
               Atmosphere-sensitive sample: will be submitted at slot start. Do not mark Booking Not Utilized before the slot begins.
             </div>
-          )}
+          ) : null}
 
           {showIstemWorkflow && (
             <div className="rounded-lg border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/90 dark:bg-amber-950/25 p-4 mb-4 space-y-3">
