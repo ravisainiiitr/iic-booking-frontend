@@ -51,6 +51,9 @@ const ticketFormSchema = z.object({
   ticket_type: z.enum([TICKET_TYPE.BOOKING, TICKET_TYPE.EQUIPMENT, TICKET_TYPE.OTHER, TICKET_TYPE.QUALITY_IMPROVEMENT], {
     required_error: "Please select a ticket type",
   }),
+  priority: z.enum(["low", "medium", "high", "urgent"], {
+    required_error: "Please select a priority",
+  }),
   subject: z.string().min(5, "Subject must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
 });
@@ -81,6 +84,13 @@ const TICKET_TYPE_OPTIONS = [
   { code: TICKET_TYPE.QUALITY_IMPROVEMENT, name: "Quality improvement suggestions/Bugs" },
 ] as const;
 
+const TICKET_PRIORITY_OPTIONS = [
+  { code: "low", name: "Low" },
+  { code: "medium", name: "Medium" },
+  { code: "high", name: "High" },
+  { code: "urgent", name: "Urgent" },
+] as const;
+
 const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false, open: controlledOpen, onOpenChange }: TicketFormProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -108,6 +118,7 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false,
     resolver: zodResolver(ticketFormSchema),
     defaultValues: {
       ticket_type: getDefaultTicketType() as any,
+      priority: "medium",
       public_name: "",
       public_email: "",
       public_phone: "",
@@ -157,6 +168,7 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false,
 
       const ticketData: any = {
         ticket_type: data.ticket_type,
+        priority: data.priority || "medium",
         subject: data.subject,
         description: data.description,
       };
@@ -240,6 +252,7 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false,
       // Reset form when dialog closes
       form.reset({
         ticket_type: initialValues?.ticket_type || getDefaultTicketType() as any,
+        priority: "medium",
         public_name: "",
         public_email: "",
         public_phone: "",
@@ -354,6 +367,30 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false,
                 )}
               />
             )}
+            <FormField
+              control={form.control}
+              name="priority"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Priority *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {TICKET_PRIORITY_OPTIONS.map((p) => (
+                        <SelectItem key={p.code} value={p.code}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="subject"

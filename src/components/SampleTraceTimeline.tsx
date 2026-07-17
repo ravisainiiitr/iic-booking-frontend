@@ -14,6 +14,7 @@ import {
 import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban, FolderOpen } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
+import { createLocalResultsFolder, type ResultsFolderSpec } from "@/lib/localResultsFolder";
 import { toast } from "sonner";
 
 const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
@@ -333,14 +334,37 @@ export default function SampleTraceTimeline({
         toast.error(res.error);
         return;
       }
-      const folderPath = (res.data as { in_analysis_folder_path?: string } | null)?.in_analysis_folder_path;
-      const folderOpened = (res.data as { in_analysis_folder_opened?: boolean } | null)?.in_analysis_folder_opened;
-      if (status === "PROCESSING" && folderPath) {
-        toast.success(
-          folderOpened
-            ? `In Analysis folder created and opened:\n${folderPath}`
-            : `In Analysis folder created on the server at:\n${folderPath}`
-        );
+      if (status === "PROCESSING" && res.data) {
+        try {
+          const local = await createLocalResultsFolder({
+            ...(res.data as ResultsFolderSpec),
+            virtual_booking_id: (res.data as ResultsFolderSpec).virtual_booking_id,
+          });
+          toast.success(
+            local.method === "bat-download"
+              ? `Status updated. Run the downloaded .bat to create the folder on this PC:\n${local.path}`
+              : `Status updated. Results folder created on this PC:\n${local.path}${
+                  local.reselectedBase
+                    ? "\n(Choose the equipment Results base folder, e.g. D:\\Results, when prompted.)"
+                    : ""
+                }`
+          );
+        } catch (err) {
+          const aborted =
+            err instanceof DOMException && (err.name === "AbortError" || err.name === "NotAllowedError");
+          if (aborted) {
+            toast.success(
+              "Status updated. Folder creation was cancelled — use “Create results folder” when ready."
+            );
+          } else {
+            toast.success("Status updated.");
+            toast.error(
+              err instanceof Error
+                ? `Could not create local results folder: ${err.message}`
+                : "Could not create local results folder."
+            );
+          }
+        }
       } else {
         toast.success("Status updated.");
       }
@@ -369,12 +393,32 @@ export default function SampleTraceTimeline({
         toast.error(res.error);
         return;
       }
-      const path = res.data?.in_analysis_folder_path || "";
-      toast.success(
-        res.data?.in_analysis_folder_opened
-          ? `Results folder ready and opened:\n${path}`
-          : `Results folder ready on the server at:\n${path}`
-      );
+      if (!res.data) {
+        toast.error("No folder path returned.");
+        return;
+      }
+      try {
+        const local = await createLocalResultsFolder({
+          ...(res.data as ResultsFolderSpec),
+          virtual_booking_id: res.data.virtual_booking_id,
+        });
+        toast.success(
+          local.method === "bat-download"
+            ? `Downloaded create script. Run it to make the folder on this PC:\n${local.path}`
+            : `Results folder ready on this PC:\n${local.path}`
+        );
+      } catch (err) {
+        const aborted =
+          err instanceof DOMException && (err.name === "AbortError" || err.name === "NotAllowedError");
+        if (aborted) {
+          toast.message("Folder creation cancelled.");
+        } else {
+          toast.error(
+            err instanceof Error ? err.message : "Could not create local results folder."
+          );
+        }
+        return;
+      }
       onUpdated();
     } finally {
       setFolderLoading(false);
@@ -856,7 +900,7 @@ export default function SampleTraceTimeline({
               variant="secondary"
               onClick={ensureResultsFolder}
               disabled={!!loading || folderLoading || isNotUtilizedFlow || isRejectedFlow || applyHeldAtOfficeFlowRules}
-              title="Create or reopen the results folder under the equipment Results base location"
+              title="Create the results folder on this PC under the equipment Results base location (you’ll pick D:\\Results once)"
             >
               {folderLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
               {inAnalysisDone ? "Open results folder" : "Create results folder"}

@@ -36,7 +36,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, Wallet, Info } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
@@ -492,7 +492,7 @@ const SLOT_STATUS_LABELS: Record<string, string> = {
   AVAILABLE: "Available",
   NOT_AVAILABLE: "Not Available",
   BOOKED: "Booked",
-  BLOCKED: "Blocked",
+  BLOCKED: "Other Reasons",
   UNDER_MAINTENANCE: "Under Maintenance",
   OPERATOR_ABSENT: "Operator Absent",
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
@@ -4715,7 +4715,7 @@ const BookEquipment = () => {
               <CardHeader>
                 <CardTitle className="text-lg">Change slot status</CardTitle>
                 <CardDescription>
-                  Mark slots as Blocked, Under Maintenance, or Operator Absent.
+                  Mark slots as Other Reasons, Under Maintenance, or Operator Absent.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -4730,7 +4730,7 @@ const BookEquipment = () => {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Change slot status</h2>
                   <p className="text-white/90 mt-1 text-base md:text-lg max-w-3xl">
-                    Select one or more dates in the month calendar (click individual days, or use &quot;Select week&quot; / &quot;Select entire month&quot;), then choose the desired status and click Apply. For &quot;Booking Not Utilized&quot; use Week view to select only booked slots; no refund is issued and emails are sent to the user and Supervisor. Blocked, Under Maintenance, or Operator Absent will cancel any bookings on those slots and refund users.
+                    Select one or more dates in the month calendar (click individual days, or use &quot;Select week&quot; / &quot;Select entire month&quot;), then choose the desired status and click Apply. For &quot;Booking Not Utilized&quot; use Week view to select only booked slots; no refund is issued and emails are sent to the user and Supervisor. Other Reasons, Under Maintenance, or Operator Absent will cancel any bookings on those slots and refund users.
                   </p>
                 </div>
                 <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate('/equipments')}>
@@ -4960,7 +4960,7 @@ const BookEquipment = () => {
                     <SelectValue placeholder="Select operation" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BLOCKED" className="text-base">Blocked</SelectItem>
+                    <SelectItem value="BLOCKED" className="text-base">Other Reasons</SelectItem>
                     <SelectItem value="UNDER_MAINTENANCE" className="text-base">Under Maintenance</SelectItem>
                     <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
                     <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
@@ -4999,7 +4999,7 @@ const BookEquipment = () => {
                 )}
                 {newSlotStatus === "BLOCKED" && (
                   <Input
-                    placeholder="Blocked label (optional)"
+                    placeholder="Other Reasons label (optional)"
                     value={blockedLabelForStatus}
                     onChange={(e) => setBlockedLabelForStatus(e.target.value)}
                     className="max-w-[240px] h-12 text-base"
@@ -5473,7 +5473,7 @@ const BookEquipment = () => {
                         })();
                     const statusLabel = (slot: DailySlot) => {
                       if (slot.status === "BOOKED") return slot.booking_status_display || "Booked";
-                      if (slot.status === "BLOCKED") return slot.blocked_label || "Blocked";
+                      if (slot.status === "BLOCKED") return slot.blocked_label || "Other Reasons";
                       if (slot.status === "BOOKING_NOT_UTILIZED") return "Booking Not Utilized";
                       return slot.status_display || slot.status || "—";
                     };
@@ -6106,6 +6106,18 @@ const BookEquipment = () => {
                     onAnalyzingChange={setPrint3dAnalyzing}
                     disabled={!!repeatSourceBooking}
                   />
+                )}
+
+                {!!(equipmentDetail?.important_instruction || "").trim() && (
+                  <div className="mb-6 rounded-lg border-2 border-amber-500/80 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/60 p-4">
+                    <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
+                      <Info className="h-4 w-4" />
+                      Important Note
+                    </h4>
+                    <p className="text-sm text-amber-900/90 dark:text-amber-100/90 whitespace-pre-wrap">
+                      {(equipmentDetail?.important_instruction || "").trim()}
+                    </p>
+                  </div>
                 )}
 
                 {/* Step 1: Input Fields Section */}
@@ -7284,7 +7296,7 @@ const BookEquipment = () => {
                               "AVAILABLE": "Available",
                               "NOT_AVAILABLE": "Not Available",
                               "BOOKED": "Booked",
-                              "BLOCKED": "Blocked",
+                              "BLOCKED": "Other Reasons",
                               "UNDER_MAINTENANCE": "Under Maintenance",
                               "OPERATOR_ABSENT": "Operator Absent",
                               "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
@@ -7298,9 +7310,9 @@ const BookEquipment = () => {
                             slotStatusLabel = `${rawSlotStatusLabel} #${bookingId}`;
                           }
                           
-                          // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
+                          // For BLOCKED status, use blocked_label if available, otherwise show "Other Reasons"
                           if (slotStatus === "BLOCKED") {
-                            slotStatusLabel = blockedLabel || "Blocked";
+                            slotStatusLabel = blockedLabel || "Other Reasons";
                           }
                           
                           const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;

@@ -87,6 +87,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   status: string;
   status_display: string;
   notes: string;
+  /** Admin/OIC grace deadline for auto Operator Absent jobs (does not change slots). */
+  operator_absent_hold_until?: string | null;
   start_time: string;
   end_time: string;
   daily_slots: Array<{
@@ -354,6 +356,8 @@ export function BookingDetailCard({
   const [actionSubmitLoading, setActionSubmitLoading] = useState(false);
   const [repeatEligibility, setRepeatEligibility] = useState<{ can_create_repeat: boolean } | null>(null);
   const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
+  const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
+  const [extendHoldLoading, setExtendHoldLoading] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
   const [ratingCriteriaDraft, setRatingCriteriaDraft] = useState<{
     on_time_operator_availability: boolean | null;
@@ -1833,6 +1837,93 @@ export function BookingDetailCard({
                   <CopyPlus className="h-4 w-4 mr-2" />
                   {enableRepeatLoading ? "Enabling…" : "Enable repeat sample"}
                 </Button>
+              )}
+              {isManagerOrAdmin &&
+                (booking.status.toUpperCase() === "BOOKED" || booking.status.toUpperCase() === "PENDING") &&
+                !isExternalSelfView && (
+                <div className="w-full mt-3 rounded-lg border border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-2">
+                  <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                    Extend operator-absent grace (no slot change)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Delays automatic Operator Absent / Operator Unavailable until the chosen time. Booking slots stay unchanged.
+                  </p>
+                  {booking.operator_absent_hold_until && (
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      Current hold until:{" "}
+                      {new Date(booking.operator_absent_hold_until).toLocaleString()}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="extend-hold-until" className="text-xs">Hold until</Label>
+                      <Input
+                        id="extend-hold-until"
+                        type="datetime-local"
+                        value={extendHoldUntilLocal}
+                        onChange={(e) => setExtendHoldUntilLocal(e.target.value)}
+                        className="h-9 w-[220px]"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={extendHoldLoading || !extendHoldUntilLocal}
+                      onClick={async () => {
+                        if (!extendHoldUntilLocal) return;
+                        setExtendHoldLoading(true);
+                        try {
+                          const iso = new Date(extendHoldUntilLocal).toISOString();
+                          const res = await apiClient.extendBookingOperatorAbsentHold(bookingPk, {
+                            hold_until: iso,
+                          });
+                          if (res.error) {
+                            toast.error(typeof res.error === "string" ? res.error : "Failed to extend hold");
+                          } else if (res.data?.booking) {
+                            setBooking(res.data.booking as BookingDetailCardBooking);
+                            onUpdated();
+                            toast.success(res.data.message || "Hold extended");
+                            setExtendHoldUntilLocal("");
+                          }
+                        } catch (e: unknown) {
+                          toast.error(e instanceof Error ? e.message : "Failed to extend hold");
+                        } finally {
+                          setExtendHoldLoading(false);
+                        }
+                      }}
+                    >
+                      {extendHoldLoading ? "Saving…" : "Extend"}
+                    </Button>
+                    {booking.operator_absent_hold_until && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={extendHoldLoading}
+                        onClick={async () => {
+                          setExtendHoldLoading(true);
+                          try {
+                            const res = await apiClient.extendBookingOperatorAbsentHold(bookingPk, {
+                              clear: true,
+                            });
+                            if (res.error) {
+                              toast.error(typeof res.error === "string" ? res.error : "Failed to clear hold");
+                            } else if (res.data?.booking) {
+                              setBooking(res.data.booking as BookingDetailCardBooking);
+                              onUpdated();
+                              toast.success(res.data.message || "Hold cleared");
+                            }
+                          } catch (e: unknown) {
+                            toast.error(e instanceof Error ? e.message : "Failed to clear hold");
+                          } finally {
+                            setExtendHoldLoading(false);
+                          }
+                        }}
+                      >
+                        Clear hold
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
               {isOperatorOrManager && booking.status.toUpperCase() === "COMPLETED" && booking.repeat_sample_enabled && !booking.repeat_booking_already_created && (
                 <span className="inline-flex items-center gap-1.5 rounded-md bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-sm font-medium text-green-800 dark:text-green-200">

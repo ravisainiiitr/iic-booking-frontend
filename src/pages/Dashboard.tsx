@@ -300,6 +300,7 @@ const Dashboard = () => {
   const [labDashCustomFrom, setLabDashCustomFrom] = useState("");
   const [labDashCustomTo, setLabDashCustomTo] = useState("");
   const [labDashPanel, setLabDashPanel] = useState<LabDashPanel>(null);
+  const labDashPanelListRef = useRef<HTMLDivElement | null>(null);
   const [labSlotByEquipment, setLabSlotByEquipment] = useState<Record<number, LabWeekCalendarSlotsPayload>>({});
   const [labSlotsLoading, setLabSlotsLoading] = useState(false);
   const [labSlotsRefresh, setLabSlotsRefresh] = useState(0);
@@ -737,6 +738,14 @@ const Dashboard = () => {
   const toggleLabDashPanel = useCallback((next: NonNullable<LabDashPanel>) => {
     setLabDashPanel((p) => (p?.key === next.key && p.segment === next.segment ? null : next));
   }, []);
+
+  useEffect(() => {
+    if (!labDashPanel) return;
+    const t = window.setTimeout(() => {
+      labDashPanelListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [labDashPanel]);
 
   useEffect(() => {
     clearLabBookingDetail();
@@ -1885,7 +1894,11 @@ const Dashboard = () => {
                   </section>
 
                   {labDashPanel && (
-                    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm">
+                    <div
+                      ref={labDashPanelListRef}
+                      id="lab-dash-panel-list"
+                      className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm scroll-mt-24"
+                    >
                       <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
                         <p className="text-sm font-semibold">{labDashPanelTitle(labDashPanel)}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -3396,7 +3409,11 @@ const Dashboard = () => {
                   </section>
 
                   {labDashPanel && (
-                    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm">
+                    <div
+                      ref={labDashPanelListRef}
+                      id="lab-dash-panel-list"
+                      className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm scroll-mt-24"
+                    >
                       <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
                         <p className="text-sm font-semibold">{labDashPanelTitle(labDashPanel)}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">

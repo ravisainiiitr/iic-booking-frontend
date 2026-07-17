@@ -3673,6 +3673,19 @@ class ApiClient {
     });
   }
 
+  async extendBookingOperatorAbsentHold(
+    bookingId: number,
+    data: { hold_until?: string; clear?: boolean }
+  ) {
+    return this.request<{
+      message: string;
+      booking: any;
+    }>(`/bookings/${bookingId}/extend-operator-absent-hold/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   /** Admin/OIC: flag booking for under-maintenance disruption (no refund; user may reschedule per policy). */
   async bookingMaintenanceDisruption(bookingId: number, notes?: string) {
     return this.request<{
@@ -3935,21 +3948,29 @@ class ApiClient {
       sample_trace: SampleTraceEvent[];
       in_analysis_folder_path?: string;
       in_analysis_folder_opened?: boolean;
+      create_on_client?: boolean;
+      results_base_location?: string;
+      results_folder_segments?: string[];
+      results_folder_relative_path?: string;
+      virtual_booking_id?: string;
     }>(
       `/bookings/${bookingId}/sample-trace/set/`,
       { method: 'POST', body: JSON.stringify(body) }
     );
   }
 
-  /** Staff: create/open the In Analysis results folder for a booking (uses equipment results_base_location). */
+  /** Staff: resolve In Analysis results folder path for local (lab PC) creation. */
   async ensureBookingResultsFolder(bookingId: number) {
     return this.request<{
       message: string;
       in_analysis_folder_path: string;
       in_analysis_folder_opened: boolean;
+      create_on_client?: boolean;
       exists: boolean;
       virtual_booking_id?: string;
       results_base_location?: string;
+      results_folder_segments?: string[];
+      results_folder_relative_path?: string;
     }>(`/bookings/${bookingId}/ensure-results-folder/`, { method: 'POST', body: JSON.stringify({}) });
   }
 
@@ -5589,6 +5610,7 @@ class ApiClient {
     ticket_type: string;
     subject: string;
     description: string;
+    priority?: string;
     related_equipment?: number | null;
     related_booking?: number | null;
   }, attachment?: File | null) {
