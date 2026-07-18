@@ -19,6 +19,7 @@ import EquipmentImage from "@/components/EquipmentImage";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { TruncatableText } from "@/components/TruncatableText";
+import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -55,6 +56,7 @@ interface EquipmentProfile {
     additional_accessory_name: string;
     additional_accessory_description: string;
     is_optional: boolean;
+    is_enabled?: boolean;
     created_at: string;
   }>;
   daily_slots?: Array<{
@@ -771,6 +773,25 @@ const EquipmentProfile = () => {
                 </div>
               )}
 
+              {/* Accessories — above Lab Operators for booking prominence */}
+              <EquipmentAccessoriesSection
+                accessories={(equipment.accessories || []).map((accessory: any, index: number) => ({
+                  id: accessory.equipment_accessory_id ?? `acc-${index}`,
+                  name:
+                    accessory.accessory_name ||
+                    accessory.name ||
+                    `Accessory ${index + 1}`,
+                  description: accessory.notes || accessory.description || accessory.accessory_description || null,
+                  isEnabled: accessory.is_enabled !== false,
+                }))}
+                additionalAccessories={(equipment.additional_accessories || []).map((accessory) => ({
+                  id: accessory.equipment_additional_accessory_id,
+                  name: accessory.additional_accessory_name,
+                  description: accessory.additional_accessory_description,
+                  isEnabled: (accessory as { is_enabled?: boolean }).is_enabled !== false,
+                }))}
+              />
+
               {/* Operators */}
               {equipment.operators && equipment.operators.length > 0 && (
                 <Card>
@@ -840,59 +861,6 @@ const EquipmentProfile = () => {
                     </CardContent>
                   </Card>
                 ))}
-
-              {/* Accessories */}
-              {equipment.accessories && equipment.accessories.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Accessories</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {equipment.accessories.map((accessory: any, index: number) => (
-                        <div key={index}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{accessory.name || accessory.accessory_name || `Accessory ${index + 1}`}</span>
-                          </div>
-                          {accessory.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {accessory.description}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Additional Accessories */}
-              {equipment.additional_accessories && equipment.additional_accessories.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Additional Accessories</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {equipment.additional_accessories.map((accessory) => (
-                        <div key={accessory.equipment_additional_accessory_id}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{accessory.additional_accessory_name}</span>
-                            {accessory.is_optional && (
-                              <Badge variant="outline" className="text-xs">Optional</Badge>
-                            )}
-                          </div>
-                          {accessory.additional_accessory_description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {accessory.additional_accessory_description}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
             </div>
           </div>

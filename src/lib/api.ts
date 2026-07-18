@@ -5462,6 +5462,78 @@ class ApiClient {
     });
   }
 
+  /** OIC/Admin: multi-mode families (parent + children + schedules). */
+  async getOicMultiMode() {
+    return this.request<{
+      families: Array<{
+        parent_equipment_id: number;
+        parent_code: string;
+        parent_name: string;
+        parent_status?: string;
+        children: Array<{ equipment_id: number; code: string; name: string; status?: string }>;
+        schedules: Array<{
+          id: number;
+          parent_equipment_id: number;
+          mode_equipment_id: number;
+          mode_equipment_code?: string;
+          mode_equipment_name?: string;
+          start_date: string;
+          end_date: string;
+          behavior: string;
+          behavior_display?: string;
+        }>;
+      }>;
+      linkable_equipment: Array<{ equipment_id: number; code: string; name: string }>;
+      behaviors: Array<{ value: string; label: string }>;
+    }>("/oic/multi-mode/");
+  }
+
+  async createOicMultiModeSchedule(payload: {
+    parent_equipment_id: number;
+    mode_equipment_id: number;
+    start_date: string;
+    end_date: string;
+    behavior: "PARALLEL" | "EXCLUSIVE";
+    start_time?: string | null;
+    end_time?: string | null;
+    unavailable_label?: string;
+    unavailable_color?: string;
+    exclusive_blocked_label?: string;
+    exclusive_blocked_color?: string;
+  }) {
+    return this.request<{ schedule: Record<string, unknown> }>("/oic/multi-mode/schedules/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateOicMultiModeSchedule(
+    scheduleId: number,
+    payload: Partial<{
+      mode_equipment_id: number;
+      start_date: string;
+      end_date: string;
+      start_time: string | null;
+      end_time: string | null;
+      behavior: "PARALLEL" | "EXCLUSIVE";
+      unavailable_label: string;
+      unavailable_color: string;
+      exclusive_blocked_label: string;
+      exclusive_blocked_color: string;
+    }>
+  ) {
+    return this.request<{ schedule: Record<string, unknown> }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteOicMultiModeSchedule(scheduleId: number) {
+    return this.request<{ message?: string }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
+      method: "DELETE",
+    });
+  }
+
   /** Admin/OIC: allocate a booking duty to an approved TA nomination. */
   async allocateTAAssignment(data: {
     nomination_id: number;
@@ -7045,6 +7117,7 @@ class ApiClient {
     return this.request<{
       categories: Array<{ id: number; name: string; code?: string | null }>;
       equipment_groups: Array<{ equipment_group_id: number; name: string; code: string }>;
+      parent_equipment_choices?: Array<{ equipment_id: number; code: string; name: string }>;
       internal_departments: Array<{ id: number; name: string; code: string; department_type?: string }>;
       user_groups: Array<{ id: number; name: string; code: string }>;
       managers: Array<{

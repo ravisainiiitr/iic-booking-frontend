@@ -22,6 +22,7 @@ import {
   getUserTypeDisplayName,
 } from "@/lib/userTypes";
 import { Print3DBookingPanel, type Print3DBookingValues, PRINT_3D_TENTATIVE_CHARGE_NOTE } from "@/components/Print3DBookingPanel";
+import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,8 @@ interface DailySlot {
   status: string;
   status_display?: string;
   blocked_label?: string | null;
+  mode_overlay_color?: string | null;
+  mode_overlay?: string | null;
   /** When true, slot is shown as Available to external users; only these can be booked by external users. */
   reserved_for_external?: boolean;
   /** True when only the equipment's home-department students/faculty may book (default false = any dept). */
@@ -1908,6 +1911,19 @@ const BookEquipment = () => {
     if (mode === 'status') setAdminManageMode('status');
     else if (mode === 'book') setAdminManageMode('book');
   }, [searchParams, selectedEquipment]);
+
+  // Optional ?month=YYYY-MM focuses Change slot status calendar on that month (e.g. from multi-mode schedules)
+  useEffect(() => {
+    if (adminManageMode !== "status") return;
+    const monthParam = (searchParams.get("month") || "").trim();
+    const m = monthParam.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    if (!y || mo < 1 || mo > 12) return;
+    const next = startOfMonth(new Date(y, mo - 1, 1));
+    setStatusChangeMonthStart((prev) => (isSameMonth(prev, next) ? prev : next));
+  }, [adminManageMode, searchParams]);
 
   // Reset input field values when equipment changes
   useEffect(() => {
@@ -5913,6 +5929,47 @@ const BookEquipment = () => {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Accessory availability — informational, before booking steps */}
+                {equipmentDetail &&
+                  ((Array.isArray(equipmentDetail.accessories) &&
+                    equipmentDetail.accessories.length > 0) ||
+                    (Array.isArray(equipmentDetail.additional_accessories) &&
+                      equipmentDetail.additional_accessories.length > 0)) && (
+                    <div className="mb-6">
+                      <EquipmentAccessoriesSection
+                        compact
+                        accessories={(equipmentDetail.accessories || []).map(
+                          (accessory: Record<string, unknown>, index: number) => ({
+                            id:
+                              (accessory.equipment_accessory_id as number | undefined) ??
+                              `acc-${index}`,
+                            name: String(
+                              accessory.accessory_name ||
+                                accessory.name ||
+                                `Accessory ${index + 1}`
+                            ),
+                            description:
+                              (accessory.notes as string | undefined) ||
+                              (accessory.description as string | undefined) ||
+                              (accessory.accessory_description as string | undefined) ||
+                              null,
+                            isEnabled: accessory.is_enabled !== false,
+                          })
+                        )}
+                        additionalAccessories={(
+                          equipmentDetail.additional_accessories || []
+                        ).map((accessory: Record<string, unknown>) => ({
+                          id: accessory.equipment_additional_accessory_id as number,
+                          name: String(accessory.additional_accessory_name || ""),
+                          description:
+                            (accessory.additional_accessory_description as string | undefined) ||
+                            null,
+                          isEnabled: accessory.is_enabled !== false,
+                        }))}
+                      />
+                    </div>
+                  )}
+
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
                 {canAccessManageEquipmentModes() && adminManageMode === 'book' && !isCalculateChargesFlow && (
                   <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-4">
@@ -7517,6 +7574,11 @@ const BookEquipment = () => {
                                 : (isSaturdayCol ? saturdayColor : isSundayCol ? sundayColor : holidayDefault);
                             cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                           } else if (slotExists) {
+                            // Multi-mode overlay (exclusive parent / child outside schedule)
+                            if (slotData?.mode_overlay_color) {
+                              const bg = slotData.mode_overlay_color;
+                              cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
+                            } else {
                             // Use RESERVED_FOR_EXTERNAL / NOT_AVAILABLE from calendar-colors when applicable
                             let statusForColor = slotStatus;
                             if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
@@ -7537,6 +7599,7 @@ const BookEquipment = () => {
                               cellStyle = { backgroundColor: "#94a3b8", color: "#ffffff" };
                             } else {
                               cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
+                            }
                             }
                           } else {
                             // No slot (weekend/holiday): always use admin-configured weekend colors for Sat/Sun so they match /calendar-colors

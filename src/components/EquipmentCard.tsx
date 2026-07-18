@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Briefcase, Users, Wrench, IndianRupee, Star, StarHalf } from "lucide-react";
+import { Calendar, MapPin, User, Phone, Play, Info, Loader2, Users, IndianRupee, Star, StarHalf } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { TruncatableText } from "@/components/TruncatableText";
+import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 
 interface EquipmentCardProps {
   name: string;
@@ -72,12 +73,16 @@ interface EquipmentDetail {
     equipment_accessory_id: number;
     accessory_name: string;
     accessory_description?: string;
+    is_optional?: boolean;
+    is_enabled?: boolean;
+    notes?: string;
   }>;
   additional_accessories?: Array<{
     equipment_additional_accessory_id: number;
     additional_accessory_name: string;
     additional_accessory_description: string;
     is_optional: boolean;
+    is_enabled?: boolean;
   }>;
   operators?: Array<{
     equipment_operator_id: number;
@@ -551,62 +556,25 @@ const EquipmentCard = ({
                     </div>
                   ))}
 
-                {/* Accessories */}
-                {equipmentDetail?.accessories && equipmentDetail.accessories.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                      <Wrench className="h-4 w-4" />
-                      Accessories
-                    </h4>
-                    <div className="space-y-2">
-                      {equipmentDetail.accessories.map((accessory: any) => (
-                        <div key={accessory.equipment_accessory_id || accessory.accessory_name} className="bg-muted/50 rounded-md p-3">
-                          <p className="text-sm font-semibold text-foreground">
-                            {accessory.accessory_name}
-                          </p>
-                          {accessory.accessory_description && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {accessory.accessory_description}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Additional Accessories */}
-                {equipmentDetail?.additional_accessories && equipmentDetail.additional_accessories.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                      <Briefcase className="h-4 w-4" />
-                      Additional Accessories
-                    </h4>
-                    <div className="space-y-2">
-                      {equipmentDetail.additional_accessories.map((accessory) => (
-                        <div key={accessory.equipment_additional_accessory_id} className="bg-muted/50 rounded-md p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-foreground">
-                                {accessory.additional_accessory_name}
-                              </p>
-                              {accessory.additional_accessory_description && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {accessory.additional_accessory_description}
-                                </p>
-                              )}
-                            </div>
-                            {accessory.is_optional && (
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                Optional
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Accessories — above operators for booking prominence */}
+                <EquipmentAccessoriesSection
+                  compact
+                  accessories={(equipmentDetail?.accessories || []).map((accessory, index) => ({
+                    id: accessory.equipment_accessory_id ?? `acc-${index}`,
+                    name: accessory.accessory_name,
+                    description:
+                      accessory.notes || accessory.accessory_description || null,
+                    isEnabled: accessory.is_enabled !== false,
+                  }))}
+                  additionalAccessories={(equipmentDetail?.additional_accessories || []).map(
+                    (accessory) => ({
+                      id: accessory.equipment_additional_accessory_id,
+                      name: accessory.additional_accessory_name,
+                      description: accessory.additional_accessory_description,
+                      isEnabled: accessory.is_enabled !== false,
+                    })
+                  )}
+                />
 
                 {/* Operators */}
                 {equipmentDetail?.operators && equipmentDetail.operators.length > 0 && (
