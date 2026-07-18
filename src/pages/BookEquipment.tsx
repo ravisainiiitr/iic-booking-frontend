@@ -979,6 +979,10 @@ const BookEquipment = () => {
     success: boolean;
     variant: "success" | "waitlist" | "failure";
     message: string;
+    /** Query value for /my-bookings?booking=… (virtual id preferred). */
+    bookingViewQuery?: string;
+    /** Human-facing booking reference shown on the link. */
+    bookingDisplayId?: string;
   }>({ open: false, success: false, variant: "failure", message: "" });
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
   const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
@@ -4230,9 +4234,27 @@ const BookEquipment = () => {
         }
         toast.success((res.data as { message?: string })?.message || "Repeat booking created successfully.");
         resetBookingPageToDefaults();
-        setBookingResultDialog({ open: true, success: true, variant: "success", message: "Repeat booking created. This booking does not count toward your weekly or monthly limit." });
+        const repeatData = res.data as {
+          virtual_booking_id?: string;
+          booking?: { virtual_booking_id?: string; booking_id?: number; real_booking_id?: number };
+        } | undefined;
+        const repeatView =
+          repeatData?.virtual_booking_id ||
+          repeatData?.booking?.virtual_booking_id ||
+          (repeatData?.booking?.real_booking_id != null
+            ? String(repeatData.booking.real_booking_id)
+            : repeatData?.booking?.booking_id != null
+              ? String(repeatData.booking.booking_id)
+              : undefined);
+        setBookingResultDialog({
+          open: true,
+          success: true,
+          variant: "success",
+          message: "Repeat booking created. This booking does not count toward your weekly or monthly limit.",
+          bookingViewQuery: repeatView,
+          bookingDisplayId: repeatView,
+        });
         setRepeatSourceBooking(null);
-        navigate("/my-bookings");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to create repeat booking");
         resetBookingPageToDefaults();
@@ -4444,6 +4466,8 @@ const BookEquipment = () => {
             booking_id?: number;
             real_booking_id?: number;
             id?: number;
+            virtual_booking_id?: string;
+            booking_id?: string | number;
             daily_slots?: DailySlot[];
             payment_required?: boolean;
             amount_due?: string;
@@ -4458,7 +4482,11 @@ const BookEquipment = () => {
             };
           };
         }).data;
-        const realId = resData?.real_booking_id ?? resData?.booking_id ?? resData?.id;
+        const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
+        const bookingViewQuery =
+          (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
+          (typeof resData?.booking_id === "string" && resData.booking_id.trim()) ||
+          (realId != null ? String(realId) : undefined);
         if (resData?.payment_required && realId != null && bookingAsExternalTarget) {
           resetBookingPageToDefaults();
           navigate(`/bookings/${realId}/payment`);
@@ -4496,6 +4524,8 @@ const BookEquipment = () => {
           open: true,
           success: true,
           variant: "success",
+          bookingViewQuery,
+          bookingDisplayId: bookingViewQuery,
           message: (() => {
             const baseMsg = resData?.input_values_adjusted
               ? "Booking created successfully with reduced parameters (1 slot) as requested."
@@ -4604,11 +4634,32 @@ const BookEquipment = () => {
         throw new Error(message);
       }
 
-      const firstRes = results[0] as { booking_id?: number; id?: number };
-      const firstBookingId = firstRes?.booking_id ?? firstRes?.id;
+      const firstData = (results[0] as {
+        data?: {
+          virtual_booking_id?: string;
+          booking_id?: string | number;
+          real_booking_id?: number;
+          id?: number;
+        };
+      })?.data;
+      const multiViewQuery =
+        (typeof firstData?.virtual_booking_id === "string" && firstData.virtual_booking_id.trim()) ||
+        (typeof firstData?.booking_id === "string" && firstData.booking_id.trim()) ||
+        (firstData?.real_booking_id != null
+          ? String(firstData.real_booking_id)
+          : firstData?.id != null
+            ? String(firstData.id)
+            : undefined);
       // Success is logged server-side per booking; no need to call logBookingAttempt here
       resetBookingPageToDefaults();
-      setBookingResultDialog({ open: true, success: true, variant: "success", message: `${bookings.length} booking(s) created successfully!` });
+      setBookingResultDialog({
+        open: true,
+        success: true,
+        variant: "success",
+        message: `${bookings.length} booking(s) created successfully!`,
+        bookingViewQuery: multiViewQuery,
+        bookingDisplayId: multiViewQuery,
+      });
     } catch (error: any) {
       const errMsg = error.message || "Failed to create booking";
       toast.error(errMsg);
@@ -8281,6 +8332,22 @@ const BookEquipment = () => {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex !flex-col gap-2 pt-4 sm:!flex-col sm:space-x-0 sm:justify-stretch">
+              {bookingResultDialog.success && bookingResultDialog.bookingViewQuery && (
+                <Button
+                  variant="secondary"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const q = bookingResultDialog.bookingViewQuery!;
+                    setBookingResultDialog((p) => ({ ...p, open: false }));
+                    navigate(`/my-bookings?booking=${encodeURIComponent(q)}`);
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {bookingResultDialog.bookingDisplayId
+                    ? `View booking ${bookingResultDialog.bookingDisplayId}`
+                    : "View booking"}
+                </Button>
+              )}
               {bookingResultDialog.success && adminBookForUserId && (
                 <Button
                   variant="secondary"
