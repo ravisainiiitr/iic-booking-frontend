@@ -13,7 +13,13 @@ import {
   type ProformaLineItemField,
 } from "@/lib/proformaInvoiceStorage";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
-import { formatNumericBound, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import {
+  formatNumericBound,
+  formatStepAttr,
+  nudgeNumericValue,
+  resolveNumericFieldBounds,
+  roundToStepPrecision,
+} from "@/lib/numericFieldLimits";
 import {
   CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
   getChargeEstimateUserTypeLabel,
@@ -38,7 +44,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
@@ -6287,44 +6293,93 @@ const BookEquipment = () => {
                                         false
                                       )
                                     : undefined;
-                                const { min: effectiveMin, max: effectiveMax, step: effectiveStep } =
-                                  resolveNumericFieldBounds(field, formulaMax);
-                                const stepAttr =
-                                  effectiveStep < 1
-                                    ? String(effectiveStep)
-                                    : Number.isInteger(effectiveStep)
-                                      ? String(effectiveStep)
-                                      : String(effectiveStep);
+                                const bounds = resolveNumericFieldBounds(field, formulaMax);
+                                const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
+                                const stepAttr = formatStepAttr(effectiveStep);
+                                const currentRaw = inputFieldValues[field.field_key];
+                                const nudge = (direction: 1 | -1) => {
+                                  if (repeatSourceBooking) return;
+                                  handleInputFieldChange(
+                                    field.field_key,
+                                    nudgeNumericValue(currentRaw as string | number | undefined, direction, bounds)
+                                  );
+                                };
                                 return (
                                   <div className="space-y-1.5">
-                                    <Input
-                                      id={field.field_key}
-                                      type="number"
-                                      value={inputFieldValues[field.field_key] as string || ''}
-                                      onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
-                                      onBlur={(e) => {
-                                        const value = e.target.value;
-                                        if (value && isNaN(Number(value))) {
-                                          handleInputFieldChange(field.field_key, String(effectiveMin));
-                                        } else if (value !== '' && Number(value) < effectiveMin) {
-                                          handleInputFieldChange(field.field_key, String(effectiveMin));
-                                        } else if (value !== '' && Number(value) > effectiveMax) {
-                                          toast.error(
-                                            `${field.field_label || field.field_key}: cannot be greater than ${formatNumericBound(effectiveMax)}`
-                                          );
-                                          handleInputFieldChange(field.field_key, String(effectiveMax));
+                                    <div className="flex items-center gap-1.5">
+                                      <Input
+                                        id={field.field_key}
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={
+                                          currentRaw === undefined || currentRaw === null
+                                            ? ""
+                                            : String(currentRaw)
                                         }
-                                      }}
-                                      required={field.is_required}
-                                      min={effectiveMin}
-                                      max={effectiveMax}
-                                      step={stepAttr}
-                                      placeholder={field.default_value || String(effectiveMin)}
-                                      disabled={!!repeatSourceBooking}
-                                    />
+                                        onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            nudge(1);
+                                          } else if (e.key === "ArrowDown") {
+                                            e.preventDefault();
+                                            nudge(-1);
+                                          }
+                                        }}
+                                        onBlur={(e) => {
+                                          const value = e.target.value.trim();
+                                          if (value === "") return;
+                                          const n = Number(value.replace(",", "."));
+                                          if (!Number.isFinite(n)) {
+                                            handleInputFieldChange(field.field_key, formatNumericBound(effectiveMin));
+                                            return;
+                                          }
+                                          let next = roundToStepPrecision(n, effectiveStep);
+                                          if (next < effectiveMin) next = effectiveMin;
+                                          if (next > effectiveMax) {
+                                            toast.error(
+                                              `${field.field_label || field.field_key}: cannot be greater than ${formatNumericBound(effectiveMax)}`
+                                            );
+                                            next = effectiveMax;
+                                          }
+                                          handleInputFieldChange(field.field_key, formatNumericBound(next));
+                                        }}
+                                        required={field.is_required}
+                                        min={effectiveMin}
+                                        max={effectiveMax}
+                                        step={stepAttr}
+                                        placeholder={field.default_value || formatNumericBound(effectiveMin)}
+                                        disabled={!!repeatSourceBooking}
+                                        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                      />
+                                      <div className="flex flex-col shrink-0">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-5 w-8 rounded-b-none border-b-0"
+                                          disabled={!!repeatSourceBooking}
+                                          aria-label={`Increase by ${stepAttr}`}
+                                          onClick={() => nudge(1)}
+                                        >
+                                          <ChevronUp className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-5 w-8 rounded-t-none"
+                                          disabled={!!repeatSourceBooking}
+                                          aria-label={`Decrease by ${stepAttr}`}
+                                          onClick={() => nudge(-1)}
+                                        >
+                                          <ChevronDown className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    </div>
                                     <p className="text-xs text-muted-foreground">
                                       Allowed range {formatNumericBound(effectiveMin)}–{formatNumericBound(effectiveMax)}
-                                      {effectiveStep !== 1 ? ` · step ${formatNumericBound(effectiveStep)}` : ""}
+                                      {" · "}step {formatNumericBound(effectiveStep)}
                                     </p>
                                   </div>
                                 );

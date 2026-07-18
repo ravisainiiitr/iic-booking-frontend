@@ -24,7 +24,7 @@ import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
-import { formatNumericBound, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import { formatNumericBound, formatStepAttr, nudgeNumericValue, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
 
 export interface InputFieldDef {
   field_key: string;
@@ -621,42 +621,82 @@ export function BookingUserInputs({
                     {f.field_label}
                   </Label>
                   {type === "NUMERIC" && (() => {
-                    const { min: effectiveMin, max: effectiveMax, step: effectiveStep } =
-                      resolveNumericFieldBounds(f);
-                    const stepAttr =
-                      effectiveStep < 1
-                        ? String(effectiveStep)
-                        : Number.isInteger(effectiveStep)
-                          ? String(effectiveStep)
-                          : String(effectiveStep);
+                    const bounds = resolveNumericFieldBounds(f);
+                    const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
+                    const stepAttr = formatStepAttr(effectiveStep);
+                    const nudge = (direction: 1 | -1) => {
+                      updateFormValue(
+                        f.field_key,
+                        Number(nudgeNumericValue(val as string | number | undefined, direction, bounds))
+                      );
+                    };
                     return (
                       <div className="space-y-1.5">
-                        <Input
-                          id={`edit-${f.field_key}`}
-                          type="number"
-                          className="text-base h-10"
-                          min={effectiveMin}
-                          max={effectiveMax}
-                          step={stepAttr}
-                          value={typeof val === "number" ? val : Number(val) || ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v === "") {
-                              updateFormValue(f.field_key, effectiveMin);
-                              return;
-                            }
-                            const n = Number(v);
-                            if (isNaN(n)) {
-                              updateFormValue(f.field_key, effectiveMin);
-                              return;
-                            }
-                            const clamped = Math.min(effectiveMax, Math.max(effectiveMin, n));
-                            updateFormValue(f.field_key, clamped);
-                          }}
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            id={`edit-${f.field_key}`}
+                            type="number"
+                            inputMode="decimal"
+                            className="text-base h-10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            min={effectiveMin}
+                            max={effectiveMax}
+                            step={stepAttr}
+                            value={val === undefined || val === null || val === "" ? "" : String(val)}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "") {
+                                updateFormValue(f.field_key, "");
+                                return;
+                              }
+                              updateFormValue(f.field_key, v);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "ArrowUp") {
+                                e.preventDefault();
+                                nudge(1);
+                              } else if (e.key === "ArrowDown") {
+                                e.preventDefault();
+                                nudge(-1);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (val === "" || val === undefined || val === null) return;
+                              const n = Number(String(val).replace(",", "."));
+                              if (!Number.isFinite(n)) {
+                                updateFormValue(f.field_key, effectiveMin);
+                                return;
+                              }
+                              let next = roundToStepPrecision(n, effectiveStep);
+                              next = Math.min(effectiveMax, Math.max(effectiveMin, next));
+                              updateFormValue(f.field_key, next);
+                            }}
+                          />
+                          <div className="flex flex-col shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-5 w-8 rounded-b-none border-b-0"
+                              aria-label={`Increase by ${stepAttr}`}
+                              onClick={() => nudge(1)}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-5 w-8 rounded-t-none"
+                              aria-label={`Decrease by ${stepAttr}`}
+                              onClick={() => nudge(-1)}
+                            >
+                              <span className="text-sm leading-none font-medium">−</span>
+                            </Button>
+                          </div>
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           Allowed range {formatNumericBound(effectiveMin)}–{formatNumericBound(effectiveMax)}
-                          {effectiveStep !== 1 ? ` · step ${formatNumericBound(effectiveStep)}` : ""}
+                          {" · "}step {formatNumericBound(effectiveStep)}
                         </p>
                       </div>
                     );
