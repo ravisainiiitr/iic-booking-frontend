@@ -247,14 +247,14 @@ export default function DepartmentRbacManagement() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="page-shell flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
         <div className="flex flex-wrap items-center gap-3">

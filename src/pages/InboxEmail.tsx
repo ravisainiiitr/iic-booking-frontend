@@ -124,7 +124,7 @@ const InboxEmailPage = () => {
   if (!isAdmin && !authLoading) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">

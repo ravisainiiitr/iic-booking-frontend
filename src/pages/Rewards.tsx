@@ -44,7 +44,7 @@ export default function Rewards() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 space-y-6">
         <div>

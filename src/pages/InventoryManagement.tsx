@@ -250,16 +250,23 @@ export default function InventoryManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="mb-2">
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            Dashboard
           </Button>
-          <h1 className="text-3xl font-bold">Inventory Management</h1>
-          <p className="text-muted-foreground mt-1">Admin tools for stock visibility, request approval, and issue tracking.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Inventory management</h1>
+          <p className="mt-2 text-sm text-white/85">
+            Stock visibility, request approval, and issue tracking for instruments you manage.
+          </p>
         </div>
 
         <Card>

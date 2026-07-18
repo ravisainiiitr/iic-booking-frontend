@@ -369,28 +369,39 @@ export default function OICMultiMode() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to dashboard
-        </Button>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
-                <GitBranch className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle>Multi-Mode Equipment</CardTitle>
-                <CardDescription>
-                  Schedule Parallel or Mutually Exclusive modes for equipment with Multi-Mode enabled
-                  on create/edit. Configure labels and colors for unavailable/exclusive slots.
-                </CardDescription>
-              </div>
+      <main className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
+            onClick={() => navigate("/dashboard")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Button>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+              <GitBranch className="h-5 w-5" />
             </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Multi-Mode Equipment</h1>
+              <p className="mt-1 text-sm text-white/85 max-w-2xl">
+                Schedule Parallel or Mutually Exclusive modes for equipment with Multi-Mode enabled.
+                Configure labels and colors for unavailable/exclusive slots.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+          <CardHeader>
+            <CardTitle>Configuration</CardTitle>
+            <CardDescription>
+              Select a parent instrument, then link modes and schedules.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {loading ? (

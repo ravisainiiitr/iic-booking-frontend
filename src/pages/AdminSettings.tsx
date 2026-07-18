@@ -1,181 +1,138 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, User as UserIcon, MessageSquare, Package, LifeBuoy, Target, Inbox, Wallet, Shield, Trophy, Database } from "lucide-react";
-import DashboardHeader from "@/components/DashboardHeader";
+import {
+  ArrowLeft,
+  User as UserIcon,
+  MessageSquare,
+  Package,
+  LifeBuoy,
+  Target,
+  Inbox,
+  Wallet,
+  Shield,
+  Trophy,
+  Database,
+  Star,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { PageHero, PageShell, SettingsTile } from "@/components/PageShell";
 
 const AdminSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
-  const canManageRewards = userTypeStr === "admin" || userTypeStr === "manager" || userTypeStr === "operator";
+  const canManageRewards =
+    userTypeStr === "admin" || userTypeStr === "manager" || userTypeStr === "operator";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
-      <DashboardHeader />
+    <PageShell>
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="mb-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <h1 className="text-3xl font-bold">Admin Settings</h1>
-            <p className="text-muted-foreground mt-1">
-              Equipment and users management.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => navigate("/user-management")}
+        <PageHero
+          title="Admin Settings"
+          description="Manage users, equipment, communications, support, and portal configuration."
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
           >
-            <CardHeader>
-              <UserIcon className="h-8 w-8 text-primary mb-2" />
-              <CardTitle className="text-base">User Management</CardTitle>
-              <CardDescription className="text-sm">
-                Users, roles & permissions
-              </CardDescription>
-            </CardHeader>
-          </Card>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </PageHero>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <SettingsTile
+            icon={<UserIcon className="h-5 w-5" />}
+            title="User Management"
+            description="Users, roles & permissions"
+            onClick={() => navigate("/user-management")}
+          />
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Shield className="h-5 w-5" />}
+              title="Session / Auto-logout"
+              description="Inactivity timeout for authenticated sessions"
               onClick={() => navigate("/admin-settings/auth")}
-            >
-              <CardHeader>
-                <Shield className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Session / Auto-logout</CardTitle>
-                <CardDescription className="text-sm">
-                  Set inactivity timeout (auto-logout after no activity)
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<MessageSquare className="h-5 w-5" />}
+              title="Communication"
+              description="Email templates and communication logs"
               onClick={() => navigate("/admin-settings/communication")}
-            >
-              <CardHeader>
-                <MessageSquare className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Communication</CardTitle>
-                <CardDescription className="text-sm">
-                  Templates & communication logs (same as Django admin)
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Inbox className="h-5 w-5" />}
+              title="Inbox Email"
+              description="Fetch and view the configured IMAP mailbox"
               onClick={() => navigate("/admin-settings/inbox-email")}
-            >
-              <CardHeader>
-                <Inbox className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Inbox Email</CardTitle>
-                <CardDescription className="text-sm">
-                  Fetch and view emails from the configured IMAP mailbox
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Wallet className="h-5 w-5" />}
+              title="Wallet Management"
+              description="Parse and manage wallet recharge emails"
               onClick={() => navigate("/admin-settings/wallet-recharge-parse")}
-            >
-              <CardHeader>
-                <Wallet className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Wallet Management</CardTitle>
-                <CardDescription className="text-sm">
-                  Manual credits, file import, IMAP, and wallet recharge history
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Database className="h-5 w-5" />}
+              title="Legacy Wallet Lookup"
+              description="Import historical wallet data for testing"
               onClick={() => navigate("/admin-settings/legacy-wallet-import")}
-            >
-              <CardHeader>
-                <Database className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Legacy Wallet Lookup</CardTitle>
-                <CardDescription className="text-sm">
-                  Test legacy MySQL balance lookup by emp_id (no CSV import)
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Package className="h-5 w-5" />}
+              title="Equipment"
+              description="List, search, filter & edit equipment"
               onClick={() => navigate("/admin-settings/equipment")}
-            >
-              <CardHeader>
-                <Package className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Equipment</CardTitle>
-                <CardDescription className="text-sm">
-                  List, search, filter & edit equipment (same as Django /admin/equipment/)
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<LifeBuoy className="h-5 w-5" />}
+              title="Support Tickets"
+              description="Helpdesk queue, reassign, resolve & notify"
               onClick={() => navigate("/admin-settings/support")}
-            >
-              <CardHeader>
-                <LifeBuoy className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Support Tickets</CardTitle>
-                <CardDescription className="text-sm">
-                  Attachments, resolve with comment, and notify the requester
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {isAdmin && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Star className="h-5 w-5" />}
+              title="Portal Feedback"
+              description="UX ratings, suggestions, and summary statistics"
+              onClick={() => navigate("/admin-settings/feedback")}
+            />
+          )}
+          {isAdmin && (
+            <SettingsTile
+              icon={<Target className="h-5 w-5" />}
+              title="Quality Improvement"
+              description="Bugs & portal suggestions from users"
               onClick={() => navigate("/admin-settings/quality-improvement")}
-            >
-              <CardHeader>
-                <Target className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Quality Improvement</CardTitle>
-                <CardDescription className="text-sm">
-                  Bugs & suggestions for the booking website; mark resolved or unresolved and notify users
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
           {canManageRewards && (
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+            <SettingsTile
+              icon={<Trophy className="h-5 w-5" />}
+            title="Reward Config (Per Equipment)"
+            description="Per-equipment reward settings"
               onClick={() => navigate("/admin-settings/rewards")}
-            >
-              <CardHeader>
-                <Trophy className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-base">Reward Config (Per Equipment)</CardTitle>
-                <CardDescription className="text-sm">
-                  Configure TA reward earning and redemption rules equipment-wise
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            />
           )}
         </div>
       </main>
-    </div>
+    </PageShell>
   );
 };
 

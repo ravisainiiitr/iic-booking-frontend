@@ -199,11 +199,11 @@ const EquipmentList = () => {
 
   if (loading && equipment.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+      <div className="page-shell">
         <DashboardHeader />
         <main className="container mx-auto px-4 py-8">
           <div className="flex flex-col items-center justify-center py-24">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-lg mb-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-700 text-white shadow-lg mb-6">
               <Loader2 className="h-7 w-7 animate-spin" />
             </div>
             <p className="text-lg font-medium text-foreground">Loading equipment...</p>
@@ -215,10 +215,10 @@ const EquipmentList = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-10 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-600 p-8 text-white shadow-xl">
+        <div className="mb-10 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-8 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"
@@ -269,7 +269,7 @@ const EquipmentList = () => {
         {equipment.length === 0 ? (
           <Card className="overflow-hidden border-0 shadow-lg rounded-2xl max-w-md mx-auto">
             <CardContent className="flex flex-col items-center justify-center py-16 px-8 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-indigo-100 dark:from-sky-900/30 dark:to-indigo-900/30 text-sky-600 dark:text-sky-400 mb-6">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/30 dark:to-cyan-900/30 text-teal-700 dark:text-teal-400 mb-6">
                 {hasActiveFilters ? <Search className="h-10 w-10" /> : <Package className="h-10 w-10" />}
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-2">

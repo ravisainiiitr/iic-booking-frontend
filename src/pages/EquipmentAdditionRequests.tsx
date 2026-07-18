@@ -170,35 +170,42 @@ const EquipmentAdditionRequests = () => {
   if (!isAdmin && !isDeptAdmin && !authLoading) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate("/admin-settings/equipment")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Equipment settings
-        </Button>
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Equipment addition requests</h1>
-            <p className="text-muted-foreground mt-1">
-              {isAdmin
-                ? "Review public proposals from `/propose-equipment`. Approve creates equipment under maintenance."
-                : "Track your department's equipment addition requests submitted for Main Admin approval."}
-            </p>
-          </div>
-          <div className="w-[200px]">
-            <Label className="sr-only">Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="APPROVED">Approved</SelectItem>
-                <SelectItem value="REJECTED">Rejected</SelectItem>
-                <SelectItem value="ALL">All</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+                onClick={() => navigate("/admin-settings/equipment")}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Equipment settings
+              </Button>
+              <h1 className="text-2xl font-semibold tracking-tight">Equipment addition requests</h1>
+              <p className="mt-2 text-sm text-white/85 max-w-2xl">
+                {isAdmin
+                  ? "Review public proposals from /propose-equipment. Approve creates equipment under maintenance."
+                  : "Track your department's equipment addition requests submitted for Main Admin approval."}
+              </p>
+            </div>
+            <div className="w-[200px]">
+              <Label className="sr-only">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="bg-white/95">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                  <SelectItem value="ALL">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 

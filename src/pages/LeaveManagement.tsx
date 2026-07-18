@@ -184,36 +184,41 @@ export default function LeaveManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-violet-600/[0.10] via-background to-background p-5 shadow-lg shadow-violet-950/[0.06] sm:p-6">
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")} className="bg-background/70">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/dashboard")}
+                className="text-white/90 hover:text-white hover:bg-white/20"
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+                Dashboard
               </Button>
               <div className="min-w-0">
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">Leave Management</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-2xl font-semibold tracking-tight">Leave management</h1>
+                <p className="text-sm text-white/85">
                   Apply quickly (full/half-day) and track approvals for the current year.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Year</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-white/70">Year</Label>
               <Input
                 type="number"
-                className="w-28 bg-background/70"
+                className="w-28 bg-white/95 text-foreground"
                 value={String(year)}
                 onChange={(e) => setYear(Number(e.target.value || currentYear))}
                 min={2000}
                 max={2100}
               />
-              <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-2">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Approved</div>
-                <div className="text-lg font-bold tabular-nums text-foreground">
+              <div className="rounded-2xl border border-white/20 bg-white/10 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Approved</div>
+                <div className="text-lg font-bold tabular-nums">
                   {loading ? "…" : approvedDaysThisYear}
                 </div>
               </div>
@@ -222,10 +227,10 @@ export default function LeaveManagement() {
         </div>
 
         <div className="space-y-6">
-          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-violet-950/[0.06]">
-            <CardHeader className="border-b border-border/60 bg-gradient-to-br from-violet-600/[0.08] via-background to-background">
+          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
+            <CardHeader className="border-b border-border/60 bg-gradient-to-br from-teal-700/[0.10] via-background to-background">
               <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-violet-600" />
+                <CalendarDays className="h-5 w-5 text-teal-700" />
                 Apply for leave
               </CardTitle>
               <CardDescription>
@@ -372,7 +377,7 @@ export default function LeaveManagement() {
               </div>
 
               <Button
-                className="h-11 w-full bg-violet-600 text-white hover:bg-violet-700"
+                className="h-11 w-full bg-teal-700 text-white hover:bg-teal-800"
                 disabled={!canSubmit || submitting}
                 onClick={async () => {
                   if (startDate === endDate && startSession === "AN" && endSession === "FN") {
@@ -414,7 +419,7 @@ export default function LeaveManagement() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-violet-950/[0.06]">
+          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
             <CardHeader className="border-b border-border/60 bg-muted/10">
               <CardTitle className="flex items-center justify-between gap-3">
                 <span>Leave requests ({year})</span>

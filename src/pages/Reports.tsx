@@ -374,44 +374,46 @@ const Reports = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-accent/20">
+      <div className="page-shell flex flex-col items-center justify-center">
         <DashboardHeader />
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <Loader2 className="h-12 w-12 animate-spin text-teal-700" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <h1 className="text-3xl font-bold mb-2">
-          {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
-        </h1>
-        <p className="text-muted-foreground mb-8">
-          {isLabInchargeUser
-            ? "Monthly-style performance metrics (users, samples, hours, working-window availability, ratings) for your assigned equipment. Export to PDF or Excel."
-            : isFacultyUser
-              ? "Your personal booking overview is below. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
-              : "Click any section to view the full list of bookings with amount spent."}
-        </p>
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 sm:p-8 text-white shadow-xl">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+            {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
+          </h1>
+          <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
+            {isLabInchargeUser
+              ? "Monthly-style performance metrics (users, samples, hours, working-window availability, ratings) for your assigned equipment. Export to PDF or Excel."
+              : isFacultyUser
+                ? "Your personal booking overview is below. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
+                : "Click any section to view the full list of bookings with amount spent."}
+          </p>
+        </div>
 
         {isFacultyUser && !isLabInchargeUser && (
-          <Card className="mb-10 overflow-hidden border-slate-200/80 shadow-md dark:border-slate-800">
-            <div className="border-b bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 px-6 py-5 text-white">
+          <Card className="mb-10 overflow-hidden border-teal-200/60 shadow-md dark:border-teal-900/50 rounded-2xl">
+            <div className="border-b bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-900 px-6 py-5 text-white">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-emerald-100/95">
+                  <h2 className="text-lg font-semibold tracking-tight text-teal-50">
                     Research group wallet & booking spend
                   </h2>
-                  <p className="mt-1 max-w-3xl text-sm text-slate-300">
+                  <p className="mt-1 max-w-3xl text-sm text-teal-100/80">
                     Consolidated view for your supervisor wallet and approved linked members: period spend vs current
                     balance, recharges credited in the same window, and per-member / per-equipment splits.
                   </p>
                 </div>
-                <Wallet className="h-10 w-10 shrink-0 text-emerald-200/90 opacity-90" aria-hidden />
+                <Wallet className="h-10 w-10 shrink-0 text-teal-100/90 opacity-90" aria-hidden />
               </div>
             </div>
             <CardContent className="space-y-6 pt-6">
@@ -1117,16 +1119,16 @@ const Reports = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="border-violet-200/60 bg-gradient-to-br from-violet-50/80 to-background dark:from-violet-950/30">
+                  <Card className="border-teal-200/60 bg-gradient-to-br from-teal-50/80 to-background dark:from-teal-950/30">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Package className="h-4 w-4 text-violet-600" />
+                        <Package className="h-4 w-4 text-teal-700" />
                         Utilization vs capacity
                       </CardTitle>
                       <CardDescription>Completed hours / available working-window hours</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-semibold text-violet-800 dark:text-violet-200">
+                      <div className="text-2xl font-semibold text-teal-800 dark:text-teal-200">
                         {((Number(equipmentReportData.summary.utilization_vs_working_capacity || 0) || 0) * 100).toFixed(2)}%
                       </div>
                     </CardContent>

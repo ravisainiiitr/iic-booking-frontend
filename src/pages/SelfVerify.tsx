@@ -97,7 +97,7 @@ const SelfVerify = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
+      <div className="page-shell flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
@@ -118,7 +118,7 @@ const SelfVerify = () => {
 
   if (done === "accepted") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
+      <div className="page-shell flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-500">
@@ -136,7 +136,7 @@ const SelfVerify = () => {
 
   if (done === "rejected") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
+      <div className="page-shell flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">Registration cancelled</CardTitle>
@@ -152,7 +152,7 @@ const SelfVerify = () => {
   if (!details) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/20 p-4">
+    <div className="page-shell flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardHeader>
           <CardTitle>Confirm your details</CardTitle>

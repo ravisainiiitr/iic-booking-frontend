@@ -83,19 +83,19 @@ const ReportBookingsList = () => {
     : "Complete list of all your bookings with amount spent";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="mb-6 flex flex-wrap items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => navigate("/reports")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Reports
           </Button>
         </div>
 
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Booking Details</h1>
-          <p className="text-muted-foreground mt-1">{subtitle}</p>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <h1 className="text-2xl font-semibold tracking-tight">Booking details</h1>
+          <p className="mt-2 text-sm text-white/85">{subtitle}</p>
         </div>
 
         {loading ? (

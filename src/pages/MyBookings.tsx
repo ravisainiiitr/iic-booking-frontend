@@ -1168,7 +1168,7 @@ const MyBookings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">My Bookings</h1>

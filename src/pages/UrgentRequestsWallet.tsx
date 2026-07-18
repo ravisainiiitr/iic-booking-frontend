@@ -293,7 +293,7 @@ const UrgentRequestsWallet = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6">
         <Button variant="ghost" className="mb-4 -ml-2" onClick={() => navigate("/dashboard")}>

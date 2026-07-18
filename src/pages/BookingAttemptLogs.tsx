@@ -394,7 +394,7 @@ const BookingAttemptLogs = () => {
   // When access denied, show dedicated card and back button
   if (showAccessDenied) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20" style={{ minHeight: "100vh", backgroundColor: "#f8fafc", color: "#0f172a" }}>
+      <div className="page-shell">
         <header style={{ borderBottom: "1px solid #e2e8f0", padding: "1rem 1.5rem", backgroundColor: "#fff" }}>
           <div className="container mx-auto flex items-center justify-between">
             <span style={{ fontWeight: 600, fontSize: "1.125rem" }}>Booking Attempt Log</span>
@@ -423,7 +423,7 @@ const BookingAttemptLogs = () => {
   // Always render the main page shell so something is always visible (no blank screen)
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20"
+      className="page-shell"
       style={{ minHeight: "100vh", backgroundColor: "var(--background, #f8fafc)", color: "var(--foreground, #0f172a)" }}
     >
       <header style={{ borderBottom: "1px solid #e2e8f0", padding: "1rem 1.5rem", backgroundColor: "#fff" }}>

@@ -267,7 +267,7 @@ export default function CmsPageView() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="page-shell flex flex-col">
         <Header />
         <main className="flex-1 pt-24 pb-12 container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -286,7 +286,7 @@ export default function CmsPageView() {
 
   if (error || !page) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="page-shell flex flex-col">
         <Header />
         <main className="flex-1 pt-24 pb-12 container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -310,7 +310,7 @@ export default function CmsPageView() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="page-shell flex flex-col">
       <Header />
       <main className="flex-1 pt-24 pb-12 container mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

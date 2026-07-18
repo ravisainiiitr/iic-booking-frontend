@@ -349,19 +349,21 @@ const ExternalDepartmentAdditionVerification = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
-        <div className="flex flex-wrap items-center gap-4 mb-8">
-          <Button variant="outline" size="sm" onClick={() => navigate("/manage/external-user-management")}>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/manage/external-user-management")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to External User Management
+            External user management
           </Button>
-        </div>
-
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight">External Department Addition/Verification</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl font-semibold tracking-tight">External department addition / verification</h1>
+          <p className="mt-2 text-sm text-white/85">
             Add external departments with State/Union Territory and type, or verify departments added during registration.
           </p>
         </div>

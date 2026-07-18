@@ -151,22 +151,27 @@ export default function OICQuotaConfigurations() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-5xl space-y-6">
-        <div className="flex items-center gap-3">
-          <Button type="button" variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Dashboard
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Quota Configurations</h1>
-            <p className="text-sm text-muted-foreground">
-              Weekly and monthly quotas (minutes) for equipment groups that include instruments you manage.
-            </p>
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Quota Configurations</h1>
+          <p className="mt-2 text-sm text-white/85 max-w-2xl">
+            Weekly and monthly quotas (minutes) for equipment groups that include instruments you manage.
+          </p>
         </div>
 
-        <Card>
+        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <CardTitle className="text-lg">Equipment group</CardTitle>
             <CardDescription>Select a group to edit its quota configurations.</CardDescription>

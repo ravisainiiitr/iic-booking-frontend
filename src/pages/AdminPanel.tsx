@@ -105,7 +105,7 @@ const AdminPanel = () => {
 
   if (checkingAuth || !isAdmin) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="page-shell flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -119,7 +119,7 @@ const AdminPanel = () => {
     : USERS_SECTIONS;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
         <div className="flex flex-wrap items-center gap-4 mb-8">

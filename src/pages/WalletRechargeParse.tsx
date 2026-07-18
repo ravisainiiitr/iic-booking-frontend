@@ -1130,7 +1130,7 @@ const WalletRechargeParsePage = () => {
   if (!isWalletRechargeStaff && !authLoading) return null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-muted/40 via-background to-primary/[0.06] dark:from-slate-950 dark:via-background dark:to-primary/10">
+    <div className="page-shell relative overflow-hidden">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-30%,hsl(var(--primary)/0.12),transparent_55%)] dark:bg-[radial-gradient(ellipse_120%_80%_at_50%_-30%,hsl(var(--primary)/0.18),transparent_55%)]"
         aria-hidden

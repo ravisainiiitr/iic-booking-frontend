@@ -5,13 +5,10 @@ import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, LifeBuoy, MapPin, Info, Calendar, Wrench, Users, UserCog, FileText, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { MapPin } from "lucide-react";
-import { Info } from "lucide-react";
-import { Calendar } from "lucide-react";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
@@ -20,6 +17,8 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { TruncatableText } from "@/components/TruncatableText";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
+import TicketForm from "@/components/TicketForm";
+import { cn } from "@/lib/utils";
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -139,6 +138,7 @@ const EquipmentProfile = () => {
   }>({ slot_start_time: null, slot_end_time: null, slot_duration_minutes: 60 });
   const [slotMasterTimes, setSlotMasterTimes] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
   const fetchingSlotsRef = useRef(false);
 
@@ -471,26 +471,38 @@ const EquipmentProfile = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-background to-background dark:from-background">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left Section - Equipment Details */}
           <div className="lg:col-span-2 space-y-6">
             {/* Equipment Header */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <CardTitle className="text-3xl">{equipment.name}</CardTitle>
+            <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
+              <div className="h-1.5 w-full bg-gradient-to-r from-teal-600 via-cyan-500 to-teal-500" />
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      {equipment.code ? (
+                        <Badge variant="outline" className="font-mono text-xs tracking-wide">
+                          {equipment.code}
+                        </Badge>
+                      ) : null}
                       <Badge
-                        variant={equipment.status === "ACTIVE" ? "default" : "secondary"}
+                        className={cn(
+                          equipment.status === "ACTIVE"
+                            ? "bg-emerald-600 hover:bg-emerald-600"
+                            : "bg-slate-500 hover:bg-slate-500"
+                        )}
                       >
                         {equipment.status_display}
                       </Badge>
                     </div>
+                    <CardTitle className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
+                      {equipment.name}
+                    </CardTitle>
                     <div className="mt-3">
                       <EquipmentDepartmentLabel
                         name={equipment.internal_department_name}
@@ -499,14 +511,16 @@ const EquipmentProfile = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
                 {equipment.location ? (
-                  <div className="flex items-start gap-2 text-lg font-medium text-foreground">
-                    <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
-                    <span className="whitespace-pre-line leading-snug">{equipment.location}</span>
+                  <div className="flex items-start gap-2.5 rounded-xl bg-muted/50 border px-3.5 py-2.5">
+                    <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-teal-700" />
+                    <span className="text-base font-medium whitespace-pre-line leading-snug">
+                      {equipment.location}
+                    </span>
                   </div>
                 ) : null}
-                <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-muted ring-1 ring-border/50">
                   <EquipmentImage
                     equipmentId={equipment.equipment_id}
                     enabled
@@ -515,7 +529,15 @@ const EquipmentProfile = () => {
                   />
                 </div>
                 {equipment.description ? (
-                  <p className="text-lg text-muted-foreground whitespace-pre-line">{equipment.description}</p>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5" />
+                      About this instrument
+                    </p>
+                    <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+                      {equipment.description}
+                    </p>
+                  </div>
                 ) : null}
               </CardContent>
             </Card>
@@ -715,15 +737,24 @@ const EquipmentProfile = () => {
             )}
           </div>
 
-          {/* Right Section - Equipment Details */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="sticky top-6 space-y-6">
-              {/* Book / Manage Equipment Button */}
+          {/* Right Section - Actions & info */}
+          <div className="lg:col-span-1 space-y-5">
+            <div className="sticky top-6 space-y-5">
               {(shouldShowBookingCard()) && (
-                <Card>
-                  <CardContent className="pt-6 space-y-3">
+                <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
+                  <div className="h-1 w-full bg-gradient-to-r from-teal-600 to-cyan-500" />
+                  <CardHeader className="pb-2 pt-4">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-teal-700" />
+                      Booking & charges
+                    </CardTitle>
+                    <CardDescription>
+                      Reserve this instrument or estimate costs for your user category.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pb-5">
                     <Button
-                      className="w-full"
+                      className="w-full bg-teal-700 hover:bg-teal-800"
                       size="lg"
                       disabled={!canManageEquipment() && !isEquipmentOperational()}
                       onClick={handleBookOrManageClick}
@@ -736,6 +767,7 @@ const EquipmentProfile = () => {
                       size="lg"
                       onClick={handleCalculateChargesClick}
                     >
+                      <IndianRupee className="h-4 w-4 mr-1.5" />
                       View and Calculate Charges
                     </Button>
                     {!canManageEquipment() && !isEquipmentOperational() && (
@@ -757,53 +789,100 @@ const EquipmentProfile = () => {
                 </Card>
               )}
 
-              {/* Important Instruction - highlighted above specifications */}
+              <Card className="overflow-hidden border-teal-200/80 shadow-md ring-1 ring-teal-500/10 dark:border-teal-900">
+                <div className="h-1 w-full bg-gradient-to-r from-teal-500 to-cyan-500" />
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <LifeBuoy className="h-5 w-5 text-teal-700" />
+                    Need help with this equipment?
+                  </CardTitle>
+                  <CardDescription>
+                    Raise a support request linked to this instrument. No login required.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    type="button"
+                    className="w-full bg-teal-700 hover:bg-teal-800"
+                    size="lg"
+                    onClick={() => setSupportOpen(true)}
+                  >
+                    <LifeBuoy className="h-4 w-4 mr-2" />
+                    Raise Support Request
+                  </Button>
+                  <TicketForm
+                    open={supportOpen}
+                    onOpenChange={setSupportOpen}
+                    hideTicketType
+                    initialValues={{
+                      ticket_type: "equipment",
+                      related_equipment_id: equipment.equipment_id,
+                      subject: `Support request: ${equipment.code} — ${equipment.name}`,
+                    }}
+                    onSuccess={() => {
+                      toast.success("Support request submitted. Our team will follow up shortly.");
+                      setSupportOpen(false);
+                    }}
+                  />
+                </CardContent>
+              </Card>
+
               {equipment.important_instruction && (
-                <div className="rounded-lg border-2 border-amber-500/80 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/60 p-4 shadow-sm">
-                  <div className="flex items-start gap-2">
+                <div className="rounded-xl border-2 border-amber-500/70 bg-gradient-to-br from-amber-50 to-orange-50/80 dark:from-amber-950/40 dark:to-orange-950/20 dark:border-amber-500/50 p-4 shadow-sm">
+                  <div className="flex items-start gap-2.5">
                     <Info className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <div>
-                      <p className="font-semibold text-amber-800 dark:text-amber-200 mb-1">Important Instruction</p>
+                      <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                        Important instruction
+                      </p>
                       <TruncatableText
                         text={equipment.important_instruction}
-                        className="text-sm text-amber-900/90 dark:text-amber-100/90"
+                        className="text-sm text-amber-950/90 dark:text-amber-100/90"
                       />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Accessories — above Lab Operators for booking prominence */}
-              <EquipmentAccessoriesSection
-                accessories={(equipment.accessories || []).map((accessory: any, index: number) => ({
-                  id: accessory.equipment_accessory_id ?? `acc-${index}`,
-                  name:
-                    accessory.accessory_name ||
-                    accessory.name ||
-                    `Accessory ${index + 1}`,
-                  description: accessory.notes || accessory.description || accessory.accessory_description || null,
-                  isEnabled: accessory.is_enabled !== false,
-                }))}
-                additionalAccessories={(equipment.additional_accessories || []).map((accessory) => ({
-                  id: accessory.equipment_additional_accessory_id,
-                  name: accessory.additional_accessory_name,
-                  description: accessory.additional_accessory_description,
-                  isEnabled: (accessory as { is_enabled?: boolean }).is_enabled !== false,
-                }))}
-              />
+              <div className="rounded-xl ring-1 ring-border/60 bg-card shadow-sm overflow-hidden">
+                <div className="px-4 pt-4 pb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Wrench className="h-4 w-4 text-teal-700" />
+                  Accessories
+                </div>
+                <div className="px-2 pb-2">
+                  <EquipmentAccessoriesSection
+                    accessories={(equipment.accessories || []).map((accessory: any, index: number) => ({
+                      id: accessory.equipment_accessory_id ?? `acc-${index}`,
+                      name:
+                        accessory.accessory_name ||
+                        accessory.name ||
+                        `Accessory ${index + 1}`,
+                      description: accessory.notes || accessory.description || accessory.accessory_description || null,
+                      isEnabled: accessory.is_enabled !== false,
+                    }))}
+                    additionalAccessories={(equipment.additional_accessories || []).map((accessory) => ({
+                      id: accessory.equipment_additional_accessory_id,
+                      name: accessory.additional_accessory_name,
+                      description: accessory.additional_accessory_description,
+                      isEnabled: (accessory as { is_enabled?: boolean }).is_enabled !== false,
+                    }))}
+                  />
+                </div>
+              </div>
 
-              {/* Operators */}
               {equipment.operators && equipment.operators.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      Lab Operators
+                <Card className="border-0 shadow-sm ring-1 ring-border/60">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="h-4 w-4 text-teal-700" />
+                      Lab operators
                     </CardTitle>
+                    <CardDescription>Contact for day-to-day instrument operation</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {equipment.operators.map((operator) => (
-                        <div key={operator.equipment_operator_id}>
+                        <div key={operator.equipment_operator_id} className="rounded-lg border bg-muted/30 p-2.5">
                           <UserProfile
                             name={operator.operator_name}
                             email={operator.operator_email}
@@ -818,18 +897,19 @@ const EquipmentProfile = () => {
                 </Card>
               )}
 
-              {/* Managers */}
               {equipment.managers && equipment.managers.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      Officer In-charge
+                <Card className="border-0 shadow-sm ring-1 ring-border/60">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <UserCog className="h-4 w-4 text-teal-700" />
+                      Officer in-charge
                     </CardTitle>
+                    <CardDescription>Scientific / administrative ownership</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {equipment.managers.map((manager) => (
-                        <div key={manager.equipment_manager_id}>
+                        <div key={manager.equipment_manager_id} className="rounded-lg border bg-muted/30 p-2.5">
                           <UserProfile
                             name={manager.manager_name}
                             email={manager.manager_email}
@@ -844,24 +924,29 @@ const EquipmentProfile = () => {
                 </Card>
               )}
 
-              {/* Equipment specifications: one section per spec_key */}
-              {equipment.specifications && equipment.specifications.length > 0 &&
-                equipment.specifications.map((spec) => (
-                  <Card key={spec.equipment_specification_id}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        {spec.spec_key}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <TruncatableText
-                        text={spec.spec_value}
-                        className="text-base text-muted-foreground"
-                      />
-                    </CardContent>
-                  </Card>
-                ))}
-
+              {equipment.specifications && equipment.specifications.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-0.5">
+                    Specifications
+                  </p>
+                  {equipment.specifications.map((spec) => (
+                    <Card key={spec.equipment_specification_id} className="border-0 shadow-sm ring-1 ring-border/60">
+                      <CardHeader className="pb-2 pt-4">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-teal-700" />
+                          {spec.spec_key}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0 pb-4">
+                        <TruncatableText
+                          text={spec.spec_value}
+                          className="text-sm text-muted-foreground"
+                        />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

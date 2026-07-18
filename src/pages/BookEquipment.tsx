@@ -4636,20 +4636,20 @@ const BookEquipment = () => {
     const isLoadingFromUrl = Boolean(equipmentIdFromUrl) && (loadingEquipmentDetail || !selectedEquipment);
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+      <div className="page-shell">
         <DashboardHeader />
         <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8">
-          <Card>
+          <Card className="rounded-2xl shadow-[var(--shadow-card)]">
             <CardContent className="py-12 text-center">
               {isLoadingFromUrl ? (
                 <>
-                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4" />
+                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-teal-700 border-t-transparent mx-auto mb-4" />
                   <p className="text-muted-foreground mb-4">Loading equipment…</p>
                 </>
               ) : (
                 <>
                   <p className="text-muted-foreground mb-4">No equipment selected for booking</p>
-                  <Button onClick={() => navigate("/equipments")}>
+                  <Button className="bg-teal-700 hover:bg-teal-800" onClick={() => navigate("/equipments")}>
                     Browse Equipment
                   </Button>
                 </>
@@ -4662,11 +4662,11 @@ const BookEquipment = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20 relative">
+    <div className="page-shell relative">
       {(loadingEquipmentDetail || repeatSourceLoading) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card p-6 rounded-lg flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="bg-card p-6 rounded-2xl flex flex-col items-center gap-4 shadow-xl border">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-700"></div>
             <p className="text-sm text-muted-foreground">{repeatSourceLoading ? "Loading repeat booking..." : "Loading equipment details..."}</p>
           </div>
         </div>
@@ -4676,7 +4676,7 @@ const BookEquipment = () => {
         <div className="max-w-6xl mx-auto mb-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-3xl font-bold">
+              <h1 className="text-3xl font-semibold tracking-tight">
                 {isCalculateChargesFlow
                   ? `Calculate Charges — ${selectedEquipment.name}`
                   : canAccessManageEquipmentModes()
@@ -4755,7 +4755,7 @@ const BookEquipment = () => {
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
           <Card className="w-full max-w-none mx-auto mb-8 overflow-hidden border-2 border-primary/20 shadow-xl bg-gradient-to-b from-card to-card/95">
-            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 py-5 text-white">
+            <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-6 py-5 text-white">
               <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                   <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Change slot status</h2>
@@ -5051,7 +5051,7 @@ const BookEquipment = () => {
                 {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
                 <Button
                   size="default"
-                  className="h-12 px-6 text-base font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md"
+                  className="h-12 px-6 text-base font-semibold bg-teal-700 hover:bg-teal-800 text-white shadow-md"
                   disabled={
                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                     updatingSlotStatus ||
@@ -5377,7 +5377,7 @@ const BookEquipment = () => {
         {/* Inline week view (pick by time) */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
           <div className="w-full max-w-none mx-auto mb-10 rounded-2xl overflow-hidden border-2 border-primary/15 shadow-xl">
-            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 py-5 text-white">
+            <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-6 py-5 text-white">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4">
                   <Button variant="secondary" size="icon" className="h-12 w-12 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
@@ -8263,14 +8263,19 @@ const BookEquipment = () => {
                 }
               >
                 {bookingResultDialog.variant === "success"
-                  ? "Booking successful"
+                  ? "Booking confirmed"
                   : bookingResultDialog.variant === "waitlist"
                     ? "Booking Waitlisted"
                     : "Booking unsuccessful"}
               </DialogTitle>
               <DialogDescription asChild>
                 <div className="space-y-3">
-                  <p>{bookingResultDialog.message}</p>
+                  <p className="text-base text-foreground">{bookingResultDialog.message}</p>
+                  {bookingResultDialog.variant === "success" && (
+                    <p className="text-sm text-muted-foreground rounded-lg border bg-teal-50/80 dark:bg-teal-950/30 border-teal-200/60 dark:border-teal-900 px-3 py-2">
+                      Confirmation email and notifications are being sent in the background — your booking is already saved.
+                    </p>
+                  )}
                   <p className="text-foreground font-medium">Do you want to book another equipment or continue booking current equipment?</p>
                 </div>
               </DialogDescription>

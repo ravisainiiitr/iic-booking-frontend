@@ -96,7 +96,7 @@ export default function MyNominationRequests() {
   if (!isStudent) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-6">

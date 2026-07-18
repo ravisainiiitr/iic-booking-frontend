@@ -148,28 +148,37 @@ export default function TANominationsLog() {
   if (!canAccess) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
+          <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
               <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+              Dashboard
             </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">TA nominations log</h1>
+            <p className="mt-2 text-sm text-white/85">
+              All student nominations for equipment operation and their outcome. Visible to Admin and OICs.
+            </p>
           </div>
 
-          <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-violet-500/10 to-purple-500/10">
+          <Card className="overflow-hidden rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+            <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <ClipboardList className="h-6 w-6" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">TA nominations log</CardTitle>
+                    <CardTitle className="text-xl">Nominations</CardTitle>
                     <CardDescription className="mt-0.5">
-                      All student nominations for equipment operation and their outcome. Visible to Admin and OICs.
+                      Filter by semester and status, then review outcomes.
                     </CardDescription>
                   </div>
                 </div>

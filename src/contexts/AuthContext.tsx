@@ -31,6 +31,11 @@ interface User {
   designation?: string | null;
   date_joined?: string | null;
   last_login?: string | null;
+  user_type_alias?: string | null;
+  /** Server-computed display name (includes Prof. for faculty). */
+  display_name?: string | null;
+  /** True after user completes or dismisses the role-specific onboarding guide. */
+  user_guide_viewed?: boolean;
   /** Set by backend from admin Auth settings (inactivity timeout is disabled; this is unused). */
   auth_inactivity_timeout_seconds?: number;
   /** Officer In Charge dashboard feature flags (Django admin). */

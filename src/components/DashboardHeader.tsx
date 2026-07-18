@@ -12,9 +12,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck } from "lucide-react";
+import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import IITRBanner from "@/components/IITRBanner";
+import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
+import { formatUserDisplayName } from "@/lib/displayName";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -22,6 +24,7 @@ const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 const DashboardHeader = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
+  const { openGuide } = useUserGuide();
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [hasWallet, setHasWallet] = useState(false);
   const [showWalletOption, setShowWalletOption] = useState(false);
@@ -270,7 +273,7 @@ const DashboardHeader = () => {
   };
 
   return (
-    <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-teal-900/5">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
@@ -315,7 +318,7 @@ const DashboardHeader = () => {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user?.name || "User"}</p>
+                  <p className="text-sm font-medium leading-none">{formatUserDisplayName(user)}</p>
                   <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                 </div>
               </DropdownMenuLabel>
@@ -335,6 +338,10 @@ const DashboardHeader = () => {
               <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                 <UserIcon className="mr-2 h-4 w-4" />
                 <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openGuide({ force: true })}>
+                <BookOpen className="mr-2 h-4 w-4" />
+                <span>User Guide</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => safeNavigate("/tickets")}>
                 <HelpCircle className="mr-2 h-4 w-4" />

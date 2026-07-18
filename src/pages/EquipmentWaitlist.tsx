@@ -152,23 +152,29 @@ export default function EquipmentWaitlist() {
   if (!canView) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate("/dashboard")}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
-        <Card>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Dashboard
+          </Button>
+          <h1 className="text-2xl font-semibold tracking-tight">Equipment waitlist</h1>
+          <p className="mt-2 text-sm text-white/85">
+            View and clear queues. Users are added when booking fails (if queue depth is set) and notified when slots open.
+          </p>
+        </div>
+        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
-            <CardTitle>Equipment waitlist</CardTitle>
+            <CardTitle>Queue</CardTitle>
             <CardDescription>
-              View and clear the waitlist queue for each equipment. When a booking attempt fails, users are added to the waitlist (if queue depth is set). They are notified when slots become available.
+              Select an instrument to inspect waitlist entries and clear them when appropriate.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

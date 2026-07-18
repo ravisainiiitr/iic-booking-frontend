@@ -173,11 +173,11 @@ const ProposeEquipment = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-      <header className="border-b bg-white/80 backdrop-blur">
+    <div className="page-shell">
+      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-800">
-            <PackagePlus className="h-6 w-6 text-indigo-600" />
+          <div className="flex items-center gap-2 text-foreground">
+            <PackagePlus className="h-6 w-6 text-teal-700" />
             <span className="font-semibold tracking-tight">Propose new equipment</span>
           </div>
           <Button variant="ghost" size="sm" asChild>
@@ -190,10 +190,16 @@ const ProposeEquipment = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <h1 className="text-2xl font-semibold tracking-tight">Equipment addition request</h1>
+          <p className="mt-2 text-sm text-white/85">
+            Submit a proposal for a new instrument. An administrator will review before slots and charges are configured.
+          </p>
+        </div>
         {submitted ? (
-          <Card>
+          <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-emerald-700">
+              <CardTitle className="flex items-center gap-2 text-teal-800 dark:text-teal-300">
                 <CheckCircle2 className="h-6 w-6" />
                 Request submitted
               </CardTitle>
@@ -203,7 +209,7 @@ const ProposeEquipment = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={resetAll}>Submit another</Button>
+              <Button className="bg-teal-700 hover:bg-teal-800" onClick={resetAll}>Submit another</Button>
             </CardContent>
           </Card>
         ) : (

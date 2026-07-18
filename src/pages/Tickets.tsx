@@ -9,14 +9,14 @@ const Tickets = () => {
   const [listKey, setListKey] = useState(0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Support Tickets</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Support Tickets</h1>
             <p className="text-muted-foreground mt-2">
-              Click any ticket to view details, attachments, and updates
+              View conversations, attachments, and status updates for your requests
             </p>
           </div>
           <TicketForm

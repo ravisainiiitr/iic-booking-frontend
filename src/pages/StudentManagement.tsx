@@ -185,35 +185,39 @@ const StudentManagement = () => {
 
   if (authLoading || (!user && isAuthenticated)) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="page-shell flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate("/dashboard")}
-              className="gap-2"
+              className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+              Dashboard
             </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">Student management</h1>
+            <p className="mt-2 text-sm text-white/85">
+              Supervise students, respond to TA nomination calls, and track nomination outcomes.
+            </p>
           </div>
 
           {/* TA operating nominations – only when there are open calls */}
           {!loadingOpenCalls && hasOpenCalls && (
-            <Card className="overflow-hidden border-0 shadow-lg border-sky-200 dark:border-sky-800">
-              <CardHeader className="bg-gradient-to-r from-sky-500/10 to-cyan-500/10 dark:from-sky-500/20 dark:to-cyan-500/20">
+            <Card className="overflow-hidden rounded-2xl border-teal-200/80 shadow-[var(--shadow-card)] dark:border-teal-800">
+              <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <Send className="h-6 w-6" />
                   </div>
                   <div>
@@ -270,9 +274,9 @@ const StudentManagement = () => {
 
           {/* Nominations log – always visible for faculty who have nominations */}
           <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 dark:from-violet-500/20 dark:to-purple-500/20">
+            <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                   <ClipboardList className="h-6 w-6" />
                 </div>
                 <div>

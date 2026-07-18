@@ -73,7 +73,7 @@ export default function BookingNextSteps() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="page-shell">
         <DashboardHeader />
         <main className="container py-12 text-center text-muted-foreground">Loading…</main>
       </div>
@@ -88,18 +88,29 @@ export default function BookingNextSteps() {
   const isPrint3d = String(booking?.equipment_profile_type || "").toUpperCase() === "PRINT_3D";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container max-w-2xl py-8 space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/my-bookings")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          My bookings
-        </Button>
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/my-bookings")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            My bookings
+          </Button>
+          <h1 className="text-2xl font-semibold tracking-tight">Booking confirmed — next steps</h1>
+          <p className="mt-2 text-sm text-white/85">
+            Complete any remaining verification so your slot stays on track.
+          </p>
+        </div>
 
-        <Card>
+        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center gap-2">
-              Booking confirmed — next steps
+              Details
             </CardTitle>
             <CardDescription className="flex flex-wrap items-center gap-2">
               <span>

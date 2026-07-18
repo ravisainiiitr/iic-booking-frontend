@@ -207,7 +207,7 @@ export function EquipmentAccessoriesSection({
           </div>
         )}
         {hasAdditional && (
-          <div className="rounded-xl border border-sky-200/80 bg-gradient-to-br from-sky-50/80 via-background to-background p-4 dark:border-sky-900 dark:from-sky-950/30">
+          <div className="rounded-xl border border-teal-200/80 bg-gradient-to-br from-teal-50/80 via-background to-background p-4 dark:border-teal-900 dark:from-teal-950/30">
             <div className="mb-3 flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
                 <Briefcase className="h-4 w-4" />
@@ -255,11 +255,11 @@ export function EquipmentAccessoriesSection({
       )}
 
       {hasAdditional && (
-        <Card className="overflow-hidden border-sky-200/90 shadow-md ring-1 ring-sky-500/15 dark:border-sky-900 dark:ring-sky-400/10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500" />
+        <Card className="overflow-hidden border-teal-200/90 shadow-md ring-1 ring-teal-500/15 dark:border-teal-900 dark:ring-teal-400/10">
+          <div className="h-1.5 w-full bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-800" />
           <CardHeader className="pb-2">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-md">
                 <Briefcase className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">

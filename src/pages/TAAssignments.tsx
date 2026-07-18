@@ -527,12 +527,14 @@ export default function TAAssignments() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">TA Duty Assignments</h1>
-          <p className="text-muted-foreground mt-1">Allocate duty, respond as TA, and submit/verify duty logs linked to reward points.</p>
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <h1 className="text-2xl font-semibold tracking-tight">TA duty assignments</h1>
+          <p className="mt-2 text-sm text-white/85">
+            Allocate duty, respond as TA, and submit/verify duty logs linked to reward points.
+          </p>
         </div>
 
         {canManage && (

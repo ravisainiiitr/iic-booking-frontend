@@ -351,7 +351,7 @@ const MyUrgentRequests = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <AlertDialog
         open={noAttemptsDialogOpen}
         onOpenChange={(open) => {
@@ -448,7 +448,7 @@ const MyUrgentRequests = () => {
                   </div>
                 )}
                 {!loadingSlotsAvailable && slotsAvailableThisWeek === true && urgentRequestType === "REVIEWER_URGENT" && (
-                  <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/30 p-3 text-sm text-blue-900 dark:text-blue-100">
+                  <div className="rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50/80 dark:bg-teal-950/30 p-3 text-sm text-teal-900 dark:text-teal-100">
                     Regular booking slots may still be available for this equipment. If a normal booking meets your need, please use{" "}
                     <Button type="button" variant="link" className="h-auto p-0 align-baseline text-blue-800 dark:text-blue-200" onClick={() => navigate(`/book-equipment?equipment_id=${urgentSelectedEquipmentId}`)}>
                       standard booking

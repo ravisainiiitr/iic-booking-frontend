@@ -223,7 +223,7 @@ const UrgentRequests = () => {
   if (!canAccess) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100/80 dark:from-background dark:via-background dark:to-accent/10">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Page header */}

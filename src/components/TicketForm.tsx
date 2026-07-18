@@ -38,6 +38,11 @@ import { HelpCircle, Paperclip, Trash2 } from "lucide-react";
 export const TICKET_TYPE = {
   BOOKING: "booking",
   EQUIPMENT: "equipment",
+  PAYMENT: "payment",
+  ACCOUNT: "account",
+  TECHNICAL: "technical",
+  LABORATORY: "laboratory",
+  GENERAL: "general",
   OTHER: "other",
   QUALITY_IMPROVEMENT: "quality_improvement",
 } as const;
@@ -48,9 +53,7 @@ const ticketFormSchema = z.object({
   public_name: z.string().min(2, "Name must be at least 2 characters").optional().or(z.literal("")),
   public_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   public_phone: z.string().optional().or(z.literal("")),
-  ticket_type: z.enum([TICKET_TYPE.BOOKING, TICKET_TYPE.EQUIPMENT, TICKET_TYPE.OTHER, TICKET_TYPE.QUALITY_IMPROVEMENT], {
-    required_error: "Please select a ticket type",
-  }),
+  ticket_type: z.string().min(1, "Please select a ticket type"),
   priority: z.enum(["low", "medium", "high", "urgent"], {
     required_error: "Please select a priority",
   }),
@@ -78,8 +81,13 @@ interface TicketFormProps {
 
 // Ticket type options for display
 const TICKET_TYPE_OPTIONS = [
-  { code: TICKET_TYPE.BOOKING, name: "Booking" },
-  { code: TICKET_TYPE.EQUIPMENT, name: "Equipment" },
+  { code: TICKET_TYPE.BOOKING, name: "Booking Issues" },
+  { code: TICKET_TYPE.EQUIPMENT, name: "Equipment Support" },
+  { code: TICKET_TYPE.PAYMENT, name: "Payment Issues" },
+  { code: TICKET_TYPE.ACCOUNT, name: "Account Support" },
+  { code: TICKET_TYPE.TECHNICAL, name: "Technical Problems" },
+  { code: TICKET_TYPE.LABORATORY, name: "Laboratory Requests" },
+  { code: TICKET_TYPE.GENERAL, name: "General Enquiries" },
   { code: TICKET_TYPE.OTHER, name: "Other" },
   { code: TICKET_TYPE.QUALITY_IMPROVEMENT, name: "Quality improvement suggestions/Bugs" },
 ] as const;
@@ -338,7 +346,15 @@ const TicketForm = ({ onSuccess, trigger, initialValues, hideTicketType = false,
                 />
               </>
             )}
-            {!hideTicketType && (
+            {hideTicketType ? (
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Ticket type: </span>
+                <span className="font-medium">
+                  {TICKET_TYPE_OPTIONS.find((t) => t.code === form.watch("ticket_type"))?.name ||
+                    "Equipment Support"}
+                </span>
+              </div>
+            ) : (
               <FormField
                 control={form.control}
                 name="ticket_type"

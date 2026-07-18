@@ -12,14 +12,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle } from "lucide-react";
+import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
+import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
+import { formatUserDisplayName } from "@/lib/displayName";
 
 const Header = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const { openGuide } = useUserGuide();
   const [isAdmin, setIsAdmin] = useState(false);
   const checkingRef = useRef(false);
   const hasCheckedRef = useRef(false);
@@ -119,15 +122,15 @@ const Header = () => {
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                       <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-                        <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={user?.name || "User"} />
-                        <AvatarFallback>{(user?.name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
+                        <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={formatUserDisplayName(user)} />
+                        <AvatarFallback>{formatUserDisplayName(user)[0].toUpperCase()}</AvatarFallback>
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user?.name || "User"}</p>
+                        <p className="text-sm font-medium leading-none">{formatUserDisplayName(user)}</p>
                         <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                       </div>
                     </DropdownMenuLabel>
@@ -147,6 +150,10 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                       <UserIcon className="mr-2 h-4 w-4" />
                       <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openGuide({ force: true })}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      <span>User Guide</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => safeNavigate("/tickets")}>
                       <HelpCircle className="mr-2 h-4 w-4" />

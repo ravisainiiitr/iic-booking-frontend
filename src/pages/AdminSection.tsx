@@ -1013,7 +1013,7 @@ export default function AdminSection() {
 
   if (!hasEndpoint) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="page-shell flex flex-col">
         <DashboardHeader />
         <main className="flex-1 container mx-auto px-4 py-8">
           <p className="text-destructive">Invalid section.</p>
@@ -1026,7 +1026,7 @@ export default function AdminSection() {
   const columns = list.length > 0 ? Object.keys(list[0]).filter((k) => typeof list[0][k] !== "object" || list[0][k] === null) : [];
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
         <div className="flex flex-wrap items-center gap-4 mb-6">

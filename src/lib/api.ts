@@ -251,6 +251,13 @@ interface User {
   is_staff?: boolean;
   /** External users: must confirm I-STEM portal registration before booking. */
   istem_portal_acknowledged?: boolean;
+  /** Server-computed display name (includes Prof. for faculty). */
+  display_name?: string | null;
+  /** True after user completes or dismisses the role-specific onboarding guide. */
+  user_guide_viewed?: boolean;
+  /** Optional display alias (e.g. project staff / startups under student types). */
+  user_type_alias?: string | null;
+  user_type_display?: string | null;
   /** Officer In Charge dashboard feature flags (set in Django admin). */
   oic_enable_ta_nomination?: boolean;
   oic_enable_ta_duty_assignments?: boolean;
@@ -1546,6 +1553,7 @@ class ApiClient {
     wallet_low_balance_alert_enabled?: boolean;
     wallet_low_balance_alert_threshold?: number | null;
     istem_portal_acknowledged?: boolean;
+    user_guide_viewed?: boolean;
   }) {
     // Get current user ID first
     const userResponse = await this.getCurrentUser();
@@ -5722,6 +5730,10 @@ class ApiClient {
     priority?: string;
     user_id?: string | number;
     assigned_to?: string | number;
+    search?: string;
+    ordering?: string;
+    limit?: number;
+    offset?: number;
   }) {
     const queryParams = new URLSearchParams();
     
@@ -5739,6 +5751,18 @@ class ApiClient {
     }
     if (params?.assigned_to) {
       queryParams.append('assigned_to', String(params.assigned_to));
+    }
+    if (params?.search) {
+      queryParams.append('search', params.search);
+    }
+    if (params?.ordering) {
+      queryParams.append('ordering', params.ordering);
+    }
+    if (params?.limit != null) {
+      queryParams.append('limit', String(params.limit));
+    }
+    if (params?.offset != null) {
+      queryParams.append('offset', String(params.offset));
     }
     
     const queryString = queryParams.toString();
@@ -5940,6 +5964,139 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ comment, is_internal: isInternal }),
     });
+  }
+
+  async getTicketEvents(ticketId: number | string) {
+    return this.request<{
+      events: Array<{
+        event_id: number;
+        ticket: number;
+        event_type: string;
+        event_type_display: string;
+        actor: number | null;
+        actor_name: string | null;
+        actor_email: string | null;
+        message: string;
+        from_value: string;
+        to_value: string;
+        metadata: Record<string, unknown>;
+        is_internal: boolean;
+        created_at: string;
+      }>;
+      count: number;
+    }>(`/tickets/${ticketId}/events/`);
+  }
+
+  async searchTicketAssignees(q: string = "") {
+    const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+    return this.request<{
+      assignees: Array<{
+        id: number;
+        name: string;
+        email: string;
+        user_type: string;
+        user_type_display: string;
+      }>;
+    }>(`/tickets/assignees/${qs}`);
+  }
+
+  async getMyPortalFeedback() {
+    return this.request<{
+      feedback: {
+        feedback_id: number;
+        overall_rating: number;
+        ease_of_booking: number;
+        website_usability: number;
+        equipment_booking_experience: number;
+        average_rating: number;
+        suggestions: string;
+        comments: string;
+        created_at: string;
+        updated_at: string;
+      } | null;
+    }>("/portal-feedback/me/");
+  }
+
+  async upsertMyPortalFeedback(data: {
+    overall_rating: number;
+    ease_of_booking: number;
+    website_usability: number;
+    equipment_booking_experience: number;
+    suggestions?: string;
+    comments?: string;
+  }) {
+    return this.request<{
+      feedback: {
+        feedback_id: number;
+        overall_rating: number;
+        ease_of_booking: number;
+        website_usability: number;
+        equipment_booking_experience: number;
+        average_rating: number;
+        suggestions: string;
+        comments: string;
+        created_at: string;
+        updated_at: string;
+      };
+      created: boolean;
+    }>("/portal-feedback/me/", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPortalFeedbackAdmin(params?: {
+    user_type?: string;
+    department_id?: number;
+    min_rating?: number;
+    max_rating?: number;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const q = new URLSearchParams();
+    if (params?.user_type) q.append("user_type", params.user_type);
+    if (params?.department_id != null) q.append("department_id", String(params.department_id));
+    if (params?.min_rating != null) q.append("min_rating", String(params.min_rating));
+    if (params?.max_rating != null) q.append("max_rating", String(params.max_rating));
+    if (params?.date_from) q.append("date_from", params.date_from);
+    if (params?.date_to) q.append("date_to", params.date_to);
+    if (params?.search) q.append("search", params.search);
+    if (params?.limit != null) q.append("limit", String(params.limit));
+    if (params?.offset != null) q.append("offset", String(params.offset));
+    const qs = q.toString();
+    return this.request<{
+      count: number;
+      feedback: Array<{
+        feedback_id: number;
+        user: number;
+        user_name: string;
+        user_email: string;
+        user_type: string;
+        user_type_display: string | null;
+        department_name: string | null;
+        overall_rating: number;
+        ease_of_booking: number;
+        website_usability: number;
+        equipment_booking_experience: number;
+        average_rating: number;
+        suggestions: string;
+        comments: string;
+        created_at: string;
+        updated_at: string;
+      }>;
+      stats: {
+        total: number;
+        avg_overall: number;
+        avg_ease_of_booking: number;
+        avg_website_usability: number;
+        avg_equipment_booking_experience: number;
+        rating_distribution: Record<string, number>;
+        by_user_type: Array<{ user_type: string | null; count: number; avg_overall: number }>;
+      };
+    }>(qs ? `/portal-feedback/?${qs}` : "/portal-feedback/");
   }
 
   // Ticket Type endpoints (returns constants)

@@ -115,7 +115,7 @@ export default function BookingPayment() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="page-shell">
         <DashboardHeader />
         <main className="container py-12 text-center text-muted-foreground">Loading…</main>
       </div>
@@ -127,7 +127,7 @@ export default function BookingPayment() {
   const total = Number(booking?.total_charge ?? 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container max-w-lg py-8 space-y-6">
         <Button variant="ghost" onClick={() => navigate("/my-bookings")}>

@@ -1694,8 +1694,8 @@ const Wallet = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="page-shell flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-700"></div>
       </div>
     );
   }
@@ -1703,12 +1703,17 @@ const Wallet = () => {
   // Show request form for students without wallet access
   if (showRequestForm) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+      <div className="page-shell">
         <DashboardHeader />
         <main className="container mx-auto px-4 py-8 max-w-2xl">
-          <h1 className="text-3xl font-bold mb-8">Request Wallet Access</h1>
+          <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Request Wallet Access</h1>
+            <p className="mt-2 text-white/85 text-sm">
+              Link to a faculty wallet to fund equipment bookings.
+            </p>
+          </div>
 
-          <Card>
+          <Card className="border-border/70 shadow-[var(--shadow-card)] rounded-2xl">
             <CardHeader>
               <CardTitle>Request to Join Wallet</CardTitle>
               <CardDescription>
@@ -2005,10 +2010,15 @@ const Wallet = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Wallet</h1>
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 sm:p-8 text-white shadow-xl">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Wallet</h1>
+          <p className="mt-2 text-white/85 text-sm sm:text-base max-w-2xl">
+            View balance, recharge, manage join requests, and review transactions.
+          </p>
+        </div>
 
         {walletCreditFacilityItems.length > 0 && (
           <Card
@@ -2064,8 +2074,8 @@ const Wallet = () => {
           </Card>
         )}
 
-        <Card className="mb-8">
-          <CardHeader>
+        <Card className="mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border/50">
             <CardTitle>Current Balance</CardTitle>
             <CardDescription>
               {isShared

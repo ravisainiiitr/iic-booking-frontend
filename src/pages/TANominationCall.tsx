@@ -273,26 +273,35 @@ export default function TANominationCall() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            Dashboard
           </Button>
+          <h1 className="text-2xl font-semibold tracking-tight">Initiate TA nomination call</h1>
+          <p className="mt-2 text-sm text-white/85">
+            Send a request to Internal (Faculty) users to nominate students for operating equipment. OIC can select only equipment they manage; Admin can select any.
+          </p>
         </div>
 
-        <Card className="border-0 shadow-lg">
+        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-lg">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                 <Send className="h-6 w-6" />
               </div>
               <div>
-                <CardTitle className="text-xl">Initiate TA nomination call</CardTitle>
+                <CardTitle className="text-xl">New call</CardTitle>
                 <CardDescription className="text-sm mt-0.5">
-                  Send a request to all Internal (Faculty) users to nominate students for operating an equipment for this academic year. OIC can select only equipment they manage; Admin can select any.
+                  Choose equipment, semester, and operators required, then notify faculty.
                 </CardDescription>
               </div>
             </div>
@@ -439,9 +448,9 @@ export default function TANominationCall() {
         </Card>
 
         <Card className="mt-8 border-0 shadow-lg overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-violet-500/10 to-purple-500/10">
+          <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                 <ClipboardList className="h-6 w-6" />
               </div>
               <div className="flex-1 min-w-0">

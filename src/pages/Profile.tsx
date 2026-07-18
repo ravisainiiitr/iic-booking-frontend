@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Upload, Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
+import { formatUserDisplayName } from "@/lib/displayName";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -504,20 +505,24 @@ const Profile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle>My Profile</CardTitle>
-            <CardDescription>Update your personal information</CardDescription>
+        <div className="mb-6 max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-5 text-white shadow-lg">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">My Profile</h1>
+          <p className="mt-1 text-white/85 text-sm">Update your personal information and preferences</p>
+        </div>
+        <Card className="max-w-2xl mx-auto border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border/50">
+            <CardTitle>Profile details</CardTitle>
+            <CardDescription>Keep contact and account information current</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div className="flex flex-col items-center gap-4">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={profileData.name || user?.name} />
-                <AvatarFallback className="text-3xl">
-                  {(profileData.name || user?.name || profileData.email || "U")[0].toUpperCase()}
+              <Avatar className="h-24 w-24 ring-4 ring-teal-700/15">
+                <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })} />
+                <AvatarFallback className="text-3xl bg-teal-700/10 text-teal-900 dark:text-teal-200">
+                  {formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               {/* Only show upload button if no profile picture exists */}
@@ -556,6 +561,19 @@ const Profile = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
+                {String(profileData.user_type || user?.user_type || "").toLowerCase() === "faculty" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Displayed as{" "}
+                    <strong>
+                      {formatUserDisplayName({
+                        name: profileData.name,
+                        user_type: "faculty",
+                        display_name: user?.display_name,
+                      })}
+                    </strong>{" "}
+                    across the portal (Prof. is added automatically).
+                  </p>
+                ) : null}
                 <Input
                   id="name"
                   type="text"

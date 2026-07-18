@@ -1,7 +1,13 @@
-import { FlaskConical, HelpCircle } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import TicketForm from "@/components/TicketForm";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
+import { Link } from "react-router-dom";
 
 const Footer = () => {
+  const { isAuthenticated } = useAuth();
+  const { openGuide } = useUserGuide();
+
   return (
     <footer className="bg-card border-t border-border py-12">
       <div className="container mx-auto px-4">
@@ -21,21 +27,51 @@ const Footer = () => {
           <div>
             <h4 className="font-semibold mb-4">Platform</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">Equipment Catalog</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Booking Calendar</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">User Dashboard</a></li>
+              <li>
+                <Link to="/equipments" className="hover:text-primary transition-colors">
+                  Equipment Catalog
+                </Link>
+              </li>
+              <li>
+                <Link to="/equipments" className="hover:text-primary transition-colors">
+                  Booking Calendar
+                </Link>
+              </li>
+              <li>
+                <Link to="/dashboard" className="hover:text-primary transition-colors">
+                  User Dashboard
+                </Link>
+              </li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-semibold mb-4">Resources</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">User Guide</a></li>
+              <li>
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    className="hover:text-primary transition-colors text-left"
+                    onClick={() => openGuide({ force: true })}
+                  >
+                    User Guide
+                  </button>
+                ) : (
+                  <Link to="/auth" className="hover:text-primary transition-colors">
+                    User Guide (sign in)
+                  </Link>
+                )}
+              </li>
+              <li>
+                <Link to="/tickets" className="hover:text-primary transition-colors">
+                  Support Tickets
+                </Link>
+              </li>
               <li>
                 <TicketForm
                   trigger={
-                    <button className="hover:text-primary transition-colors flex items-center gap-1">
+                    <button type="button" className="hover:text-primary transition-colors flex items-center gap-1">
                       Support
                     </button>
                   }
@@ -49,12 +85,13 @@ const Footer = () => {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>Email: iicbooking@iitr.ac.in</li>
               <li>Hours: 24/7 Online Support</li>
+              <li>Institute Instrumentation Centre, IIT Roorkee</li>
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-          <p>&copy; 2026 INSTITUTE INSTRUMENTATION CENTRE - IIC. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} INSTITUTE INSTRUMENTATION CENTRE - IIC. All rights reserved.</p>
         </div>
       </div>
     </footer>

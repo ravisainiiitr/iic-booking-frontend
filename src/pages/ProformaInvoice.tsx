@@ -142,24 +142,35 @@ export default function ProformaInvoice() {
   }, [lineItems]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            onClick={() => navigate("/dashboard")}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Dashboard
+          </Button>
+          <h1 className="text-2xl font-semibold tracking-tight">Proforma invoice</h1>
+          <p className="mt-2 text-sm text-white/85">
+            Add equipment with parameters and charges. Totals update automatically — download PDF when ready.
+          </p>
+        </div>
 
-        <Card className="shadow-md">
+        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white">
                 <FileText className="h-6 w-6" />
               </div>
               <div>
-                <CardTitle className="text-xl">Proforma Invoice</CardTitle>
+                <CardTitle className="text-xl">Line items</CardTitle>
                 <CardDescription>
-                  Add each equipment from Book Equipment (parameters and charges). The summary and totals update automatically. Download PDF when ready.
+                  Select equipment, configure parameters, then build the invoice summary.
                 </CardDescription>
               </div>
             </div>

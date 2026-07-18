@@ -129,7 +129,7 @@ const LegacyWalletImportTest = () => {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+      <div className="page-shell">
         <DashboardHeader />
         <main className="container mx-auto px-4 py-8">
           <p className="text-muted-foreground">Admin access required.</p>
@@ -142,7 +142,7 @@ const LegacyWalletImportTest = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-4">

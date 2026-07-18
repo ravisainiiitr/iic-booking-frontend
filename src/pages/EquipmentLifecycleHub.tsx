@@ -200,27 +200,40 @@ export default function EquipmentLifecycleHub() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 space-y-6 max-w-5xl">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="mb-2">
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            Dashboard
           </Button>
-          <h1 className="text-3xl font-bold">Equipment lifecycle &amp; expenses</h1>
-          <p className="text-muted-foreground mt-1 max-w-3xl">
-            Track purchase and supplier data, warranty, AMC contracts, classified expenses (consumables / minor / major),
-            and accessories. Write-off requests follow: Lab OIC → Office Superintendent → Store In Charge → Head of
-            Department → execution (Store). Assign designated approvers under Django Admin → User equipment supply chain
-            roles; until any role is assigned, admin-panel users may still act on those steps (legacy).
+          <h1 className="text-2xl font-semibold tracking-tight">Equipment lifecycle &amp; expenses</h1>
+          <p className="mt-2 text-sm text-white/85 max-w-3xl">
+            Track purchase and supplier data, warranty, AMC, classified expenses, and accessories. Write-off follows Lab
+            OIC → Office Superintendent → Store → HoD → execution.
           </p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <Button variant="outline" size="sm" onClick={() => navigate("/procurement-workflow")}>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate("/procurement-workflow")}
+              className="bg-white/15 text-white border-white/20 hover:bg-white/25"
+            >
               <Package className="h-4 w-4 mr-2" />
-              Procurement workflow
+              Procurement
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/inventory-management")}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate("/inventory-management")}
+              className="bg-white/15 text-white border-white/20 hover:bg-white/25"
+            >
               <FileText className="h-4 w-4 mr-2" />
               Inventory
             </Button>

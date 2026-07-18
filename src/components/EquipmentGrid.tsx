@@ -160,18 +160,9 @@ const EquipmentGrid = () => {
   const hasActiveFilters = selectedDepartmentId !== "all" || searchQuery.trim().length > 0;
 
   return (
-    <section id="equipment" className="py-12">
-      <div className="mb-12">
-        <div className="text-center mb-8">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 min-h-[1.4em] leading-[1.35] pb-[0.25em] overflow-visible bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Equipment Catalog
-          </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Browse our extensive collection of advanced scientific instruments
-          </p>
-        </div>
-
-        <div className="max-w-3xl mx-auto mb-8 flex flex-col sm:flex-row gap-3">
+    <section id="equipment" className="py-2">
+      <div className="mb-8">
+        <div className="max-w-3xl mx-auto mb-6 flex flex-col sm:flex-row gap-3">
           <DepartmentFilter
             value={selectedDepartmentId}
             onChange={setSelectedDepartmentId}

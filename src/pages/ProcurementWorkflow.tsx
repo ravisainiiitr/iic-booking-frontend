@@ -103,20 +103,23 @@ export default function ProcurementWorkflow() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="mb-2">
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/dashboard")}
+            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            Dashboard
           </Button>
-          <h1 className="text-3xl font-bold">Procurement Workflow</h1>
-          <p className="text-muted-foreground mt-1 max-w-3xl">
-            Lab Operator submissions go to <strong>Pending Lab OIC review</strong> first, then Office Superintendent →
-            Store In Charge → Head of Department (when required) → purchase completion (Store) → office seen. Other
-            roles start at office verification. Assign approvers in Django Admin → User equipment supply chain roles; if
-            none are set, any admin-panel user can still act on each step.
+          <h1 className="text-2xl font-semibold tracking-tight">Procurement workflow</h1>
+          <p className="mt-2 text-sm text-white/85 max-w-3xl">
+            Lab Operator → Lab OIC → Office Superintendent → Store → HoD (when required) → purchase completion →
+            office seen. Assign approvers in Django Admin → User equipment supply chain roles.
           </p>
         </div>
 

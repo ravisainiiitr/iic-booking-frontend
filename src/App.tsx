@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -51,6 +52,7 @@ import AdminSettingsEquipment from "./pages/AdminSettingsEquipment";
 import ProposeEquipment from "./pages/ProposeEquipment";
 import EquipmentAdditionRequests from "./pages/EquipmentAdditionRequests";
 import AdminSettingsSupport from "./pages/AdminSettingsSupport";
+import AdminSettingsFeedback from "./pages/AdminSettingsFeedback";
 import AdminSettingsQualityImprovement from "./pages/AdminSettingsQualityImprovement";
 import AdminRewardsConfig from "./pages/AdminRewardsConfig";
 import OICAccessories from "./pages/OICAccessories";
@@ -75,6 +77,7 @@ import CmsPageView from "./pages/CmsPageView";
 import ExternalUserManagement from "./pages/ExternalUserManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
 import ChatWidget from "./components/ChatWidget";
+import UserGuidePreview from "./pages/UserGuidePreview";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +97,7 @@ const App = () => (
       <TooltipProvider>
         <BrowserRouter>
           <AuthProvider>
+            <UserGuideProvider>
             <NotificationProvider>
               <Toaster />
               <Sonner />
@@ -157,6 +161,7 @@ const App = () => (
                 <Route path="/admin/equipment-addition-requests" element={<EquipmentAdditionRequests />} />
                 <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
+                <Route path="/admin-settings/feedback" element={<AdminSettingsFeedback />} />
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
                 <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
                 <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
@@ -169,6 +174,7 @@ const App = () => (
                 <Route path="/test/icpms-standards" element={<IcpmsStandardsTest />} />
                 <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
                 <Route path="/tickets" element={<Tickets />} />
+                <Route path="/dev/user-guides" element={<UserGuidePreview />} />
                 <Route path="/page/:slug" element={<CmsPageView />} />
                 {/* Wallet recharge request action pages - redirect to Django backend */}
                 <Route path="/wallet/recharge-requests/:requestId" element={<WalletRechargeRequestAction />} />
@@ -178,6 +184,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </NotificationProvider>
+            </UserGuideProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

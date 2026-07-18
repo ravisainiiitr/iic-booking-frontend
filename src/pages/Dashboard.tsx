@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
+import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
+import { formatUserDisplayName } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
@@ -173,8 +175,8 @@ function labHeroInstrumentPanelClass(v: LabHeroEquipmentStatusVariant) {
     case "other":
       return {
         shell:
-          "border-violet-200/40 bg-gradient-to-br from-violet-800 via-slate-900 to-slate-950 shadow-xl ring-2 ring-violet-400/25",
-        badge: "bg-white/95 text-violet-900 shadow-md",
+          "border-teal-200/40 bg-gradient-to-br from-teal-800 via-slate-900 to-slate-950 shadow-xl ring-2 ring-teal-400/25",
+        badge: "bg-white/95 text-teal-900 shadow-md",
       };
     default:
       return {
@@ -229,6 +231,7 @@ const Dashboard = () => {
   }>>([]);
   const [loadingStats, setLoadingStats] = useState(false);
   const [pendingRatingBookings, setPendingRatingBookings] = useState<Booking[]>([]);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
@@ -461,7 +464,7 @@ const Dashboard = () => {
     const welcomeKey = `dashboard_welcome_shown_${user.id}`;
     if (localStorage.getItem(welcomeKey)) return;
 
-    const displayName = (user.name || "").trim() || "User";
+    const displayName = formatUserDisplayName(user);
     if (userTypeLower === "faculty") {
       toast.success(`Welcome, ${displayName}.`, {
         description: "You are signed in to the IIC Booking Portal. Please review your dashboard for booking updates and pending actions.",
@@ -757,7 +760,7 @@ const Dashboard = () => {
   }, []);
 
   const labDashKpiClassName =
-    "group relative overflow-hidden text-left rounded-2xl border border-border/60 bg-card p-5 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-px hover:border-violet-400/40 hover:shadow-md dark:ring-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-55 disabled:hover:translate-y-0";
+    "group relative overflow-hidden text-left rounded-2xl border border-border/60 bg-card p-5 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-px hover:border-teal-400/40 hover:shadow-md dark:ring-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-55 disabled:hover:translate-y-0";
 
   const refreshLabOperatorHome = useCallback(async () => {
     const res = await apiClient.getLabOperatorDashboard({
@@ -1017,9 +1020,9 @@ const Dashboard = () => {
     const statusLower = status.toLowerCase();
     const colors: Record<string, string> = {
       pending: "bg-yellow-500",
-      booked: "bg-blue-500",
-      confirmed: "bg-blue-500",
-      approved: "bg-blue-500",
+      booked: "bg-teal-600",
+      confirmed: "bg-teal-600",
+      approved: "bg-teal-600",
       in_progress: "bg-green-500",
       completed: "bg-gray-500",
       cancelled: "bg-red-500",
@@ -1136,15 +1139,15 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="dashboard-page min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="dashboard-page page-shell">
       <DashboardHeader />
 
       <main className="container mx-auto px-4 py-8">
         {externalProfileNeedsAddress && (
-          <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-blue-200/70 bg-blue-50/60 dark:bg-blue-950/10">
+          <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-teal-200/70 bg-teal-50/60 dark:bg-teal-950/10">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                <AlertCircle className="h-4 w-4 text-teal-700 dark:text-teal-400" />
                 Complete billing & shipping details
               </CardTitle>
               <CardDescription>
@@ -1154,7 +1157,7 @@ const Dashboard = () => {
             <CardContent className="pt-0">
               <Button
                 onClick={() => navigate("/profile#external-billing")}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-teal-700 hover:bg-teal-800 text-white"
               >
                 Go to Profile
               </Button>
@@ -1222,20 +1225,20 @@ const Dashboard = () => {
           </Card>
         )}
         {showWalletLinkPrompt && userTypeStr === "student" && (
-          <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-blue-500/80 bg-gradient-to-r from-blue-100 via-blue-100 to-indigo-100 dark:from-blue-950/60 dark:via-blue-950/50 dark:to-indigo-950/40 shadow-lg shadow-blue-500/20">
+          <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-teal-500/80 bg-gradient-to-r from-teal-50 via-teal-50 to-cyan-50 dark:from-teal-950/60 dark:via-teal-950/50 dark:to-cyan-950/40 shadow-lg shadow-teal-500/20">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-blue-900 dark:text-blue-100">
-                <AlertCircle className="h-5 w-5 text-blue-700 dark:text-blue-300" />
+              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-teal-900 dark:text-teal-100">
+                <AlertCircle className="h-5 w-5 text-teal-700 dark:text-teal-300" />
                 Link your wallet to continue booking
               </CardTitle>
-              <CardDescription className="text-sm font-medium text-blue-900/90 dark:text-blue-100/90">
+              <CardDescription className="text-sm font-medium text-teal-900/90 dark:text-teal-100/90">
                 Your IITR student account does not have a linked faculty wallet yet. Click below to go to Wallet and send a link request.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               <Button
                 onClick={() => navigate("/wallet")}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 ring-2 ring-blue-300 dark:ring-blue-700"
+                className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-6 py-2.5 ring-2 ring-teal-300 dark:ring-teal-700"
               >
                 Go to Wallet
               </Button>
@@ -1243,13 +1246,13 @@ const Dashboard = () => {
           </Card>
         )}
         {/* Profile hero — layered gradient, glass contact strip, status-tinted instrument card for Lab Incharge & OIC */}
-        <div className="dashboard-hero-card relative mb-10 overflow-hidden rounded-3xl border border-white/25 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-950 text-white shadow-2xl shadow-blue-950/40 ring-1 ring-white/20">
+        <div className="dashboard-hero-card relative mb-10 overflow-hidden rounded-3xl border border-white/25 bg-gradient-to-br from-teal-700 via-teal-800 to-slate-950 text-white shadow-2xl shadow-teal-950/40 ring-1 ring-white/20">
           <div
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_110%_90%_at_0%_-30%,rgba(255,255,255,0.2),transparent_55%)]"
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_100%_100%,rgba(129,140,248,0.35),transparent_55%)]"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_100%_100%,rgba(45,212,191,0.28),transparent_55%)]"
             aria-hidden
           />
           <div
@@ -1507,11 +1510,11 @@ const Dashboard = () => {
         </div>
 
         {false && showsLabStyleDashboard && (
-          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-violet-950/[0.06] dark:shadow-none">
-            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-violet-600/[0.07] via-background to-background pb-6 pt-6 sm:pt-8">
+          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-teal-950/[0.06] dark:shadow-none">
+            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-teal-700/[0.08] via-background to-background pb-6 pt-6 sm:pt-8">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="flex gap-4 min-w-0">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-700/10 text-teal-800 dark:bg-teal-500/15 dark:text-teal-300">
                     <Layout className="h-6 w-6" />
                   </div>
                   <div className="min-w-0 space-y-1">
@@ -1556,7 +1559,7 @@ const Dashboard = () => {
                     </div>
                   )}
                   <Button
-                    className="shrink-0 bg-violet-600 text-white hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500 sm:self-end"
+                    className="shrink-0 bg-teal-700 text-white hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 sm:self-end"
                     size="sm"
                     onClick={() => navigate("/booking-management")}
                   >
@@ -1569,7 +1572,7 @@ const Dashboard = () => {
             <CardContent className="space-y-10 p-6 sm:p-8">
               {labOperatorDashLoading && !labOperatorDash ? (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
-                  <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-700" />
                   <p className="text-sm font-medium">Loading lab dashboard…</p>
                 </div>
               ) : labOperatorDash ? (
@@ -1651,16 +1654,16 @@ const Dashboard = () => {
                     </p>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-violet-500/35" : ""}`}
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-teal-500/35" : ""}`}
                       >
                         <ChevronDown
                           className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "overall" ? "rotate-180" : ""}`}
                         />
-                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-violet-500/[0.12] transition-opacity group-hover:text-violet-500/20" />
+                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-teal-500/[0.12] transition-opacity group-hover:text-teal-500/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
                           Overall Booking Pending
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-violet-700 dark:text-violet-300">
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-teal-700 dark:text-teal-300">
                           {labOperatorDash.overall_booking_booked_total}/{labOperatorDash.overall_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1670,16 +1673,16 @@ const Dashboard = () => {
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "overall", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-violet-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 ${
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-teal-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 ${
                               labDashPanel?.key === "overall" && labDashPanel.segment === "BOOKED"
-                                ? "border-violet-500/50 bg-violet-500/[0.06] ring-1 ring-violet-500/30"
+                                ? "border-teal-500/50 bg-teal-500/[0.06] ring-1 ring-teal-500/30"
                                 : "border-border/60 bg-background/40"
                             }`}
                           >
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Pending (booked)
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-violet-700 dark:text-violet-300">
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-teal-700 dark:text-teal-300">
                               {labOperatorDash.overall_booking_booked_total}
                             </p>
                           </button>
@@ -1705,16 +1708,16 @@ const Dashboard = () => {
                         </p>
                       </div>
                       <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-sky-500/35" : ""}`}
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-cyan-500/35" : ""}`}
                       >
                         <ChevronDown
                           className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "external" ? "rotate-180" : ""}`}
                         />
-                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-sky-500/[0.12] group-hover:text-sky-500/20" />
+                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-cyan-500/[0.12] group-hover:text-cyan-500/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
                           External bookings
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-sky-700 dark:text-sky-300">
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-cyan-700 dark:text-cyan-300">
                           {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1724,16 +1727,16 @@ const Dashboard = () => {
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "external", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-sky-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-cyan-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
                               labDashPanel?.key === "external" && labDashPanel.segment === "BOOKED"
-                                ? "border-sky-500/50 bg-sky-500/[0.06] ring-1 ring-sky-500/30"
+                                ? "border-cyan-500/50 bg-cyan-500/[0.06] ring-1 ring-cyan-500/30"
                                 : "border-border/60 bg-background/40"
                             }`}
                           >
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Pending (booked)
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-sky-700 dark:text-sky-300">
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
                               {labOperatorDash.external_booking_booked_total}
                             </p>
                           </button>
@@ -2150,7 +2153,7 @@ const Dashboard = () => {
                         </div>
                         <Button
                           type="button"
-                          className="bg-violet-600 text-white hover:bg-violet-700 shrink-0"
+                          className="bg-teal-700 text-white hover:bg-teal-800 shrink-0"
                           onClick={() => navigate("/team-calendar")}
                         >
                           Open team calendar
@@ -2201,10 +2204,10 @@ const Dashboard = () => {
 
         {/* Pending rating prompt for internal (student, faculty) and external users */}
         {!isOperatorOrManager && pendingRatingBookings.length > 0 && (
-          <Card className="dashboard-notice-card dashboard-notice-warning mb-8 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40 shadow-md">
+          <Card className="dashboard-notice-card dashboard-notice-warning mb-8 border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950/40 shadow-md">
             <CardContent className="py-5 px-6">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/20 text-teal-700 dark:text-teal-400">
                   <Star className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2217,7 +2220,7 @@ const Dashboard = () => {
                 </div>
                 <Button
                   onClick={() => navigate("/my-bookings?pending_rating=1")}
-                  className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                  className="bg-teal-700 hover:bg-teal-800 text-white shrink-0"
                 >
                   Submit rating
                 </Button>
@@ -2233,12 +2236,12 @@ const Dashboard = () => {
         <div className={`dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
           {isLabInchargeUser && (
             <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800 h-full"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800 h-full"
               onClick={() => navigate("/leave-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2248,11 +2251,11 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate("/leave-management");
@@ -2265,12 +2268,12 @@ const Dashboard = () => {
           )}
           {canSeeOicLeaveManagement && (
             <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800 h-full"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800 h-full"
               onClick={() => navigate("/oic-leave-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2280,11 +2283,11 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate("/oic-leave-management");
@@ -2297,12 +2300,12 @@ const Dashboard = () => {
           )}
           {isAdmin && (
             <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800 h-full"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800 h-full"
               onClick={() => navigate("/team-calendar")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2312,11 +2315,11 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate("/team-calendar");
@@ -2330,13 +2333,13 @@ const Dashboard = () => {
           {!isLabInchargeUser && (<Card 
             role="button"
             tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800 h-full"
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800 h-full"
             onClick={() => { window.location.href = `${window.location.origin}/equipments`; }}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/equipments`; } }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                   <Package className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2346,10 +2349,10 @@ const Dashboard = () => {
                   </CardDescription>
                 </div>
               </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 mt-3" />
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
             </CardHeader>
             <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white ring-offset-background transition-colors">
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-teal-700 hover:bg-teal-800 text-white ring-offset-background transition-colors">
                 Browse Equipment
               </span>
             </CardContent>
@@ -2357,12 +2360,12 @@ const Dashboard = () => {
 
           {!isOperatorOrManager && (
             <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/my-bookings")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2372,22 +2375,22 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">View Bookings</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">View Bookings</Button>
               </CardContent>
             </Card>
           )}
 
           {!isOperatorOrManager && (
             <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/proforma-invoice")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <Receipt className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2397,10 +2400,10 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Proforma Invoice</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Proforma Invoice</Button>
               </CardContent>
             </Card>
           )}
@@ -2583,36 +2586,59 @@ const Dashboard = () => {
           </Card>
 
           {!isLabInchargeUser && (<Card 
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                  <Star className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Rate Your Experience</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                      Rate the portal, ease of booking, and share suggestions — you can update anytime
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+            </CardHeader>
+            <CardContent>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Give Feedback</Button>
+            </CardContent>
+          </Card>)}
+
+          {!isLabInchargeUser && (<Card 
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
             onClick={() => navigate("/tickets")}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                   <MessageSquarePlus className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Feedback/Suggestions</CardTitle>
+                    <CardTitle className="text-lg">Support Tickets</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
-                      Share feedback, report issues, or suggest improvements for the booking portal
+                      Report issues, ask the lab, or track support conversations
                   </CardDescription>
                 </div>
               </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
             </CardHeader>
             <CardContent>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Feedback / Suggestions</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open Support</Button>
             </CardContent>
           </Card>)}
 
           {isOperatorOrManager && (
             <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/booking-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2622,10 +2648,10 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Manage Bookings</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Manage Bookings</Button>
               </CardContent>
             </Card>
           )}
@@ -2664,12 +2690,12 @@ const Dashboard = () => {
 
           {canSeeOicTaNomination && (
             <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/ta-nomination-call")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
                     <Send className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2679,10 +2705,10 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Initiate TA nomination call</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Initiate TA nomination call</Button>
               </CardContent>
             </Card>
           )}
@@ -2716,12 +2742,12 @@ const Dashboard = () => {
 
           {canSeeOicRewardConfig && (
             <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/admin-settings/rewards")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-700 to-cyan-800 text-white shadow-lg">
                     <Star className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2734,10 +2760,10 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-700 to-cyan-700 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Open reward settings</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open reward settings</Button>
               </CardContent>
             </Card>
           )}
@@ -2749,7 +2775,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-sky-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
                     <Wrench className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2759,7 +2785,7 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white">Manage accessories</Button>
@@ -2769,12 +2795,12 @@ const Dashboard = () => {
 
           {(isAdmin || isOicUser) && (
             <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/oic/quota-configurations")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white shadow-lg">
                     <Layers className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2784,10 +2810,10 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Manage quotas</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Manage quotas</Button>
               </CardContent>
             </Card>
           )}
@@ -3021,12 +3047,12 @@ const Dashboard = () => {
 
           {isAdmin && (
             <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
               onClick={() => navigate("/admin-settings/support")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
                     <LifeBuoy className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3036,10 +3062,10 @@ const Dashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open tickets</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open tickets</Button>
               </CardContent>
             </Card>
           )}
@@ -3097,11 +3123,11 @@ const Dashboard = () => {
         </div>
 
         {showsLabStyleDashboard && (
-          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-violet-950/[0.06] dark:shadow-none">
-            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-violet-600/[0.07] via-background to-background pb-6 pt-6 sm:pt-8">
+          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-teal-950/[0.06] dark:shadow-none">
+            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-teal-700/[0.08] via-background to-background pb-6 pt-6 sm:pt-8">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="flex gap-4 min-w-0">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-700/10 text-teal-800 dark:bg-teal-500/15 dark:text-teal-300">
                     <Layout className="h-6 w-6" />
                   </div>
                   <div className="min-w-0 space-y-1">
@@ -3146,7 +3172,7 @@ const Dashboard = () => {
                     </div>
                   )}
                   <Button
-                    className="shrink-0 bg-violet-600 text-white hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500 sm:self-end"
+                    className="shrink-0 bg-teal-700 text-white hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 sm:self-end"
                     size="sm"
                     onClick={() => navigate("/booking-management")}
                   >
@@ -3159,7 +3185,7 @@ const Dashboard = () => {
             <CardContent className="space-y-10 p-6 sm:p-8">
               {labOperatorDashLoading && !labOperatorDash ? (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
-                  <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-700" />
                   <p className="text-sm font-medium">Loading lab dashboard…</p>
                 </div>
               ) : labOperatorDash ? (
@@ -3241,16 +3267,16 @@ const Dashboard = () => {
                     </p>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-violet-500/35" : ""}`}
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-teal-500/35" : ""}`}
                       >
                         <ChevronDown
                           className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "overall" ? "rotate-180" : ""}`}
                         />
-                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-violet-500/[0.12] transition-opacity group-hover:text-violet-500/20" />
+                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-teal-500/[0.12] transition-opacity group-hover:text-teal-500/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
                           Overall Booking Pending
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-violet-700 dark:text-violet-300">
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-teal-700 dark:text-teal-300">
                           {labOperatorDash.overall_booking_booked_total}/{labOperatorDash.overall_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -3260,16 +3286,16 @@ const Dashboard = () => {
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "overall", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-violet-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 ${
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-teal-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 ${
                               labDashPanel?.key === "overall" && labDashPanel.segment === "BOOKED"
-                                ? "border-violet-500/50 bg-violet-500/[0.06] ring-1 ring-violet-500/30"
+                                ? "border-teal-500/50 bg-teal-500/[0.06] ring-1 ring-teal-500/30"
                                 : "border-border/60 bg-background/40"
                             }`}
                           >
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Pending (booked)
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-violet-700 dark:text-violet-300">
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-teal-700 dark:text-teal-300">
                               {labOperatorDash.overall_booking_booked_total}
                             </p>
                           </button>
@@ -3295,16 +3321,16 @@ const Dashboard = () => {
                         </p>
                       </div>
                       <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-sky-500/35" : ""}`}
+                        className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-cyan-500/35" : ""}`}
                       >
                         <ChevronDown
                           className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "external" ? "rotate-180" : ""}`}
                         />
-                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-sky-500/[0.12] group-hover:text-sky-500/20" />
+                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-cyan-500/[0.12] group-hover:text-cyan-500/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
                           External bookings
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-sky-700 dark:text-sky-300">
+                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-cyan-700 dark:text-cyan-300">
                           {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -3314,16 +3340,16 @@ const Dashboard = () => {
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "external", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-sky-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-cyan-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
                               labDashPanel?.key === "external" && labDashPanel.segment === "BOOKED"
-                                ? "border-sky-500/50 bg-sky-500/[0.06] ring-1 ring-sky-500/30"
+                                ? "border-cyan-500/50 bg-cyan-500/[0.06] ring-1 ring-cyan-500/30"
                                 : "border-border/60 bg-background/40"
                             }`}
                           >
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Pending (booked)
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-sky-700 dark:text-sky-300">
+                            <p className="mt-1 text-2xl font-bold tabular-nums text-cyan-700 dark:text-cyan-300">
                               {labOperatorDash.external_booking_booked_total}
                             </p>
                           </button>
@@ -3729,7 +3755,7 @@ const Dashboard = () => {
                         </div>
                         <Button
                           type="button"
-                          className="bg-violet-600 text-white hover:bg-violet-700 shrink-0"
+                          className="bg-teal-700 text-white hover:bg-teal-800 shrink-0"
                           onClick={() => navigate("/team-calendar")}
                         >
                           Open team calendar
@@ -3786,11 +3812,11 @@ const Dashboard = () => {
             </p>
             <div className="dashboard-uniform-cards grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Upcoming Bookings Section */}
-              <Card className="overflow-hidden border-0 shadow-lg shadow-sky-500/10 bg-card rounded-2xl">
-                <CardHeader className="pb-4 border-b bg-gradient-to-r from-sky-500/10 to-blue-500/10">
+              <Card className="overflow-hidden border-0 shadow-lg shadow-teal-500/10 bg-card rounded-2xl">
+                <CardHeader className="pb-4 border-b bg-gradient-to-r from-teal-500/10 to-cyan-500/10">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
                         <Calendar className="h-6 w-6" />
                       </div>
                       <div>
@@ -3802,7 +3828,7 @@ const Dashboard = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/my-bookings")}
-                      className="text-sky-600 hover:text-sky-700 hover:bg-sky-500/10 shrink-0"
+                      className="text-teal-700 hover:text-teal-800 hover:bg-teal-500/10 shrink-0"
                     >
                       View All
                       <ArrowRight className="h-4 w-4 ml-1" />
@@ -3851,14 +3877,14 @@ const Dashboard = () => {
                     </ul>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-blue-100 dark:from-sky-900/30 dark:to-blue-900/30 text-sky-600 dark:text-sky-400 mb-4">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/30 dark:to-cyan-900/30 text-teal-700 dark:text-teal-400 mb-4">
                         <Calendar className="h-7 w-7" />
                       </div>
                       <p className="font-medium text-foreground">No upcoming bookings</p>
                       <p className="text-sm text-muted-foreground mt-1">Book equipment to see your sessions here</p>
                       <Button
                         variant="outline"
-                        className="mt-5 border-sky-200 text-sky-600 hover:bg-sky-50 dark:border-sky-800 dark:hover:bg-sky-900/20"
+                        className="mt-5 border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-800 dark:hover:bg-teal-900/20"
                         onClick={() => navigate("/equipments")}
                       >
                         Browse Equipment
@@ -3955,6 +3981,7 @@ const Dashboard = () => {
         )}
 
       </main>
+      <PortalFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 };

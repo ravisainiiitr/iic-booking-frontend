@@ -139,43 +139,57 @@ export default function TeamCalendar() {
   }, [holidays]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
       <div className="mx-auto max-w-[min(1600px,98vw)] px-4 py-8 sm:px-6">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight text-foreground">Team Calendar</h1>
-              <p className="text-sm text-muted-foreground">
-                Department-wide leave visibility for Lab Operators (Pending/Approved/Rejected).
-              </p>
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-5 sm:p-6 text-white shadow-xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3 min-w-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/dashboard")}
+                className="shrink-0 text-white/90 hover:text-white hover:bg-white/20"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold tracking-tight">Team Calendar</h1>
+                <p className="text-sm text-white/85">
+                  Department-wide leave visibility for Lab Operators (Pending/Approved/Rejected).
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMonth(format(addMonths(parseISO(`${month}-01`), -1), "yyyy-MM"))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="rounded-xl border border-border/60 bg-muted/10 px-4 py-2 text-sm font-semibold tabular-nums">
-              {month}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/15 text-white border-0 hover:bg-white/25"
+                onClick={() => setMonth(format(addMonths(parseISO(`${month}-01`), -1), "yyyy-MM"))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold tabular-nums">
+                {month}
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/15 text-white border-0 hover:bg-white/25"
+                onClick={() => setMonth(format(addMonths(parseISO(`${month}-01`), 1), "yyyy-MM"))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/15 text-white border-0 hover:bg-white/25"
+                onClick={() => setMonth(format(new Date(), "yyyy-MM"))}
+              >
+                This month
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMonth(format(addMonths(parseISO(`${month}-01`), 1), "yyyy-MM"))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setMonth(format(new Date(), "yyyy-MM"))}>
-              This month
-            </Button>
           </div>
         </div>
 

@@ -836,9 +836,9 @@ const Auth = () => {
   // Show loading while checking authentication
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+      <div className="page-shell flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <div className="h-10 w-10 rounded-full border-2 border-teal-700 border-t-transparent animate-spin" />
           <p className="text-sm text-muted-foreground">Checking authentication...</p>
         </div>
       </div>
@@ -846,26 +846,26 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.12),transparent)] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.18),transparent)]">
+    <div className="page-shell flex items-center justify-center p-4 sm:p-6 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(175_50%_40%/0.14),transparent)] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(175_40%_30%/0.2),transparent)]">
       <div className="w-full max-w-2xl">
         {/* Card */}
-        <Card className="overflow-hidden border-0 shadow-[var(--shadow-elegant)] bg-card/95 backdrop-blur-sm rounded-2xl">
+        <Card className="overflow-hidden border border-border/60 shadow-[var(--shadow-elegant)] bg-card/95 backdrop-blur-sm rounded-2xl">
           {/* Header */}
-          <div className="relative px-6 sm:px-8 pt-6 pb-4 text-center border-b border-border/50 bg-gradient-to-b from-muted/30 to-transparent">
+          <div className="relative px-6 sm:px-8 pt-6 pb-4 text-center border-b border-border/50 bg-gradient-to-b from-teal-50/80 to-transparent dark:from-teal-950/30">
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-3 top-4 h-14 w-14 rounded-xl text-muted-foreground hover:text-foreground"
+              className="absolute left-3 top-4 h-12 w-12 rounded-xl text-muted-foreground hover:text-foreground"
               onClick={() => navigate("/")}
               title="Go to Home"
             >
-              <Home className="h-10 w-10" strokeWidth={2.25} />
+              <Home className="h-8 w-8" strokeWidth={2.25} />
             </Button>
             <a
               href="https://en.wikipedia.org/wiki/IIT_Roorkee"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-lg"
+              className="inline-block focus:outline-none focus:ring-2 focus:ring-teal-600/40 rounded-lg"
               title="IIT Roorkee (Wikipedia)"
             >
               <img
@@ -874,8 +874,11 @@ const Auth = () => {
                 className="h-14 w-auto mx-auto object-contain"
               />
             </a>
-            <p className="mt-3 text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            <p className="mt-3 text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
               Indian Institute of Technology Roorkee
+            </p>
+            <p className="mt-1 text-sm text-teal-800/80 dark:text-teal-300/90 font-medium">
+              Institute Instrumentation Centre
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Sign in or create an account
@@ -888,7 +891,7 @@ const Auth = () => {
               <Button
                 onClick={handleOmniportLogin}
                 disabled={loading}
-                className="w-full h-12 rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/25 text-primary-foreground font-medium transition-[var(--transition-smooth)]"
+                className="w-full h-12 rounded-xl bg-teal-700 hover:bg-teal-800 shadow-lg shadow-teal-900/20 text-white font-medium transition-[var(--transition-smooth)]"
                 size="lg"
               >
                 <span className="flex items-center justify-center gap-2.5">

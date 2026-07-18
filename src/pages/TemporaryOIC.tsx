@@ -202,27 +202,40 @@ export default function TemporaryOIC() {
   if (!isManager) return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       <DashboardHeader />
-      <main className="container max-w-4xl mx-auto p-4 pb-8">
-        <Button
-          variant="ghost"
-          className="mb-4 gap-2"
-          onClick={() => navigate("/dashboard")}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Button>
+      <main className="container max-w-4xl mx-auto p-4 pb-8 space-y-6">
+        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
+            onClick={() => navigate("/dashboard")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+              <UserCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Temporary OIC (Leave)</h1>
+              <p className="mt-1 text-sm text-white/85 max-w-2xl">
+                When you go on leave, assign another Officer in Charge to manage an equipment until you resume.
+                After the resume date and time, they will no longer be able to manage that equipment.
+              </p>
+            </div>
+          </div>
+        </div>
 
-        <Card className="mb-6">
+        <Card className="mb-6 rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5" />
-              Temporary OIC (Leave)
+              Assign temporary coverage
             </CardTitle>
             <CardDescription>
-              When you go on leave, assign another Officer in Charge to manage an equipment until you resume.
-              After the resume date and time, they will no longer be able to manage that equipment.
+              Choose equipment, temporary OIC, and the leave window.
             </CardDescription>
           </CardHeader>
           <CardContent>
