@@ -1479,6 +1479,106 @@ const BookEquipment = () => {
     });
   };
 
+  /** Select all times on one calendar day within the current status week grid. */
+  const selectDayColumnForWeek = (dayOffset: number) => {
+    if (!statusChangeSlots || !statusChangePopupWeekStart) return;
+    const day = addDays(statusChangePopupWeekStart, dayOffset);
+    const dateStr = format(day, "yyyy-MM-dd");
+    const ids = statusChangeSlots
+      .filter((s) => calendarDateStrFromSlot(s) === dateStr)
+      .map((s) => s.id);
+    setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+    setSelectedDatesForStatus((prev) => Array.from(new Set([...prev, dateStr])).sort());
+    toast.success(`Selected ${ids.length} slot(s) for ${format(day, "EEE MMM d")} (this week).`);
+  };
+
+  /** Select all slots on matching weekdays across the displayed status month (e.g. all Fridays). */
+  const selectDayColumnForMonth = useCallback(
+    async (dayOffset: number) => {
+      if (!selectedEquipment?.id || !statusChangePopupWeekStart) return;
+      const sampleDay = addDays(statusChangePopupWeekStart, dayOffset);
+      const targetDow = sampleDay.getDay(); // 0=Sun … 6=Sat
+      const monthStart = startOfMonth(statusChangeMonthStart);
+      const monthEnd = endOfMonth(statusChangeMonthStart);
+      try {
+        const res = await apiClient.getEquipmentSlots(
+          selectedEquipment.id,
+          format(monthStart, "yyyy-MM-dd"),
+          format(monthEnd, "yyyy-MM-dd")
+        );
+        const data = (res as { data?: { slots?: DailySlot[] } }).data;
+        const monthSlots = data?.slots ?? [];
+        const matching = monthSlots.filter((s) => {
+          const dStr = calendarDateStrFromSlot(s);
+          if (!dStr) return false;
+          const d = parseISO(`${dStr.slice(0, 10)}T12:00:00`);
+          return d.getDay() === targetDow;
+        });
+        const ids = matching.map((s) => s.id);
+        const datesToAdd = [
+          ...new Set(
+            matching
+              .map((s) => calendarDateStrFromSlot(s))
+              .filter(Boolean) as string[]
+          ),
+        ].sort();
+        setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+        setSelectedDatesForStatus((prev) => Array.from(new Set([...prev, ...datesToAdd])).sort());
+        toast.success(
+          `Selected ${ids.length} slot(s) for all ${format(sampleDay, "EEEE")}s in ${format(monthStart, "MMMM yyyy")}.`
+        );
+      } catch {
+        toast.error("Failed to load month slots.");
+      }
+    },
+    [selectedEquipment?.id, statusChangePopupWeekStart, statusChangeMonthStart]
+  );
+
+  /** Select all slots on matching weekdays across the displayed status year (e.g. all Fridays). */
+  const selectDayColumnForYear = useCallback(
+    async (dayOffset: number) => {
+      if (!selectedEquipment?.id || !statusChangePopupWeekStart) return;
+      const sampleDay = addDays(statusChangePopupWeekStart, dayOffset);
+      const targetDow = sampleDay.getDay();
+      const y = statusChangeMonthStart.getFullYear();
+      const yearStart = startOfYear(statusChangeMonthStart);
+      const yearEnd = endOfYear(statusChangeMonthStart);
+      try {
+        const res = await apiClient.getEquipmentSlots(
+          selectedEquipment.id,
+          format(yearStart, "yyyy-MM-dd"),
+          format(yearEnd, "yyyy-MM-dd")
+        );
+        const data = (res as { data?: { slots?: DailySlot[] } }).data;
+        const yearSlots = data?.slots ?? [];
+        const matching = yearSlots.filter((s) => {
+          const dStr = calendarDateStrFromSlot(s);
+          if (!dStr) return false;
+          const d = parseISO(`${dStr.slice(0, 10)}T12:00:00`);
+          return d.getDay() === targetDow;
+        });
+        const ids = matching.map((s) => s.id);
+        const datesToAdd = [
+          ...new Set(
+            matching
+              .map((s) => calendarDateStrFromSlot(s))
+              .filter(Boolean) as string[]
+          ),
+        ].sort();
+        const monthsToAdd = [...new Set(datesToAdd.map((d) => d.slice(0, 7)))].sort();
+        setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+        setSelectedDatesForStatus((prev) => Array.from(new Set([...prev, ...datesToAdd])).sort());
+        setStatusChangeSelectedMonths((prev) => Array.from(new Set([...prev, ...monthsToAdd])).sort());
+        toast.success(
+          `Selected ${ids.length} slot(s) for all ${format(sampleDay, "EEEE")}s in ${y}.`
+        );
+      } catch {
+        toast.error("Failed to load year slots.");
+      }
+    },
+    [selectedEquipment?.id, statusChangePopupWeekStart, statusChangeMonthStart]
+  );
+
   // Week popup: select all slots in this week that are AVAILABLE
   const selectAllAvailableSlotsInPopup = () => {
     if (!statusChangeSlots || statusChangeSlots.length === 0) return;
@@ -5539,10 +5639,39 @@ const BookEquipment = () => {
                           </div>
                         ) : null;
                       return (
-                        <div key={dayOffset} className="font-bold text-base p-4 text-center border-b border-r last:border-r-0 text-slate-700 dark:text-slate-200">
+                        <div key={dayOffset} className="font-bold text-base p-3 text-center border-b border-r last:border-r-0 text-slate-700 dark:text-slate-200">
                           <div>{format(day, "EEE")}</div>
                           <div className="text-slate-600 dark:text-slate-400">{format(day, "MMM d")}</div>
                           {headerBadge}
+                          <div className="flex flex-wrap gap-1 justify-center mt-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-[11px] h-7 px-1.5 font-medium"
+                              onClick={() => selectDayColumnForWeek(dayOffset)}
+                            >
+                              Column (week)
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-[11px] h-7 px-1.5 font-medium"
+                              onClick={() => void selectDayColumnForMonth(dayOffset)}
+                            >
+                              Month
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-[11px] h-7 px-1.5 font-medium"
+                              onClick={() => void selectDayColumnForYear(dayOffset)}
+                            >
+                              Year
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -7606,6 +7735,14 @@ const BookEquipment = () => {
                             } else if (isPast) {
                               displayStatus = considerBooked ? (slotDisplayLabel || slotStatusLabel || "Unavailable") : "No Booking";
                               isDisabled = !isAdminOrOIC();
+                            } else if (
+                              slotData &&
+                              !isAdminOrOIC() &&
+                              !isDailySlotSelectableForUserBooking(slotData)
+                            ) {
+                              // Home / non-home department holds: blocked for this user → grey Not Available
+                              displayStatus = "Not Available";
+                              isDisabled = true;
                             } else if (chargeNotCalculated) {
                               displayStatus = slotDisplayLabel || slotStatusLabel || "—";
                               isDisabled = true;
@@ -7622,6 +7759,14 @@ const BookEquipment = () => {
                           } else {
                             displayStatus = holidayName || "—";
                           }
+
+                          const deptBlockedForUser =
+                            Boolean(slotExists) &&
+                            Boolean(slotData) &&
+                            !isAdminOrOIC() &&
+                            !considerBooked &&
+                            !isSelected &&
+                            !isDailySlotSelectableForUserBooking(slotData!);
 
                           // Sat/Sun/holidays: use calendar slot-status colors when the cell has a real slot row,
                           // except external users on closed weekend/holiday (NOT_AVAILABLE) — keep admin weekend/holiday styling.
@@ -7741,6 +7886,11 @@ const BookEquipment = () => {
                                 color: getContrastTextColor(holidayDefault),
                               };
                             }
+                          } else if (deptBlockedForUser) {
+                            const naBg = slotColors.NOT_AVAILABLE || "#e2e8f0";
+                            displayStatus = "Not Available";
+                            isDisabled = true;
+                            cellStyle = { backgroundColor: naBg, color: getContrastTextColor(naBg) };
                           }
 
                           return (
