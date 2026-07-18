@@ -490,6 +490,41 @@ const Dashboard = () => {
     sessionStorage.setItem(promptKey, "1");
   }, [showWalletLinkPrompt, user?.id, navigate]);
 
+  // Sample submission deadline approaching — toast once per login session
+  useEffect(() => {
+    if (!isAuthenticated || authLoading || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const res = await apiClient.getApproachingSampleSubmissionDeadlines();
+      if (cancelled || res.error || !res.data?.items?.length) return;
+      for (const item of res.data.items) {
+        const toastKey = `sample_submission_deadline_toast_${user.id}_${item.booking_id}`;
+        if (sessionStorage.getItem(toastKey)) continue;
+        const remaining = Math.max(0, item.remaining_seconds || 0);
+        const hours = Math.floor(remaining / 3600);
+        const mins = Math.floor((remaining % 3600) / 60);
+        const remainingLabel =
+          hours > 0 ? `${hours}h ${mins}m` : `${mins} minute(s)`;
+        const deadlineLabel = item.deadline_at
+          ? new Date(item.deadline_at).toLocaleString()
+          : "soon";
+        toast.warning("Sample submission deadline approaching", {
+          description: `${item.equipment_name} (Booking #${item.virtual_booking_id}): submit by ${deadlineLabel} (${remainingLabel} left).`,
+          action: {
+            label: "View booking",
+            onClick: () =>
+              navigate(item.link || `/my-bookings?booking=${item.virtual_booking_id}`),
+          },
+          duration: 14000,
+        });
+        sessionStorage.setItem(toastKey, "1");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authLoading, user?.id, navigate]);
+
   useEffect(() => {
     if (!isAuthenticated || authLoading || !user?.id) return;
     let cancelled = false;

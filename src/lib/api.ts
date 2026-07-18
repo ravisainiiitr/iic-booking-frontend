@@ -4002,6 +4002,25 @@ class ApiClient {
     return { data: list[0] };
   }
 
+  /** BOOKED bookings whose sample submission deadline is within the 12h advance window. */
+  async getApproachingSampleSubmissionDeadlines() {
+    return this.request<{
+      items: Array<{
+        booking_id: number;
+        virtual_booking_id: string;
+        equipment_id: number | null;
+        equipment_name: string;
+        equipment_code: string;
+        deadline_at: string;
+        remaining_seconds: number;
+        lead_hours: number;
+        advance_hours: number;
+        link: string;
+      }>;
+      count: number;
+    }>("/bookings/approaching-sample-submission/");
+  }
+
   async getBookings(params?: {
     user_id?: string | number;
     equipment_id?: string | number;
