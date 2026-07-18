@@ -13,6 +13,7 @@ import {
   type ProformaLineItemField,
 } from "@/lib/proformaInvoiceStorage";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
+import { formatNumericBound, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
 import {
   CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
   getChargeEstimateUserTypeLabel,
@@ -3868,35 +3869,33 @@ const BookEquipment = () => {
       (f: any) => String(f?.field_key || "").toUpperCase() === String(fieldKey || "").toUpperCase()
     );
     const changedFieldType = String(changedField?.field_type || "").toUpperCase().trim();
-    // A/B must be >= 1 only for NUMERIC fields (MULTI_PARAM B is often RADIO with text param codes).
-    if ((fieldKey === 'A' || fieldKey === 'B') && changedFieldType === 'NUMERIC') {
-      if (typeof value === 'number') {
-        if (value < 1 || Number.isNaN(value)) value = 1;
-      } else if (typeof value === 'string') {
-        const num = Number(value);
-        if (value.trim() !== '' && (Number.isNaN(num) || num < 1)) value = '1';
-      }
-    }
-    // Enforce dynamic maximum for A immediately on change so user always sees feedback.
-    if (fieldKey === "A" && !bookingAsExternalTarget) {
-      const aField = equipmentDetail?.input_fields?.find((f: any) => String(f?.field_key || "").toUpperCase() === "A");
-      const projectedValues = { ...inputFieldValues, [fieldKey]: value };
-      const effectiveMax = resolveDynamicMaxForFieldA(aField, projectedValues, equipmentDetail);
+    // NUMERIC: clamp to resolved min/max (help_text / options / defaults 0–100)
+    if (changedFieldType === "NUMERIC") {
+      const formulaMax =
+        String(fieldKey || "").toUpperCase() === "A" && !bookingAsExternalTarget
+          ? resolveDynamicMaxForFieldA(
+              changedField,
+              { ...inputFieldValues, [fieldKey]: value },
+              equipmentDetail,
+              false
+            )
+          : undefined;
+      const { min, max } = resolveNumericFieldBounds(changedField, formulaMax);
       const numericValue =
         typeof value === "number"
           ? value
-          : (typeof value === "string" && value.trim() !== "" ? Number(value) : undefined);
-      if (
-        effectiveMax !== undefined &&
-        numericValue !== undefined &&
-        Number.isFinite(numericValue) &&
-        Number(numericValue) > Number(effectiveMax)
-      ) {
-        const maxDisplay = Number.isInteger(Number(effectiveMax))
-          ? String(Number(effectiveMax))
-          : String(Number(effectiveMax).toFixed(4)).replace(/\.?0+$/, "");
-        toast.error(`No of samples: cannot be greater than ${maxDisplay}`);
-        value = String(effectiveMax);
+          : typeof value === "string" && value.trim() !== ""
+            ? Number(value)
+            : undefined;
+      if (numericValue !== undefined && Number.isFinite(numericValue)) {
+        if (numericValue < min) {
+          value = typeof value === "number" ? min : String(min);
+        } else if (numericValue > max) {
+          toast.error(
+            `${changedField?.field_label || fieldKey}: cannot be greater than ${formatNumericBound(max)}`
+          );
+          value = typeof value === "number" ? max : String(max);
+        }
       }
     }
     setInputFieldValues(prev => ({
@@ -6279,51 +6278,55 @@ const BookEquipment = () => {
                                 );
                               
                               case 'NUMERIC': {
-                                const isAB = field.field_key === 'A' || field.field_key === 'B';
-                                const effectiveMin = isAB
-                                  ? Math.max(1, Number(field.options?.min) || 1)
-                                  : (field.options?.min ?? undefined);
-                                const fieldAMax = field.field_key === "A"
-                                  ? resolveDynamicMaxForFieldA(
-                                      field,
-                                      inputFieldValues,
-                                      equipmentDetail,
-                                      bookingAsExternalTarget
-                                    )
-                                  : undefined;
-                                const effectiveMax =
-                                  field.field_key === "A" && bookingAsExternalTarget
-                                    ? undefined
-                                    : (fieldAMax ?? field.options?.max ?? undefined);
+                                const formulaMax =
+                                  field.field_key === "A" && !bookingAsExternalTarget
+                                    ? resolveDynamicMaxForFieldA(
+                                        field,
+                                        inputFieldValues,
+                                        equipmentDetail,
+                                        false
+                                      )
+                                    : undefined;
+                                const { min: effectiveMin, max: effectiveMax, step: effectiveStep } =
+                                  resolveNumericFieldBounds(field, formulaMax);
+                                const stepAttr =
+                                  effectiveStep < 1
+                                    ? String(effectiveStep)
+                                    : Number.isInteger(effectiveStep)
+                                      ? String(effectiveStep)
+                                      : String(effectiveStep);
                                 return (
-                                  <Input
-                                    id={field.field_key}
-                                    type="number"
-                                    value={inputFieldValues[field.field_key] as string || ''}
-                                    onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
-                                    onBlur={(e) => {
-                                      const value = e.target.value;
-                                      if (value && isNaN(Number(value))) {
-                                        handleInputFieldChange(field.field_key, isAB ? '1' : '');
-                                      } else if (isAB && value !== '' && Number(value) < 1) {
-                                        handleInputFieldChange(field.field_key, '1');
-                                      } else if (effectiveMax !== undefined && value !== '' && Number(value) > Number(effectiveMax)) {
-                                        const maxDisplay = Number.isInteger(Number(effectiveMax))
-                                          ? String(Number(effectiveMax))
-                                          : String(Number(effectiveMax).toFixed(4)).replace(/\.?0+$/, "");
-                                        const isSampleField = String(field.field_key || "").toUpperCase() === "A";
-                                        const label = isSampleField ? "No of samples" : (field.field_label || field.field_key);
-                                        toast.error(`${label}: cannot be greater than ${maxDisplay}`);
-                                        handleInputFieldChange(field.field_key, String(effectiveMax));
-                                      }
-                                    }}
-                                    required={field.is_required}
-                                    min={effectiveMin}
-                                    max={effectiveMax}
-                                    step={field.options?.step || '1'}
-                                    placeholder={field.default_value || (isAB ? '1' : '0')}
-                                    disabled={!!repeatSourceBooking}
-                                  />
+                                  <div className="space-y-1.5">
+                                    <Input
+                                      id={field.field_key}
+                                      type="number"
+                                      value={inputFieldValues[field.field_key] as string || ''}
+                                      onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
+                                      onBlur={(e) => {
+                                        const value = e.target.value;
+                                        if (value && isNaN(Number(value))) {
+                                          handleInputFieldChange(field.field_key, String(effectiveMin));
+                                        } else if (value !== '' && Number(value) < effectiveMin) {
+                                          handleInputFieldChange(field.field_key, String(effectiveMin));
+                                        } else if (value !== '' && Number(value) > effectiveMax) {
+                                          toast.error(
+                                            `${field.field_label || field.field_key}: cannot be greater than ${formatNumericBound(effectiveMax)}`
+                                          );
+                                          handleInputFieldChange(field.field_key, String(effectiveMax));
+                                        }
+                                      }}
+                                      required={field.is_required}
+                                      min={effectiveMin}
+                                      max={effectiveMax}
+                                      step={stepAttr}
+                                      placeholder={field.default_value || String(effectiveMin)}
+                                      disabled={!!repeatSourceBooking}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Allowed range {formatNumericBound(effectiveMin)}–{formatNumericBound(effectiveMax)}
+                                      {effectiveStep !== 1 ? ` · step ${formatNumericBound(effectiveStep)}` : ""}
+                                    </p>
+                                  </div>
                                 );
                               }
                               

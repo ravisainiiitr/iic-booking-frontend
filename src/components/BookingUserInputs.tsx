@@ -24,6 +24,7 @@ import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
+import { formatNumericBound, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
 
 export interface InputFieldDef {
   field_key: string;
@@ -619,19 +620,47 @@ export function BookingUserInputs({
                   <Label htmlFor={`edit-${f.field_key}`} className="text-sm font-semibold text-foreground">
                     {f.field_label}
                   </Label>
-                  {type === "NUMERIC" && (
-                    <Input
-                      id={`edit-${f.field_key}`}
-                      type="number"
-                      className="text-base h-10"
-                      value={typeof val === "number" ? val : Number(val) || ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        const n = v === "" ? 0 : Number(v);
-                        updateFormValue(f.field_key, isNaN(n) ? 0 : n);
-                      }}
-                    />
-                  )}
+                  {type === "NUMERIC" && (() => {
+                    const { min: effectiveMin, max: effectiveMax, step: effectiveStep } =
+                      resolveNumericFieldBounds(f);
+                    const stepAttr =
+                      effectiveStep < 1
+                        ? String(effectiveStep)
+                        : Number.isInteger(effectiveStep)
+                          ? String(effectiveStep)
+                          : String(effectiveStep);
+                    return (
+                      <div className="space-y-1.5">
+                        <Input
+                          id={`edit-${f.field_key}`}
+                          type="number"
+                          className="text-base h-10"
+                          min={effectiveMin}
+                          max={effectiveMax}
+                          step={stepAttr}
+                          value={typeof val === "number" ? val : Number(val) || ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "") {
+                              updateFormValue(f.field_key, effectiveMin);
+                              return;
+                            }
+                            const n = Number(v);
+                            if (isNaN(n)) {
+                              updateFormValue(f.field_key, effectiveMin);
+                              return;
+                            }
+                            const clamped = Math.min(effectiveMax, Math.max(effectiveMin, n));
+                            updateFormValue(f.field_key, clamped);
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Allowed range {formatNumericBound(effectiveMin)}–{formatNumericBound(effectiveMax)}
+                          {effectiveStep !== 1 ? ` · step ${formatNumericBound(effectiveStep)}` : ""}
+                        </p>
+                      </div>
+                    );
+                  })()}
                   {type === "TEXT" && (
                     <Input
                       id={`edit-${f.field_key}`}

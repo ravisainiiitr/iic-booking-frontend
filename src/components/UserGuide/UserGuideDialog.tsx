@@ -158,11 +158,15 @@ export default function UserGuideDialog({
                 {guide.audienceLabel}
               </div>
               <DialogTitle className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
-                {isWelcome ? guide.welcomeHeadline : section?.title}
+                {isWelcome
+                  ? guide.audience === "faculty" || guide.audience === "student"
+                    ? `Welcome, ${displayName}`
+                    : guide.welcomeHeadline
+                  : section?.title}
               </DialogTitle>
               <DialogDescription className="mt-1 text-teal-50/90 text-sm">
                 {isWelcome
-                  ? `Hello ${displayName} — ${guide.subtitle}`
+                  ? guide.subtitle
                   : `Section ${step} of ${sections.length} · ${guide.title}`}
               </DialogDescription>
             </div>

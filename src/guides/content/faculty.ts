@@ -12,7 +12,7 @@ export const facultyGuide: UserGuideContent = {
   subtitle: "IIT Roorkee faculty — Channel i, wallets, urgent requests, and group supervision",
   welcomeHeadline: "Welcome, Faculty Member",
   welcomeBody:
-    "Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. Your name is shown with the Prof. prefix across the portal. This guide highlights Channel i login and the internal features that make IIC booking efficient for research groups.",
+    "Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. This guide highlights Channel i login and the internal features that make IIC booking efficient for research groups.",
   sections: [
     {
       id: "welcome",

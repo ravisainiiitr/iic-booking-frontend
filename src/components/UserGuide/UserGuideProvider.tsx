@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api";
 import { getGuideForUser, shouldAutoShowUserGuide } from "@/guides";
 import type { UserGuideContent } from "@/guides";
 import UserGuideDialog from "@/components/UserGuide/UserGuideDialog";
+import { formatUserDisplayName } from "@/lib/displayName";
 
 interface UserGuideContextValue {
   openGuide: (opts?: { force?: boolean }) => void;
@@ -108,7 +109,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
           setOpen(next);
         }}
         guide={guide}
-        userName={user?.name}
+        userName={formatUserDisplayName(user)}
       />
     </UserGuideContext.Provider>
   );
