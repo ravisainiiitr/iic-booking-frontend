@@ -5449,6 +5449,59 @@ class ApiClient {
     });
   }
 
+  /** OIC/Admin: list PRINT_3D equipment with all print materials (active + inactive). */
+  async getOicPrintMaterials(equipmentId?: number | string) {
+    const q = equipmentId != null ? `?equipment_id=${encodeURIComponent(String(equipmentId))}` : "";
+    return this.request<{
+      equipments: Array<{
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        materials: PrintMaterial[];
+      }>;
+    }>(`/oic/print-materials/${q}`);
+  }
+
+  async createOicPrintMaterial(payload: {
+    equipment_id: number;
+    code: string;
+    name: string;
+    density_g_per_cm3?: string | number;
+    price_per_gram: string | number;
+    user_type?: string | null;
+    is_active?: boolean;
+    display_order?: number;
+  }) {
+    return this.request<{ material: PrintMaterial }>("/oic/print-materials/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateOicPrintMaterial(
+    materialId: number,
+    payload: Partial<{
+      code: string;
+      name: string;
+      density_g_per_cm3: string | number;
+      price_per_gram: string | number;
+      user_type: string | null;
+      is_active: boolean;
+      display_order: number;
+    }>
+  ) {
+    return this.request<{ material: PrintMaterial }>(`/oic/print-materials/${materialId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteOicPrintMaterial(materialId: number) {
+    return this.request<{ ok: boolean }>(`/oic/print-materials/${materialId}/`, {
+      method: "DELETE",
+    });
+  }
+
   /** OIC/Admin: list equipment groups (with quotas) for managed equipment. */
   async getOicEquipmentGroupQuotas() {
     return this.request<{

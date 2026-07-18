@@ -56,6 +56,7 @@ import AdminSettingsFeedback from "./pages/AdminSettingsFeedback";
 import AdminSettingsQualityImprovement from "./pages/AdminSettingsQualityImprovement";
 import AdminRewardsConfig from "./pages/AdminRewardsConfig";
 import OICAccessories from "./pages/OICAccessories";
+import OICPrintMaterials from "./pages/OICPrintMaterials";
 import OICQuotaConfigurations from "./pages/OICQuotaConfigurations";
 import OICMultiMode from "./pages/OICMultiMode";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
@@ -165,6 +166,7 @@ const App = () => (
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
                 <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
                 <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
+                <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
                 <Route path="/oic/quota-configurations" element={<ErrorBoundary fallbackTitle="Quota Configurations" backPath="/dashboard"><OICQuotaConfigurations /></ErrorBoundary>} />
                 <Route path="/oic/multi-mode" element={<ErrorBoundary fallbackTitle="Multi-Mode Equipment" backPath="/dashboard"><OICMultiMode /></ErrorBoundary>} />
                 <Route path="/user-management" element={<UserManagement />} />
