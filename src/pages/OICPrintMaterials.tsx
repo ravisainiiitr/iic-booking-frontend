@@ -3,21 +3,31 @@ import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { apiClient, type PrintMaterial } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
+import { getUserTypeDisplayName, USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Loader2, Plus, Trash2, Printer } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Loader2, Plus, Trash2, Printer, Table2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+type ChargeProfileRow = {
+  user_type: string;
+  user_type_display: string;
+  primary_unit_charge: string;
+  is_active: boolean;
+};
 
 type EquipmentMaterialsBundle = {
   equipment_id: number;
   equipment_code: string;
   equipment_name: string;
   materials: PrintMaterial[];
+  charge_profiles?: ChargeProfileRow[];
 };
 
 type MaterialDraft = {
@@ -27,6 +37,16 @@ type MaterialDraft = {
   price_per_gram: string;
   user_type: string;
   display_order: string;
+};
+
+type MaterialView = {
+  id: number;
+  code: string;
+  name: string;
+  price_per_gram: string;
+  user_type: string;
+  is_active: boolean;
+  display_order: number;
 };
 
 const EMPTY_DRAFT: MaterialDraft = {
@@ -55,6 +75,32 @@ function materialToDraft(m: PrintMaterial): MaterialDraft {
   };
 }
 
+function formatMoney(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return n.toFixed(2);
+}
+
+/** Effective ₹/g for a category, matching booking material resolution. */
+function resolveMaterialPriceForCategory(
+  materials: MaterialView[],
+  materialCode: string,
+  userType: string
+): string | null {
+  const code = materialCode.trim().toLowerCase();
+  const ut = userType.trim().toLowerCase();
+  const candidates = materials.filter(
+    (m) => m.is_active && m.code.trim().toLowerCase() === code
+  );
+  if (candidates.length === 0) return null;
+  const typed = candidates.find((m) => (m.user_type || "").trim().toLowerCase() === ut);
+  if (typed) return typed.price_per_gram;
+  const shared = candidates.find((m) => !(m.user_type || "").trim());
+  if (shared) return shared.price_per_gram;
+  return null;
+}
+
 export default function OICPrintMaterials() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -73,6 +119,44 @@ export default function OICPrintMaterials() {
     () => equipments.find((e) => String(e.equipment_id) === selectedEquipmentId) ?? null,
     [equipments, selectedEquipmentId]
   );
+
+  /** Live material view: merges saved rows with unsaved draft edits for the charges table. */
+  const liveMaterials: MaterialView[] = useMemo(() => {
+    if (!selected) return [];
+    return selected.materials
+      .map((m) => {
+        const draft = drafts[m.id];
+        return {
+          id: m.id,
+          code: (draft?.code ?? m.code ?? "").trim(),
+          name: (draft?.name ?? m.name ?? "").trim(),
+          price_per_gram: (draft?.price_per_gram ?? String(m.price_per_gram ?? "")).trim(),
+          user_type: (draft?.user_type ?? m.user_type ?? "").trim(),
+          is_active: m.is_active,
+          display_order: Number(draft?.display_order ?? m.display_order ?? 0) || 0,
+        };
+      })
+      .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
+  }, [selected, drafts]);
+
+  const materialColumns = useMemo(() => {
+    const byCode = new Map<string, { code: string; name: string }>();
+    for (const m of liveMaterials) {
+      if (!m.code) continue;
+      const key = m.code.toLowerCase();
+      if (!byCode.has(key)) {
+        byCode.set(key, { code: m.code, name: m.name || m.code });
+      }
+    }
+    return Array.from(byCode.values());
+  }, [liveMaterials]);
+
+  const chargeProfiles = useMemo(() => {
+    const rows = selected?.charge_profiles ?? [];
+    return [...rows].sort((a, b) =>
+      String(a.user_type_display || a.user_type).localeCompare(String(b.user_type_display || b.user_type))
+    );
+  }, [selected]);
 
   const load = async (preferEquipmentId?: string) => {
     setLoading(true);
@@ -220,7 +304,12 @@ export default function OICPrintMaterials() {
       setEquipments((prev) =>
         prev.map((eq) =>
           eq.equipment_id === selected.equipment_id
-            ? { ...eq, materials: [...eq.materials, material].sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name)) }
+            ? {
+                ...eq,
+                materials: [...eq.materials, material].sort(
+                  (a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name)
+                ),
+              }
             : eq
         )
       );
@@ -228,7 +317,7 @@ export default function OICPrintMaterials() {
     }
     setAddDraft({
       ...EMPTY_DRAFT,
-      display_order: String((selected.materials.length || 0)),
+      display_order: String(selected.materials.length || 0),
     });
     toast.success("Material added.");
   };
@@ -258,6 +347,7 @@ export default function OICPrintMaterials() {
           <h1 className="text-2xl font-semibold tracking-tight">3D Print Materials</h1>
           <p className="mt-2 text-sm text-white/85 max-w-2xl">
             Add, edit, enable, disable, or delete filament materials for PRINT_3D equipment you manage.
+            Charge preview updates as you change material prices.
           </p>
         </div>
 
@@ -297,6 +387,145 @@ export default function OICPrintMaterials() {
 
         {selected && (
           <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Table2 className="h-5 w-5" /> Charges by category &amp; material
+                </CardTitle>
+                <CardDescription>
+                  Booking charge ≈ (print weight in g × ₹/g) + (print hours × machine ₹/h).
+                  Material cells use the same user-type resolution as booking. Values update live as you edit below.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 border-b">
+                        <th className="p-3 text-left font-semibold whitespace-nowrap">User category</th>
+                        <th className="p-3 text-right font-semibold whitespace-nowrap">Machine ₹/h</th>
+                        {materialColumns.length === 0 ? (
+                          <th className="p-3 text-left font-semibold text-muted-foreground">No materials</th>
+                        ) : (
+                          materialColumns.map((col) => (
+                            <th key={col.code} className="p-3 text-right font-semibold whitespace-nowrap">
+                              <div className="leading-tight">
+                                <div>{col.name}</div>
+                                <div className="text-[11px] font-normal text-muted-foreground">{col.code} · ₹/g</div>
+                              </div>
+                            </th>
+                          ))
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chargeProfiles.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={Math.max(2, 2 + materialColumns.length)}
+                            className="p-4 text-muted-foreground"
+                          >
+                            No charge profiles configured for this equipment. Machine rates come from Admin charge
+                            profiles.
+                          </td>
+                        </tr>
+                      ) : (
+                        chargeProfiles.map((cp) => {
+                          const ut = String(cp.user_type || "").toLowerCase();
+                          return (
+                            <tr
+                              key={cp.user_type}
+                              className={cn(
+                                "border-b last:border-0",
+                                !cp.is_active && "opacity-50 bg-muted/20"
+                              )}
+                            >
+                              <td className="p-3 align-middle">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">
+                                    {cp.user_type_display || getUserTypeDisplayName(cp.user_type)}
+                                  </span>
+                                  {!cp.is_active ? (
+                                    <Badge variant="secondary" className="text-[10px]">
+                                      Inactive profile
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-3 text-right tabular-nums font-medium">
+                                ₹{formatMoney(cp.primary_unit_charge)}
+                              </td>
+                              {materialColumns.map((col) => {
+                                const price = resolveMaterialPriceForCategory(liveMaterials, col.code, ut);
+                                return (
+                                  <td key={`${cp.user_type}-${col.code}`} className="p-3 text-right tabular-nums">
+                                    {price != null && price !== "" ? (
+                                      `₹${formatMoney(price)}`
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 border-b">
+                        <th className="p-3 text-left font-semibold">Material</th>
+                        <th className="p-3 text-left font-semibold">Code</th>
+                        <th className="p-3 text-right font-semibold">₹/g</th>
+                        <th className="p-3 text-left font-semibold">Applies to</th>
+                        <th className="p-3 text-left font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {liveMaterials.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-4 text-muted-foreground">
+                            No materials yet. Add materials below to populate this table.
+                          </td>
+                        </tr>
+                      ) : (
+                        liveMaterials.map((m) => (
+                          <tr
+                            key={m.id}
+                            className={cn("border-b last:border-0", !m.is_active && "opacity-50")}
+                          >
+                            <td className="p-3 font-medium">{m.name || "—"}</td>
+                            <td className="p-3 font-mono text-xs">{m.code || "—"}</td>
+                            <td className="p-3 text-right tabular-nums">₹{formatMoney(m.price_per_gram)}</td>
+                            <td className="p-3 text-muted-foreground">
+                              {m.user_type
+                                ? getUserTypeDisplayName(m.user_type) || m.user_type
+                                : "All user types"}
+                            </td>
+                            <td className="p-3">
+                              {m.is_active ? (
+                                <Badge className="bg-teal-700 text-white hover:bg-teal-700">Active</Badge>
+                              ) : (
+                                <Badge variant="secondary">Inactive</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  GST (where applicable) is added at booking time for external categories and is not shown here.
+                </p>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">

@@ -5458,6 +5458,12 @@ class ApiClient {
         equipment_code: string;
         equipment_name: string;
         materials: PrintMaterial[];
+        charge_profiles: Array<{
+          user_type: string;
+          user_type_display: string;
+          primary_unit_charge: string;
+          is_active: boolean;
+        }>;
       }>;
     }>(`/oic/print-materials/${q}`);
   }
