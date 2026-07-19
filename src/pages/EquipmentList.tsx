@@ -97,12 +97,16 @@ const EquipmentList = () => {
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const canChangeSlotStatus = ["admin", "manager", "operator"].includes(userTypeStr);
+  const isDeptAdmin = userTypeStr === "dept_admin";
+  const daDepartmentId = user?.department != null ? Number(user.department) : null;
 
   const [authReady, setAuthReady] = useState(false);
 
   const fetchEquipment = useCallback(
     async (search?: string, departmentId: DepartmentFilterValue = "all") => {
-      const response = await apiClient.getEquipments(search, undefined, undefined, true, departmentId);
+      const effectiveDept: DepartmentFilterValue =
+        isDeptAdmin && daDepartmentId != null ? daDepartmentId : departmentId;
+      const response = await apiClient.getEquipments(search, undefined, undefined, true, effectiveDept);
       if (response.error) {
         throw new Error(response.error || "Failed to load equipment");
       }
@@ -110,8 +114,14 @@ const EquipmentList = () => {
       const list = Array.isArray(rawList) ? rawList : [];
       return transformApiEquipment(list);
     },
-    [],
+    [isDeptAdmin, daDepartmentId],
   );
+
+  useEffect(() => {
+    if (isDeptAdmin && daDepartmentId != null) {
+      setSelectedDepartmentId(daDepartmentId);
+    }
+  }, [isDeptAdmin, daDepartmentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +205,9 @@ const EquipmentList = () => {
     }
   };
 
-  const hasActiveFilters = selectedDepartmentId !== "all" || searchQuery.trim().length > 0;
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    (!isDeptAdmin && selectedDepartmentId !== "all");
 
   if (loading && equipment.length === 0) {
     return (
@@ -235,13 +247,26 @@ const EquipmentList = () => {
         </p>
 
         <div className="mb-6 flex flex-col sm:flex-row gap-3 max-w-3xl">
-          <DepartmentFilter
-            value={selectedDepartmentId}
-            onChange={setSelectedDepartmentId}
-            className="sm:w-64 shrink-0"
-            triggerClassName="h-11 rounded-xl w-full"
-            disabled={loading}
-          />
+          {isDeptAdmin ? (
+            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</p>
+              <p className="font-medium truncate mt-0.5">
+                {user?.department_name
+                  ? `${user.department_name}${user.department_code ? ` (${user.department_code})` : ""}`
+                  : daDepartmentId != null
+                    ? `Department #${daDepartmentId}`
+                    : "Your department"}
+              </p>
+            </div>
+          ) : (
+            <DepartmentFilter
+              value={selectedDepartmentId}
+              onChange={setSelectedDepartmentId}
+              className="sm:w-64 shrink-0"
+              triggerClassName="h-11 rounded-xl w-full"
+              disabled={loading}
+            />
+          )}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -271,7 +296,7 @@ const EquipmentList = () => {
                   ? "No equipment matches the selected department or search. Try different filters."
                   : "There is no active equipment in the catalog at the moment. Check back later."}
               </p>
-              {hasActiveFilters ? (
+              {hasActiveFilters && !isDeptAdmin ? (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -280,6 +305,10 @@ const EquipmentList = () => {
                   }}
                 >
                   Clear filters
+                </Button>
+              ) : hasActiveFilters && isDeptAdmin ? (
+                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                  Clear search
                 </Button>
               ) : null}
             </CardContent>

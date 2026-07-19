@@ -19,7 +19,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, ChevronDown } from "lucide-react";
+import { Loader2, ChevronDown, Plus } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /** Collapsible card matching Django Admin's fieldset grouping, in the app's own visual language. */
 function FormSection({
@@ -296,6 +305,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [clearImage, setClearImage] = useState(false);
   const [clearVideo, setClearVideo] = useState(false);
+  const [addLookupOpen, setAddLookupOpen] = useState<null | "category" | "group">(null);
+  const [addLookupName, setAddLookupName] = useState("");
+  const [addLookupCode, setAddLookupCode] = useState("");
+  const [addLookupSaving, setAddLookupSaving] = useState(false);
 
   // Dept Admin create: force Internal Department to their assigned department.
   useEffect(() => {
@@ -331,6 +344,84 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     if (formData.internal_department == null) return list;
     return list.filter((o) => Number(o.department_id) === Number(formData.internal_department));
   }, [choices?.operators, formData.internal_department]);
+
+  const openAddLookup = (kind: "category" | "group") => {
+    setAddLookupName("");
+    setAddLookupCode("");
+    setAddLookupOpen(kind);
+  };
+
+  const saveAddLookup = async () => {
+    if (!addLookupOpen) return;
+    const name = addLookupName.trim();
+    const code = addLookupCode.trim();
+    if (!name) {
+      toast.error("Name is required.");
+      return;
+    }
+    if (addLookupOpen === "group" && !code) {
+      toast.error("Code is required for an equipment group.");
+      return;
+    }
+    setAddLookupSaving(true);
+    try {
+      if (addLookupOpen === "category") {
+        const res = await apiClient.adminCreate<{ id: number; name: string; code?: string | null }>(
+          "equipmentCategories",
+          { name, code: code || null, description: "" }
+        );
+        if (res.error || !res.data) {
+          toast.error(res.error || "Failed to create category.");
+          return;
+        }
+        const created = res.data;
+        setChoices((prev) =>
+          prev
+            ? {
+                ...prev,
+                categories: [
+                  ...prev.categories,
+                  { id: created.id, name: created.name, code: created.code ?? null },
+                ],
+              }
+            : prev
+        );
+        setFormData((p) => ({ ...p, category: created.id }));
+        toast.success("Category added.");
+      } else {
+        const res = await apiClient.adminCreate<{
+          equipment_group_id: number;
+          name: string;
+          code: string;
+        }>("equipmentGroups", { name, code, description: "" });
+        if (res.error || !res.data) {
+          toast.error(res.error || "Failed to create equipment group.");
+          return;
+        }
+        const created = res.data;
+        setChoices((prev) =>
+          prev
+            ? {
+                ...prev,
+                equipment_groups: [
+                  ...prev.equipment_groups,
+                  {
+                    equipment_group_id: created.equipment_group_id,
+                    name: created.name,
+                    code: created.code,
+                  },
+                ],
+              }
+            : prev
+        );
+        setFormData((p) => ({ ...p, equipment_group: created.equipment_group_id }));
+        toast.success("Equipment group added.");
+      }
+      setAddLookupOpen(null);
+    } finally {
+      setAddLookupSaving(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -688,7 +779,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Category</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Category</Label>
+            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => openAddLookup("category")}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add
+            </Button>
+          </div>
           <Select
             value={formData.category != null ? String(formData.category) : "none"}
             onValueChange={(v) => setFormData((p) => ({ ...p, category: v === "none" ? null : parseInt(v, 10) }))}
@@ -705,7 +802,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Equipment Group</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Equipment Group</Label>
+            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => openAddLookup("group")}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add
+            </Button>
+          </div>
           <Select
             value={formData.equipment_group != null ? String(formData.equipment_group) : "none"}
             onValueChange={(v) => setFormData((p) => ({ ...p, equipment_group: v === "none" ? null : parseInt(v, 10) }))}
@@ -1100,13 +1203,39 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               Add material
             </Button>
           </div>
+          {(formData.print_materials ?? []).length > 0 && (
+            <div className="hidden sm:grid gap-3 sm:grid-cols-8 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>Code</span>
+              <span>Name</span>
+              <span>Density (g/cm³)</span>
+              <span>₹ / gram</span>
+              <span>Order</span>
+              <span>User type</span>
+              <span>Status</span>
+              <span className="sr-only">Actions</span>
+            </div>
+          )}
           {(formData.print_materials ?? []).map((mat, idx) => (
             <div key={idx} className="grid gap-3 sm:grid-cols-8 border rounded-md p-3 items-center">
-              <Input placeholder="Code" value={mat.code} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], code: e.target.value }; return { ...p, print_materials: rows }; })} />
-              <Input placeholder="Name" value={mat.name} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], name: e.target.value }; return { ...p, print_materials: rows }; })} />
-              <Input placeholder="Density" type="number" step="0.001" value={String(mat.density_g_per_cm3 ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], density_g_per_cm3: e.target.value }; return { ...p, print_materials: rows }; })} />
-              <Input placeholder="₹/gram" type="number" step="0.01" value={String(mat.price_per_gram ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], price_per_gram: e.target.value }; return { ...p, print_materials: rows }; })} />
-              <Input
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">Code</Label>
+                <Input placeholder="Code" value={mat.code} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], code: e.target.value }; return { ...p, print_materials: rows }; })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">Name</Label>
+                <Input placeholder="Name" value={mat.name} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], name: e.target.value }; return { ...p, print_materials: rows }; })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">Density (g/cm³)</Label>
+                <Input placeholder="Density" type="number" step="0.001" value={String(mat.density_g_per_cm3 ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], density_g_per_cm3: e.target.value }; return { ...p, print_materials: rows }; })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">₹ / gram</Label>
+                <Input placeholder="₹/gram" type="number" step="0.01" value={String(mat.price_per_gram ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], price_per_gram: e.target.value }; return { ...p, print_materials: rows }; })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">Order</Label>
+                <Input
                 placeholder="Order"
                 type="number"
                 step="1"
@@ -1120,6 +1249,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   })
                 }
               />
+              </div>
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">User type</Label>
               <Select
                 value={mat.user_type ? String(mat.user_type) : "__all__"}
                 onValueChange={(value) =>
@@ -1144,6 +1276,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   ))}
                 </SelectContent>
               </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="sm:hidden text-xs text-muted-foreground">Status</Label>
               <div className="flex items-center gap-2">
                 <Checkbox
                   checked={mat.is_active !== false}
@@ -1157,6 +1292,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   aria-label="Enable material"
                 />
                 <span className="text-xs text-muted-foreground">Enabled</span>
+              </div>
               </div>
               <Button type="button" variant="ghost" size="sm" onClick={() => setFormData((p) => ({ ...p, print_materials: (p.print_materials ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
             </div>
@@ -2534,6 +2670,52 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </div>
         </div>
       </div>
+
+      <Dialog open={addLookupOpen != null} onOpenChange={(open) => !open && setAddLookupOpen(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {addLookupOpen === "group" ? "Add equipment group" : "Add category"}
+            </DialogTitle>
+            <DialogDescription>
+              {addLookupOpen === "group"
+                ? "Create a new equipment group and select it for this instrument."
+                : "Create a new category and select it for this instrument."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="lookup-name">Name *</Label>
+              <Input
+                id="lookup-name"
+                value={addLookupName}
+                onChange={(e) => setAddLookupName(e.target.value)}
+                placeholder={addLookupOpen === "group" ? "e.g. Electron Microscopy" : "e.g. Analytical"}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lookup-code">
+                Code{addLookupOpen === "group" ? " *" : " (optional)"}
+              </Label>
+              <Input
+                id="lookup-code"
+                value={addLookupCode}
+                onChange={(e) => setAddLookupCode(e.target.value)}
+                placeholder={addLookupOpen === "group" ? "e.g. EM-GRP" : "e.g. ANALYTICAL"}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAddLookupOpen(null)} disabled={addLookupSaving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void saveAddLookup()} disabled={addLookupSaving}>
+              {addLookupSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Add &amp; select
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
