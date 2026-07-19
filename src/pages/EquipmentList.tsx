@@ -98,7 +98,15 @@ const EquipmentList = () => {
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const canChangeSlotStatus = ["admin", "manager", "operator"].includes(userTypeStr);
   const isDeptAdmin = userTypeStr === "dept_admin";
-  const daDepartmentId = user?.department != null ? Number(user.department) : null;
+  const daDepartmentId = (() => {
+    const raw =
+      user?.department ??
+      (user as { department_id?: number | null } | null)?.department_id ??
+      null;
+    if (raw == null || raw === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  })();
 
   const [authReady, setAuthReady] = useState(false);
 
@@ -111,7 +119,10 @@ const EquipmentList = () => {
         throw new Error(response.error || "Failed to load equipment");
       }
       const rawList = response.data?.equipments;
-      const list = Array.isArray(rawList) ? rawList : [];
+      let list = Array.isArray(rawList) ? rawList : [];
+      if (isDeptAdmin && daDepartmentId != null) {
+        list = list.filter((eq) => Number(eq.internal_department) === Number(daDepartmentId));
+      }
       return transformApiEquipment(list);
     },
     [isDeptAdmin, daDepartmentId],

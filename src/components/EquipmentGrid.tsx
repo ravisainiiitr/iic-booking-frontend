@@ -46,7 +46,7 @@ interface ApiEquipment {
 }
 
 const EquipmentGrid = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
   const [equipment, setEquipment] = useState<ApiEquipment[]>([]);
@@ -61,7 +61,15 @@ const EquipmentGrid = () => {
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdminOrOIC = ["admin", "manager", "operator"].includes(userTypeStr);
   const isDeptAdmin = userTypeStr === "dept_admin";
-  const daDepartmentId = user?.department != null ? Number(user.department) : null;
+  const daDepartmentId = (() => {
+    const raw =
+      user?.department ??
+      (user as { department_id?: number | null } | null)?.department_id ??
+      null;
+    if (raw == null || raw === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  })();
 
   const fetchEquipment = useCallback(async (search?: string, departmentId: DepartmentFilterValue = "all") => {
     try {
@@ -81,9 +89,15 @@ const EquipmentGrid = () => {
       }
 
       if (response.data?.equipments && Array.isArray(response.data.equipments)) {
-        const filteredEquipment = response.data.equipments.filter(
+        let filteredEquipment = response.data.equipments.filter(
           (eq: ApiEquipment) => eq.status_display !== "Disposed",
         );
+        // Client-side safety net for Department Administrators.
+        if (isDeptAdmin && daDepartmentId != null) {
+          filteredEquipment = filteredEquipment.filter(
+            (eq) => Number(eq.internal_department) === Number(daDepartmentId),
+          );
+        }
         setEquipment(filteredEquipment);
       } else {
         setEquipment([]);
@@ -105,12 +119,14 @@ const EquipmentGrid = () => {
   }, [isDeptAdmin, daDepartmentId]);
 
   useEffect(() => {
+    // Wait for auth hydrate so DA department is known before the first fetch.
+    if (authLoading) return;
     const timeoutId = setTimeout(() => {
       fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
     }, searchQuery.trim() ? 500 : 0);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, selectedDepartmentId, fetchEquipment]);
+  }, [authLoading, searchQuery, selectedDepartmentId, fetchEquipment]);
 
   const transformEquipment = (eqList: ApiEquipment[]) => {
     return eqList.map((eq) => ({
