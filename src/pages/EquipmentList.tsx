@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Package, Loader2, Search } from "lucide-react";
+import { Package, Loader2, Search } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { toast } from "sonner";
@@ -219,15 +219,6 @@ const EquipmentList = () => {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-10 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-8 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
           <div className="flex items-center gap-3 mb-2">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
               <Package className="h-6 w-6" />
@@ -290,12 +281,7 @@ const EquipmentList = () => {
                 >
                   Clear filters
                 </Button>
-              ) : (
-                <Button variant="outline" onClick={() => navigate("/dashboard")}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
-                </Button>
-              )}
+              ) : null}
             </CardContent>
           </Card>
         ) : (

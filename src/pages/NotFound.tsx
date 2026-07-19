@@ -1,10 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { FlaskConical, Home } from "lucide-react";
+import { FlaskConical, Home, LayoutDashboard } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NotFound = () => {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
@@ -22,12 +24,22 @@ const NotFound = () => {
           The page <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{location.pathname}</code> does not exist
           or you may not have access.
         </p>
-        <Button asChild className="mt-6 bg-teal-700 hover:bg-teal-800">
-          <Link to="/">
-            <Home className="h-4 w-4 mr-2" />
-            Return to Home
-          </Link>
-        </Button>
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+          {isAuthenticated ? (
+            <Button asChild className="bg-teal-700 hover:bg-teal-800">
+              <Link to="/dashboard">
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild variant={isAuthenticated ? "outline" : "default"} className={!isAuthenticated ? "bg-teal-700 hover:bg-teal-800" : undefined}>
+            <Link to="/">
+              <Home className="h-4 w-4 mr-2" />
+              Return to Home
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

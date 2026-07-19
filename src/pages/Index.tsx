@@ -4,8 +4,14 @@ import EquipmentGrid from "@/components/EquipmentGrid";
 import Features from "@/components/Features";
 import Footer from "@/components/Footer";
 import NoticeBoard from "@/components/NoticeBoard";
+import { useEffect } from "react";
 
 const Index = () => {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />

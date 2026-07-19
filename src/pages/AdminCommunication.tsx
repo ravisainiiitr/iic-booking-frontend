@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { hasRbacPermission } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -121,6 +122,8 @@ const AdminCommunication = () => {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
+  const isDeptAdmin = userTypeStr === "dept_admin";
+  const canAccess = isAdmin || (isDeptAdmin && hasRbacPermission(user, "admin_settings.communication"));
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
@@ -177,7 +180,12 @@ const AdminCommunication = () => {
   const [equipments, setEquipments] = useState<AdminEquipmentRow[]>([]);
   const [loadingEquipments, setLoadingEquipments] = useState(false);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>("");
-  const [groupRecipients, setGroupRecipients] = useState<Array<{ email: string; name: string }>>([]);
+  const [groupRecipients, setGroupRecipients] = useState<Array<{ email: string; name: string; role?: string }>>([]);
+  const [includeOic, setIncludeOic] = useState(true);
+  const [includeLab, setIncludeLab] = useState(true);
+  const [includeBookingRequesters, setIncludeBookingRequesters] = useState(true);
+  const [additionalEmailsText, setAdditionalEmailsText] = useState("");
+  const [additionalEmailTags, setAdditionalEmailTags] = useState<string[]>([]);
   const [groupMeta, setGroupMeta] = useState<{ group_code: string | null; group_name: string | null; equipment_name?: string } | null>(null);
   const [loadingGroupRecipients, setLoadingGroupRecipients] = useState(false);
   const [draftSubject, setDraftSubject] = useState("");
@@ -190,12 +198,12 @@ const AdminCommunication = () => {
       navigate("/auth");
       return;
     }
-    if (!isAdmin) {
-      toast.error("Only admin can access Communication settings.");
+    if (!canAccess) {
+      toast.error("Only Main Admin or Department Admin (Communication) can access Communication settings.");
       navigate("/admin-settings");
       return;
     }
-  }, [navigate, isAuthenticated, user, isAdmin, authLoading]);
+  }, [navigate, isAuthenticated, user, canAccess, authLoading]);
 
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
@@ -236,14 +244,14 @@ const AdminCommunication = () => {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canAccess) return;
     fetchTemplates();
-  }, [isAdmin, templateFilters.search, templateFilters.communication_type, templateFilters.is_active]);
+  }, [canAccess, templateFilters.search, templateFilters.communication_type, templateFilters.is_active]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canAccess) return;
     fetchLogs();
-  }, [isAdmin, logFilters.search, logFilters.communication_type, logFilters.status, logFilters.date_from, logFilters.date_to]);
+  }, [canAccess, logFilters.search, logFilters.communication_type, logFilters.status, logFilters.date_from, logFilters.date_to]);
 
   const fetchNotices = async () => {
     setLoadingNotices(true);
@@ -264,9 +272,9 @@ const AdminCommunication = () => {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canAccess) return;
     fetchNotices();
-  }, [isAdmin, noticeFilters.search, noticeFilters.notice_type, noticeFilters.is_active]);
+  }, [canAccess, noticeFilters.search, noticeFilters.notice_type, noticeFilters.is_active]);
 
   const fetchEquipments = async () => {
     setLoadingEquipments(true);
@@ -291,9 +299,9 @@ const AdminCommunication = () => {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canAccess) return;
     fetchEquipments();
-  }, [isAdmin]);
+  }, [canAccess]);
 
   const fetchGroupRecipients = async (equipmentId: string) => {
     if (!equipmentId) return;
@@ -301,8 +309,16 @@ const AdminCommunication = () => {
     try {
       const res = await apiClient.adminEquipmentBookingRequesters(equipmentId);
       const d = (res as { data?: Record<string, unknown> }).data ?? res;
-      const recipients = Array.isArray((d as { recipients?: unknown }).recipients) ? (d as { recipients: Array<{ email: string; name: string }> }).recipients : [];
-      setGroupRecipients(recipients.map((x) => ({ email: String(x.email), name: String(x.name ?? x.email) })));
+      const recipients = Array.isArray((d as { recipients?: unknown }).recipients)
+        ? (d as { recipients: Array<{ email: string; name: string; role?: string }> }).recipients
+        : [];
+      setGroupRecipients(
+        recipients.map((x) => ({
+          email: String(x.email),
+          name: String(x.name ?? x.email),
+          role: x.role ? String(x.role) : "booking_requester",
+        }))
+      );
       setGroupMeta({
         group_code: (d as { group_code?: string | null }).group_code ?? null,
         group_name: (d as { group_name?: string | null }).group_name ?? null,
@@ -317,14 +333,40 @@ const AdminCommunication = () => {
     }
   };
 
+  const parseAdditionalEmails = (raw: string): string[] => {
+    return raw
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.includes("@"));
+  };
+
+  const effectiveGroupEmails = () => {
+    const selected = groupRecipients.filter((r) => {
+      const role = r.role || "booking_requester";
+      if (role === "oic") return includeOic;
+      if (role === "lab") return includeLab;
+      return includeBookingRequesters;
+    });
+    const extras = [...additionalEmailTags, ...parseAdditionalEmails(additionalEmailsText)];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const email of [...selected.map((r) => r.email), ...extras]) {
+      const key = email.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(email.trim());
+    }
+    return out;
+  };
+
   const handleSendGroupEmail = async () => {
-    const emails = groupRecipients.map((r) => r.email).filter(Boolean);
+    const emails = effectiveGroupEmails();
     if (!selectedEquipmentId) {
       toast.error("Select equipment.");
       return;
     }
     if (emails.length === 0) {
-      toast.error("No recipients found for this equipment.");
+      toast.error("No recipients selected. Enable OIC/Lab/booking users or add emails.");
       return;
     }
     if (!draftSubject.trim()) {
@@ -339,7 +381,7 @@ const AdminCommunication = () => {
     try {
       const res = await apiClient.sendBulkEmail(emails, draftSubject.trim(), draftBody.trim());
       const out = (res as { data?: { message?: string; failed_count?: number } }).data ?? res;
-      toast.success(String((out as { message?: string }).message ?? "Email sent."));
+      toast.success(String((out as { message?: string }).message ?? `Email queued for ${emails.length} recipient(s).`));
       if ((out as { failed_count?: number }).failed_count) {
         toast.warning("Some emails failed. Check backend logs.");
       }
@@ -518,7 +560,7 @@ const AdminCommunication = () => {
     }
   };
 
-  if (!isAdmin && !authLoading) return null;
+  if (!canAccess && !authLoading) return null;
 
   return (
     <div className="page-shell">
@@ -916,7 +958,8 @@ const AdminCommunication = () => {
               <CardHeader className="pb-4">
                 <CardTitle className="text-base">Email equipment booking users</CardTitle>
                 <CardDescription>
-                  Users are auto-added to the equipment group when they create a booking request for that equipment.
+                  Automatically includes Officer In Charge and Lab In-Charge for the selected equipment,
+                  plus booking requesters. You can also add any number of additional email addresses.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -955,23 +998,100 @@ const AdminCommunication = () => {
                         <div>Select an equipment to view recipients.</div>
                       )}
                     </div>
-                    <div className="mt-3 text-sm">
+                    <div className="mt-3 text-sm space-y-3">
                       {loadingGroupRecipients ? (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Loading recipients…
                         </div>
                       ) : (
-                        <div>
-                          <div><strong>{groupRecipients.length}</strong> recipient(s)</div>
-                          {groupRecipients.length > 0 ? (
-                            <div className="mt-2 max-h-48 overflow-y-auto rounded border p-2 text-xs">
-                              {groupRecipients.map((r) => (
-                                <div key={r.email} className="truncate" title={r.email}>{r.name} &lt;{r.email}&gt;</div>
-                              ))}
+                        <>
+                          <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
+                            <Label className="text-sm font-medium">Recipient categories</Label>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input type="checkbox" className="h-4 w-4" checked={includeOic} onChange={(e) => setIncludeOic(e.target.checked)} />
+                              Officer In Charge ({groupRecipients.filter((r) => r.role === "oic").length})
+                            </label>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input type="checkbox" className="h-4 w-4" checked={includeLab} onChange={(e) => setIncludeLab(e.target.checked)} />
+                              Lab In-Charge ({groupRecipients.filter((r) => r.role === "lab").length})
+                            </label>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input type="checkbox" className="h-4 w-4" checked={includeBookingRequesters} onChange={(e) => setIncludeBookingRequesters(e.target.checked)} />
+                              Booking requesters ({groupRecipients.filter((r) => (r.role || "booking_requester") === "booking_requester").length})
+                            </label>
+                          </div>
+                          <div>
+                            <div>
+                              <strong>{effectiveGroupEmails().length}</strong> total recipient(s) for send
                             </div>
-                          ) : null}
-                        </div>
+                            {groupRecipients.length > 0 ? (
+                              <div className="mt-2 max-h-40 overflow-y-auto rounded border p-2 text-xs space-y-1">
+                                {groupRecipients.map((r) => (
+                                  <div key={`${r.role}-${r.email}`} className="truncate" title={r.email}>
+                                    <span className="uppercase text-[10px] text-muted-foreground mr-1">{r.role || "user"}</span>
+                                    {r.name} &lt;{r.email}&gt;
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div>
+                            <Label>Additional email addresses</Label>
+                            <Textarea
+                              className="mt-1"
+                              rows={3}
+                              placeholder="one@example.com&#10;two@example.com"
+                              value={additionalEmailsText}
+                              onChange={(e) => setAdditionalEmailsText(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Add any number of custom addresses (comma, semicolon, or one per line). Combined with OIC/Lab/booking users above.
+                            </p>
+                            {additionalEmailTags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {additionalEmailTags.map((email) => (
+                                  <button
+                                    key={email}
+                                    type="button"
+                                    className="text-xs rounded-full border px-2 py-0.5 hover:bg-destructive/10"
+                                    onClick={() => setAdditionalEmailTags((prev) => prev.filter((x) => x !== email))}
+                                    title="Remove"
+                                  >
+                                    {email} ×
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => {
+                                const parsed = parseAdditionalEmails(additionalEmailsText);
+                                if (!parsed.length) {
+                                  toast.error("Enter at least one valid email.");
+                                  return;
+                                }
+                                setAdditionalEmailTags((prev) => {
+                                  const seen = new Set(prev.map((e) => e.toLowerCase()));
+                                  const next = [...prev];
+                                  for (const e of parsed) {
+                                    if (!seen.has(e.toLowerCase())) {
+                                      seen.add(e.toLowerCase());
+                                      next.push(e);
+                                    }
+                                  }
+                                  return next;
+                                });
+                                setAdditionalEmailsText("");
+                              }}
+                            >
+                              Add emails
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>

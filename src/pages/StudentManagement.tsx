@@ -100,7 +100,7 @@ const StudentManagement = () => {
     fetchStudents();
     fetchOpenTACalls();
     fetchNominations();
-  }, [navigate, isAuthenticated, user, authLoading, isFaculty]);
+  }, [navigate, isAuthenticated, user?.id, authLoading, isFaculty]);
 
   const fetchStudents = async () => {
     setLoading(true);

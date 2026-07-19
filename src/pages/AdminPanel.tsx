@@ -231,23 +231,29 @@ const AdminPanel = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <ShieldCheck className="h-6 w-6" />
-                  Department RBAC
+                  Department Administration
                 </CardTitle>
                 <CardDescription>
                   {isStrictAdmin
-                    ? "Appoint Department Administrators, set permission caps, and control department access."
-                    : "Grant subordinate permissions within the limits assigned to your department."}
+                    ? "Manage department staff modules and permission caps."
+                    : "Manage OIC, Lab In Charge, and Accounts In Charge in your department."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-1">
                 <button
                   type="button"
-                  onClick={() => navigate("/admin/department-rbac")}
+                  onClick={() =>
+                    navigate(
+                      isStrictAdmin
+                        ? "/admin/department-administration"
+                        : "/manage/department-administration"
+                    )
+                  }
                   className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
                 >
                   <span className="flex items-center gap-3">
                     <ShieldCheck className="h-5 w-5" />
-                    <span className="font-medium">Open RBAC controls</span>
+                    <span className="font-medium">Open Department Administration</span>
                   </span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>

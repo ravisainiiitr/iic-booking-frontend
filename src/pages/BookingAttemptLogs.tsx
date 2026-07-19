@@ -32,9 +32,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Search, Trash2, X, Calculator } from "lucide-react";
+import { Loader2, Search, Trash2, X, Calculator } from "lucide-react";
 import { format } from "date-fns";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import DashboardHeader from "@/components/DashboardHeader";
+import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 
 /** Format date string for display; returns fallback if invalid. */
 function formatDateSafe(
@@ -163,7 +165,7 @@ const BookingAttemptLogs = () => {
       return;
     }
     fetchList();
-  }, [navigate, isAuthenticated, user, canAccess, authLoading, offset]);
+  }, [navigate, isAuthenticated, user?.id, canAccess, authLoading, offset]);
 
   // Load equipment, user, and department options for filter dropdowns (once when user has access)
   // Backend restricts equipment list to OIC's/operator's mapped equipments for managers/operators
@@ -225,7 +227,7 @@ const BookingAttemptLogs = () => {
         if (!cancelled) setLoadingOptions(false);
       });
     return () => { cancelled = true; };
-  }, [canAccess, user, isLabInchargeUser]);
+  }, [canAccess, user?.id, isLabInchargeUser]);
 
   const fetchList = async () => {
     setLoading(true);
@@ -395,12 +397,7 @@ const BookingAttemptLogs = () => {
   if (showAccessDenied) {
     return (
       <div className="page-shell">
-        <header style={{ borderBottom: "1px solid #e2e8f0", padding: "1rem 1.5rem", backgroundColor: "#fff" }}>
-          <div className="container mx-auto flex items-center justify-between">
-            <span style={{ fontWeight: 600, fontSize: "1.125rem" }}>Booking Attempt Log</span>
-            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
-          </div>
-        </header>
+        <DashboardHeader />
         <main className="container mx-auto px-4 py-8">
           <Card className="max-w-md mx-auto">
             <CardHeader>
@@ -410,9 +407,7 @@ const BookingAttemptLogs = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" onClick={() => navigate("/dashboard")}>
-                Back to Dashboard
-              </Button>
+              <BackToDashboardButton variant="outline" />
             </CardContent>
           </Card>
         </main>
@@ -426,24 +421,10 @@ const BookingAttemptLogs = () => {
       className="page-shell"
       style={{ minHeight: "100vh", backgroundColor: "var(--background, #f8fafc)", color: "var(--foreground, #0f172a)" }}
     >
-      <header style={{ borderBottom: "1px solid #e2e8f0", padding: "1rem 1.5rem", backgroundColor: "#fff" }}>
-        <div className="container mx-auto flex items-center justify-between">
-          <span style={{ fontWeight: 600, fontSize: "1.125rem" }}>Booking Attempt Log</span>
-          <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
-        </div>
-      </header>
+      <DashboardHeader />
       <main className="container mx-auto px-4 py-8" style={{ display: "block" }}>
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="mb-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
             <h1 className="text-3xl font-bold">Booking Attempt Log</h1>
             <p className="text-muted-foreground mt-1">
               Comprehensive log of every booking submit (success and failure). Officer in charge sees only their equipments.

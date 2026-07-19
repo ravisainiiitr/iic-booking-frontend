@@ -141,7 +141,7 @@ const UrgentRequests = () => {
     }
     fetchList();
     fetchHoldExpiryConfig();
-  }, [navigate, isAuthenticated, user, canAccess, authLoading, statusFilter]);
+  }, [navigate, isAuthenticated, user?.id, canAccess, authLoading, statusFilter]);
 
   const fetchHoldExpiryConfig = async () => {
     try {

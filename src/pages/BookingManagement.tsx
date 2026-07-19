@@ -114,6 +114,17 @@ interface Booking extends BookingRef {
 
 const PAGE_SIZE = 10;
 
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  all: "ALL STATUSES",
+  BOOKED: "BOOKED",
+  DISRUPTION_PENDING: "DISRUPTION PENDING",
+  COMPLETED: "COMPLETED",
+  CANCELLED: "CANCELLED",
+  ABSENT: "OPERATOR UNAVAILABLE",
+  REFUNDED: "REFUNDED",
+  BOOKING_NOT_UTILIZED: "BOOKING NOT UTILIZED",
+};
+
 const BookingManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
@@ -163,12 +174,14 @@ const BookingManagement = () => {
     }
 
     fetchBookings();
+    // Depend on user.id (stable), not the whole user object — AuthContext session
+    // polling must not reload this list every 15s.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, navigate, authLoading, isAuthenticated, user, isOperatorOrManager]);
+  }, [page, navigate, authLoading, isAuthenticated, user?.id, isOperatorOrManager]);
 
   // When landing with ?expand=booking_id (e.g. from Change slot status page), fetch that booking and show detail
   useEffect(() => {
-    if (!expandId || !isAuthenticated || !user || !isOperatorOrManager) return;
+    if (!expandId || !isAuthenticated || !user?.id || !isOperatorOrManager) return;
     const id = expandId;
     let cancelled = false;
     apiClient.getBookings({ search: id, limit: 1 }).then((res) => {
@@ -184,7 +197,7 @@ const BookingManagement = () => {
       }
     });
     return () => { cancelled = true; };
-  }, [expandId, isAuthenticated, user, isOperatorOrManager]);
+  }, [expandId, isAuthenticated, user?.id, isOperatorOrManager]);
 
   // When a row is clicked, fetch full booking for the detail card (list_view data is lightweight and missing daily_slots, etc.)
   useEffect(() => {
@@ -202,8 +215,8 @@ const BookingManagement = () => {
     setDetailLoading(true);
     setDetailBooking(null);
     const selected = bookings.find((b) => b.booking_id === selectedBookingId);
-    const backendId = getRealBookingId(selected);
-    if (backendId == null) {
+    const backendId = getRealBookingId(selected) ?? (typeof selectedBookingId === "number" ? selectedBookingId : Number(selectedBookingId));
+    if (backendId == null || Number.isNaN(Number(backendId))) {
       setDetailLoading(false);
       return;
     }
@@ -215,7 +228,9 @@ const BookingManagement = () => {
       if (!cancelled) setDetailLoading(false);
     });
     return () => { cancelled = true; };
-  }, [selectedBookingId, overrideBooking?.booking_id, bookings]);
+    // Do not depend on `bookings` — list refreshes must not re-fetch / reset the open detail card.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBookingId, overrideBooking?.booking_id]);
 
   const fetchBookings = async (pageOverride?: number) => {
     try {
@@ -366,9 +381,14 @@ const BookingManagement = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label className="flex items-baseline justify-between gap-2">
+                    <span>Status</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-foreground">
+                      {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
+                    </span>
+                  </Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger className="font-bold uppercase">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -513,8 +533,19 @@ const BookingManagement = () => {
             {/* Concise table view */}
             <Card className="overflow-hidden border shadow-sm">
               <CardHeader className="bg-muted/30 border-b py-4">
-                <CardTitle className="text-lg">All Bookings</CardTitle>
-                <CardDescription>Click a booking ID to view full details for that booking</CardDescription>
+                <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                  <span>Bookings</span>
+                  <span className="font-bold uppercase tracking-wide text-primary">
+                    {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  Currently showing{" "}
+                  <span className="font-bold uppercase text-foreground">
+                    {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
+                  </span>{" "}
+                  bookings. Click a booking ID to view full details.
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>

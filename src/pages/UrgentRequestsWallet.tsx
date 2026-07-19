@@ -187,7 +187,7 @@ const UrgentRequestsWallet = () => {
       })
       .catch(() => setFacultyEquipList([]))
       .finally(() => setFacultyEquipLoading(false));
-  }, [isAuthenticated, user, isFacultyUser]);
+  }, [isAuthenticated, user?.id, isFacultyUser]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -202,7 +202,7 @@ const UrgentRequestsWallet = () => {
       return;
     }
     fetchList(tab);
-  }, [navigate, isAuthenticated, user, authLoading, tab, isFacultyUser]);
+  }, [navigate, isAuthenticated, user?.id, authLoading, tab, isFacultyUser]);
 
   const fetchList = async (statusFilter: TabValue) => {
     setLoading(true);

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiClient, type FacultyWalletExpenseReportData } from "@/lib/api";
+import { hasRbacPermission } from "@/lib/rbac";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -188,7 +189,11 @@ const Reports = () => {
 
     const adminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
     const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
-    setIsAdmin(adminByType || adminCheck.data?.is_admin === true);
+    const canEquipReports =
+      String(userResponse.data.user_type || "").toLowerCase() === "admin" ||
+      hasRbacPermission(userResponse.data, "reports.view") ||
+      adminByType;
+    setIsAdmin(canEquipReports || adminCheck.data?.is_admin === true);
     const labIncharge = String(userResponse.data.user_type || "").toLowerCase() === "operator";
     setIsLabInchargeUser(labIncharge);
     const faculty = String(userResponse.data.user_type || "").toLowerCase() === "faculty";
@@ -200,7 +205,7 @@ const Reports = () => {
       setLoading(false);
     }
 
-    if (adminByType || adminCheck.data?.is_admin === true) {
+    if (canEquipReports || adminCheck.data?.is_admin === true) {
       loadEquipmentList();
     } else if (!labIncharge) {
       setLoading(false);

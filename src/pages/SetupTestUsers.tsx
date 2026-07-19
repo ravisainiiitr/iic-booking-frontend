@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { useAuth } from "@/contexts/AuthContext";
 
 type UserRole = 'admin' | 'iitr_student' | 'iitr_faculty' | 'officer_in_charge' | 'operator' | 'accounts' | 'external_academic' | 'external_rnd' | 'industrial_user';
 
@@ -27,6 +29,7 @@ const testUsers: TestUser[] = [
 ];
 
 export default function SetupTestUsers() {
+  const { isAuthenticated } = useAuth();
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<string[]>([]);
 
@@ -70,7 +73,13 @@ export default function SetupTestUsers() {
   };
 
   return (
-    <div className="page-shell flex items-center justify-center p-4">
+    <div className="page-shell flex flex-col min-h-screen">
+      {isAuthenticated ? (
+        <div className="border-b bg-card/80 px-4 py-3 flex justify-end">
+          <BackToDashboardButton />
+        </div>
+      ) : null}
+      <div className="flex flex-1 items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Setup Test Users</CardTitle>
@@ -127,6 +136,7 @@ export default function SetupTestUsers() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

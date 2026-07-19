@@ -37,6 +37,13 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { EquipmentForm, type EquipmentFormData } from "@/components/admin/EquipmentForm";
 import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
 
+/** Staff roles Department Administrators may create or map. */
+const DEPT_ADMIN_STAFF_USER_TYPES: Array<{ value: string; label: string }> = [
+  { value: "manager", label: "Officer In Charge" },
+  { value: "operator", label: "Lab Incharge" },
+  { value: "finance", label: "Accounts In Charge" },
+];
+
 const SECTION_TITLES: Record<string, string> = {
   bookings: "Bookings",
   dailySlots: "Daily Slots",
@@ -185,6 +192,24 @@ export default function AdminSection() {
   /** Only Admin user_type may manage/update users (Actions / Update). */
   const [isStrictAdmin, setIsStrictAdmin] = useState(false);
   const [currentUserType, setCurrentUserType] = useState("");
+  const [currentUserDepartmentId, setCurrentUserDepartmentId] = useState<number | null>(null);
+  const [currentUserDepartmentName, setCurrentUserDepartmentName] = useState("");
+  const [userAddMode, setUserAddMode] = useState<"create" | "map">("create");
+  const [mappableUsers, setMappableUsers] = useState<
+    Array<{
+      id: number;
+      name?: string;
+      email?: string;
+      user_type?: string;
+      user_type_display?: string;
+      emp_id?: string | null;
+    }>
+  >([]);
+  const [mappableLoading, setMappableLoading] = useState(false);
+  const [mappableSearch, setMappableSearch] = useState("");
+  const [mapSelectedUserId, setMapSelectedUserId] = useState<string>("");
+  const [mapTargetUserType, setMapTargetUserType] = useState<string>("manager");
+  const [mapSaving, setMapSaving] = useState(false);
   const [menuDocumentFile, setMenuDocumentFile] = useState<File | null>(null);
   const [pagesList, setPagesList] = useState<Record<string, unknown>[]>([]);
   const [fetchUrl, setFetchUrl] = useState("");
@@ -315,6 +340,9 @@ export default function AdminSection() {
       const nextUserType = String(userRes.data.user_type ?? "").toLowerCase();
       setCurrentUserType(nextUserType);
       setIsStrictAdmin(nextUserType === "admin");
+      const deptId = userRes.data.department != null ? Number(userRes.data.department) : null;
+      setCurrentUserDepartmentId(Number.isFinite(deptId as number) ? (deptId as number) : null);
+      setCurrentUserDepartmentName(String(userRes.data.department_name ?? "").trim());
       setAuthChecked(true);
     };
     check();
@@ -569,7 +597,14 @@ export default function AdminSection() {
       setDiscountedEquipmentScopeLoading(false);
       setEquipmentSimpleList([]);
       setEquipmentSimpleListLoading(false);
+      // Department Admin can only map existing Channel-i users, never create new accounts.
+      setUserAddMode(currentUserType === "dept_admin" ? "map" : "create");
+      setMappableUsers([]);
+      setMappableSearch("");
+      setMapSelectedUserId("");
+      setMapTargetUserType("manager");
     }
+    const isDeptAdmin = currentUserType === "dept_admin";
     setFormData(
       sectionKey === "departments"
         ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true }
@@ -578,7 +613,18 @@ export default function AdminSection() {
         : sectionKey === "projects"
         ? { faculty: "", name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true }
         : sectionKey === "users"
-        ? { email: "", name: "", password: "", password2: "", user_type: "", user_type_alias: "", emp_id: "", phone_number: "", department: "", use_discounted_charge_profile: false }
+        ? {
+            email: "",
+            name: "",
+            password: "",
+            password2: "",
+            user_type: isDeptAdmin ? "manager" : "",
+            user_type_alias: "",
+            emp_id: "",
+            phone_number: "",
+            department: isDeptAdmin && currentUserDepartmentId != null ? currentUserDepartmentId : "",
+            use_discounted_charge_profile: false,
+          }
         : sectionKey === "holidays"
         ? { date: "", reason: "", is_active: true, color: "#fef3c7" }
         : sectionKey === "cmsMenu"
@@ -812,12 +858,45 @@ export default function AdminSection() {
       data = { wallet: walletId, department: departmentId };
     }
     if (sectionKey === "users" && editingId === null) {
-      const deptId = formData.department !== "" && formData.department != null && formData.department !== undefined ? Number(formData.department) : null;
+      // Browser password managers often fill fields without firing React onChange.
+      const pwEl = document.getElementById("user-password") as HTMLInputElement | null;
+      const pw2El = document.getElementById("user-password2") as HTMLInputElement | null;
+      const emailEl = document.getElementById("user-email") as HTMLInputElement | null;
+      const syncedPassword = pwEl?.value ?? String(formData.password ?? "");
+      const syncedPassword2 = pw2El?.value ?? String(formData.password2 ?? "");
+      const syncedEmail = (emailEl?.value ?? String(formData.email ?? "")).trim();
+      if (syncedPassword !== syncedPassword2) {
+        toast({ title: "Passwords do not match", variant: "destructive" });
+        return;
+      }
+      if (syncedPassword.length < 8) {
+        toast({ title: "Password must be at least 8 characters", variant: "destructive" });
+        return;
+      }
+      const isDeptAdmin = currentUserType === "dept_admin";
+      const deptId = isDeptAdmin
+        ? currentUserDepartmentId
+        : formData.department !== "" && formData.department != null && formData.department !== undefined
+          ? Number(formData.department)
+          : null;
+      if (isDeptAdmin && deptId == null) {
+        toast({ title: "Your account has no department assigned", variant: "destructive" });
+        return;
+      }
+      const staffType = String(formData.user_type ?? "").trim();
+      if (isDeptAdmin && !["manager", "operator", "finance"].includes(staffType)) {
+        toast({
+          title: "Invalid user type",
+          description: "Department Administrators can only create Officer In Charge, Lab Incharge, or Accounts In Charge.",
+          variant: "destructive",
+        });
+        return;
+      }
       data = {
-        email: String(formData.email ?? "").trim(),
+        email: syncedEmail,
         name: String(formData.name ?? "").trim(),
-        password: formData.password,
-        user_type: formData.user_type && String(formData.user_type).trim() !== "" ? String(formData.user_type).trim() : null,
+        password: syncedPassword,
+        user_type: staffType || null,
         user_type_alias: formData.user_type === "student" && formData.user_type_alias != null && String(formData.user_type_alias).trim() !== "" ? String(formData.user_type_alias).trim() : null,
         emp_id: formData.emp_id && String(formData.emp_id).trim() !== "" ? String(formData.emp_id).trim() : null,
         phone_number: formData.phone_number && String(formData.phone_number).trim() !== "" ? String(formData.phone_number).trim() : null,
@@ -825,7 +904,12 @@ export default function AdminSection() {
       };
     }
     if (sectionKey === "users" && editingId !== null) {
-      const deptId = formData.department !== "" && formData.department != null && formData.department !== undefined ? Number(formData.department) : null;
+      const isDeptAdmin = currentUserType === "dept_admin";
+      const deptId = isDeptAdmin
+        ? currentUserDepartmentId
+        : formData.department !== "" && formData.department != null && formData.department !== undefined
+          ? Number(formData.department)
+          : null;
       data = {
         name: String(formData.name ?? "").trim(),
         user_type: formData.user_type && String(formData.user_type).trim() !== "" ? String(formData.user_type).trim() : null,
@@ -979,21 +1063,88 @@ export default function AdminSection() {
 
   const handleEquipmentSave = async (
     data: EquipmentFormData,
-    options?: { imageFile?: File; videoFile?: File }
+    options?: { imageFile?: File; videoFile?: File; clearImage?: boolean; clearVideo?: boolean }
   ) => {
+    // Dept Admin create → pending addition request (not live equipment).
+    if (currentUserType === "dept_admin" && editingId === null) {
+      setSaving(true);
+      try {
+        const managers = Array.isArray(data.equipment_managers) ? data.equipment_managers : [];
+        const operators = Array.isArray(data.equipment_operators) ? data.equipment_operators : [];
+        const primaryMgr = managers[0] as { manager?: number } | undefined;
+        const primaryOp = operators[0] as { operator?: number } | undefined;
+        // Resolve names from form choices is not available here; send IDs via notes if needed.
+        // Prefer email/name from payload notes; API forces department + submitter from auth.
+        const fd = new FormData();
+        const append = (key: string, value: unknown) => {
+          if (value === undefined || value === null) return;
+          fd.append(key, String(value));
+        };
+        append("name", data.name);
+        append("code", data.code);
+        append("description", data.description ?? "");
+        append("make", data.make ?? "");
+        append("model_information", data.model_information ?? "");
+        append("location", data.location ?? "");
+        append("slots_per_day", data.slots_per_day ?? "");
+        append("slot_duration_minutes", data.slot_duration_minutes ?? "");
+        append(
+          "internal_department",
+          currentUserDepartmentId ?? data.internal_department ?? ""
+        );
+        const noteParts: string[] = [];
+        if (data.important_instruction) noteParts.push(String(data.important_instruction));
+        if (primaryMgr?.manager) noteParts.push(`Proposed OIC user id: ${primaryMgr.manager}`);
+        if (primaryOp?.operator) noteParts.push(`Proposed Lab Incharge user id: ${primaryOp.operator}`);
+        append("notes", noteParts.join("\n"));
+        if (options?.imageFile) {
+          fd.append("equipment_image", options.imageFile);
+        }
+        const res = await apiClient.adminSubmitEquipmentAdditionRequest(fd);
+        if (res.error || !res.data) {
+          toast({
+            title: "Error",
+            description: res.error || "Failed to submit equipment addition request.",
+            variant: "destructive",
+          });
+          return;
+        }
+        toast({
+          title: "Submitted for approval",
+          description:
+            res.data.message ||
+            "Your equipment request is pending Main Admin approval and will not go live until approved.",
+        });
+        setModalOpen(false);
+        // Optional: stay on equipment list (no new row yet).
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const saved = await handleSave(data as Record<string, unknown>);
-    if (saved && (options?.imageFile || options?.videoFile)) {
+    const hasMediaOp = Boolean(
+      options?.imageFile || options?.videoFile || options?.clearImage || options?.clearVideo
+    );
+    if (saved && hasMediaOp) {
       const id = (saved.equipment_id ?? editingId) as number | undefined;
       if (id != null && typeof id === "number") {
-        if (options.imageFile) {
+        if (options?.imageFile) {
           const up = await apiClient.uploadEquipmentImage(id, options.imageFile);
           if (up.error) toast({ title: "Image upload failed", description: up.error, variant: "destructive" });
+        } else if (options?.clearImage) {
+          const cleared = await apiClient.clearEquipmentImage(id);
+          if (cleared.error) toast({ title: "Clear image failed", description: cleared.error, variant: "destructive" });
         }
-        if (options.videoFile) {
+        if (options?.videoFile) {
           const up = await apiClient.uploadEquipmentVideo(id, options.videoFile);
           if (up.error) toast({ title: "Video upload failed", description: up.error, variant: "destructive" });
+        } else if (options?.clearVideo) {
+          const cleared = await apiClient.clearEquipmentVideo(id);
+          if (cleared.error) toast({ title: "Clear video failed", description: cleared.error, variant: "destructive" });
         }
-        if (options.imageFile || options.videoFile) loadList();
+        loadList();
       }
     }
   };
@@ -1001,12 +1152,22 @@ export default function AdminSection() {
   const handleDelete = async (row: Record<string, unknown>) => {
     const id = row[idField];
     if (id === undefined) return;
-    if (!window.confirm("Delete this record?")) return;
+    const confirmMsg =
+      sectionKey === "subWalletTransactions"
+        ? "Delete this sub-wallet transaction? The sub-wallet balance will be reversed to keep the ledger consistent."
+        : "Delete this record?";
+    if (!window.confirm(confirmMsg)) return;
     const res = await apiClient.adminDelete(sectionKey, id as number | string);
     if (res.error) {
       toast({ title: "Error", description: res.error, variant: "destructive" });
     } else {
-      toast({ title: "Deleted", description: "Record deleted." });
+      toast({
+        title: "Deleted",
+        description:
+          sectionKey === "subWalletTransactions"
+            ? "Transaction deleted and balance reversed."
+            : "Record deleted.",
+      });
       loadList();
     }
   };
@@ -1916,7 +2077,12 @@ export default function AdminSection() {
                               {canManageUsers && (
                               <TableCell>
                                 <div className="flex gap-2">
-                                  {isStrictAdmin && !(row.is_active === true || row.is_active === "true") && (
+                                  {(isStrictAdmin ||
+                                    (currentUserType === "dept_admin" &&
+                                      ["manager", "operator", "finance"].includes(
+                                        String(row.user_type || "").toLowerCase()
+                                      ))) &&
+                                    !(row.is_active === true || row.is_active === "true") && (
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -2017,18 +2183,18 @@ export default function AdminSection() {
         <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) { setEditUserNewPassword(""); setEditUserNewPasswordConfirm(""); } setModalOpen(open); }}>
             <DialogContent className={
               sectionKey === "equipment"
-                ? "max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col"
+                ? "!flex !flex-col !gap-0 max-w-6xl w-[95vw] h-[92vh] max-h-[92vh] overflow-hidden p-0"
                 : sectionKey === "equipmentGroups"
                   ? "max-w-4xl max-h-[90vh] overflow-y-auto"
                   : sectionKey === "cmsPages"
                   ? "max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto"
                   : "max-w-lg max-h-[90vh] overflow-y-auto"
             }>
-            <DialogHeader className={sectionKey === "equipment" ? "shrink-0 pb-3 border-b" : undefined}>
+            <DialogHeader className={sectionKey === "equipment" ? "shrink-0 px-6 pt-6 pb-3 border-b space-y-1.5 text-left" : undefined}>
               <DialogTitle>{editingId !== null ? "Edit" : "Add"} {title}</DialogTitle>
               <DialogDescription>
                 {sectionKey === "equipment"
-                  ? "All options match Django Admin: category, equipment group, internal department, visibility group, profile type, status, slot configuration."
+                  ? "Scroll or use Jump to section below. Includes all Django Admin equipment fieldsets and inlines: dynamic input fields, slot masters, charge profiles, operators, accessories, and more."
                   : sectionKey === "equipmentGroups"
                     ? "Basic info, equipment in this group, and quota configurations (mirrors Django admin /admin/equipment/equipmentgroup/change/)."
                     : sectionKey === "departments"
@@ -2043,7 +2209,7 @@ export default function AdminSection() {
               </DialogDescription>
             </DialogHeader>
             {sectionKey === "equipment" ? (
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-6">
                 <EquipmentForm
                   initialData={editingId !== null ? (formData as EquipmentFormData) : undefined}
                   equipmentId={editingId !== null ? (editingId as number) : null}
@@ -3007,8 +3173,124 @@ export default function AdminSection() {
             ) : sectionKey === "users" ? (editingId === null ? (
               <>
                 <DialogDescription>
-                  Add a new user (mirrors Django admin/users/user/add/). Email and password are required. User type and department can be set now or later.
+                  {currentUserType === "dept_admin"
+                    ? `Map an existing Channel-i (Omniport) user from ${currentUserDepartmentName || "your department"} to OIC, Lab Incharge, or Accounts In Charge. Creating new user accounts is not allowed for Department Administrators.`
+                    : "Add a new user (mirrors Django admin/users/user/add/). Email and password are required. User type and department can be set now or later."}
                 </DialogDescription>
+                {currentUserType === "dept_admin" ? (
+                  // Department Admin may only map existing Channel-i (Omniport) users — never create
+                  // new accounts. Backend rejects create for DA; the "Create new" tab is removed here.
+                  <div className="space-y-4 py-4">
+                    <p className="text-sm text-muted-foreground">
+                      Select a faculty or student from {currentUserDepartmentName || "your department"} who already signed in via Channel-i, then assign them as OIC, Lab Incharge, or Accounts In Charge.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Search name, email, or ID"
+                        value={mappableSearch}
+                        onChange={(e) => setMappableSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void (async () => {
+                              setMappableLoading(true);
+                              const res = await apiClient.listMappableOmniportUsers({
+                                search: mappableSearch.trim() || undefined,
+                              });
+                              setMappableLoading(false);
+                              if (res.error) {
+                                toast({ title: "Failed to load users", description: res.error, variant: "destructive" });
+                                return;
+                              }
+                              setMappableUsers(Array.isArray(res.data) ? res.data : []);
+                            })();
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={mappableLoading}
+                        onClick={async () => {
+                          setMappableLoading(true);
+                          const res = await apiClient.listMappableOmniportUsers({
+                            search: mappableSearch.trim() || undefined,
+                          });
+                          setMappableLoading(false);
+                          if (res.error) {
+                            toast({ title: "Failed to load users", description: res.error, variant: "destructive" });
+                            return;
+                          }
+                          setMappableUsers(Array.isArray(res.data) ? res.data : []);
+                        }}
+                      >
+                        {mappableLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Channel-i user</Label>
+                      <div className="col-span-3">
+                        <Select value={mapSelectedUserId || "__none__"} onValueChange={(v) => setMapSelectedUserId(v === "__none__" ? "" : v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={mappableLoading ? "Loading…" : "Select user"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Select user —</SelectItem>
+                            {mappableUsers.map((u) => (
+                              <SelectItem key={u.id} value={String(u.id)}>
+                                {(u.name || u.email || `#${u.id}`) + (u.email ? ` (${u.email})` : "")}
+                                {u.user_type_display ? ` · ${u.user_type_display}` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!mappableLoading && mappableUsers.length === 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">No matching Channel-i users in your department.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Assign as</Label>
+                      <div className="col-span-3">
+                        <Select value={mapTargetUserType} onValueChange={setMapTargetUserType}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DEPT_ADMIN_STAFF_USER_TYPES.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
+                      <Button
+                        disabled={mapSaving || !mapSelectedUserId || !["manager", "operator", "finance"].includes(mapTargetUserType)}
+                        onClick={async () => {
+                          setMapSaving(true);
+                          const res = await apiClient.mapUserStaffRole(
+                            mapSelectedUserId,
+                            mapTargetUserType as "manager" | "operator" | "finance",
+                          );
+                          setMapSaving(false);
+                          if (res.error) {
+                            toast({ title: "Mapping failed", description: res.error, variant: "destructive" });
+                            return;
+                          }
+                          toast({ title: "User mapped", description: "Staff role assigned successfully." });
+                          setModalOpen(false);
+                          loadList();
+                        }}
+                      >
+                        {mapSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Map user
+                      </Button>
+                    </DialogFooter>
+                  </div>
+                ) : (
+                  <>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="user-email">Email</Label>
@@ -3018,6 +3300,7 @@ export default function AdminSection() {
                         type="email"
                         value={String(formData.email ?? "")}
                         onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                        onInput={(e) => setFormData((prev) => ({ ...prev, email: (e.target as HTMLInputElement).value }))}
                         placeholder="user@example.com"
                       />
                     </div>
@@ -3041,6 +3324,7 @@ export default function AdminSection() {
                         type="password"
                         value={String(formData.password ?? "")}
                         onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                        onInput={(e) => setFormData((prev) => ({ ...prev, password: (e.target as HTMLInputElement).value }))}
                         placeholder="Min 8 characters"
                         autoComplete="new-password"
                       />
@@ -3048,15 +3332,21 @@ export default function AdminSection() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="user-password2">Confirm password</Label>
-                    <div className="col-span-3">
+                    <div className="col-span-3 space-y-1">
                       <Input
                         id="user-password2"
                         type="password"
                         value={String(formData.password2 ?? "")}
                         onChange={(e) => setFormData((prev) => ({ ...prev, password2: e.target.value }))}
+                        onInput={(e) => setFormData((prev) => ({ ...prev, password2: (e.target as HTMLInputElement).value }))}
                         placeholder="Repeat password"
                         autoComplete="new-password"
                       />
+                      {String(formData.password ?? "") &&
+                        String(formData.password2 ?? "") &&
+                        String(formData.password ?? "") !== String(formData.password2 ?? "") && (
+                          <p className="text-xs text-destructive">Passwords do not match.</p>
+                        )}
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -3172,6 +3462,8 @@ export default function AdminSection() {
                     Create
                   </Button>
                 </DialogFooter>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -3243,6 +3535,9 @@ export default function AdminSection() {
                         onValueChange={(v) =>
                           setFormData((prev) => {
                             const nextUserType = v === "__none__" ? "" : v;
+                            if (currentUserType === "dept_admin") {
+                              return { ...prev, user_type: nextUserType, department: currentUserDepartmentId ?? prev.department };
+                            }
                             const desiredDeptType = getDepartmentTypeForUserType(nextUserType);
                             const currentDeptId = prev.department;
                             if (desiredDeptType && currentDeptId) {
@@ -3259,10 +3554,18 @@ export default function AdminSection() {
                           <SelectValue placeholder="Select user type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">— Select user type —</SelectItem>
-                          {USER_TYPE_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
+                          {currentUserType === "dept_admin" ? (
+                            DEPT_ADMIN_STAFF_USER_TYPES.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))
+                          ) : (
+                            <>
+                              <SelectItem value="__none__">— Select user type —</SelectItem>
+                              {USER_TYPE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -3305,7 +3608,17 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Department</Label>
                     <div className="col-span-3">
-                      {(() => {
+                      {currentUserType === "dept_admin" ? (
+                        <>
+                          <Input
+                            value={currentUserDepartmentName || (currentUserDepartmentId != null ? `Department #${currentUserDepartmentId}` : "Your department")}
+                            disabled
+                            className="bg-muted"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">Fixed to your department as Department Administrator.</p>
+                        </>
+                      ) : (
+                      (() => {
                         const desiredDeptType = getDepartmentTypeForUserType(formData.user_type);
                         const departmentsFiltered =
                           desiredDeptType == null ? [] : userDepartmentsList.filter((d) => d.department_type === desiredDeptType);
@@ -3328,7 +3641,8 @@ export default function AdminSection() {
                             </SelectContent>
                           </Select>
                         );
-                      })()}
+                      })()
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">

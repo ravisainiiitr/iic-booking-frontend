@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -32,7 +32,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type AdditionRequest = {
   id: number;
@@ -78,6 +79,19 @@ type AdditionRequest = {
   created_at?: string;
 };
 
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case "PENDING":
+      return "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:border-amber-700";
+    case "APPROVED":
+      return "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-700";
+    case "REJECTED":
+      return "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-900/40 dark:text-rose-100 dark:border-rose-700";
+    default:
+      return "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-100";
+  }
+}
+
 const EquipmentAdditionRequests = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
@@ -91,6 +105,15 @@ const EquipmentAdditionRequests = () => {
   const [selected, setSelected] = useState<AdditionRequest | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [editDraft, setEditDraft] = useState({
+    name: "",
+    code: "",
+    location: "",
+    description: "",
+    notes: "",
+    make: "",
+    model_information: "",
+  });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -119,7 +142,42 @@ const EquipmentAdditionRequests = () => {
       return;
     }
     load();
-  }, [authLoading, isAuthenticated, user, isAdmin, isDeptAdmin, navigate, load]);
+  }, [authLoading, isAuthenticated, user?.id, isAdmin, isDeptAdmin, navigate, load]);
+
+  const handleSaveEdits = async () => {
+    if (!selected || selected.status !== "PENDING") return;
+    setActionLoading(true);
+    try {
+      const res = await apiClient.adminUpdateEquipmentAdditionRequest(selected.id, {
+        name: editDraft.name,
+        code: editDraft.code,
+        location: editDraft.location,
+        description: editDraft.description,
+        notes: editDraft.notes,
+        make: editDraft.make,
+        model_information: editDraft.model_information,
+      });
+      if (res.error || !res.data) {
+        toast.error(res.error || "Failed to save changes.");
+        return;
+      }
+      toast.success("Request updated.");
+      const updated = res.data as AdditionRequest;
+      setSelected(updated);
+      setEditDraft({
+        name: updated.name || "",
+        code: updated.code || "",
+        location: updated.location || "",
+        description: updated.description || "",
+        notes: updated.notes || "",
+        make: updated.make || "",
+        model_information: updated.model_information || "",
+      });
+      load();
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleApprove = async () => {
     if (!selected) return;
@@ -172,33 +230,33 @@ const EquipmentAdditionRequests = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+      <main className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-800 p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
               <Button
                 variant="ghost"
                 size="sm"
-                className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+                className="mb-3 -ml-2 text-white hover:text-white hover:bg-white/20"
                 onClick={() => navigate("/admin-settings/equipment")}
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Equipment settings
               </Button>
-              <h1 className="text-2xl font-semibold tracking-tight">Equipment addition requests</h1>
-              <p className="mt-2 text-sm text-white/85 max-w-2xl">
+              <h1 className="text-2xl font-semibold tracking-tight text-white">Equipment addition requests</h1>
+              <p className="mt-2 text-sm text-teal-50/95 max-w-2xl">
                 {isAdmin
                   ? "Review public proposals from /propose-equipment. Approve creates equipment under maintenance."
                   : "Track your department's equipment addition requests submitted for Main Admin approval."}
               </p>
             </div>
-            <div className="w-[200px]">
-              <Label className="sr-only">Status</Label>
+            <div className="w-[220px] space-y-1">
+              <Label className="text-teal-50 text-xs">Filter by status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="bg-white/95">
+                <SelectTrigger className="bg-white text-slate-900 border-0 shadow-md">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white text-slate-900">
                   <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="APPROVED">Approved</SelectItem>
                   <SelectItem value="REJECTED">Rejected</SelectItem>
@@ -209,135 +267,208 @@ const EquipmentAdditionRequests = () => {
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Requests</CardTitle>
-            <CardDescription>{rows.length} shown</CardDescription>
+        <Card className="border-0 shadow-md overflow-hidden">
+          <CardHeader className="bg-slate-50 dark:bg-slate-900/60 border-b">
+            <CardTitle className="text-base text-foreground">Requests</CardTitle>
+            <CardDescription className="text-muted-foreground">{rows.length} shown</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
               </div>
             ) : rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">No requests in this filter.</p>
+              <p className="text-sm text-muted-foreground py-10 text-center">No requests in this filter.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Submitter</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.code}</TableCell>
-                      <TableCell>{r.name}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">{r.submitter_name}</div>
-                        <div className="text-xs text-muted-foreground">{r.submitter_email}</div>
-                      </TableCell>
-                      <TableCell>{r.internal_department_name || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={r.status === "PENDING" ? "default" : "secondary"}>
-                          {r.status_display || r.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => { setSelected(r); setReviewNotes(r.review_notes || ""); }}>
-                          {isAdmin ? "Review" : "View"}
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="text-foreground font-semibold">Code</TableHead>
+                      <TableHead className="text-foreground font-semibold">Name</TableHead>
+                      <TableHead className="text-foreground font-semibold">Submitter</TableHead>
+                      <TableHead className="text-foreground font-semibold">Department</TableHead>
+                      <TableHead className="text-foreground font-semibold">Status</TableHead>
+                      <TableHead className="text-foreground font-semibold text-right">Action</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-teal-50/40 dark:hover:bg-teal-950/20">
+                        <TableCell className="font-semibold text-foreground">{r.code}</TableCell>
+                        <TableCell className="text-foreground">{r.name}</TableCell>
+                        <TableCell>
+                          <div className="text-sm text-foreground">{r.submitter_name}</div>
+                          <div className="text-xs text-muted-foreground">{r.submitter_email}</div>
+                        </TableCell>
+                        <TableCell className="text-foreground">{r.internal_department_name || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn("border font-medium", statusBadgeClass(r.status))}>
+                            {r.status === "PENDING" && <Clock className="h-3 w-3 mr-1" />}
+                            {r.status === "APPROVED" && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                            {r.status === "REJECTED" && <XCircle className="h-3 w-3 mr-1" />}
+                            {r.status_display || r.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            className="bg-teal-700 hover:bg-teal-800 text-white"
+                            onClick={() => {
+                              setSelected(r);
+                              setReviewNotes(r.review_notes || "");
+                              setEditDraft({
+                                name: r.name || "",
+                                code: r.code || "",
+                                location: r.location || "",
+                                description: r.description || "",
+                                notes: r.notes || "",
+                                make: r.make || "",
+                                model_information: r.model_information || "",
+                              });
+                            }}
+                          >
+                            {isAdmin ? "Review" : "View"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
         <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-background text-foreground">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-foreground pr-6">
                 {selected?.code} — {selected?.name}
               </DialogTitle>
-              <DialogDescription>
-                Status: {selected?.status_display || selected?.status}
-              </DialogDescription>
+              {selected && (
+                <Badge variant="outline" className={cn("w-fit border font-medium mt-1", statusBadgeClass(selected.status))}>
+                  {selected.status_display || selected.status}
+                </Badge>
+              )}
             </DialogHeader>
             {selected && (
-              <div className="space-y-3 text-sm">
-                <p><span className="font-medium">Make / model / year:</span> {selected.make || "—"} / {selected.model_information || "—"} / {selected.year_of_installation || "—"}</p>
-                <p><span className="font-medium">Location:</span> {selected.location || "—"}</p>
-                <p><span className="font-medium">Department:</span> {selected.internal_department_name || "—"}</p>
-                <p><span className="font-medium">Description:</span> {selected.description || "—"}</p>
-                <p className="whitespace-pre-wrap"><span className="font-medium">Specifications:</span> {selected.specifications || "—"}</p>
-                <p className="whitespace-pre-wrap"><span className="font-medium">Sample requirements:</span> {selected.sample_requirements || "—"}</p>
+              <div className="space-y-3 text-sm text-foreground">
+                {isAdmin && selected.status === "PENDING" ? (
+                  <div className="rounded-lg border bg-muted/40 p-3 space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      Edit details before approving. Changes are saved to the request and notified to the submitter.
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>Code</Label>
+                        <Input
+                          value={editDraft.code}
+                          onChange={(e) => setEditDraft((p) => ({ ...p, code: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Name</Label>
+                        <Input
+                          value={editDraft.name}
+                          onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Make</Label>
+                        <Input
+                          value={editDraft.make}
+                          onChange={(e) => setEditDraft((p) => ({ ...p, make: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Model</Label>
+                        <Input
+                          value={editDraft.model_information}
+                          onChange={(e) =>
+                            setEditDraft((p) => ({ ...p, model_information: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Location</Label>
+                      <Input
+                        value={editDraft.location}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, location: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Description</Label>
+                      <Textarea
+                        value={editDraft.description}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Submitter notes</Label>
+                      <Textarea
+                        value={editDraft.notes}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, notes: e.target.value }))}
+                        rows={2}
+                      />
+                    </div>
+                    <Button type="button" variant="secondary" size="sm" onClick={handleSaveEdits} disabled={actionLoading}>
+                      Save changes
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-muted/40 p-3 space-y-1">
+                    <p><span className="font-semibold">Make / model / year:</span> {selected.make || "—"} / {selected.model_information || "—"} / {selected.year_of_installation || "—"}</p>
+                    <p><span className="font-semibold">Location:</span> {selected.location || "—"}</p>
+                    <p><span className="font-semibold">Department:</span> {selected.internal_department_name || "—"}</p>
+                  </div>
+                )}
+                {!(isAdmin && selected.status === "PENDING") && (
+                  <p><span className="font-semibold">Description:</span> {selected.description || "—"}</p>
+                )}
+                <p className="whitespace-pre-wrap"><span className="font-semibold">Specifications:</span> {selected.specifications || "—"}</p>
+                <p className="whitespace-pre-wrap"><span className="font-semibold">Sample requirements:</span> {selected.sample_requirements || "—"}</p>
                 <p>
-                  <span className="font-medium">Slots:</span>{" "}
+                  <span className="font-semibold">Slots:</span>{" "}
                   {selected.slots_per_day ?? "—"} / day, {selected.slot_duration_minutes ?? "—"} min,{" "}
                   {selected.slot_start_time || "—"}–{selected.slot_end_time || "—"}
                 </p>
-                <p className="whitespace-pre-wrap"><span className="font-medium">Charge basis:</span> {selected.charge_calculation_basis || "—"}</p>
-                <p className="whitespace-pre-wrap"><span className="font-medium">Time basis:</span> {selected.time_calculation_basis || "—"}</p>
-                <div>
-                  <p className="font-medium mb-1">Category charges</p>
-                  <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
-                    <li>IITR Students: {selected.charge_iitr_student || "—"}</li>
-                    <li>IITR Faculty: {selected.charge_iitr_faculty || "—"}</li>
-                    <li>External Educational Student: {selected.charge_external_educational_student || "—"}</li>
-                    <li>External Govt R&amp;D: {selected.charge_external_govt_rnd || "—"}</li>
-                    <li>Industry: {selected.charge_industry || "—"}</li>
-                    <li>Startup Incubated at IITR: {selected.charge_startup_incubated_iitr || "—"}</li>
-                    <li>External Startup/MSME: {selected.charge_external_startup_msme || "—"}</li>
+                <div className="rounded-lg border p-3">
+                  <p className="font-semibold mb-2">Category charges</p>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-muted-foreground">
+                    <li>IITR Students: <span className="text-foreground">{selected.charge_iitr_student || "—"}</span></li>
+                    <li>IITR Faculty: <span className="text-foreground">{selected.charge_iitr_faculty || "—"}</span></li>
+                    <li>Educational: <span className="text-foreground">{selected.charge_external_educational_student || "—"}</span></li>
+                    <li>Govt R&amp;D: <span className="text-foreground">{selected.charge_external_govt_rnd || "—"}</span></li>
+                    <li>Industry: <span className="text-foreground">{selected.charge_industry || "—"}</span></li>
+                    <li>Startup IITR: <span className="text-foreground">{selected.charge_startup_incubated_iitr || "—"}</span></li>
+                    <li>Startup/MSME: <span className="text-foreground">{selected.charge_external_startup_msme || "—"}</span></li>
                   </ul>
                 </div>
-                {selected.equipment_image_url && (
-                  <p>
-                    <span className="font-medium">Image:</span>{" "}
-                    <a className="text-primary underline" href={selected.equipment_image_url} target="_blank" rel="noreferrer">
-                      View
-                    </a>
-                  </p>
-                )}
-                {selected.supporting_document_url && (
-                  <p>
-                    <span className="font-medium">Document:</span>{" "}
-                    <a className="text-primary underline" href={selected.supporting_document_url} target="_blank" rel="noreferrer">
-                      {selected.supporting_document_name || "Download"}
-                    </a>
-                  </p>
-                )}
                 <p>
-                  <span className="font-medium">Proposed OIC:</span>{" "}
-                  {selected.proposed_oic_name || "—"} {selected.proposed_oic_email ? `<${selected.proposed_oic_email}>` : ""}
+                  <span className="font-semibold">Proposed OIC:</span>{" "}
+                  {selected.proposed_oic_name || "—"} {selected.proposed_oic_email ? `(${selected.proposed_oic_email})` : ""}
                 </p>
                 <p>
-                  <span className="font-medium">Proposed operator:</span>{" "}
+                  <span className="font-semibold">Proposed operator:</span>{" "}
                   {selected.proposed_operator_name || "—"}{" "}
-                  {selected.proposed_operator_email ? `<${selected.proposed_operator_email}>` : ""}
+                  {selected.proposed_operator_email ? `(${selected.proposed_operator_email})` : ""}
                 </p>
-                <p><span className="font-medium">Submitter notes:</span> {selected.notes || "—"}</p>
-                {selected.created_equipment_id != null && (
-                  <p>
-                    <span className="font-medium">Created equipment:</span>{" "}
-                    #{selected.created_equipment_id} ({selected.created_equipment_code})
-                  </p>
+                {!(isAdmin && selected.status === "PENDING") && (
+                  <p><span className="font-semibold">Submitter notes:</span> {selected.notes || "—"}</p>
                 )}
+                <p><span className="font-semibold">Department:</span> {selected.internal_department_name || "—"}</p>
                 {isAdmin && selected.status === "PENDING" && (
-                  <div className="space-y-2 pt-2">
-                    <Label htmlFor="review-notes">Review notes</Label>
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label htmlFor="review-notes" className="text-foreground">Review notes</Label>
                     <Textarea
                       id="review-notes"
                       value={reviewNotes}
                       onChange={(e) => setReviewNotes(e.target.value)}
                       rows={3}
+                      className="bg-background text-foreground"
                     />
                   </div>
                 )}
@@ -352,7 +483,7 @@ const EquipmentAdditionRequests = () => {
                   <Button variant="destructive" onClick={handleReject} disabled={actionLoading}>
                     Reject
                   </Button>
-                  <Button onClick={handleApprove} disabled={actionLoading}>
+                  <Button className="bg-teal-700 hover:bg-teal-800 text-white" onClick={handleApprove} disabled={actionLoading}>
                     {actionLoading ? "Working…" : "Approve & create"}
                   </Button>
                 </>

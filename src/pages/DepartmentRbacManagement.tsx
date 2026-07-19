@@ -274,7 +274,7 @@ export default function DepartmentRbacManagement() {
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Department RBAC</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Department permission caps</h1>
           <p className="mt-1 text-muted-foreground">
             {isMainAdmin
               ? "Appoint Department Administrators, cap their permissions, and control department access."

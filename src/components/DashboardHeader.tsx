@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
 import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import IITRBanner from "@/components/IITRBanner";
+import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 
@@ -23,6 +24,7 @@ const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
 const DashboardHeader = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
   const { openGuide } = useUserGuide();
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -35,6 +37,8 @@ const DashboardHeader = () => {
   const isInternalFaculty =
     isFaculty && String(user?.department_type ?? '').toLowerCase() === 'internal';
   const showFacultyUrgentWalletMenu = isFaculty && !isInternalFaculty;
+  const isOnDashboard =
+    location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
   
   // Refs to prevent multiple simultaneous API calls
   const balanceFetchingRef = useRef(false);
@@ -281,14 +285,15 @@ const DashboardHeader = () => {
         >
           <IITRBanner size="md" />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {isAuthenticated && !isOnDashboard && <BackToDashboardButton />}
           <button
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm font-medium"
             title="Home"
           >
             <Home className="h-4 w-4" />
-            <span>Home</span>
+            <span className="hidden md:inline">Home</span>
           </button>
           {isAuthenticated ? (
             <>
@@ -325,7 +330,7 @@ const DashboardHeader = () => {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => safeNavigate("/dashboard")}>
                 <Home className="mr-2 h-4 w-4" />
-                <span>Dashboard</span>
+                <span>{isOnDashboard ? "Dashboard" : "Back to Dashboard"}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
                 <Package className="mr-2 h-4 w-4" />

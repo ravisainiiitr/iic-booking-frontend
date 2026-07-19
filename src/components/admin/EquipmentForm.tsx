@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import EquipmentImage from "@/components/EquipmentImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,67 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Loader2, ChevronDown } from "lucide-react";
+
+/** Collapsible card matching Django Admin's fieldset grouping, in the app's own visual language. */
+function FormSection({
+  id,
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  id?: string;
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border scroll-mt-4" id={id}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-start justify-between gap-3 p-4 text-left rounded-lg hover:bg-muted/40 transition-colors"
+        >
+          <div className="space-y-1 min-w-0">
+            <h3 className="text-base font-semibold">{title}</h3>
+            {description ? (
+              <p className="text-sm text-muted-foreground">{description}</p>
+            ) : null}
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 mt-1 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-4 pb-4 space-y-4 data-[state=open]:animate-none">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+const EQUIPMENT_SECTION_NAV: Array<{ id: string; label: string }> = [
+  { id: "eq-sec-basic", label: "Basic" },
+  { id: "eq-sec-instruction", label: "Instruction" },
+  { id: "eq-sec-emails", label: "Emails" },
+  { id: "eq-sec-media", label: "Image/Video" },
+  { id: "eq-sec-slots", label: "Slot config" },
+  { id: "eq-sec-managers", label: "OIC" },
+  { id: "eq-sec-operators", label: "Operators" },
+  { id: "eq-sec-specs", label: "Specs" },
+  { id: "eq-sec-accessories", label: "Accessories" },
+  { id: "eq-sec-inputs", label: "Dynamic fields" },
+  { id: "eq-sec-slot-masters", label: "Slot masters" },
+  { id: "eq-sec-charges", label: "Charges" },
+];
 
 export type EquipmentFormData = {
   name?: string;
@@ -68,6 +129,12 @@ export type EquipmentFormData = {
   booking_not_utilize_window_hours?: number | null;
   /** Hours after last slot end before auto Operator Unavailable (full refund) when staff engaged beyond Sample Sent. 0 = disabled. */
   operator_unavailable_after_booking_end_hours?: number | null;
+  skip_quota_check?: boolean;
+  enable_charge_recalculation?: boolean;
+  user_rating_enabled?: boolean;
+  sample_preparation_by_user?: boolean;
+  urgent_peak_window_minutes?: number | null;
+  operator_absent_disruption_after_booking_end_hours?: number | null;
   /** Show sample lifecycle countdowns on booking details. */
   show_lifecycle_countdowns?: boolean;
   /** Hours before slot start by which the sample should be submitted (0 = slot start). */
@@ -81,10 +148,10 @@ export type EquipmentFormData = {
   image_url?: string | null;
   video_url?: string | null;
   equipment_managers?: Array<{ manager: number }>;
-  equipment_operators?: Array<{ operator: number }>;
+  equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY' }>;
   equipment_specifications?: Array<{ spec_key: string; spec_value?: string }>;
-  equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean }>;
-  equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean }>;
+  equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
+  equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
   charge_profiles?: Array<{
     user_type: string;
@@ -96,8 +163,27 @@ export type EquipmentFormData = {
     breakpoint?: string | number | null;
     time_formula?: string | null;
   }>;
-  input_fields?: Array<{ field_key: string; field_label: string; field_type: string; is_required?: boolean; default_value?: string; options?: string[]; help_text?: string }>;
+  input_fields?: Array<{
+    field_key: string;
+    field_label: string;
+    field_type: string;
+    is_required?: boolean;
+    editing_required?: boolean;
+    default_value?: string;
+    options?: string[];
+    help_text?: string;
+    source_element_field_key?: string | null;
+  }>;
   print_materials?: Array<{ code: string; name: string; density_g_per_cm3?: string | number; price_per_gram: string | number; user_type?: string | null; is_active?: boolean; display_order?: number }>;
+  /** MULTI_PARAM slot options (Django MultiParamDefinition / slot_options). */
+  param_definitions?: Array<{
+    user_type?: string | null;
+    param_name: string;
+    param_code: string;
+    unit_time_minutes: number | string;
+    unit_charge: number | string;
+    is_active?: boolean;
+  }>;
 };
 
 type StaffUserChoice = {
@@ -120,17 +206,32 @@ type EquipmentFormChoices = {
   profile_type_choices: Array<{ value: string; label: string }>;
   status_choices: Array<{ value: string; label: string }>;
   user_type_choices?: Array<{ value: string; label: string }>;
+  dynamic_input_field_type_choices?: Array<{ value: string; label: string }>;
 };
+
+const DYNAMIC_INPUT_FIELD_KEYS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
 
 type Props = {
   initialData?: EquipmentFormData | Record<string, unknown> | null;
   equipmentId?: number | null;
-  onSave: (data: EquipmentFormData, options?: { imageFile?: File; videoFile?: File }) => Promise<void>;
+  onSave: (
+    data: EquipmentFormData,
+    options?: { imageFile?: File; videoFile?: File; clearImage?: boolean; clearVideo?: boolean },
+  ) => Promise<void>;
   onCancel: () => void;
   saving: boolean;
 };
 
 export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, saving }: Props) {
+  const { user } = useAuth();
+  const userTypeStr = String(user?.user_type ?? "").toLowerCase();
+  const isDeptAdmin = userTypeStr === "dept_admin";
+  const lockDepartmentId =
+    isDeptAdmin && equipmentId == null && user?.department_id != null
+      ? Number(user.department_id)
+      : null;
+  const isDeptAdminPendingCreate = lockDepartmentId != null;
+
   const [choices, setChoices] = useState<EquipmentFormChoices | null>(null);
   const [choicesLoading, setChoicesLoading] = useState(true);
   const [choicesError, setChoicesError] = useState<string | null>(null);
@@ -188,10 +289,23 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     charge_profiles: [],
     input_fields: [],
     print_materials: [],
+    param_definitions: [],
     ...initialData,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [clearImage, setClearImage] = useState(false);
+  const [clearVideo, setClearVideo] = useState(false);
+
+  // Dept Admin create: force Internal Department to their assigned department.
+  useEffect(() => {
+    if (lockDepartmentId == null) return;
+    setFormData((p) =>
+      p.internal_department === lockDepartmentId
+        ? p
+        : { ...p, internal_department: lockDepartmentId }
+    );
+  }, [lockDepartmentId]);
 
   const hasEquipmentImage = !!formData.image_url && equipmentId;
   const localImagePreview = useMemo(
@@ -258,10 +372,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     if (initialData && typeof initialData === "object") {
       const d = initialData as Record<string, unknown>;
       const managers = (d.managers || d.equipment_managers || []) as Array<{ manager: number }>;
-      const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number }>;
+      const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string }>;
       const specs = (d.specifications || d.equipment_specifications || []) as Array<{ spec_key: string; spec_value?: string }>;
-      const accessories = (d.accessories || d.equipment_accessories || []) as Array<{ accessory_name: string; is_optional?: boolean }>;
-      const addAccessories = (d.additional_accessories || d.equipment_additional_accessories || []) as Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean }>;
+      const accessories = (d.accessories || d.equipment_accessories || []) as Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
+      const addAccessories = (d.additional_accessories || d.equipment_additional_accessories || []) as Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
       const slots = (d.slot_masters || []) as Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
       const profiles = (d.charge_profiles || []) as Array<Record<string, unknown>>;
       const inputs = (d.input_fields || []) as Array<Record<string, unknown>>;
@@ -307,6 +421,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         max_urgent_requests: (d.max_urgent_requests as number | null) ?? null,
         booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
         operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
+        skip_quota_check: d.skip_quota_check === true,
+        enable_charge_recalculation: d.enable_charge_recalculation === true,
+        user_rating_enabled: d.user_rating_enabled !== false,
+        sample_preparation_by_user: d.sample_preparation_by_user === true,
+        urgent_peak_window_minutes: (d.urgent_peak_window_minutes as number | null) ?? null,
+        operator_absent_disruption_after_booking_end_hours:
+          (d.operator_absent_disruption_after_booking_end_hours as number | null) ?? null,
         show_lifecycle_countdowns: d.show_lifecycle_countdowns !== false,
         sample_submission_lead_hours: (d.sample_submission_lead_hours as number | null) ?? 24,
         sample_collect_deadline_hours: (d.sample_collect_deadline_hours as number | null) ?? 72,
@@ -317,10 +438,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         image_url: (d.image_url as string) ?? null,
         video_url: (d.video_url as string) ?? null,
         equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number })) : prev.equipment_managers ?? [],
-        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number })) : prev.equipment_operators ?? [],
+        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY" })) : prev.equipment_operators ?? [],
         equipment_specifications: Array.isArray(specs) ? specs.map((s) => ({ spec_key: s.spec_key ?? "", spec_value: s.spec_value ?? "" })) : prev.equipment_specifications ?? [],
-        equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false })) : prev.equipment_accessories ?? [],
-        equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false })) : prev.equipment_additional_accessories ?? [],
+        equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_accessories ?? [],
+        equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_additional_accessories ?? [],
         slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? s.close_time : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
         charge_profiles: Array.isArray(profiles) ? profiles.map((p) => ({
           user_type: String(p.user_type ?? ""),
@@ -332,7 +453,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           breakpoint: p.breakpoint ?? null,
           time_formula: p.time_formula ?? null,
         })) : prev.charge_profiles ?? [],
-        input_fields: Array.isArray(inputs) ? inputs.map((i) => ({ field_key: String(i.field_key ?? ""), field_label: String(i.field_label ?? ""), field_type: String(i.field_type ?? "text"), is_required: i.is_required === true, default_value: String(i.default_value ?? ""), options: Array.isArray(i.options) ? i.options as string[] : [], help_text: String(i.help_text ?? "") })) : prev.input_fields ?? [],
+        input_fields: Array.isArray(inputs) ? inputs.map((i) => ({
+          field_key: String(i.field_key ?? ""),
+          field_label: String(i.field_label ?? ""),
+          field_type: String(i.field_type ?? "TEXT"),
+          is_required: i.is_required === true,
+          editing_required: i.editing_required === true,
+          default_value: String(i.default_value ?? ""),
+          options: Array.isArray(i.options) ? i.options as string[] : [],
+          help_text: String(i.help_text ?? ""),
+          source_element_field_key: (i.source_element_field_key as string | null) ?? null,
+        })) : prev.input_fields ?? [],
         print_materials: Array.isArray(d.print_materials)
           ? (d.print_materials as Array<Record<string, unknown>>).map((m) => ({
               code: String(m.code ?? ""),
@@ -344,6 +475,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               display_order: Number(m.display_order ?? 0),
             }))
           : prev.print_materials ?? [],
+        param_definitions: Array.isArray(d.slot_options || d.param_definitions)
+          ? ((d.slot_options || d.param_definitions) as Array<Record<string, unknown>>).map((row) => ({
+              user_type: (row.user_type as string | null) ?? null,
+              param_name: String(row.param_name ?? ""),
+              param_code: String(row.param_code ?? ""),
+              unit_time_minutes: row.unit_time_minutes ?? 0,
+              unit_charge: row.unit_charge ?? 0,
+              is_active: row.is_active !== false,
+            }))
+          : prev.param_definitions ?? [],
       }));
     }
   }, [initialData]);
@@ -398,6 +539,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               ? formData.booking_not_utilize_window_hours
               : parseInt(String(formData.booking_not_utilize_window_hours), 10))
           : 24,
+      skip_quota_check: formData.skip_quota_check === true,
+      enable_charge_recalculation: formData.enable_charge_recalculation === true,
+      user_rating_enabled: formData.user_rating_enabled !== false,
+      sample_preparation_by_user: formData.sample_preparation_by_user === true,
+      urgent_peak_window_minutes:
+        formData.urgent_peak_window_minutes != null && formData.urgent_peak_window_minutes !== ""
+          ? Number(formData.urgent_peak_window_minutes)
+          : null,
+      operator_absent_disruption_after_booking_end_hours:
+        formData.operator_absent_disruption_after_booking_end_hours != null &&
+        formData.operator_absent_disruption_after_booking_end_hours !== ""
+          ? Number(formData.operator_absent_disruption_after_booking_end_hours)
+          : null,
       operator_unavailable_after_booking_end_hours:
         formData.operator_unavailable_after_booking_end_hours != null && formData.operator_unavailable_after_booking_end_hours !== ''
           ? (typeof formData.operator_unavailable_after_booking_end_hours === 'number'
@@ -428,8 +582,24 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       charge_profiles: formData.charge_profiles ?? [],
       input_fields: formData.input_fields ?? [],
       print_materials: formData.print_materials ?? [],
+      param_definitions: (formData.param_definitions ?? []).map((row) => ({
+        user_type: row.user_type || null,
+        param_name: row.param_name,
+        param_code: row.param_code,
+        unit_time_minutes:
+          typeof row.unit_time_minutes === "number"
+            ? row.unit_time_minutes
+            : parseInt(String(row.unit_time_minutes || "0"), 10) || 0,
+        unit_charge: row.unit_charge,
+        is_active: row.is_active !== false,
+      })),
     };
-    onSave(payload, { imageFile: imageFile ?? undefined, videoFile: videoFile ?? undefined });
+    onSave(payload, {
+      imageFile: imageFile ?? undefined,
+      videoFile: videoFile ?? undefined,
+      clearImage: clearImage && !imageFile,
+      clearVideo: clearVideo && !videoFile,
+    });
   };
 
   if (choicesLoading || !choices) {
@@ -445,14 +615,56 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   }
 
   return (
-    <form onSubmit={handleSubmit} className="h-full flex flex-col">
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto pr-2 space-y-8 py-4 text-base">
-        <div className="rounded-lg border p-4 space-y-4">
-          <div className="space-y-1">
-            <h3 className="text-base font-semibold">Basic information</h3>
-            <p className="text-sm text-muted-foreground">Name, code, category, visibility and status.</p>
-          </div>
+    <form onSubmit={handleSubmit} className="h-full min-h-0 flex flex-col">
+      {isDeptAdminPendingCreate ? (
+        <div className="mx-0 mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          This equipment will be submitted for <strong>Main Admin approval</strong> and will not
+          become active until approved. Your Internal Department is fixed to your assigned
+          department.
+        </div>
+      ) : null}
+      <div className="shrink-0 z-10 py-2 bg-background border-b mb-1">
+        <p className="text-xs font-medium text-muted-foreground mb-1.5">
+          Jump to section — dialog is scrollable; use these to open each Django Admin block
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {EQUIPMENT_SECTION_NAV.map((item) => (
+            <Button
+              key={item.id}
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                const container = document.getElementById("equipment-form-scroll");
+                const el = document.getElementById(item.id);
+                if (!el) return;
+                const trigger = el.querySelector("button");
+                if (trigger instanceof HTMLButtonElement && trigger.getAttribute("data-state") === "closed") {
+                  trigger.click();
+                }
+                window.setTimeout(() => {
+                  if (container) {
+                    const top =
+                      el.getBoundingClientRect().top -
+                      container.getBoundingClientRect().top +
+                      container.scrollTop -
+                      8;
+                    container.scrollTo({ top, behavior: "smooth" });
+                  } else {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }, 80);
+              }}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+      {/* Scrollable body — min-h-0 is required for flex children to scroll inside dialog */}
+      <div id="equipment-form-scroll" className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-2 space-y-4 py-2 text-base">
+        <FormSection id="eq-sec-basic" title="Basic information" description="Name, code, category, visibility and status." defaultOpen>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="equipment-name">Name *</Label>
@@ -564,6 +776,31 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Internal Department</Label>
+          {isDeptAdminPendingCreate || (isDeptAdmin && equipmentId != null) ? (
+            <>
+              <Input
+                readOnly
+                disabled
+                value={
+                  choices.internal_departments.find(
+                    (d) => Number(d.id) === Number(formData.internal_department)
+                  )
+                    ? `${choices.internal_departments.find((d) => Number(d.id) === Number(formData.internal_department))!.name}${
+                        choices.internal_departments.find((d) => Number(d.id) === Number(formData.internal_department))!.code
+                          ? ` (${choices.internal_departments.find((d) => Number(d.id) === Number(formData.internal_department))!.code})`
+                          : ""
+                      }`
+                    : formData.internal_department != null
+                      ? `Department #${formData.internal_department}`
+                      : "—"
+                }
+              />
+              <p className="text-muted-foreground text-xs">
+                Locked to your assigned department. Department Administrators cannot change this.
+              </p>
+            </>
+          ) : (
+            <>
           <Select
             value={formData.internal_department != null ? String(formData.internal_department) : "none"}
             onValueChange={(v) => {
@@ -607,6 +844,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="text-muted-foreground text-xs">
             Only departments with type Internal are listed. Officer In Charge / Lab Incharge below are limited to users in Internal departments.
           </p>
+            </>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Visibility Group</Label>
@@ -662,6 +901,162 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </Select>
         </div>
       </div>
+
+      {formData.profile_type === "MULTI_PARAM" && (
+        <div className="rounded-lg border p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold">Slot options configuration</h3>
+              <p className="text-sm text-muted-foreground">
+                Per user-type radio options with time and charge (Django MultiParamDefinition inline).
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setFormData((p) => ({
+                  ...p,
+                  param_definitions: [
+                    ...(p.param_definitions ?? []),
+                    {
+                      user_type: choices.user_type_choices?.[0]?.value ?? "",
+                      param_name: "",
+                      param_code: "",
+                      unit_time_minutes: 60,
+                      unit_charge: 0,
+                      is_active: true,
+                    },
+                  ],
+                }))
+              }
+            >
+              Add slot option
+            </Button>
+          </div>
+          {(formData.param_definitions ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No slot options configured.</p>
+          ) : (
+            (formData.param_definitions ?? []).map((row, idx) => (
+              <div key={idx} className="grid gap-3 sm:grid-cols-6 border rounded-md p-3 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">User type</Label>
+                  <Select
+                    value={row.user_type || "__none__"}
+                    onValueChange={(v) =>
+                      setFormData((p) => {
+                        const rows = [...(p.param_definitions ?? [])];
+                        rows[idx] = { ...rows[idx], user_type: v === "__none__" ? null : v };
+                        return { ...p, param_definitions: rows };
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="User type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Any</SelectItem>
+                      {(choices.user_type_choices ?? []).map((ut) => (
+                        <SelectItem key={ut.value} value={ut.value}>
+                          {ut.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Name</Label>
+                  <Input
+                    value={row.param_name}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const rows = [...(p.param_definitions ?? [])];
+                        rows[idx] = { ...rows[idx], param_name: e.target.value };
+                        return { ...p, param_definitions: rows };
+                      })
+                    }
+                    placeholder="Slot 1"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Code</Label>
+                  <Input
+                    value={row.param_code}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const rows = [...(p.param_definitions ?? [])];
+                        rows[idx] = { ...rows[idx], param_code: e.target.value };
+                        return { ...p, param_definitions: rows };
+                      })
+                    }
+                    placeholder="slot_1"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Minutes</Label>
+                  <Input
+                    type="number"
+                    value={String(row.unit_time_minutes ?? "")}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const rows = [...(p.param_definitions ?? [])];
+                        rows[idx] = { ...rows[idx], unit_time_minutes: e.target.value };
+                        return { ...p, param_definitions: rows };
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Charge</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={String(row.unit_charge ?? "")}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const rows = [...(p.param_definitions ?? [])];
+                        rows[idx] = { ...rows[idx], unit_charge: e.target.value };
+                        return { ...p, param_definitions: rows };
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center gap-2 pb-1">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={row.is_active !== false}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const rows = [...(p.param_definitions ?? [])];
+                          rows[idx] = { ...rows[idx], is_active: e.target.checked };
+                          return { ...p, param_definitions: rows };
+                        })
+                      }
+                    />
+                    Active
+                  </label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        param_definitions: (p.param_definitions ?? []).filter((_, i) => i !== idx),
+                      }))
+                    }
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {formData.profile_type === "PRINT_3D" && (
         <div className="rounded-lg border p-4 space-y-4">
@@ -783,20 +1178,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           onChange={(e) => setFormData((p) => ({ ...p, location: e.target.value }))}
         />
       </div>
-        </div>
+        </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Important Instruction</h3>
-      <p className="text-muted-foreground text-xs">Optional instructions shown prominently on the equipment page (above specifications).</p>
-      <Textarea
-        id="equipment-important-instruction"
-        value={formData.important_instruction ?? ""}
-        onChange={(e) => setFormData((p) => ({ ...p, important_instruction: e.target.value || "" }))}
-        placeholder="Important instructions for users"
-        rows={3}
-      />
+      <FormSection id="eq-sec-instruction" title="Important Instruction" description="Optional instructions shown prominently on the equipment page (above specifications)." defaultOpen>
+        <Textarea
+          id="equipment-important-instruction"
+          value={formData.important_instruction ?? ""}
+          onChange={(e) => setFormData((p) => ({ ...p, important_instruction: e.target.value || "" }))}
+          placeholder="Important instructions for users"
+          rows={3}
+        />
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Catalog card — Make &amp; Model</h3>
-      <p className="text-muted-foreground text-xs">Optional manufacturer and model lines on equipment catalog cards, below department.</p>
+      <FormSection title="Catalog card — Make & Model" description="Optional manufacturer and model lines on equipment catalog cards, below department.">
       <div className="space-y-2">
         <Label htmlFor="equipment-make">Make</Label>
         <Input
@@ -839,11 +1233,75 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           Show Model on equipment catalog card
         </Label>
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Booking &amp; completion emails</h3>
-      <p className="text-muted-foreground text-xs">
-        Optional extra text per equipment. Completion email text is appended when a booking is marked complete; paste URLs for clickable links in HTML mail.
-      </p>
+      <FormSection title="Advanced booking options">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={formData.skip_quota_check === true}
+            onCheckedChange={(c) => setFormData((p) => ({ ...p, skip_quota_check: c === true }))}
+          />
+          Skip quota check
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={formData.enable_charge_recalculation === true}
+            onCheckedChange={(c) => setFormData((p) => ({ ...p, enable_charge_recalculation: c === true }))}
+          />
+          Enable charge recalculation
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={formData.user_rating_enabled !== false}
+            onCheckedChange={(c) => setFormData((p) => ({ ...p, user_rating_enabled: c === true }))}
+          />
+          User rating enabled
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={formData.sample_preparation_by_user === true}
+            onCheckedChange={(c) => setFormData((p) => ({ ...p, sample_preparation_by_user: c === true }))}
+          />
+          Sample preparation by user
+        </label>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Urgent peak window (minutes)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={formData.urgent_peak_window_minutes ?? ""}
+            onChange={(e) =>
+              setFormData((p) => ({
+                ...p,
+                urgent_peak_window_minutes: e.target.value === "" ? null : Number(e.target.value),
+              }))
+            }
+            placeholder="Optional"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Operator-absent disruption after booking end (hours)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={formData.operator_absent_disruption_after_booking_end_hours ?? ""}
+            onChange={(e) =>
+              setFormData((p) => ({
+                ...p,
+                operator_absent_disruption_after_booking_end_hours:
+                  e.target.value === "" ? null : Number(e.target.value),
+              }))
+            }
+            placeholder="Optional"
+          />
+        </div>
+      </div>
+      </FormSection>
+
+      <FormSection id="eq-sec-emails" title="Booking & completion emails" description="Optional extra text per equipment. Completion email text is appended when a booking is marked complete; paste URLs for clickable links in HTML mail." defaultOpen>
       <div className="space-y-2">
         <Label htmlFor="booking-email-extra">Extra text — booking confirmation &amp; reminders</Label>
         <Textarea
@@ -864,11 +1322,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           placeholder="Appended when booking is completed. Example: Download results from https://..."
         />
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">I-STEM portal</h3>
-      <p className="text-muted-foreground text-xs">
-        Configure separate links for booking users and for OIC/Admin FBR verification.
-      </p>
+      <FormSection title="I-STEM portal" description="Configure separate links for booking users and for OIC/Admin FBR verification.">
       <div className="space-y-4 max-w-2xl">
         <div className="space-y-2">
           <Label htmlFor="istem-portal-url">I-STEM booking page URL (for users)</Label>
@@ -891,10 +1347,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           />
         </div>
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Charge profiles</h3>
+      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing." defaultOpen>
       <p className="text-muted-foreground text-xs">
-        Per user-type pricing. Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
+        Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
         <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
       <div className="rounded border divide-y">
@@ -905,68 +1362,120 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             const label =
               (choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type;
             return (
-              <div key={`${cp.user_type}-${idx}`} className="p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 items-end">
-                <div className="space-y-1">
-                  <Label>User type</Label>
-                  <p className="text-sm font-medium">{label}</p>
+              <div key={`${cp.user_type}-${idx}`} className="p-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                  <div className="space-y-1">
+                    <Label>User type</Label>
+                    <p className="text-sm font-medium">{label}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`cp-primary-${idx}`}>Primary charge</Label>
+                    <Input
+                      id={`cp-primary-${idx}`}
+                      type="number"
+                      step="0.01"
+                      value={String(cp.primary_unit_charge ?? "")}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], primary_unit_charge: e.target.value };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`cp-secondary-${idx}`}>Secondary charge</Label>
+                    <Input
+                      id={`cp-secondary-${idx}`}
+                      type="number"
+                      step="0.01"
+                      value={String(cp.secondary_unit_charge ?? "")}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], secondary_unit_charge: e.target.value };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`cp-breakpoint-${idx}`}>Breakpoint</Label>
+                    <Input
+                      id={`cp-breakpoint-${idx}`}
+                      type="number"
+                      step="0.01"
+                      placeholder="Optional"
+                      value={cp.breakpoint === null || cp.breakpoint === undefined ? "" : String(cp.breakpoint)}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], breakpoint: e.target.value === "" ? null : e.target.value };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor={`cp-primary-${idx}`}>Primary charge</Label>
+                  <Label htmlFor={`cp-formula-${idx}`}>Time formula</Label>
                   <Input
-                    id={`cp-primary-${idx}`}
-                    type="number"
-                    step="0.01"
-                    value={String(cp.primary_unit_charge ?? "")}
+                    id={`cp-formula-${idx}`}
+                    placeholder='e.g. (A * C) + B'
+                    value={cp.time_formula ?? ""}
                     onChange={(e) =>
                       setFormData((p) => {
                         const arr = [...(p.charge_profiles ?? [])];
-                        arr[idx] = { ...arr[idx], primary_unit_charge: e.target.value };
+                        arr[idx] = { ...arr[idx], time_formula: e.target.value === "" ? null : e.target.value };
                         return { ...p, charge_profiles: arr };
                       })
                     }
                   />
                 </div>
-                <div className="flex items-center gap-2 pb-2">
-                  <Checkbox
-                    id={`cp-active-${idx}`}
-                    checked={cp.is_active !== false}
-                    onCheckedChange={(v) =>
-                      setFormData((p) => {
-                        const arr = [...(p.charge_profiles ?? [])];
-                        arr[idx] = { ...arr[idx], is_active: v === true };
-                        return { ...p, charge_profiles: arr };
-                      })
-                    }
-                  />
-                  <Label htmlFor={`cp-active-${idx}`} className="text-sm font-normal">Active</Label>
-                </div>
-                <div className="flex items-center gap-2 pb-2">
-                  <Checkbox
-                    id={`cp-istem-${idx}`}
-                    checked={Boolean(cp.require_istem_fbr)}
-                    onCheckedChange={(v) =>
-                      setFormData((p) => {
-                        const arr = [...(p.charge_profiles ?? [])];
-                        arr[idx] = { ...arr[idx], require_istem_fbr: v === true };
-                        return { ...p, charge_profiles: arr };
-                      })
-                    }
-                  />
-                  <Label htmlFor={`cp-istem-${idx}`} className="text-sm font-normal">Require I-STEM FBR</Label>
-                </div>
-                <div className="flex items-center gap-2 pb-2">
-                  <Checkbox
-                    id={`cp-breakdown-${idx}`}
-                    checked={cp.show_charge_breakdown !== false}
-                    onCheckedChange={(v) =>
-                      setFormData((p) => {
-                        const arr = [...(p.charge_profiles ?? [])];
-                        arr[idx] = { ...arr[idx], show_charge_breakdown: v === true };
-                        return { ...p, charge_profiles: arr };
-                      })
-                    }
-                  />
-                  <Label htmlFor={`cp-breakdown-${idx}`} className="text-sm font-normal">Show charge breakdown</Label>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cp-active-${idx}`}
+                      checked={cp.is_active !== false}
+                      onCheckedChange={(v) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], is_active: v === true };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                    <Label htmlFor={`cp-active-${idx}`} className="text-sm font-normal">Active</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cp-istem-${idx}`}
+                      checked={Boolean(cp.require_istem_fbr)}
+                      onCheckedChange={(v) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], require_istem_fbr: v === true };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                    <Label htmlFor={`cp-istem-${idx}`} className="text-sm font-normal">Require I-STEM FBR</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cp-breakdown-${idx}`}
+                      checked={cp.show_charge_breakdown !== false}
+                      onCheckedChange={(v) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], show_charge_breakdown: v === true };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                    <Label htmlFor={`cp-breakdown-${idx}`} className="text-sm font-normal">Show charge breakdown</Label>
+                  </div>
                 </div>
               </div>
             );
@@ -991,6 +1500,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     show_charge_breakdown: true,
                     primary_unit_charge: 0,
                     secondary_unit_charge: 0,
+                    breakpoint: null,
+                    time_formula: null,
                   },
                 ],
               }));
@@ -1010,55 +1521,91 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </Select>
         </div>
       ) : null}
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Image</h3>
-      <p className="text-muted-foreground text-xs">Upload a new image or view the current one. Images are stored in S3 and displayed via a stable URL.</p>
-      {formData.image_url || imageFile ? (
-        <div className="rounded border p-2">
-          {localImagePreview ? (
-            <img
-              src={localImagePreview}
-              alt="Equipment preview"
-              className="max-h-32 object-contain"
-            />
-          ) : (
-            <EquipmentImage
-              equipmentId={equipmentId ?? null}
-              enabled={!!hasEquipmentImage}
-              alt="Equipment"
-              className="max-h-32 object-contain"
-            />
-          )}
+      <FormSection id="eq-sec-media" title="Image / Video" description="Upload new files, or clear the current ones. Images are stored in S3 and displayed via a stable URL." defaultOpen>
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium">Image</h4>
+        {formData.image_url || imageFile ? (
+          <div className="rounded border p-2">
+            {localImagePreview ? (
+              <img
+                src={localImagePreview}
+                alt="Equipment preview"
+                className="max-h-32 object-contain"
+              />
+            ) : (
+              <EquipmentImage
+                equipmentId={equipmentId ?? null}
+                enabled={!!hasEquipmentImage}
+                alt="Equipment"
+                className="max-h-32 object-contain"
+              />
+            )}
+          </div>
+        ) : null}
+        <div>
+          <Label className="text-muted-foreground text-xs">Upload new image</Label>
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              setImageFile(e.target.files?.[0] ?? null);
+              if (e.target.files?.[0]) setClearImage(false);
+            }}
+            className="mt-1"
+          />
         </div>
-      ) : null}
-      <div>
-        <Label className="text-muted-foreground text-xs">Upload new image</Label>
-        <Input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-          className="mt-1"
-        />
+        {hasEquipmentImage && !imageFile ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="equipment-clear-image"
+              checked={clearImage}
+              onCheckedChange={(checked) => setClearImage(checked === true)}
+            />
+            <Label htmlFor="equipment-clear-image" className="text-sm font-normal cursor-pointer">
+              Clear current image
+            </Label>
+          </div>
+        ) : null}
       </div>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Video</h3>
-      <p className="text-muted-foreground text-xs">Upload a video file (MP4, WebM, OGG).</p>
-      {formData.video_url && (
-        <p className="text-sm">
-          <a href={formData.video_url} target="_blank" rel="noreferrer" className="text-primary underline">Current video</a>
-        </p>
-      )}
-      <div>
-        <Label className="text-muted-foreground text-xs">Upload new video</Label>
-        <Input
-          type="file"
-          accept="video/mp4,video/webm,video/ogg"
-          onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
-          className="mt-1"
-        />
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium">Video</h4>
+        <p className="text-muted-foreground text-xs">Upload a video file (MP4, WebM, OGG).</p>
+        {formData.video_url && (
+          <p className="text-sm">
+            <a href={formData.video_url} target="_blank" rel="noreferrer" className="text-primary underline">Current video</a>
+          </p>
+        )}
+        <div>
+          <Label className="text-muted-foreground text-xs">Upload new video</Label>
+          <Input
+            type="file"
+            accept="video/mp4,video/webm,video/ogg"
+            onChange={(e) => {
+              setVideoFile(e.target.files?.[0] ?? null);
+              if (e.target.files?.[0]) setClearVideo(false);
+            }}
+            className="mt-1"
+          />
+        </div>
+        {formData.video_url && !videoFile ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="equipment-clear-video"
+              checked={clearVideo}
+              onCheckedChange={(checked) => setClearVideo(checked === true)}
+            />
+            <Label htmlFor="equipment-clear-video" className="text-sm font-normal cursor-pointer">
+              Clear current video
+            </Label>
+          </div>
+        ) : null}
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Slot Configuration</h3>
+      <FormSection id="eq-sec-slots" title="Slot Configuration" description="Slot duration, per-day count, reschedule window, results location, and related booking behavior." defaultOpen>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="slot-duration">Slot duration (minutes)</Label>
@@ -1360,13 +1907,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </div>
         </div>
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Repeat sample request</h3>
-      <div className="rounded-lg border p-4 space-y-4">
-        <h4 className="text-sm font-medium">Repeat sample request</h4>
-        <p className="text-muted-foreground text-sm">
-          Allow users to request a repeat sample within a time window after completion. Leave days empty or 0 to disable.
-        </p>
+      <FormSection title="Repeat sample request" description="Allow users to request a repeat sample within a time window after completion. Leave days empty or 0 to disable.">
         <div className="space-y-2">
           <Label htmlFor="repeat-sample-days">Repeat sample request window (days)</Label>
           <Input
@@ -1394,13 +1937,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             rows={3}
           />
         </div>
-      </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Managers</h3>
-      <p className="text-muted-foreground text-xs">
-        Officer In Charge users belonging to Internal departments
-        {formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.
-      </p>
+      <FormSection
+        id="eq-sec-managers"
+        title="Equipment Officer In Charge (Managers)"
+        description={`Officer In Charge users belonging to Internal departments${formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.`}
+        defaultOpen
+      >
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value="__add__"
@@ -1437,12 +1981,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ))
         )}
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Operators</h3>
-      <p className="text-muted-foreground text-xs">
-        Lab Incharge users belonging to Internal departments
-        {formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.
-      </p>
+      <FormSection
+        id="eq-sec-operators"
+        title="Equipment Operators"
+        description={`Lab Incharge users belonging to Internal departments${formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.`}
+        defaultOpen
+      >
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value="__add__"
@@ -1450,7 +1996,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             if (!v || v === "__add__") return;
             const id = parseInt(v, 10);
             if (!id || (formData.equipment_operators ?? []).some((o) => o.operator === id)) return;
-            setFormData((p) => ({ ...p, equipment_operators: [...(p.equipment_operators ?? []), { operator: id }] }));
+            setFormData((p) => ({ ...p, equipment_operators: [...(p.equipment_operators ?? []), { operator: id, role: "PRIMARY" }] }));
           }}
         >
           <SelectTrigger className="w-[220px]"><SelectValue placeholder="Add operator" /></SelectTrigger>
@@ -1472,16 +2018,32 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="p-2 text-sm text-muted-foreground">No operators.</p>
         ) : (
           (formData.equipment_operators ?? []).map((o, idx) => (
-            <div key={idx} className="flex items-center justify-between p-2">
-              <span className="text-sm">{(choices.operators ?? []).find((c) => c.id === o.operator)?.name || (choices.operators ?? []).find((c) => c.id === o.operator)?.email || `ID ${o.operator}`}</span>
+            <div key={idx} className="flex items-center justify-between gap-2 p-2">
+              <span className="text-sm flex-1">{(choices.operators ?? []).find((c) => c.id === o.operator)?.name || (choices.operators ?? []).find((c) => c.id === o.operator)?.email || `ID ${o.operator}`}</span>
+              <Select
+                value={o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY"}
+                onValueChange={(v) =>
+                  setFormData((p) => {
+                    const arr = [...(p.equipment_operators ?? [])];
+                    arr[idx] = { ...arr[idx], role: v === "SECONDARY" ? "SECONDARY" : "PRIMARY" };
+                    return { ...p, equipment_operators: arr };
+                  })
+                }
+              >
+                <SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PRIMARY">Primary</SelectItem>
+                  <SelectItem value="SECONDARY">Secondary</SelectItem>
+                </SelectContent>
+              </Select>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_operators: (p.equipment_operators ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
             </div>
           ))
         )}
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Specifications</h3>
-      <p className="text-muted-foreground text-xs">Key-value specifications (e.g. Capacity, Resolution).</p>
+      <FormSection id="eq-sec-specs" title="Equipment Specifications" description="Key-value specifications (e.g. Capacity, Resolution)." defaultOpen>
       <div className="space-y-2">
         <div className="flex gap-2">
           <Input placeholder="Key" id="spec-key-new" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} />
@@ -1498,26 +2060,50 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ))}
         </div>
       </div>
+      </FormSection>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Accessories</h3>
-      <p className="text-muted-foreground text-xs">Equipment accessories.</p>
+      <FormSection id="eq-sec-accessories" title="Accessories / Additional accessories" description="Standard and additional equipment accessories." defaultOpen>
       <div className="space-y-2">
+        <h4 className="text-sm font-medium">Accessories</h4>
         <div className="flex gap-2">
           <Input placeholder="Accessory name" id="acc-name-new" className="flex-1" />
-          <Button type="button" variant="secondary" size="sm" onClick={() => { const name = (document.getElementById("acc-name-new") as HTMLInputElement)?.value?.trim(); if (name) { setFormData((p) => ({ ...p, equipment_accessories: [...(p.equipment_accessories ?? []), { accessory_name: name, is_optional: false }] })); (document.getElementById("acc-name-new") as HTMLInputElement).value = ""; } }}>Add</Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => { const name = (document.getElementById("acc-name-new") as HTMLInputElement)?.value?.trim(); if (name) { setFormData((p) => ({ ...p, equipment_accessories: [...(p.equipment_accessories ?? []), { accessory_name: name, is_optional: false, is_enabled: true }] })); (document.getElementById("acc-name-new") as HTMLInputElement).value = ""; } }}>Add</Button>
         </div>
         <div className="rounded border divide-y">
           {(formData.equipment_accessories ?? []).length === 0 ? <p className="p-2 text-sm text-muted-foreground">No accessories.</p> : (formData.equipment_accessories ?? []).map((a, idx) => (
-            <div key={idx} className="flex items-center justify-between p-2">
-              <span className="text-sm">{a.accessory_name}{a.is_optional ? " (optional)" : ""}</span>
+            <div key={idx} className="flex items-center justify-between gap-3 p-2">
+              <span className="text-sm flex-1">{a.accessory_name}</span>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  checked={a.is_optional ?? false}
+                  onCheckedChange={(c) => setFormData((p) => {
+                    const arr = [...(p.equipment_accessories ?? [])];
+                    arr[idx] = { ...arr[idx], is_optional: !!c };
+                    return { ...p, equipment_accessories: arr };
+                  })}
+                />
+                <Label className="text-xs">Optional</Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  checked={a.is_enabled !== false}
+                  onCheckedChange={(c) => setFormData((p) => {
+                    const arr = [...(p.equipment_accessories ?? [])];
+                    arr[idx] = { ...arr[idx], is_enabled: c === true };
+                    return { ...p, equipment_accessories: arr };
+                  })}
+                />
+                <Label className="text-xs">Enabled</Label>
+              </div>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_accessories: (p.equipment_accessories ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
             </div>
           ))}
         </div>
       </div>
 
-      <h3 className="text-sm font-semibold border-b pb-2 pt-2">Additional accessories</h3>
-      <p className="text-muted-foreground text-xs">Additional accessories with description.</p>
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium">Additional accessories</h4>
+        <p className="text-muted-foreground text-xs">Additional accessories with description.</p>
       <div className="rounded border divide-y">
         {(formData.equipment_additional_accessories ?? []).length === 0 ? (
           <p className="p-2 text-sm text-muted-foreground">None.</p>
@@ -1545,6 +2131,15 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     })}
                   />
                   <Label className="text-xs">Optional</Label>
+                  <Checkbox
+                    checked={a.is_enabled !== false}
+                    onCheckedChange={(c) => setFormData((p) => {
+                      const arr = [...(p.equipment_additional_accessories ?? [])];
+                      arr[idx] = { ...arr[idx], is_enabled: c === true };
+                      return { ...p, equipment_additional_accessories: arr };
+                    })}
+                  />
+                  <Label className="text-xs">Enabled</Label>
                   <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_additional_accessories: (p.equipment_additional_accessories ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
                 </div>
               </div>
@@ -1563,18 +2158,361 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ))
         )}
         <div className="p-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setFormData((p) => ({ ...p, equipment_additional_accessories: [...(p.equipment_additional_accessories ?? []), { additional_accessory_name: "", additional_accessory_description: "", is_optional: false }] }))}>Add row</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setFormData((p) => ({ ...p, equipment_additional_accessories: [...(p.equipment_additional_accessories ?? []), { additional_accessory_name: "", additional_accessory_description: "", is_optional: false, is_enabled: true }] }))}>Add row</Button>
         </div>
       </div>
+      </div>
+      </FormSection>
 
-        {(formData.created_at != null || formData.updated_at != null) && (
-          <div className="rounded-lg border p-4 space-y-2">
-            <h3 className="text-base font-semibold">Timestamps</h3>
-            <p className="text-sm text-muted-foreground">
-              Created: {formData.created_at != null ? String(formData.created_at).slice(0, 19).replace("T", " ") : "—"} · Updated: {formData.updated_at != null ? String(formData.updated_at).slice(0, 19).replace("T", " ") : "—"}
-            </p>
-          </div>
+      <FormSection
+        id="eq-sec-inputs"
+        title="Dynamic Input Fields"
+        description="Per-equipment dynamic fields (A–Z) used in charge formulas and booking forms. Matches Django DynamicInputFieldInline."
+        defaultOpen
+      >
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const used = new Set((formData.input_fields ?? []).map((f) => f.field_key));
+              const nextKey = DYNAMIC_INPUT_FIELD_KEYS.find((k) => !used.has(k)) ?? "A";
+              setFormData((p) => ({
+                ...p,
+                input_fields: [
+                  ...(p.input_fields ?? []),
+                  {
+                    field_key: nextKey,
+                    field_label: "",
+                    field_type: choices.dynamic_input_field_type_choices?.[0]?.value ?? "TEXT",
+                    is_required: false,
+                    editing_required: false,
+                    default_value: "",
+                    options: [],
+                    help_text: "",
+                    source_element_field_key: null,
+                  },
+                ],
+              }));
+            }}
+          >
+            Add field
+          </Button>
+        </div>
+        {(formData.input_fields ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">No dynamic input fields configured.</p>
+        ) : (
+          (formData.input_fields ?? []).map((f, idx) => (
+            <div key={idx} className="rounded-md border p-3 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Field key</Label>
+                  <Select
+                    value={f.field_key || "A"}
+                    onValueChange={(v) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = { ...arr[idx], field_key: v };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-xs">Field label</Label>
+                  <Input
+                    value={f.field_label}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = { ...arr[idx], field_label: e.target.value };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                    placeholder="e.g. Number of samples"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Field type</Label>
+                  <Select
+                    value={f.field_type || "TEXT"}
+                    onValueChange={(v) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = { ...arr[idx], field_type: v };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(choices.dynamic_input_field_type_choices ?? [
+                        { value: "NUMERIC", label: "Numeric" },
+                        { value: "TEXT", label: "Text" },
+                        { value: "RADIO", label: "Radio" },
+                        { value: "COMBO", label: "Combo/Dropdown" },
+                        { value: "MULTI_SELECT", label: "Multi-select" },
+                        { value: "TOGGLE", label: "Toggle" },
+                        { value: "PERIODIC_TABLE", label: "Periodic table / Element selector" },
+                        { value: "TABLE", label: "Table" },
+                        { value: "ICPMS_STANDARD_COVERAGE", label: "ICPMS Standard Coverage" },
+                      ]).map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Default value</Label>
+                  <Input
+                    value={f.default_value ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = { ...arr[idx], default_value: e.target.value };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Source element field key</Label>
+                  <Select
+                    value={f.source_element_field_key || "__none__"}
+                    onValueChange={(v) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = { ...arr[idx], source_element_field_key: v === "__none__" ? null : v };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                  >
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">For ICPMS Standard Coverage: the Periodic Table field key providing the element list.</p>
+                </div>
+                <div className="flex items-center gap-4 pb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={f.is_required ?? false}
+                      onCheckedChange={(c) =>
+                        setFormData((p) => {
+                          const arr = [...(p.input_fields ?? [])];
+                          arr[idx] = { ...arr[idx], is_required: c === true };
+                          return { ...p, input_fields: arr };
+                        })
+                      }
+                    />
+                    <Label className="text-xs">Required</Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={f.editing_required ?? false}
+                      onCheckedChange={(c) =>
+                        setFormData((p) => {
+                          const arr = [...(p.input_fields ?? [])];
+                          arr[idx] = { ...arr[idx], editing_required: c === true };
+                          return { ...p, input_fields: arr };
+                        })
+                      }
+                    />
+                    <Label className="text-xs">Editing required</Label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Options (one per line)</Label>
+                  <Textarea
+                    rows={3}
+                    value={(f.options ?? []).join("\n")}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = {
+                          ...arr[idx],
+                          options: e.target.value.split("\n").map((s) => s.trim()).filter((s) => s.length > 0),
+                        };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                    placeholder={"For RADIO / COMBO / MULTI_SELECT, one option per line"}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Help text</Label>
+                  <Textarea
+                    rows={3}
+                    value={f.help_text ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.input_fields ?? [])];
+                        arr[idx] = { ...arr[idx], help_text: e.target.value };
+                        return { ...p, input_fields: arr };
+                      })
+                    }
+                    placeholder="NUMERIC: line 1 = lower limit, line 2 = upper limit, line 3 = step. PERIODIC_TABLE: one element per line to disable."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => setFormData((p) => ({ ...p, input_fields: (p.input_fields ?? []).filter((_, i) => i !== idx) }))}
+                >
+                  Remove field
+                </Button>
+              </div>
+            </div>
+          ))
         )}
+      </FormSection>
+
+      <FormSection
+        id="eq-sec-slot-masters"
+        title="Slot Masters"
+        description="Named booking slots for this equipment (slot number, name, open/close time). Matches Django SlotMasterInline."
+        defaultOpen
+      >
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const nextNumber = (formData.slot_masters ?? []).reduce((max, s) => Math.max(max, Number(s.slot_number) || 0), 0) + 1;
+              setFormData((p) => ({
+                ...p,
+                slot_masters: [
+                  ...(p.slot_masters ?? []),
+                  { slot_number: nextNumber, slot_name: "", open_time: "09:00", close_time: "10:00", is_active: true },
+                ],
+              }));
+            }}
+          >
+            Add slot
+          </Button>
+        </div>
+        {(formData.slot_masters ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">No slot masters configured.</p>
+        ) : (
+          (formData.slot_masters ?? []).map((s, idx) => (
+            <div key={idx} className="grid gap-3 sm:grid-cols-6 border rounded-md p-3 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Slot number</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={String(s.slot_number ?? "")}
+                  onChange={(e) =>
+                    setFormData((p) => {
+                      const arr = [...(p.slot_masters ?? [])];
+                      arr[idx] = { ...arr[idx], slot_number: parseInt(e.target.value, 10) || 0 };
+                      return { ...p, slot_masters: arr };
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label className="text-xs">Slot name</Label>
+                <Input
+                  value={s.slot_name ?? ""}
+                  onChange={(e) =>
+                    setFormData((p) => {
+                      const arr = [...(p.slot_masters ?? [])];
+                      arr[idx] = { ...arr[idx], slot_name: e.target.value };
+                      return { ...p, slot_masters: arr };
+                    })
+                  }
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Open time</Label>
+                <Input
+                  type="time"
+                  value={s.open_time ?? ""}
+                  onChange={(e) =>
+                    setFormData((p) => {
+                      const arr = [...(p.slot_masters ?? [])];
+                      arr[idx] = { ...arr[idx], open_time: e.target.value };
+                      return { ...p, slot_masters: arr };
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Close time</Label>
+                <Input
+                  type="time"
+                  value={s.close_time ?? ""}
+                  onChange={(e) =>
+                    setFormData((p) => {
+                      const arr = [...(p.slot_masters ?? [])];
+                      arr[idx] = { ...arr[idx], close_time: e.target.value };
+                      return { ...p, slot_masters: arr };
+                    })
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2 pb-1">
+                <label className="flex items-center gap-1.5 text-sm">
+                  <Checkbox
+                    checked={s.is_active !== false}
+                    onCheckedChange={(c) =>
+                      setFormData((p) => {
+                        const arr = [...(p.slot_masters ?? [])];
+                        arr[idx] = { ...arr[idx], is_active: c === true };
+                        return { ...p, slot_masters: arr };
+                      })
+                    }
+                  />
+                  Active
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => setFormData((p) => ({ ...p, slot_masters: (p.slot_masters ?? []).filter((_, i) => i !== idx) }))}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </FormSection>
+
+      {(formData.created_at != null || formData.updated_at != null) && (
+        <FormSection title="Timestamps">
+          <p className="text-sm text-muted-foreground">
+            Created: {formData.created_at != null ? String(formData.created_at).slice(0, 19).replace("T", " ") : "—"} · Updated: {formData.updated_at != null ? String(formData.updated_at).slice(0, 19).replace("T", " ") : "—"}
+          </p>
+        </FormSection>
+      )}
       </div>
 
       {/* Sticky action bar */}

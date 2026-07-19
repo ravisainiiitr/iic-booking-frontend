@@ -146,7 +146,7 @@ const MyUrgentRequests = () => {
       })
       .catch(() => setUrgentEquipmentList([]))
       .finally(() => setLoadingUrgentEquipments(false));
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user?.id]);
 
   // Students/other users can only submit NO_SLOT. REVIEWER_URGENT is faculty-only.
   useEffect(() => {
@@ -287,7 +287,7 @@ const MyUrgentRequests = () => {
     return () => {
       cancelled = true;
     };
-  }, [navigate, isAuthenticated, user, authLoading]);
+  }, [navigate, isAuthenticated, user?.id, authLoading]);
 
   const getStatusBadge = (row: MyUrgentRequestRow) => {
     const status = (row.status || "").toUpperCase();

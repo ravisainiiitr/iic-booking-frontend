@@ -6,9 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Check } from "lucide-react";
 import { periodicTableElements, getCategoryColor, Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
+import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PeriodicTable = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [selectedElements, setSelectedElements] = useState<Set<number>>(new Set());
 
   const toggleElement = (atomicNumber: number) => {
@@ -95,9 +98,12 @@ const PeriodicTable = () => {
               </Button>
               <h1 className="text-2xl font-bold">Periodic Table</h1>
             </div>
-            <Badge variant="secondary" className="text-lg px-4 py-2">
-              Selected: {selectedElements.size}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {isAuthenticated ? <BackToDashboardButton variant="outline" /> : null}
+              <Badge variant="secondary" className="text-lg px-4 py-2">
+                Selected: {selectedElements.size}
+              </Badge>
+            </div>
           </div>
         </div>
       </header>

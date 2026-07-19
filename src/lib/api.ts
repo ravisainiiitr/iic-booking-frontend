@@ -103,6 +103,16 @@ export const getApiOrigin = (): string => {
   return base.replace(/\/api\/?$/, "");
 };
 
+/** Normalize an adminList response payload into a plain array (handles both plain-array and paginated {results} shapes). */
+export function extractAdminListItems<T = Record<string, unknown>>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === 'object' && 'results' in (data as Record<string, unknown>)) {
+    const results = (data as { results?: unknown }).results;
+    return Array.isArray(results) ? (results as T[]) : [];
+  }
+  return [];
+}
+
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
 export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   // Equipment
@@ -137,6 +147,16 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   calendarColors: 'admin/calendar-colors',
   internalSlotWindow: 'admin/internal-slot-window',
   equipmentReports: 'admin/equipment-reports',
+  semesters: 'admin/semesters',
+  icpmsStandards: 'admin/icpms-standards',
+  equipmentModeSchedules: 'admin/equipment-mode-schedules',
+  bookingChargeSettings: 'admin/booking-charge-settings',
+  bookingBufferConfig: 'admin/booking-buffer-config',
+  studentEquipmentNominations: 'admin/student-equipment-nominations',
+  walletSricSettings: 'admin/wallet-sric-settings',
+  walletWithdrawalRequests: 'admin/wallet-withdrawal-requests',
+  walletCreditFacilitySettings: 'admin/wallet-credit-facility-settings',
+  walletStudentRechargeSettings: 'admin/wallet-student-recharge-settings',
 };
 
 /** Response from GET /wallet/faculty-expense-report/ (IITR Faculty only). */
@@ -263,6 +283,47 @@ interface User {
   oic_enable_ta_duty_assignments?: boolean;
   oic_enable_leave_management?: boolean;
   oic_enable_reward_config?: boolean;
+  /** Effective RBAC permission codes for the current user. */
+  rbac_permissions?: string[];
+  /** Whether this user's role/department is configured for Admin Panel access (Main Admin always true). */
+  admin_panel_enabled?: boolean;
+  /** Expanded Admin Settings module keys the user may access (only computed for the authenticated self). */
+  admin_panel_modules?: string[];
+}
+
+/** Node in the Admin Settings module registry tree (dotted keys, e.g. "user_management.users"). */
+export interface AdminPanelModuleNode {
+  key: string;
+  label: string;
+  description?: string;
+  path?: string;
+  main_admin_only?: boolean;
+  children?: AdminPanelModuleNode[];
+}
+
+/** Flattened registry row with parent linkage. */
+export interface AdminPanelFlatModule {
+  key: string;
+  label: string;
+  description?: string;
+  path?: string;
+  parent_key: string | null;
+  main_admin_only: boolean;
+  has_children: boolean;
+}
+
+/** Per (user_type, department) Admin Panel access + module grant. */
+export interface AdminPanelRoleConfig {
+  id: number;
+  user_type: string;
+  user_type_label?: string;
+  department: number;
+  department_name?: string | null;
+  department_code?: string | null;
+  admin_panel_enabled: boolean;
+  module_keys: string[];
+  expanded_module_keys?: string[];
+  updated_at?: string;
 }
 
 /** Student equipment operating nomination (semester-wise, supervisor nominates). */
@@ -2445,11 +2506,104 @@ class ApiClient {
   }
 
   // User roles endpoints
-  /** Returns true if user_type is one of admin, manager, operator, finance (matches backend get_admin_panel_codes). */
-  isAdminPanelUser(userType: string | number | undefined | null): boolean {
-    if (userType == null || userType === undefined) return false;
-    const s = String(userType).toLowerCase();
-    return ['admin', 'dept_admin', 'manager', 'operator', 'finance'].includes(s);
+  /**
+   * Returns true if the user is an admin-panel role. Accepts either a bare user_type
+   * (legacy call sites, kept for backward compatibility) or the current-user object, in
+   * which case the server-computed `admin_panel_enabled` flag is preferred when present
+   * (falls back to the static role-type list for `admin`/`external_relations`, or when
+   * the flag hasn't been loaded yet).
+   */
+  isAdminPanelUser(
+    userTypeOrUser:
+      | string
+      | number
+      | undefined
+      | null
+      | { user_type?: string | number | null; admin_panel_enabled?: boolean; is_staff?: boolean }
+  ): boolean {
+    if (userTypeOrUser != null && typeof userTypeOrUser === 'object') {
+      const u = userTypeOrUser;
+      const s = String(u.user_type ?? '').toLowerCase();
+      if (s === 'admin' || u.is_staff) return true;
+      if (typeof u.admin_panel_enabled === 'boolean') return u.admin_panel_enabled;
+      return ['admin', 'dept_admin', 'manager', 'operator', 'finance', 'external_relations'].includes(s);
+    }
+    if (userTypeOrUser == null) return false;
+    const s = String(userTypeOrUser).toLowerCase();
+    return ['admin', 'dept_admin', 'manager', 'operator', 'finance', 'external_relations'].includes(s);
+  }
+
+  /** Current user's effective Admin Panel access: enabled flag, granted module keys, and visible module tree. */
+  async getAdminPanelAccessMe() {
+    return this.request<{
+      admin_panel_enabled: boolean;
+      module_keys: string[];
+      module_tree: AdminPanelModuleNode[];
+    }>('/admin/admin-panel-access/me/');
+  }
+
+  /** Main Admin only: full Admin Settings module registry for the configuration UI. */
+  async getAdminPanelAccessRegistry() {
+    return this.request<{
+      tree: AdminPanelModuleNode[];
+      flat: AdminPanelFlatModule[];
+      configurable_user_types: Array<{ value: string; label: string }>;
+    }>('/admin/admin-panel-access/registry/');
+  }
+
+  /** Main Admin only: list Admin Panel role configs, optionally filtered by user_type and/or department. */
+  async listAdminPanelRoleConfigs(params?: { user_type?: string; department?: string | number }) {
+    const q = new URLSearchParams();
+    if (params?.user_type) q.append('user_type', params.user_type);
+    if (params?.department !== undefined && params?.department !== null && params.department !== '') {
+      q.append('department', String(params.department));
+    }
+    const qs = q.toString();
+    return this.request<AdminPanelRoleConfig[]>(
+      qs ? `/admin/admin-panel-role-configs/?${qs}` : '/admin/admin-panel-role-configs/'
+    );
+  }
+
+  /** Main Admin only: create a new Admin Panel role config row. */
+  async createAdminPanelRoleConfig(payload: {
+    user_type: string;
+    department: number;
+    admin_panel_enabled: boolean;
+    module_keys: string[];
+  }) {
+    return this.request<AdminPanelRoleConfig>('/admin/admin-panel-role-configs/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Main Admin only: partially update an existing Admin Panel role config row. */
+  async patchAdminPanelRoleConfig(
+    id: number,
+    payload: Partial<{ admin_panel_enabled: boolean; module_keys: string[]; department: number; user_type: string }>
+  ) {
+    return this.request<AdminPanelRoleConfig>(`/admin/admin-panel-role-configs/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Main Admin only: delete an Admin Panel role config row. */
+  async deleteAdminPanelRoleConfig(id: number) {
+    return this.request<void>(`/admin/admin-panel-role-configs/${id}/`, { method: 'DELETE' });
+  }
+
+  /** Main Admin only: create-or-update the unique (user_type, department) Admin Panel role config row. */
+  async upsertAdminPanelRoleConfig(payload: {
+    user_type: string;
+    department: number;
+    admin_panel_enabled: boolean;
+    module_keys: string[];
+  }) {
+    return this.request<AdminPanelRoleConfig>('/admin/admin-panel-access/upsert/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   async getUserRoles(userId?: string) {
@@ -7129,6 +7283,37 @@ class ApiClient {
     });
   }
 
+  /** Dept Admin: list same-department Channel-i users that can be mapped to OIC/Lab/Accounts. */
+  async listMappableOmniportUsers(params?: { search?: string; department_id?: number | string }) {
+    const endpoint = this.getAdminEndpoint('users');
+    const search = new URLSearchParams();
+    if (params?.search) search.set('search', params.search);
+    if (params?.department_id != null) search.set('department_id', String(params.department_id));
+    const q = search.toString();
+    return this.request<Array<{
+      id: number;
+      name?: string;
+      email?: string;
+      user_type?: string;
+      user_type_display?: string;
+      emp_id?: string | null;
+      department?: number;
+      department_name?: string | null;
+      email_verified?: boolean;
+      admin_approved?: boolean;
+      last_login?: string | null;
+    }>>(`${endpoint}mappable-omniport/${q ? `?${q}` : ''}`);
+  }
+
+  /** Dept Admin: map an existing Omniport user to manager/operator/finance. */
+  async mapUserStaffRole(userId: number | string, userType: 'manager' | 'operator' | 'finance') {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request(`${endpoint}${userId}/map-staff-role/`, {
+      method: 'POST',
+      body: JSON.stringify({ user_type: userType }),
+    });
+  }
+
   async adminCreate<T = unknown>(section: string, data: Record<string, unknown>) {
     const endpoint = this.getAdminEndpoint(section);
     return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(data) });
@@ -7142,6 +7327,27 @@ class ApiClient {
   async adminDelete(section: string, id: number | string) {
     const endpoint = this.getAdminEndpoint(section);
     return this.request<void>(`${endpoint}${id}/`, { method: 'DELETE' });
+  }
+
+  /**
+   * Fetch a singleton admin settings row (backend exposes list/retrieve/update at pk=1 style).
+   * Tries the list endpoint first (most singleton settings are exposed as a 1-row list); falls
+   * back to a direct retrieve at the given id if the list is empty.
+   */
+  async adminSingletonGet<T = Record<string, unknown>>(section: string, id: number | string = 1): Promise<ApiResponse<T | null>> {
+    const listRes = await this.adminList<T>(section);
+    if (!listRes.error) {
+      const items = extractAdminListItems<T>(listRes.data);
+      if (items.length > 0) return { data: items[0] };
+    }
+    const getRes = await this.adminGet<T>(section, id);
+    if (getRes.error) return { error: getRes.error };
+    return { data: getRes.data ?? null };
+  }
+
+  /** Update a singleton admin settings row (defaults to pk=1). */
+  async adminSingletonUpdate<T = Record<string, unknown>>(section: string, data: Record<string, unknown>, id: number | string = 1) {
+    return this.adminUpdate<T>(section, id, data);
   }
 
   /** Admin: approve repeat sample request (creates free re-book). */
@@ -7447,6 +7653,16 @@ class ApiClient {
     return { data };
   }
 
+  /** Clear the equipment catalog image (admin; mirrors Django Admin's image "clear" checkbox). */
+  async clearEquipmentImage(equipmentId: number) {
+    return this.request<any>(`/admin/equipment/${equipmentId}/clear-image/`, { method: "POST" });
+  }
+
+  /** Clear the equipment video file (admin). */
+  async clearEquipmentVideo(equipmentId: number) {
+    return this.request<any>(`/admin/equipment/${equipmentId}/clear-video/`, { method: "POST" });
+  }
+
   /** Admin: bulk set slot status for an equipment by dates or by slot_ids. */
   async adminEquipmentBulkSlotStatus(
     equipmentId: number | string,
@@ -7519,6 +7735,29 @@ class ApiClient {
         body: payload instanceof FormData ? payload : JSON.stringify(payload),
       }
     );
+  }
+
+  /** Admin / Dept Admin: submit equipment addition request (pending Main Admin approval). */
+  async adminSubmitEquipmentAdditionRequest(payload: Record<string, unknown> | FormData) {
+    return this.request<{
+      id: number;
+      message: string;
+      request?: Record<string, unknown>;
+    }>("/admin/equipment-addition-requests/", {
+      method: "POST",
+      body: payload instanceof FormData ? payload : JSON.stringify(payload),
+    });
+  }
+
+  /** Main Admin: edit a pending equipment addition request before approve/reject. */
+  async adminUpdateEquipmentAdditionRequest(
+    id: number | string,
+    payload: Record<string, unknown> | FormData
+  ) {
+    return this.request<Record<string, unknown>>(`/admin/equipment-addition-requests/${id}/`, {
+      method: "PATCH",
+      body: payload instanceof FormData ? payload : JSON.stringify(payload),
+    });
   }
 
   /** Admin: list equipment addition requests. */

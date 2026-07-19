@@ -3,6 +3,8 @@ import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { getUserTypeDisplayName, isExternalBookingUserType } from "@/lib/userTypes";
+import { hasRbacPermission } from "@/lib/rbac";
+import { hasAdminPanelAccess } from "@/lib/adminPanelAccess";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -317,6 +319,10 @@ const Dashboard = () => {
   const [labDashDetailLoading, setLabDashDetailLoading] = useState(false);
   /** Lab dashboard metrics scope: all assigned equipment or one instrument. */
   const [labDashEquipmentFilter, setLabDashEquipmentFilter] = useState<number | "all">("all");
+  const [daAdditionRequests, setDaAdditionRequests] = useState<
+    Array<{ id: number; code: string; name: string; status: string; status_display?: string }>
+  >([]);
+  const [daAdditionRequestsLoading, setDaAdditionRequestsLoading] = useState(false);
 
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
@@ -329,12 +335,46 @@ const Dashboard = () => {
   const isOperatorOrManager = 
     userTypeStr === 'operator' || userTypeStr === 'manager' || userTypeStr === 'admin';
   
-  // Admin Settings section is only visible to admins (not managers, operators, or finance)
+  // Admin Settings section is visible to Main Admin always, and to other roles only when the
+  // Main Administrator has configured Admin Panel access for their user type + department.
   const isAdmin = userTypeStr === 'admin';
+  const canSeeAdminSettingsCard = isAdmin || hasAdminPanelAccess(user);
+  const isDeptAdmin = userTypeStr === 'dept_admin';
+  const isExternalRelations = userTypeStr === 'external_relations';
+  const isOrgAdmin = userTypeStr === 'org_admin';
+  const canManageDeptRbac = isAdmin || isDeptAdmin;
+  const canVerifyExternalOrgs = isAdmin || isExternalRelations || hasRbacPermission(user, "external.org.verify");
+  const canManageWalletTools =
+    isAdmin || hasRbacPermission(user, "wallet.manage");
   const isFacultyUser = userTypeStr === "faculty";
   const isInternalFacultyUser =
     isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
   const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
+
+  useEffect(() => {
+    if (!isDeptAdmin || !isAuthenticated || authLoading) return;
+    let cancelled = false;
+    setDaAdditionRequestsLoading(true);
+    apiClient
+      .adminListEquipmentAdditionRequests("ALL")
+      .then((res) => {
+        if (cancelled) return;
+        const rows = (res.data?.results || []) as Array<{
+          id: number;
+          code: string;
+          name: string;
+          status: string;
+          status_display?: string;
+        }>;
+        setDaAdditionRequests(rows.slice(0, 8));
+      })
+      .finally(() => {
+        if (!cancelled) setDaAdditionRequestsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDeptAdmin, isAuthenticated, authLoading, user?.id]);
 
   // OIC dashboard cards: Admin always; manager only when enabled in Django admin for that user.
   const canSeeOicTaNomination =
@@ -705,7 +745,7 @@ const Dashboard = () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user, authLoading]);
+  }, [isAuthenticated, user?.id, authLoading]);
 
   useEffect(() => {
     if (!showsLabStyleDashboard || !user?.id) return;
@@ -2956,6 +2996,93 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {canVerifyExternalOrgs && !isAdmin && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => navigate("/manage/external-user-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">External organization verification</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review KYC and approve or reject external organizations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Open verification
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canManageDeptRbac && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
+              onClick={() =>
+                navigate(
+                  isAdmin ? "/admin/department-administration" : "/manage/department-administration"
+                )
+              }
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-slate-700 text-white shadow-lg">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department Administration</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {isAdmin
+                        ? "Manage department staff modules and permission caps"
+                        : "Manage OIC, Lab In Charge, and Accounts In Charge"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-slate-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                  Open
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOrgAdmin && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
+              onClick={() => navigate("/organization/users")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-teal-700 text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Organization users</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Add and activate members in your external organization
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-teal-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-slate-700 hover:bg-slate-800 text-white">
+                  Manage members
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
@@ -2981,7 +3108,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isAdmin && (
+          {canManageWalletTools && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
               onClick={() => navigate("/admin-settings/wallet-recharge-parse")}
@@ -3131,7 +3258,56 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isAdmin && (
+          {isDeptAdmin && (
+            <Card className="overflow-hidden border-0 shadow-md col-span-full sm:col-span-2 lg:col-span-2">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment addition status</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Track Pending / Approved / Rejected requests for your department
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {daAdditionRequestsLoading ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : daAdditionRequests.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No addition requests yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {daAdditionRequests.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                      >
+                        <span className="font-medium truncate">
+                          {r.code} — {r.name}
+                        </span>
+                        <Badge variant="outline">{r.status_display || r.status}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => navigate("/admin/equipment-addition-requests")}
+                >
+                  View all requests
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeeAdminSettingsCard && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-cyan-200 dark:hover:border-cyan-800"
               onClick={() => navigate("/admin-settings")}

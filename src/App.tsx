@@ -42,13 +42,27 @@ import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
 import AdminSection from "./pages/AdminSection";
 import DepartmentRbacManagement from "./pages/DepartmentRbacManagement";
+import DepartmentAdministrationHub from "./pages/DepartmentAdministrationHub";
+import DepartmentStaffManagement from "./pages/DepartmentStaffManagement";
 import AdminHeroSlides from "./pages/AdminHeroSlides";
 import ContentManagement from "./pages/ContentManagement";
 import AdminSettings from "./pages/AdminSettings";
+import AdminPanelAccessConfig from "./pages/AdminPanelAccessConfig";
+import AdminModuleGuard from "./components/AdminModuleGuard";
 import AdminSettingsAuth from "./pages/AdminSettingsAuth";
 import AdminCommunication from "./pages/AdminCommunication";
 import InboxEmail from "./pages/InboxEmail";
 import AdminSettingsEquipment from "./pages/AdminSettingsEquipment";
+import AdminSemesters from "./pages/AdminSemesters";
+import AdminIcpmsStandards from "./pages/AdminIcpmsStandards";
+import AdminEquipmentModeSchedules from "./pages/AdminEquipmentModeSchedules";
+import AdminBookingChargeSettings from "./pages/AdminBookingChargeSettings";
+import AdminBookingBufferConfig from "./pages/AdminBookingBufferConfig";
+import AdminStudentNominations from "./pages/AdminStudentNominations";
+import AdminWalletSricSettings from "./pages/AdminWalletSricSettings";
+import AdminWalletWithdrawalRequests from "./pages/AdminWalletWithdrawalRequests";
+import AdminWalletCreditFacilitySettings from "./pages/AdminWalletCreditFacilitySettings";
+import AdminWalletStudentRechargeSettings from "./pages/AdminWalletStudentRechargeSettings";
 import ProposeEquipment from "./pages/ProposeEquipment";
 import EquipmentAdditionRequests from "./pages/EquipmentAdditionRequests";
 import AdminSettingsSupport from "./pages/AdminSettingsSupport";
@@ -76,6 +90,7 @@ import WalletRechargeParse from "./pages/WalletRechargeParse";
 import LegacyWalletImportTest from "./pages/LegacyWalletImportTest";
 import CmsPageView from "./pages/CmsPageView";
 import ExternalUserManagement from "./pages/ExternalUserManagement";
+import OrganizationUsersManagement from "./pages/OrganizationUsersManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
 import ChatWidget from "./components/ChatWidget";
 import UserGuidePreview from "./pages/UserGuidePreview";
@@ -141,14 +156,27 @@ const App = () => (
                 <Route path="/admin/external-user-management" element={<ExternalUserManagement />} />
                 <Route path="/admin/section/:section" element={<AdminSection />} />
                 <Route path="/admin/department-rbac" element={<DepartmentRbacManagement />} />
+                <Route path="/admin/department-administration" element={<DepartmentAdministrationHub />} />
+                <Route path="/admin/department-administration/:role" element={<DepartmentStaffManagement />} />
                 <Route path="/manage/external-user-management" element={<ExternalUserManagement />} />
                 <Route path="/manage/external-user-management/departments" element={<ExternalDepartmentAdditionVerification />} />
                 {/* External user verification is handled in AdminSection (users) */}
                 <Route path="/manage/section/:section" element={<AdminSection />} />
-                <Route path="/manage/department-rbac" element={<DepartmentRbacManagement />} />
+                <Route path="/manage/department-rbac" element={<DepartmentAdministrationHub />} />
+                <Route path="/manage/department-administration" element={<DepartmentAdministrationHub />} />
+                <Route path="/manage/department-administration/:role" element={<DepartmentStaffManagement />} />
+                <Route path="/organization/users" element={<OrganizationUsersManagement />} />
                 <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
                 <Route path="/content-management" element={<ContentManagement />} />
                 <Route path="/admin-settings" element={<AdminSettings />} />
+                <Route
+                  path="/admin-settings/admin-panel-access"
+                  element={
+                    <AdminModuleGuard moduleKey="admin_settings.admin_panel_access">
+                      <AdminPanelAccessConfig />
+                    </AdminModuleGuard>
+                  }
+                />
                 <Route path="/admin-settings/auth" element={<AdminSettingsAuth />} />
                 <Route path="/admin-settings/communication" element={<AdminCommunication />} />
                 <Route path="/admin-settings/inbox-email" element={<InboxEmail />} />
@@ -161,6 +189,16 @@ const App = () => (
                 <Route path="/propose-equipment" element={<ProposeEquipment />} />
                 <Route path="/admin/equipment-addition-requests" element={<EquipmentAdditionRequests />} />
                 <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
+                <Route path="/admin-settings/equipment/semesters" element={<AdminSemesters />} />
+                <Route path="/admin-settings/equipment/icpms-standards" element={<AdminIcpmsStandards />} />
+                <Route path="/admin-settings/equipment/mode-schedules" element={<AdminEquipmentModeSchedules />} />
+                <Route path="/admin-settings/equipment/booking-charge-settings" element={<AdminBookingChargeSettings />} />
+                <Route path="/admin-settings/equipment/booking-buffer-config" element={<AdminBookingBufferConfig />} />
+                <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
+                <Route path="/admin-settings/wallet-sric-settings" element={<AdminWalletSricSettings />} />
+                <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
+                <Route path="/admin-settings/wallet-credit-facility-settings" element={<AdminWalletCreditFacilitySettings />} />
+                <Route path="/admin-settings/wallet-student-recharge-settings" element={<AdminWalletStudentRechargeSettings />} />
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
                 <Route path="/admin-settings/feedback" element={<AdminSettingsFeedback />} />
                 <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />

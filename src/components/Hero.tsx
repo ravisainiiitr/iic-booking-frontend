@@ -145,43 +145,44 @@ const Hero = () => {
         : "—";
 
   return (
-    <>
-      <section className="relative min-h-[100svh] flex items-end sm:items-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <Carousel plugins={[autoplay]} className="w-full h-full" opts={{ loop: true }}>
-            <CarouselContent className="h-[100svh]">
-              {instrumentImages.map((image, index) => (
-                <CarouselItem key={index} className="h-[100svh] pl-0">
-                  <img
-                    src={image.src}
-                    alt={image.alt}
-                    className="w-full h-full object-cover"
-                    loading="eager"
-                    onError={(e) => {
-                      const el = e.currentTarget;
-                      if (el.dataset.fallbackUsed) return;
-                      el.dataset.fallbackUsed = "1";
-                      const fallback = fallbackImages[index % fallbackImages.length];
-                      if (fallback) el.src = fallback.src;
-                    }}
-                  />
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-          </Carousel>
-          <div className="absolute inset-0 bg-gradient-to-t from-[hsl(200_45%_8%/0.92)] via-[hsl(175_40%_12%/0.55)] to-[hsl(200_40%_10%/0.35)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(175_60%_40%/0.25),transparent_50%)]" />
-        </div>
+    <section className="relative flex h-[100svh] max-h-[100svh] flex-col overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <Carousel plugins={[autoplay]} className="h-full w-full" opts={{ loop: true }}>
+          <CarouselContent className="h-full min-h-[100svh]">
+            {instrumentImages.map((image, index) => (
+              <CarouselItem key={index} className="h-[100svh] pl-0">
+                <img
+                  src={image.src}
+                  alt={image.alt}
+                  className="h-full w-full object-cover"
+                  loading="eager"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    if (el.dataset.fallbackUsed) return;
+                    el.dataset.fallbackUsed = "1";
+                    const fallback = fallbackImages[index % fallbackImages.length];
+                    if (fallback) el.src = fallback.src;
+                  }}
+                />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+        </Carousel>
+        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(200_45%_8%/0.92)] via-[hsl(175_40%_12%/0.55)] to-[hsl(200_40%_10%/0.35)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(175_60%_40%/0.25),transparent_50%)]" />
+      </div>
 
-        <div className="container relative z-10 mx-auto px-4 pb-16 pt-28 sm:pb-24 sm:pt-32">
-          <div className="max-w-3xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Locked to one viewport: hero copy + full stats banner */}
+      <div className="relative z-10 flex h-full min-h-0 flex-col">
+        <div className="container mx-auto flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-4 pb-3 pt-[5.5rem] sm:pb-5 sm:pt-[6.25rem] md:pt-28 [@media(max-height:760px)]:pb-2 [@media(max-height:760px)]:pt-24">
+          <div className="max-w-3xl space-y-5 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 [@media(max-height:760px)]:space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white/95 backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5" />
               IIT Roorkee · Online Equipment Booking
             </div>
 
-            <div className="space-y-4">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-white">
+            <div className="space-y-3 sm:space-y-4">
+              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl">
                 <span
                   className="block leading-[1.08]"
                   style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
@@ -189,25 +190,25 @@ const Hero = () => {
                   {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
                 </span>
                 <span
-                  className="mt-3 block text-2xl sm:text-3xl md:text-4xl font-normal text-teal-100/95 leading-snug"
+                  className="mt-2 block text-xl font-normal leading-snug text-teal-100/95 sm:mt-3 sm:text-3xl md:text-4xl"
                   style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
                 >
                   {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
                 </span>
               </h1>
               <p
-                className="text-base sm:text-lg text-white/85 max-w-2xl leading-relaxed"
+                className="max-w-2xl text-sm leading-relaxed text-white/85 sm:text-lg"
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
               >
                 {home.hero_subtitle || DEFAULT_HOME.hero_subtitle}
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+            <div className="flex flex-col flex-wrap gap-2.5 sm:flex-row sm:gap-3">
               {!isAuthenticated && (
                 <Button
                   size="lg"
-                  className="gap-2 h-12 px-6 bg-teal-600 hover:bg-teal-500 text-white shadow-lg shadow-teal-900/30"
+                  className="h-11 gap-2 bg-teal-600 px-5 text-white shadow-lg shadow-teal-900/30 hover:bg-teal-500 sm:h-12 sm:px-6"
                   onClick={handleChanneliLogin}
                   disabled={channeliLoading}
                 >
@@ -226,7 +227,7 @@ const Hero = () => {
               )}
               <Button
                 size="lg"
-                className="gap-2 h-12 px-6 bg-white text-teal-900 hover:bg-teal-50"
+                className="h-11 gap-2 bg-white px-5 text-teal-900 hover:bg-teal-50 sm:h-12 sm:px-6"
                 style={fontSizes.cta_book_text ? { fontSize: fontSizes.cta_book_text } : undefined}
                 onClick={() => navigate(home.cta_book_route || "/equipments")}
               >
@@ -236,7 +237,7 @@ const Hero = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="gap-2 h-12 px-6 border-white/40 bg-white/5 text-white hover:bg-white/15 hover:text-white"
+                className="h-11 gap-2 border-white/40 bg-white/5 px-5 text-white hover:bg-white/15 hover:text-white sm:h-12 sm:px-6"
                 style={fontSizes.cta_browse_text ? { fontSize: fontSizes.cta_browse_text } : undefined}
                 onClick={() => {
                   const anchor = home.cta_browse_anchor || "#equipment";
@@ -249,31 +250,34 @@ const Hero = () => {
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Stats below hero — keeps first viewport focused */}
-      <section className="relative z-10 -mt-8 sm:-mt-10">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 rounded-2xl border bg-card/95 backdrop-blur-md p-4 sm:p-6 shadow-[var(--shadow-elegant)]">
+        <div className="container mx-auto w-full shrink-0 px-4 pb-4 pt-1 sm:pb-6 sm:pt-2">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/80 bg-card/95 p-3 shadow-[var(--shadow-elegant)] backdrop-blur-md sm:gap-4 sm:p-5 lg:grid-cols-4">
             {[
               { value: stat1Display, label: home.stat1_label ?? "Instruments", fsV: fontSizes.stat1_value, fsL: fontSizes.stat1_label },
               { value: stat2BookingsDisplay, label: home.stat4_label ?? "Bookings", fsV: fontSizes.stat4_value, fsL: fontSizes.stat4_label },
               { value: home.stat2_value ?? "24/7", label: home.stat2_label ?? "Online Booking", fsV: fontSizes.stat2_value, fsL: fontSizes.stat2_label },
               { value: stat3Display, label: home.stat3_label ?? "Researchers", fsV: fontSizes.stat3_value, fsL: fontSizes.stat3_label },
             ].map((s) => (
-              <div key={s.label} className="text-center px-2 py-2">
-                <div className="text-2xl sm:text-3xl font-semibold text-teal-800 dark:text-teal-300 tabular-nums" style={s.fsV ? { fontSize: s.fsV } : undefined}>
+              <div key={s.label} className="px-2 py-1.5 text-center sm:py-2">
+                <div
+                  className="text-xl font-semibold tabular-nums text-teal-800 dark:text-teal-300 sm:text-3xl"
+                  style={s.fsV ? { fontSize: s.fsV } : undefined}
+                >
                   {s.value}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground mt-1" style={s.fsL ? { fontSize: s.fsL } : undefined}>
+                <div
+                  className="mt-0.5 text-[11px] text-muted-foreground sm:mt-1 sm:text-sm"
+                  style={s.fsL ? { fontSize: s.fsL } : undefined}
+                >
                   {s.label}
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 };
 

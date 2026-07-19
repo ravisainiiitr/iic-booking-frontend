@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { consumePostLoginRedirect } from "@/lib/authRedirect";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 const AuthCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { setUserFromAuth } = useAuth();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [error, setError] = useState<string | null>(null);
 
@@ -31,40 +33,19 @@ const AuthCallback = () => {
       // Handle direct token-based authentication (server redirects with token)
       if (token) {
         try {
-          // Store the token
           apiClient.setToken(token);
-          
-          // Build user object from URL parameters
-          const userId = searchParams.get('user_id');
-          const email = searchParams.get('email');
-          const name = searchParams.get('name');
-          const userType = searchParams.get('user_type');
-          const usesAdminPanel = searchParams.get('uses_admin_panel');
-          const usesReactApp = searchParams.get('uses_react_app');
 
-          if (userId && email && name) {
-            const userData = {
-              id: parseInt(userId, 10),
-              email: decodeURIComponent(email),
-              name: decodeURIComponent(name.replace(/\+/g, ' ')),
-              user_type: userType ? (isNaN(Number(userType)) ? userType : parseInt(userType, 10)) : '',
-              uses_admin_panel: usesAdminPanel === 'true',
-              uses_react_app: usesReactApp === 'true',
-            };
-
-            localStorage.setItem('user', JSON.stringify(userData));
-          } else {
-            // If user data not in URL, fetch from API
-            const userResponse = await apiClient.getCurrentUser();
-            if (userResponse.data) {
-              localStorage.setItem('user', JSON.stringify(userResponse.data));
-            }
+          // Always fetch the full user (includes admin_panel_enabled / modules).
+          // URL params are incomplete and must not be the sole source of truth.
+          const userResponse = await apiClient.getCurrentUser();
+          if (userResponse.error || !userResponse.data) {
+            throw new Error(userResponse.error || "Failed to load user profile");
           }
+          setUserFromAuth(userResponse.data);
 
           setStatus('success');
           toast.success('Authentication successful!');
 
-          // Redirect after short delay
           setTimeout(() => {
             navigate(consumePostLoginRedirect());
           }, 1500);
@@ -103,18 +84,23 @@ const AuthCallback = () => {
           throw new Error(response.error);
         }
 
-        // Store user data if provided
-        if (response.data?.user) {
-          localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (response.data?.token) {
+          apiClient.setToken(response.data.token);
         }
 
-        // Clear state
+        // Prefer a fresh /auth/user/ payload so Admin Panel flags are correct.
+        const userResponse = await apiClient.getCurrentUser();
+        if (userResponse.data) {
+          setUserFromAuth(userResponse.data);
+        } else if (response.data?.user) {
+          setUserFromAuth(response.data.user);
+        }
+
         localStorage.removeItem('omniport_state');
 
         setStatus('success');
         toast.success('Authentication successful!');
 
-        // Redirect after short delay
         setTimeout(() => {
           navigate(consumePostLoginRedirect());
         }, 1500);
@@ -128,7 +114,7 @@ const AuthCallback = () => {
     };
 
     processCallback();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setUserFromAuth]);
 
   if (status === 'processing') {
     return (

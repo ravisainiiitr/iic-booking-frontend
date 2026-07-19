@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
 
-interface User {
+export interface User {
   id: number;
   email: string;
   name: string;
@@ -43,6 +43,12 @@ interface User {
   oic_enable_ta_duty_assignments?: boolean;
   oic_enable_leave_management?: boolean;
   oic_enable_reward_config?: boolean;
+  /** Effective RBAC permission codes for the current user. */
+  rbac_permissions?: string[];
+  /** Whether this user's role/department is configured for Admin Panel access (Main Admin always true). */
+  admin_panel_enabled?: boolean;
+  /** Expanded Admin Settings module keys the user may access. */
+  admin_panel_modules?: string[];
 }
 
 interface AuthContextType {
@@ -153,15 +159,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Periodic session check: when logged in and tab is visible, validate token so we detect
-  // "logged in elsewhere" (single-session) quickly and redirect this tab to login
+  const isAuthenticated = !!user && !!apiClient.getToken();
+
+  // Periodic session check: validate token so we detect "logged in elsewhere"
+  // (single-session) quickly. Do NOT put `user` in the effect deps — that would
+  // tear down/recreate the interval on every setUser and cause app-wide refetch loops
+  // in pages that depend on the user object reference.
   const SESSION_CHECK_MS = 15 * 1000; // 15 seconds
   useEffect(() => {
-    if (!user || !apiClient.getToken()) return;
+    if (!isAuthenticated || !apiClient.getToken()) return;
 
     const checkSession = () => {
       if (document.visibilityState !== "visible") return;
-      apiClient.getCurrentUser();
+      void apiClient.getCurrentUser().then((userResponse) => {
+        if (userResponse.error || !userResponse.data) return;
+        const next = userResponse.data;
+        // Only update React state when identity/access-relevant fields change.
+        // Blind setUser() every 15s creates a new object reference and retriggers
+        // every useEffect that lists `user` as a dependency (e.g. booking list).
+        setUser((prev) => {
+          if (!prev) {
+            localStorage.setItem("user", JSON.stringify(next));
+            return next;
+          }
+          const sameAccess =
+            prev.id === next.id &&
+            String(prev.user_type ?? "") === String(next.user_type ?? "") &&
+            prev.admin_panel_enabled === next.admin_panel_enabled &&
+            JSON.stringify(prev.admin_panel_modules ?? null) ===
+              JSON.stringify(next.admin_panel_modules ?? null) &&
+            JSON.stringify(prev.rbac_permissions ?? null) ===
+              JSON.stringify(next.rbac_permissions ?? null) &&
+            prev.department === next.department &&
+            prev.is_active === next.is_active;
+          if (sameAccess) {
+            // Refresh localStorage quietly without forcing re-renders.
+            localStorage.setItem("user", JSON.stringify({ ...prev, ...next }));
+            return prev;
+          }
+          localStorage.setItem("user", JSON.stringify(next));
+          return next;
+        });
+      });
     };
 
     const onVisibilityChange = () => {
@@ -174,7 +213,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [user]);
+  }, [isAuthenticated]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -225,8 +264,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData));
   }, []);
-
-  const isAuthenticated = !!user && !!apiClient.getToken();
 
   return (
     <AuthContext.Provider

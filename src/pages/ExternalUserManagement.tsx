@@ -24,10 +24,10 @@ const ExternalUserManagement = () => {
         navigate("/auth");
         return;
       }
-      if (String(userRes.data.user_type ?? "").toLowerCase() !== "admin") {
+      if (!["admin", "external_relations"].includes(String(userRes.data.user_type ?? "").toLowerCase())) {
         toast({
           title: "Access Denied",
-          description: "Only Admin can manage external users.",
+          description: "Only Admin or External Relations Administrator can manage external users.",
           variant: "destructive",
         });
         navigate("/dashboard");

@@ -16,6 +16,7 @@ import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, Clipboar
 import NotificationPanel from "@/components/NotificationPanel";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
+import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 
@@ -104,24 +105,34 @@ const Header = () => {
   };
   
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur-md shadow-sm shadow-teal-950/5">
+      <div className="container mx-auto px-4 sm:px-6 py-3.5 sm:py-4">
+        <div className="flex items-center justify-between gap-4 sm:gap-6">
+          <div
+            className="flex items-center min-w-0 flex-1 cursor-pointer rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             onClick={() => navigate("/")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigate("/");
+              }
+            }}
+            role="link"
+            tabIndex={0}
+            aria-label="IIT Roorkee — home"
           >
-            <IITRBanner size="sm" />
+            <IITRBanner size="lg" className="max-w-full" />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {isAuthenticated ? (
               <>
+                <BackToDashboardButton />
                 <NotificationPanel />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                      <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
+                      <Avatar className="h-9 w-9 cursor-pointer transition-opacity hover:opacity-80">
                         <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={formatUserDisplayName(user)} />
                         <AvatarFallback>{formatUserDisplayName(user)[0].toUpperCase()}</AvatarFallback>
                       </Avatar>
@@ -137,7 +148,7 @@ const Header = () => {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => safeNavigate("/dashboard")}>
                       <Calendar className="mr-2 h-4 w-4" />
-                      <span>Dashboard</span>
+                      <span>Back to Dashboard</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
                       <Package className="mr-2 h-4 w-4" />
@@ -180,7 +191,11 @@ const Header = () => {
                 </DropdownMenu>
               </>
             ) : (
-              <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
+              <Button
+                onClick={() => navigate("/auth")}
+                size="lg"
+                className="h-10 sm:h-11 px-5 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-teal-900/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-teal-900/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+              >
                 Sign In
               </Button>
             )}

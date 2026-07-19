@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CheckCircle2, Home, PackagePlus } from "lucide-react";
+import DashboardHeader from "@/components/DashboardHeader";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Dept = { id: number; name: string; code: string };
 
@@ -64,6 +66,7 @@ const CHARGE_FIELDS: Array<{ key: keyof typeof EMPTY_FORM; label: string }> = [
 ];
 
 const ProposeEquipment = () => {
+  const { isAuthenticated } = useAuth();
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [equipmentImage, setEquipmentImage] = useState<File | null>(null);
@@ -174,20 +177,24 @@ const ProposeEquipment = () => {
 
   return (
     <div className="page-shell">
-      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-foreground">
-            <PackagePlus className="h-6 w-6 text-teal-700" />
-            <span className="font-semibold tracking-tight">Propose new equipment</span>
+      {isAuthenticated ? (
+        <DashboardHeader />
+      ) : (
+        <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-foreground">
+              <PackagePlus className="h-6 w-6 text-teal-700" />
+              <span className="font-semibold tracking-tight">Propose new equipment</span>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/">
+                <Home className="h-4 w-4 mr-1" />
+                Home
+              </Link>
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/">
-              <Home className="h-4 w-4 mr-1" />
-              Home
-            </Link>
-          </Button>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
