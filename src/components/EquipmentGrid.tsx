@@ -60,16 +60,20 @@ const EquipmentGrid = () => {
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdminOrOIC = ["admin", "manager", "operator"].includes(userTypeStr);
+  const isDeptAdmin = userTypeStr === "dept_admin";
+  const daDepartmentId = user?.department != null ? Number(user.department) : null;
 
   const fetchEquipment = useCallback(async (search?: string, departmentId: DepartmentFilterValue = "all") => {
     try {
       setLoading(true);
+      const effectiveDept: DepartmentFilterValue =
+        isDeptAdmin && daDepartmentId != null ? daDepartmentId : departmentId;
       const response = await apiClient.getEquipments(
         search,
         undefined,
         undefined,
         true,
-        departmentId,
+        effectiveDept,
       );
 
       if (response.error) {
@@ -92,7 +96,13 @@ const EquipmentGrid = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isDeptAdmin, daDepartmentId]);
+
+  useEffect(() => {
+    if (isDeptAdmin && daDepartmentId != null) {
+      setSelectedDepartmentId(daDepartmentId);
+    }
+  }, [isDeptAdmin, daDepartmentId]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -157,18 +167,32 @@ const EquipmentGrid = () => {
     return transformEquipment(equipment);
   }, [equipment, statusUpdatingId, isAdminOrOIC]);
 
-  const hasActiveFilters = selectedDepartmentId !== "all" || searchQuery.trim().length > 0;
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || (!isDeptAdmin && selectedDepartmentId !== "all");
 
   return (
     <section id="equipment" className="py-2">
       <div className="mb-8">
         <div className="max-w-3xl mx-auto mb-6 flex flex-col sm:flex-row gap-3">
-          <DepartmentFilter
-            value={selectedDepartmentId}
-            onChange={setSelectedDepartmentId}
-            className="sm:w-64 shrink-0"
-            triggerClassName="h-12 text-base w-full"
-          />
+          {isDeptAdmin ? (
+            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</p>
+              <p className="font-medium truncate mt-0.5">
+                {user?.department_name
+                  ? `${user.department_name}${user.department_code ? ` (${user.department_code})` : ""}`
+                  : daDepartmentId != null
+                    ? `Department #${daDepartmentId}`
+                    : "Your department"}
+              </p>
+            </div>
+          ) : (
+            <DepartmentFilter
+              value={selectedDepartmentId}
+              onChange={setSelectedDepartmentId}
+              className="sm:w-64 shrink-0"
+              triggerClassName="h-12 text-base w-full"
+            />
+          )}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
@@ -199,7 +223,9 @@ const EquipmentGrid = () => {
         <div className="text-center py-12">
           <p className="text-muted-foreground text-lg">
             {hasActiveFilters
-              ? "No equipment found for the selected department or search."
+              ? isDeptAdmin
+                ? "No equipment found for your department or search."
+                : "No equipment found for the selected department or search."
               : "No equipment available."}
           </p>
         </div>
