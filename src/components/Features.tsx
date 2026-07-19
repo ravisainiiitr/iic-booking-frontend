@@ -11,7 +11,7 @@ const features = [
     icon: FlaskConical,
     title: "Research-grade facilities",
     description:
-      "Analytical and specialised instruments across IIC laboratories — clear specs, accessories, charges, and lab contacts on every equipment page.",
+      "Analytical and specialised instruments across participating departments, centres, and laboratories — clear specs, accessories, charges, and lab contacts on every equipment page.",
   },
   {
     icon: Zap,
@@ -46,13 +46,13 @@ const Features = () => {
       <div className="container relative mx-auto px-4">
         <div className="text-center mb-14 max-w-2xl mx-auto space-y-3">
           <p className="text-sm font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-400">
-            Why IIC Booking
+            Why book here
           </p>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-foreground">
             Built for scientific workflows
           </h2>
           <p className="text-lg text-muted-foreground">
-            A modern portal for students, faculty, project staff, and external researchers — from slot selection to online results.
+            A modern institute-wide portal for students, faculty, project staff, and external researchers across departments, centres, and laboratories — from slot selection to online results.
           </p>
         </div>
 

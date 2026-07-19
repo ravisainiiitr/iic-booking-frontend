@@ -16,11 +16,11 @@ const Footer = () => {
             <div className="flex items-center gap-2">
               <FlaskConical className="h-6 w-6 text-primary" />
               <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                INSTITUTE INSTRUMENTATION CENTRE - IIC
+                Institute Equipment Booking Portal
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Advanced scientific equipment booking platform for research institutions worldwide.
+              IIT Roorkee&apos;s institute-wide platform for booking laboratory equipment across departments, centres, and laboratories.
             </p>
           </div>
 
@@ -85,13 +85,13 @@ const Footer = () => {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>Email: iicbooking@iitr.ac.in</li>
               <li>Hours: 24/7 Online Support</li>
-              <li>Institute Instrumentation Centre, IIT Roorkee</li>
+              <li>Indian Institute of Technology Roorkee</li>
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} INSTITUTE INSTRUMENTATION CENTRE - IIC. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Institute Equipment Booking Portal, IIT Roorkee. All rights reserved.</p>
         </div>
       </div>
     </footer>

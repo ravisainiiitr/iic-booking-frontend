@@ -1,119 +1,95 @@
 import {
   type UserGuideContent,
+  PRODUCT_NAME,
   bookingStatusSection,
   notificationsSection,
   supportSection,
   bestPracticesSection,
+  loginAccountSection,
+  troubleshootingSection,
+  permissionsSection,
+  faqSection,
+  purposeSection,
 } from "../types";
 
 export const startupGuide: UserGuideContent = {
   audience: "startup",
   audienceLabel: "Startup Users",
-  title: "Startup User Guide",
-  subtitle: "IITR-incubated startups and external Startup/MSME accounts",
-  welcomeHeadline: "Welcome, Startup User",
-  welcomeBody:
-    "Startup and MSME accounts use the IIC booking portal to access instrumentation with category-specific rates. Depending on whether you are incubated at IIT Roorkee or registering as an external startup/MSME, payment and eligibility rules differ slightly — this guide covers both.",
+  title: "Startup / MSME User Guide",
+  subtitle: `${PRODUCT_NAME} — incubated and external startup booking paths`,
+  welcomeHeadline: "Welcome, startup / MSME user",
+  welcomeBody: `Startup and MSME accounts use the ${PRODUCT_NAME} to access instrumentation with category-specific rates. Whether you are incubated at IIT Roorkee or registering as an external startup/MSME, payment and eligibility rules may differ slightly — this guide covers both.`,
   sections: [
-    {
-      id: "welcome",
-      title: "Welcome",
+    purposeSection({
       paragraphs: [
-        "The Online Equipment Booking System connects startups with IIC laboratories for characterisation, testing, and development work.",
-        "You can discover equipment, estimate charges for your startup category, book slots, manage samples, and pay according to your account type.",
+        `The ${PRODUCT_NAME} connects startups with laboratories across IIT Roorkee for characterisation, testing, and development work.`,
       ],
       bullets: [
-        "Browse instruments relevant to product and R&D work",
-        "Book with startup / MSME pricing where configured",
-        "Track samples and results online",
-        "Get help via equipment-linked support tickets",
+        "Register under the correct startup / MSME category",
+        "Book published equipment at category rates",
+        "Complete payments and track results online",
       ],
-    },
-    {
-      id: "access",
-      title: "What You Can Access",
+    }),
+    loginAccountSection({
       paragraphs: [
-        "Two common startup paths exist on this portal — privileges follow your registered user type.",
+        "Incubated startups may use campus-linked login paths where offered; external startups/MSMEs typically register with email and documents.",
       ],
       bullets: [
-        "Startup Incubated at IIT Roorkee — often treated closer to internal/incubator rules with specialised rates.",
-        "External Startup/MSME — follows external booking windows, GST-aware charging, and online payment flows.",
-        "I-STEM acknowledgement may be required before external-style bookings.",
-        "Not all instruments are open to every category; unpublished or restricted labs will not appear for booking.",
-        "Wallet vs online payment depends on whether your account is incubator-linked internal or fully external.",
+        "Choose the correct user category during registration.",
+        "Complete KYC/document uploads when the portal requests them.",
+        "Keep organisation details current for invoicing.",
       ],
-      callouts: [
-        "If you are unsure which path applies, check Profile → user type, or raise a Support Ticket before your first paid booking.",
-      ],
-    },
+    }),
     {
-      id: "profile",
-      title: "Registration & Profile",
-      paragraphs: ["Accurate organisation details keep invoices and lab records clean."],
-      bullets: [
-        "Complete organisation name, contacts, and department/incubator linkage.",
-        "Finish email verification and any admin approval steps.",
-        "For external startups: confirm I-STEM registration when prompted.",
-        "Keep billing/GST fields updated when the portal requests external billing information.",
-      ],
-    },
-    {
-      id: "booking",
+      id: "book-workflow",
       title: "Booking Workflow",
-      paragraphs: ["A typical startup booking:"],
-      bullets: [
-        "Find equipment → open details → Calculate Charges using your startup category.",
-        "Review accessories and sample preparation notes carefully for product samples.",
-        "Book available slots within your allowed window.",
-        "Complete wallet debit or online payment as directed until status is Booked.",
-        "Monitor My Bookings for sample deadlines and lab messages.",
-      ],
-    },
-    {
-      id: "samples",
-      title: "Sample Submission Process",
-      paragraphs: [
-        "Startup samples may be proprietary — still follow lab labelling, safety, and deadline rules.",
-      ],
-      bullets: [
-        "Submit before the published deadline; reminders include advance countdown notices.",
-        "Declare atmosphere-sensitive needs only when the instrument supports that option.",
-        "Ask the lab (via ticket) before sending hazardous or unusual materials.",
-        "Collect results promptly after Completed status.",
-      ],
-    },
-    {
-      id: "payments",
-      title: "Payments & Charges",
-      paragraphs: [
-        "Startup pricing is category-specific. Incubated startups may use institute wallet/grant paths; external startups/MSMEs usually pay online.",
-      ],
-      bullets: [
-        "Always verify the quote on Calculate Charges before confirming.",
-        "External path: complete Awaiting payment via the online gateway; retain invoices/receipts.",
-        "Incubator/internal path: ensure the correct wallet is funded.",
-        "Unresolved payment may release the reserved slot.",
+      paragraphs: ["Use the equipment catalog and live calendar like other booking users, watching for startup-specific charge profiles."],
+      steps: [
+        {
+          title: "Verify account readiness",
+          body: "Confirm verification is complete and any required documents are approved.",
+          screenshotCaption: "Profile / verification status",
+        },
+        {
+          title: "Review startup rates",
+          body: "Open equipment details and Calculate Charges for your category before selecting slots.",
+          screenshotCaption: "Charge estimate for startup category",
+        },
+        {
+          title: "Book and pay",
+          body: "Reserve slots, complete payment steps, then track sample deadlines and results in My Bookings.",
+          screenshotCaption: "Booking confirmation",
+        },
       ],
     },
     bookingStatusSection(),
-    notificationsSection([
-      "Payment confirmation emails are critical for external startup bookings — whitelist institute mailers.",
+    notificationsSection(),
+    bestPracticesSection([
+      "Book early for popular characterisation tools used by many startups.",
+    ]),
+    permissionsSection({
+      paragraphs: ["Startup accounts are end-user booking roles with category pricing — not lab staff roles."],
+      bullets: [
+        "Incubated vs external categories can change rates and document requirements.",
+        "You cannot manage institute equipment or department staff.",
+      ],
+    }),
+    faqSection([
+      {
+        question: "Which category should I pick — incubated or external?",
+        answer:
+          "Incubated at IIT Roorkee if you are formally incubated on campus; otherwise use External Startup/MSME. Wrong category can delay verification.",
+      },
+      {
+        question: "Are rates the same as industry?",
+        answer:
+          "Not necessarily. Always use Calculate Charges for your signed-in category on each equipment page.",
+      },
+    ]),
+    troubleshootingSection([
+      "Pending verification: complete documents and wait for staff email.",
+      "Payment issues: retain transaction references and open a Support Ticket with booking ID.",
     ]),
     supportSection(),
-    {
-      id: "faq",
-      title: "Frequently Asked Questions",
-      paragraphs: ["Startup FAQs:"],
-      bullets: [
-        "Incubated vs external — which am I? — Check your Profile user type label; contact support if it looks wrong.",
-        "Can I get academic rates? — Rates follow your registered category, not personal preference.",
-        "NDA / confidentiality — Raise a ticket with the lab before booking if you need special handling.",
-        "Multiple team members — Each user needs an account; do not share logins.",
-      ],
-    },
-    bestPracticesSection([
-      "Plan characterisation into your product sprint so payment and sample logistics are not last-minute.",
-      "Cancel early if a prototype iteration slips — slots are scarce on popular tools.",
-    ]),
   ],
 };

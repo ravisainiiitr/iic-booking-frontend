@@ -149,7 +149,7 @@ const EquipmentGrid = () => {
       avgRating: eq.avg_rating ?? null,
       ratingCount: eq.rating_count ?? null,
       ratingDist: eq.rating_dist ?? null,
-      address: eq.location || "Institute Instrumentation Centre, IIT Roorkee",
+      address: eq.location || "IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",
     }));

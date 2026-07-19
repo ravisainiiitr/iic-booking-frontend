@@ -1,126 +1,121 @@
 import {
   type UserGuideContent,
+  PRODUCT_NAME,
   bookingStatusSection,
   notificationsSection,
   supportSection,
   bestPracticesSection,
+  loginAccountSection,
+  troubleshootingSection,
+  permissionsSection,
+  faqSection,
+  purposeSection,
 } from "../types";
 
 export const externalGuide: UserGuideContent = {
   audience: "external",
   audienceLabel: "External Users",
   title: "External User Guide",
-  subtitle: "Educational institutes, R&D labs, industry, and other external organisations",
-  welcomeHeadline: "Welcome to the IIC Online Equipment Booking System",
-  welcomeBody:
-    "This portal lets your organisation book Institute Instrumentation Centre (IIC) equipment at IIT Roorkee, track samples and results, and manage payments. This short guide explains what you can access and how to complete your first booking.",
+  subtitle: `${PRODUCT_NAME} — registration, KYC, booking, and payments for external organisations`,
+  welcomeHeadline: `Welcome to the ${PRODUCT_NAME}`,
+  welcomeBody: `This portal lets your organisation book laboratory equipment across participating departments, centres, and laboratories at IIT Roorkee, track samples and results, and manage payments. This guide explains registration, your first booking, and common external workflows.`,
   sections: [
-    {
-      id: "welcome",
-      title: "Welcome",
+    purposeSection({
       paragraphs: [
-        "The Online Equipment Booking System is the official channel for reserving analytical and specialised instruments at IIC, IIT Roorkee.",
-        "Through this portal you can browse equipment, estimate charges, request slots, submit samples as instructed by the lab, pay invoices, and raise support tickets.",
+        `The ${PRODUCT_NAME} is the official channel for reserving analytical and specialised instruments at IIT Roorkee for eligible external categories (educational institutes, R&D, industry, and other approved types).`,
       ],
       bullets: [
-        "Browse published equipment and laboratory details",
-        "Create and track bookings online",
-        "Pay via the online payment workflow where applicable",
-        "Receive email and in-app updates for every major milestone",
+        "Register and complete document / KYC requirements when prompted",
+        "Browse published equipment and transparent charge profiles",
+        "Book slots subject to external booking windows and policies",
+        "Track sample submission, payments, and online results",
       ],
-    },
-    {
-      id: "access",
-      title: "What You Can Access",
+    }),
+    loginAccountSection({
       paragraphs: [
-        "As an external user (educational institute, government R&D, industry, or other approved category), you book as a guest organisation under external pricing and booking windows.",
+        "External users create an account on the Auth page (email/password) rather than Channel i campus SSO.",
       ],
       bullets: [
-        "Access to equipment that is published for external booking (subject to lab rules and capacity).",
-        "External charge profiles typically include applicable taxes/GST as configured for your category.",
-        "Booking windows and reserved internal slots may limit when you can book compared with campus users.",
-        "Before first booking, confirm I-STEM portal registration when the system requests it.",
-        "You do not use internal department grant wallets; payments follow the external / online path.",
+        "Register with an organisational email when possible.",
+        "Upload required documents; if you use a public email, download and upload the signed KYC form as instructed.",
+        "Await verification where required before full booking access.",
+        "Sign in anytime from Auth; update Profile contacts for notifications.",
       ],
       callouts: [
-        "Your exact rates depend on user category (Educational Institute, R&D, Industry, etc.). Always check View and Calculate Charges on the equipment page.",
+        "Keep organisation and GST details accurate — they may appear on invoices and requisition forms.",
+      ],
+    }),
+    {
+      id: "book-workflow",
+      title: "First Booking Workflow",
+      paragraphs: [
+        "External bookings may use reserved windows, payment steps, and document requirements that differ from campus users.",
+      ],
+      steps: [
+        {
+          title: "Complete registration",
+          body: "Finish profile and document uploads. Wait for approval if your account shows pending verification.",
+          screenshotCaption: "Auth / registration document upload",
+        },
+        {
+          title: "Select equipment",
+          body: "Browse the catalog, open details, and review external charge rates and sample instructions.",
+          screenshotCaption: "Equipment details for external rates",
+        },
+        {
+          title: "Book within the allowed window",
+          body: "Use the calendar to select eligible slots. Confirm and complete any payment or invoice step shown.",
+          screenshotCaption: "External booking calendar",
+        },
+        {
+          title: "Submit samples and track status",
+          body: "Follow sample submission deadlines on the booking. Download results from My Bookings when published.",
+          screenshotCaption: "My Bookings — sample deadline and results",
+        },
       ],
     },
-    {
-      id: "profile",
-      title: "Registration & Profile",
+    bookingStatusSection({
+      extraBullets: [
+        "Awaiting payment is common for external paths — complete payment promptly to secure the slot.",
+      ],
+    }),
+    notificationsSection(),
+    bestPracticesSection([
+      "Download and retain proforma invoices / payment references for your accounts team.",
+      "Label samples clearly with booking ID as instructed by the lab.",
+    ]),
+    permissionsSection({
       paragraphs: [
-        "Complete your profile soon after registration so bookings and invoices show the correct organisation details.",
+        "External accounts book under external charge profiles and policy windows. Campus-only features (Channel i, internal wallets) do not apply.",
       ],
       bullets: [
-        "Verify email and wait for admin approval if your account requires it before booking.",
-        "Update name, phone, and organisation/department details under Profile.",
-        "Upload or complete any KYC / documentary checks requested during onboarding or revalidation.",
-        "Keep billing and GST-related details accurate when prompted for external billing.",
-        "Acknowledge I-STEM registration when required — booking is blocked until this is confirmed.",
+        "You manage bookings and documents for your organisation account.",
+        "You cannot access lab operations, department administration, or internal wallet tools.",
+        "Some instruments may be campus-only or require additional lab approval.",
       ],
-    },
-    {
-      id: "booking",
-      title: "Booking Workflow",
-      paragraphs: [
-        "Booking is designed as a guided flow from discovery to confirmation.",
-      ],
-      bullets: [
-        "Search or browse Equipments; open View Details & Charges for specifications, accessories, and OIC information.",
-        "Use View and Calculate Charges to understand pricing for your user category and run parameters.",
-        "Check the availability calendar for free slots within the allowed booking window.",
-        "Create a booking with the required slot(s), sample count, and accessories if offered.",
-        "Complete payment when the booking enters Awaiting payment (if required for your flow).",
-        "Confirmation appears as Booked — you will also receive email confirmation when configured.",
-      ],
-    },
-    {
-      id: "samples",
-      title: "Sample Submission Process",
-      paragraphs: [
-        "Many instruments require physical sample submission before the scheduled run. Deadlines are enforced so the lab can prepare.",
-      ],
-      bullets: [
-        "Note the sample submission deadline shown on your booking (often tied to slot start and lab lead time).",
-        "Watch countdown reminders on the dashboard and by email before the deadline.",
-        "Follow the lab’s acceptance workflow — samples may be marked accepted/rejected by staff.",
-        "If atmosphere-sensitive sample handling is offered for that equipment, select it only when your sample truly requires it.",
-        "After the run, follow lab instructions for result collection or download when files are published.",
-      ],
-    },
-    {
-      id: "payments",
-      title: "Payments & Charges",
-      paragraphs: [
-        "External bookings use external charge rates and online or invoice-linked payment workflows rather than internal grant wallets.",
-      ],
-      bullets: [
-        "Charges are estimated before booking and confirmed according to actual usage rules published by the lab.",
-        "Pay online when the portal directs you to the payment step for your booking.",
-        "Download or retain proforma invoices / receipts from the booking or payment screens when available.",
-        "Unresolved Awaiting payment states may release the slot if payment is not completed in time.",
-      ],
-    },
-    bookingStatusSection(),
-    notificationsSection([
-      "Payment and invoice emails are especially important for external organisations — monitor the mailbox used at registration.",
+    }),
+    faqSection([
+      {
+        question: "Why is my account pending?",
+        answer:
+          "External verification or document review may be required. Complete KYC/document uploads and wait for staff confirmation; check email for updates.",
+      },
+      {
+        question: "How do I get the KYC form?",
+        answer:
+          "On registration, use the Download IIT Roorkee KYC Form link, then upload a signed scan with the KYC document type.",
+      },
+      {
+        question: "Can I cancel an external booking?",
+        answer:
+          "Yes, subject to cancellation windows and refund policy shown for that booking. Cancel early when possible.",
+      },
+    ]),
+    troubleshootingSection([
+      "If login fails, reset password from Auth and confirm you are using the registered email.",
+      "Missing equipment may mean it is not published for external booking — contact support with the instrument name.",
+      "Payment pending longer than expected: check spam for payment links and raise a ticket with booking ID.",
     ]),
     supportSection(),
-    {
-      id: "faq",
-      title: "Frequently Asked Questions",
-      paragraphs: ["Common questions for external organisations:"],
-      bullets: [
-        "Why can’t I book yet? — Email verification, admin approval, or I-STEM acknowledgement may still be pending.",
-        "Why are some slots blocked? — Internal reserved capacity or external booking windows may apply.",
-        "How do I know my rate? — Use Calculate Charges with your user category, or contact support with the equipment code.",
-        "Who do I contact for a scientific method question? — Raise a ticket from the equipment page so the lab OIC can respond.",
-        "Can I cancel? — Use My Bookings cancellation/request flows subject to lab and payment policy.",
-      ],
-    },
-    bestPracticesSection([
-      "Align purchase-order or finance cycles with booking dates so payment does not delay confirmation.",
-    ]),
   ],
 };

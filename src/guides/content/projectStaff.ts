@@ -1,111 +1,96 @@
 import {
   type UserGuideContent,
+  PRODUCT_NAME,
   bookingStatusSection,
   notificationsSection,
   supportSection,
   bestPracticesSection,
+  loginAccountSection,
+  troubleshootingSection,
+  permissionsSection,
+  faqSection,
+  purposeSection,
 } from "../types";
 
 export const projectStaffGuide: UserGuideContent = {
   audience: "project_staff",
   audienceLabel: "Project Staff",
   title: "Project Staff User Guide",
-  subtitle: "Post-doctoral fellows, research associates, and project researchers",
-  welcomeHeadline: "Welcome, Project Staff",
-  welcomeBody:
-    "Project staff book IIC equipment much like students and faculty: internal rates, wallet or grant funding through the project PI, and the same sample workflows. This guide focuses on your access pattern and how to stay aligned with your faculty supervisor.",
+  subtitle: `${PRODUCT_NAME} — project-funded booking with PI wallet support`,
+  welcomeHeadline: "Welcome, project staff",
+  welcomeBody: `Project staff book laboratory equipment much like students and faculty: internal rates when eligible, wallet or grant funding through the project PI, and the same sample workflows. This guide focuses on your access pattern and staying aligned with your faculty supervisor on the ${PRODUCT_NAME}.`,
   sections: [
-    {
-      id: "welcome",
-      title: "Welcome",
+    purposeSection({
       paragraphs: [
-        "The Online Equipment Booking System serves Institute Instrumentation Centre users across IIT Roorkee, including project-funded researchers.",
-        "Your account type sits under the internal student/researcher framework with an alias that identifies you as project staff or a post-doctoral fellow.",
+        `The ${PRODUCT_NAME} serves researchers across IIT Roorkee, including project-funded staff working in participating departments, centres, and laboratories.`,
       ],
       bullets: [
-        "Book eligible IIC equipment for project work",
-        "Pay via linked faculty / project wallets",
-        "Track samples, results, and support tickets",
+        "Book eligible equipment for project work",
+        "Pay via PI / faculty wallets when linked",
+        "Track samples, deadlines, and online results",
+        "Use waitlist and cancellation features when enabled",
       ],
-    },
-    {
-      id: "access",
-      title: "What You Can Access",
+    }),
+    loginAccountSection({
       paragraphs: [
-        "You receive internal booking privileges similar to IITR students, subject to lab publication and your program validity dates.",
+        "Use Channel i when available for campus accounts, or the credentials issued for your portal profile.",
       ],
       bullets: [
-        "Internal charge rates where the lab publishes them for your category.",
-        "Wallet-backed bookings through your PI / faculty supervisor.",
-        "Full My Bookings, sample deadline, and disruption response tools.",
-        "Restrictions: you are not faculty wallet owners; funding must be authorised by the PI.",
-        "Access may end when project or program validity dates expire — renew documents on time.",
+        "Sign in from Auth and confirm your Profile details.",
+        "Request wallet access from your PI/faculty if bookings require a linked wallet.",
+        "Keep programme / project validity dates accurate on your profile when shown.",
       ],
-    },
+    }),
     {
-      id: "profile",
-      title: "Registration & Profile",
-      paragraphs: ["Complete profile details so the lab and finance teams can identify your project affiliation."],
-      bullets: [
-        "Confirm department, designation, and contact numbers.",
-        "Link the correct faculty supervisor / PI for wallet access.",
-        "Keep program start/end dates accurate to avoid access-on-hold.",
-        "Submit documentary evidence promptly if revalidation is requested.",
-      ],
-    },
-    {
-      id: "booking",
-      title: "Booking Workflow",
-      paragraphs: ["Project bookings follow the internal path:"],
-      bullets: [
-        "Search equipment → review details, accessories, and charges.",
-        "Check calendar availability and create the booking.",
-        "Select the authorised wallet / grant when prompted.",
-        "Confirm Booked status and note sample deadlines.",
-        "Coordinate with your PI if balance or approval is insufficient.",
-      ],
-    },
-    {
-      id: "samples",
-      title: "Sample Submission Process",
-      paragraphs: [
-        "Treat sample deadlines as project milestones — missed samples waste funded slots.",
-      ],
-      bullets: [
-        "Submit before the countdown reaches zero; reminders are sent by email and on the dashboard.",
-        "Use atmosphere-sensitive options only when scientifically required and supported.",
-        "Follow lab acceptance rules and collect results when the booking is completed.",
-      ],
-    },
-    {
-      id: "payments",
-      title: "Payments & Charges",
-      paragraphs: [
-        "Charges debit the linked faculty/project wallet. Online external payment is not the primary path for project staff.",
-      ],
-      bullets: [
-        "Confirm with your PI which grant/wallet to use before large campaigns.",
-        "Monitor booking cost estimates with Calculate Charges.",
-        "Receipts appear against the wallet; your PI may reconcile project spend from Wallet history.",
+      id: "book-workflow",
+      title: "Booking for Project Work",
+      paragraphs: ["Follow the standard live-calendar booking path used by internal users."],
+      steps: [
+        {
+          title: "Confirm wallet access",
+          body: "Ensure your PI has approved any wallet join request before peak booking times.",
+          screenshotCaption: "Wallet join / membership status",
+        },
+        {
+          title: "Select equipment and slots",
+          body: "Browse Equipments, review charges, and reserve consecutive free slots.",
+          screenshotCaption: "Booking calendar",
+        },
+        {
+          title: "Complete confirmation",
+          body: "Confirm booking and wallet debit. Monitor My Bookings for sample deadlines and results.",
+          screenshotCaption: "My Bookings list",
+        },
       ],
     },
     bookingStatusSection(),
     notificationsSection(),
-    supportSection(),
-    {
-      id: "faq",
-      title: "Frequently Asked Questions",
-      paragraphs: ["Project staff FAQs:"],
-      bullets: [
-        "Why do I look like a “student” type? — The portal stores project researchers under the internal student framework with a project/PDF alias.",
-        "Wallet link failed — Ask your PI to accept/link you and ensure the wallet allows your bookings.",
-        "Project ended but I need one more run — Update program validity / documents or request a short extension with admin support.",
-        "Can I approve student wallets? — No; wallet ownership and faculty approvals stay with faculty accounts.",
-      ],
-    },
     bestPracticesSection([
-      "Share booking IDs with your PI for project reporting.",
-      "Cancel promptly if experimental plans change after funding is reserved.",
+      "Align booking dates with project milestones and PI availability for approvals.",
     ]),
+    permissionsSection({
+      paragraphs: ["You book as an end user. Lab and department administration tools are outside this role."],
+      bullets: [
+        "You manage your own bookings only.",
+        "Wallet funding depends on PI approval and balance.",
+        "Urgent/repeat-sample features appear only when the lab enables them.",
+      ],
+    }),
+    faqSection([
+      {
+        question: "My alias shows project staff — does that change rates?",
+        answer:
+          "Charge profiles follow your user type and equipment configuration. Confirm Calculate Charges before booking if unsure.",
+      },
+      {
+        question: "Who approves my wallet join?",
+        answer: "Usually your faculty PI / wallet owner. Ask them to check Wallet join requests on their dashboard.",
+      },
+    ]),
+    troubleshootingSection([
+      "If booking is blocked for payment, verify wallet membership and balance with your PI.",
+      "Calendar conflicts: pick another free slot; the previous one may have been taken.",
+    ]),
+    supportSection(),
   ],
 };

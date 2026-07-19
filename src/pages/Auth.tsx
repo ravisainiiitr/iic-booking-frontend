@@ -878,7 +878,7 @@ const Auth = () => {
               Indian Institute of Technology Roorkee
             </p>
             <p className="mt-1 text-sm text-teal-800/80 dark:text-teal-300/90 font-medium">
-              Institute Instrumentation Centre
+              Institute Equipment Booking Portal
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Sign in or create an account
@@ -1277,7 +1277,7 @@ const Auth = () => {
                           className="inline-flex items-center gap-2 mt-2 text-sm font-medium text-primary hover:underline"
                         >
                           <FileText className="h-4 w-4 shrink-0" />
-                          Download IIC IIT Roorkee KYC Form (PDF)
+                          Download IIT Roorkee KYC Form (PDF)
                         </a>
                       </div>
                     </div>
@@ -1980,7 +1980,7 @@ const Auth = () => {
                     <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 p-4 space-y-2">
                       <p className="text-sm font-semibold text-foreground">KYC form required (public email)</p>
                       <p className="text-xs text-muted-foreground">
-                        Download the IIC IIT Roorkee KYC form below, fill it, sign it, and upload a scan of the signed form. One of your document uploads must be this KYC form with type &quot;KYC Form (signed &amp; scanned)&quot;.
+                        Download the IIT Roorkee KYC form below, fill it, sign it, and upload a scan of the signed form. One of your document uploads must be this KYC form with type &quot;KYC Form (signed &amp; scanned)&quot;.
                       </p>
                       <a
                         href="/IIC_IIT_Roorkee_KYC_Form.pdf"
@@ -1989,7 +1989,7 @@ const Auth = () => {
                         className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                       >
                         <FileText className="h-4 w-4" />
-                        Download IIC IIT Roorkee KYC Form (PDF)
+                        Download IIT Roorkee KYC Form (PDF)
                       </a>
                     </div>
                   ) : null;

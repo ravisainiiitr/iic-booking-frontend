@@ -434,7 +434,7 @@ const WalletRechargeParsePage = () => {
   useEffect(() => {
     if (!isWalletRechargeStaff) return;
     const previousTitle = document.title;
-    document.title = "Wallet Management | INSTITUTE INSTRUMENTATION CENTRE - IIC";
+    document.title = "Wallet Management | Institute Equipment Booking Portal";
     return () => {
       document.title = previousTitle;
     };

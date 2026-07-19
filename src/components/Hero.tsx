@@ -14,10 +14,10 @@ import instrument3 from "@/assets/instrument-3.jpg";
 import instrument4 from "@/assets/instrument-4.jpg";
 
 const DEFAULT_HOME = {
-  hero_title_line1: "Institute Instrumentation Centre",
+  hero_title_line1: "Institute Equipment Booking Portal",
   hero_title_line2: "Precision instruments. Real-time booking.",
   hero_subtitle:
-    "Reserve analytical and specialised laboratory equipment at IIT Roorkee — live availability, transparent charges, and results on your dashboard.",
+    "Reserve laboratory equipment across IIT Roorkee departments, centres, and laboratories — live availability, transparent charges, and results on your dashboard.",
   cta_book_text: "Book Equipment",
   cta_book_route: "/equipments",
   cta_browse_text: "Browse Catalog",

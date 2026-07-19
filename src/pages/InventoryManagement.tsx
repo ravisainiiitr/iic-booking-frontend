@@ -446,7 +446,7 @@ export default function InventoryManagement() {
         <Card>
           <CardHeader>
             <CardTitle>Add Inventory Item (Admin)</CardTitle>
-            <CardDescription>Create item master records directly from frontend. Item code is auto-generated (IIC prefix).</CardDescription>
+            <CardDescription>Create item master records directly from frontend. Item code is auto-generated with a system prefix.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

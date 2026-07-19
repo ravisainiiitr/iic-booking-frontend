@@ -20,6 +20,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface UserGuideDialogProps {
   open: boolean;
@@ -56,7 +57,14 @@ export default function UserGuideDialog({
     return sections
       .map((s, i) => ({ s, i }))
       .filter(({ s }) => {
-        const blob = [s.title, ...s.paragraphs, ...(s.bullets || []), ...(s.callouts || [])]
+        const blob = [
+          s.title,
+          ...s.paragraphs,
+          ...(s.bullets || []),
+          ...(s.callouts || []),
+          ...(s.steps?.flatMap((st) => [st.title, st.body, st.screenshotCaption || ""]) || []),
+          ...(s.faqs?.flatMap((f) => [f.question, f.answer]) || []),
+        ]
           .join(" ")
           .toLowerCase();
         return blob.includes(q);
@@ -68,8 +76,7 @@ export default function UserGuideDialog({
 
   const handlePrintPdf = () => {
     if (!guide) return;
-    const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
-    if (!w) return;
+
     const body = sections
       .map(
         (s) => `
@@ -77,8 +84,39 @@ export default function UserGuideDialog({
         <h2>${escapeHtml(s.title)}</h2>
         ${s.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("")}
         ${
+          s.steps?.length
+            ? s.steps
+                .map(
+                  (st, idx) => `
+          <div class="step">
+            <h3>Step ${idx + 1}: ${escapeHtml(st.title)}</h3>
+            <p>${escapeHtml(st.body)}</p>
+            ${
+              st.screenshotCaption
+                ? `<p class="shot">[Screenshot: ${escapeHtml(st.screenshotCaption)}]</p>`
+                : ""
+            }
+          </div>`
+                )
+                .join("")
+            : ""
+        }
+        ${
           s.bullets?.length
             ? `<ul>${s.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>`
+            : ""
+        }
+        ${
+          s.faqs?.length
+            ? s.faqs
+                .map(
+                  (f) => `
+          <div class="faq">
+            <p><strong>Q: ${escapeHtml(f.question)}</strong></p>
+            <p>A: ${escapeHtml(f.answer)}</p>
+          </div>`
+                )
+                .join("")
             : ""
         }
         ${
@@ -89,23 +127,57 @@ export default function UserGuideDialog({
       </section>`
       )
       .join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(guide.title)}</title>
-      <style>
-        body{font-family:Georgia,serif;max-width:720px;margin:2rem auto;padding:0 1.25rem;color:#1a1a1a;line-height:1.55}
-        h1{font-size:1.75rem;margin-bottom:.25rem}
-        .sub{color:#555;margin-bottom:2rem}
-        h2{font-size:1.2rem;margin-top:1.75rem;border-bottom:1px solid #ddd;padding-bottom:.35rem}
-        ul{padding-left:1.25rem}
-        @media print{body{margin:0}}
-      </style></head><body>
-      <h1>${escapeHtml(guide.title)}</h1>
-      <p class="sub">${escapeHtml(guide.subtitle)}</p>
-      <p><strong>${escapeHtml(guide.welcomeHeadline)}</strong></p>
-      <p>${escapeHtml(guide.welcomeBody)}</p>
-      ${body}
-      <script>window.onload=function(){window.print()}<\/script>
-      </body></html>`);
-    w.document.close();
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(guide.title)}</title>
+  <style>
+    body{font-family:Georgia,serif;max-width:720px;margin:2rem auto;padding:0 1.25rem;color:#1a1a1a;line-height:1.55}
+    h1{font-size:1.75rem;margin-bottom:.25rem}
+    .sub{color:#555;margin-bottom:2rem}
+    h2{font-size:1.2rem;margin-top:1.75rem;border-bottom:1px solid #ddd;padding-bottom:.35rem}
+    h3{font-size:1.05rem;margin-top:1rem}
+    ul{padding-left:1.25rem}
+    .shot{color:#555;font-style:italic;border:1px dashed #bbb;padding:.5rem .75rem;background:#fafafa}
+    .faq{margin:.75rem 0;padding:.5rem 0;border-bottom:1px dotted #ddd}
+    @media print{body{margin:0}}
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(guide.title)}</h1>
+  <p class="sub">${escapeHtml(guide.subtitle)}</p>
+  <p><strong>${escapeHtml(guide.welcomeHeadline)}</strong></p>
+  <p>${escapeHtml(guide.welcomeBody)}</p>
+  ${body}
+</body>
+</html>`;
+
+    // Blob URL avoids Chrome's noopener + about:blank trap (window.open returns null
+    // and never receives document.write content).
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, "_blank");
+    if (!w) {
+      URL.revokeObjectURL(url);
+      toast.error("Please allow pop-ups to save the user guide as PDF.");
+      return;
+    }
+
+    const triggerPrint = () => {
+      try {
+        w.focus();
+        w.print();
+      } catch {
+        /* ignore */
+      }
+      // Keep the printable tab open so the user can still use Save as PDF from the print dialog.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    };
+
+    // Printing after the blob document has loaded.
+    window.setTimeout(triggerPrint, 400);
   };
 
   if (!guide) {
@@ -115,8 +187,9 @@ export default function UserGuideDialog({
           <DialogHeader>
             <DialogTitle>User Guide</DialogTitle>
             <DialogDescription>
-              Role-specific guides are available for students, faculty, project staff, startups, and
-              external users. Your current account type does not have a dedicated guide.
+              Role-specific guides are available for students, faculty, project staff, startups,
+              external users, Officers-in-Charge, lab operators, department administrators, and
+              institute administrators. Your current account type does not have a dedicated guide.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
@@ -281,6 +354,27 @@ export default function UserGuideDialog({
                         {p}
                       </p>
                     ))}
+                    {section.steps && section.steps.length > 0 && (
+                      <ol className="space-y-3">
+                        {section.steps.map((st, i) => (
+                          <li
+                            key={i}
+                            className="rounded-lg border bg-muted/30 px-3 py-3 text-sm space-y-1.5"
+                          >
+                            <p className="font-medium text-foreground">
+                              <span className="text-teal-700 mr-1.5">{i + 1}.</span>
+                              {st.title}
+                            </p>
+                            <p className="text-foreground/90 leading-relaxed pl-5">{st.body}</p>
+                            {st.screenshotCaption ? (
+                              <p className="ml-5 rounded-md border border-dashed border-muted-foreground/40 bg-background px-2.5 py-1.5 text-xs italic text-muted-foreground">
+                                [Screenshot: {st.screenshotCaption}]
+                              </p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                     {section.bullets && section.bullets.length > 0 && (
                       <ul className="space-y-2">
                         {section.bullets.map((b, i) => (
@@ -293,6 +387,21 @@ export default function UserGuideDialog({
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {section.faqs && section.faqs.length > 0 && (
+                      <div className="space-y-3">
+                        {section.faqs.map((f, i) => (
+                          <div
+                            key={i}
+                            className="rounded-lg border px-3 py-2.5 space-y-1"
+                          >
+                            <p className="text-sm font-medium text-foreground">Q: {f.question}</p>
+                            <p className="text-sm leading-relaxed text-muted-foreground">
+                              A: {f.answer}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     )}
                     {section.callouts?.map((c, i) => (
                       <div

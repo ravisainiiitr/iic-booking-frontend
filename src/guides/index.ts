@@ -4,6 +4,10 @@ import { studentGuide } from "./content/student";
 import { facultyGuide } from "./content/faculty";
 import { projectStaffGuide } from "./content/projectStaff";
 import { startupGuide } from "./content/startup";
+import { oicGuide } from "./content/oic";
+import { operatorGuide } from "./content/operator";
+import { deptAdminGuide } from "./content/deptAdmin";
+import { adminGuide } from "./content/admin";
 import { resolveGuideAudience } from "./resolveAudience";
 
 const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, UserGuideContent> = {
@@ -12,6 +16,10 @@ const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, UserGuideContent> = {
   faculty: facultyGuide,
   project_staff: projectStaffGuide,
   startup: startupGuide,
+  oic: oicGuide,
+  operator: operatorGuide,
+  dept_admin: deptAdminGuide,
+  admin: adminGuide,
 };
 
 export function getGuideContent(audience: GuideAudienceId): UserGuideContent {
@@ -29,4 +37,4 @@ export function getGuideForUser(
 
 export { resolveGuideAudience, shouldAutoShowUserGuide } from "./resolveAudience";
 export type { GuideAudienceId, GuideSection, UserGuideContent } from "./types";
-export { GUIDE_AUDIENCE_LABELS } from "./types";
+export { GUIDE_AUDIENCE_LABELS, PRODUCT_NAME, PRODUCT_NAME_SHORT } from "./types";

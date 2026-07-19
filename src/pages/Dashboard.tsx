@@ -509,11 +509,11 @@ const Dashboard = () => {
     const displayName = formatUserDisplayName(user);
     if (userTypeLower === "faculty") {
       toast.success(`Welcome, ${displayName}.`, {
-        description: "You are signed in to the IIC Booking Portal. Please review your dashboard for booking updates and pending actions.",
+        description: "You are signed in to the Institute Equipment Booking Portal. Please review your dashboard for booking updates and pending actions.",
       });
     } else {
       toast.success(`Welcome ${displayName}!`, {
-        description: "Great to have you on the IIC Booking Portal.",
+        description: "Great to have you on the Institute Equipment Booking Portal.",
       });
     }
     localStorage.setItem(welcomeKey, "1");

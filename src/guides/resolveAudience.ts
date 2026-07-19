@@ -13,8 +13,7 @@ const PROJECT_STAFF_ALIAS_HINTS = [
 const STARTUP_ALIAS_HINTS = ["startup", "startups", "start-up"];
 
 /**
- * Map portal user_type (+ optional alias) to one of the five published guide audiences.
- * Staff roles return null (no auto onboarding guide).
+ * Map portal user_type (+ optional alias) to a published guide audience.
  */
 export function resolveGuideAudience(
   userType: string | number | null | undefined,
@@ -24,6 +23,11 @@ export function resolveGuideAudience(
   if (!code) return null;
 
   const alias = (userTypeAlias || "").toLowerCase();
+
+  if (code === "admin") return "admin";
+  if (code === "manager") return "oic";
+  if (code === "operator") return "operator";
+  if (code === "dept_admin") return "dept_admin";
 
   if (code === "startup_incubated_iitr" || code === "external_startup_msme") {
     return "startup";

@@ -46,7 +46,7 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
   };
 
   // Header
-  draw("Institute Instrumentation Centre", 14, { bold: true });
+  draw("Institute Equipment Booking Portal", 14, { bold: true });
   draw("Indian Institute of Technology Roorkee", 12, { bold: true });
   draw("Equipment Requisition Form (External Users)", 12, { bold: true });
   line(8);

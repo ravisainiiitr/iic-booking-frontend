@@ -8,11 +8,15 @@ import { BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const AUDIENCES: GuideAudienceId[] = [
-  "external",
   "student",
   "faculty",
+  "external",
   "project_staff",
   "startup",
+  "oic",
+  "operator",
+  "dept_admin",
+  "admin",
 ];
 
 /**
@@ -44,8 +48,8 @@ const UserGuidePreview = () => {
               User Guide Preview
             </CardTitle>
             <CardDescription>
-              Review all five role guides before production. This page is for local/QA use
-              (<code className="text-xs">/dev/user-guides</code>).
+              Review all role guides before production. This page is for local/QA use (
+              <code className="text-xs">/dev/user-guides</code>).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

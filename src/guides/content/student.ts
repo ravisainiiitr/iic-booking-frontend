@@ -1,235 +1,136 @@
 import {
   type UserGuideContent,
+  PRODUCT_NAME,
   bookingStatusSection,
   notificationsSection,
   supportSection,
   bestPracticesSection,
+  loginAccountSection,
+  troubleshootingSection,
+  permissionsSection,
+  faqSection,
+  purposeSection,
 } from "../types";
 
 export const studentGuide: UserGuideContent = {
   audience: "student",
   audienceLabel: "Internal Students",
   title: "Student User Guide",
-  subtitle: "IIT Roorkee students — Channel i, real-time booking, waitlist, and campus features",
+  subtitle: `${PRODUCT_NAME} — Channel i login, real-time booking, waitlist, and campus features`,
   welcomeHeadline: "Welcome, IIT Roorkee student",
-  welcomeBody:
-    "As an internal IIT Roorkee user you have access to powerful features: Channel i login, live slot booking, waitlists, partial cancellation, urgent requests, repeat samples, disruption handling, and online results. This guide explains each one so you can use the portal confidently from day one.",
+  welcomeBody: `As an internal IIT Roorkee user you can book laboratory equipment across participating departments, centres, and laboratories. This guide covers Channel i login, live slot booking, waitlists, cancellation, urgent requests, and how to download results from your dashboard.`,
   sections: [
-    {
-      id: "welcome",
-      title: "Welcome",
+    purposeSection({
       paragraphs: [
-        "The Online Equipment Booking System is the official campus channel for reserving Institute Instrumentation Centre (IIC) instruments at IIT Roorkee.",
-        "Students book at internal rates, typically paying via a linked faculty or department wallet.",
+        `The ${PRODUCT_NAME} is the institute-wide channel for reserving analytical and specialised instruments at IIT Roorkee.`,
+        "Students typically book at internal rates and pay via a linked faculty or department wallet.",
       ],
       bullets: [
         "Browse and book eligible equipment in real time",
-        "Join FCFS waitlists when slots are full",
+        "Join waitlists when slots are full",
         "Cancel fully or partially within institutional time limits",
-        "Download results from your dashboard — usually no lab visit needed",
+        "Download results from your dashboard when the lab publishes them",
       ],
-    },
-    {
-      id: "channel-i",
-      title: "Channel i Login",
+    }),
+    loginAccountSection({
       paragraphs: [
         "Internal IIT Roorkee users should sign in with Channel i (Omniport) wherever that option is shown on the Auth page.",
       ],
       bullets: [
-        "Click the Channel i / Omniport login button on the sign-in screen.",
-        "Authenticate with your institute credentials on the Channel i portal.",
-        "You are redirected back to the booking system already signed in — no separate password for most campus accounts.",
-        "Benefits: secure campus SSO, fewer password resets, and automatic linkage to your institute identity.",
+        "Open Sign In and choose Channel i / Omniport.",
+        "Authenticate with your institute credentials.",
+        "You return to the portal already signed in — no separate password for most campus accounts.",
+        "Keep Profile details (email, phone, programme dates) current so reminders and access checks work.",
       ],
       callouts: [
-        "If Channel i login fails, use the support ticket system or contact IIC — do not share passwords.",
+        "If Channel i login fails, raise a Support Ticket — do not share passwords.",
       ],
-    },
+    }),
     {
-      id: "access",
-      title: "What You Can Access",
-      paragraphs: [
-        "Internal student accounts see campus booking windows and student-eligible charge profiles.",
-      ],
-      bullets: [
-        "Internal student rates (typically lower than external categories).",
-        "Wallet-backed payment through your faculty supervisor when required.",
-        "Waitlist, urgent request, and repeat-sample features when enabled for the equipment/lab.",
-        "Program validity dates may limit access — keep profile dates current.",
-      ],
-    },
-    {
-      id: "realtime-booking",
-      title: "Real-Time Booking",
+      id: "book-workflow",
+      title: "How to Book Equipment",
       paragraphs: [
         "Availability is live. When you open an equipment page and the booking calendar, you see current free and occupied slots.",
       ],
-      bullets: [
-        "Search Equipments → open View Details & Charges → review accessories and Calculate Charges.",
-        "Select consecutive slots for the duration you need; the system validates conflicts in real time.",
-        "Confirm booking and complete wallet selection when prompted.",
-        "Status moves to Booked (or Awaiting payment / Waitlisted depending on the path).",
+      steps: [
+        {
+          title: "Find equipment",
+          body: "From the Dashboard or Equipments catalog, search by name, department, or category. Open View Details & Charges.",
+          screenshotCaption: "Equipment catalog with search and filters",
+        },
+        {
+          title: "Review charges and requirements",
+          body: "Check accessories, sample rules, and Calculate Charges for your user category before selecting slots.",
+          screenshotCaption: "Equipment detail page — charges and accessories",
+        },
+        {
+          title: "Select slots",
+          body: "Choose consecutive slots for the duration you need. The system validates conflicts in real time.",
+          screenshotCaption: "Weekly booking calendar",
+        },
+        {
+          title: "Confirm and pay",
+          body: "Confirm the booking and complete wallet selection when prompted. Status moves to Booked, Awaiting payment, or Waitlisted depending on the path.",
+          screenshotCaption: "Booking confirmation and wallet selection",
+        },
+      ],
+      callouts: [
         "Popular instruments fill quickly — book as soon as your experimental plan is clear.",
       ],
     },
     {
       id: "cancellation",
-      title: "Full & Partial Cancellation",
+      title: "Cancellation and Waitlist",
       paragraphs: [
-        "You may cancel an entire booking or, where the lab allows, cancel part of a multi-slot booking.",
+        "You may cancel an entire booking or, where the lab allows, cancel part of a multi-slot booking within the published time window.",
       ],
       bullets: [
-        "Open My Bookings → select the booking → use Cancel (full) or partial-cancel controls when offered.",
-        "Cancellations are allowed only within the prescribed institutional time limits before the slot start.",
-        "Late cancellations may be blocked or treated as Booking Not Utilized per lab policy.",
-        "Cancelling early returns capacity to others and can promote the next waitlisted user.",
-      ],
-      callouts: [
-        "Always cancel unused slots promptly — unused bookings waste funded capacity and may affect future privileges.",
-      ],
-    },
-    {
-      id: "waitlist",
-      title: "Waiting List (FCFS)",
-      paragraphs: [
-        "When no suitable slot is free, internal users can join the equipment waiting list.",
-      ],
-      bullets: [
-        "Waitlists are maintained on a First-Come, First-Served (FCFS) basis.",
-        "If a confirmed booking is cancelled (within rules), the first eligible waiting-list request is automatically promoted to a confirmed booking.",
-        "You receive email / in-app notification when promoted — check payment or sample deadlines immediately.",
-        "Track waitlisted bookings under My Bookings (status: Waitlisted).",
-      ],
-    },
-    {
-      id: "urgent",
-      title: "Urgent Booking Requests",
-      paragraphs: [
-        "Two urgent paths exist for internal users (subject to system and lab policy):",
-      ],
-      bullets: [
-        "Automatic consideration — if you repeatedly fail to obtain a slot despite multiple genuine attempts, the system may flag eligibility for urgent handling under configured rules.",
-        "Faculty-initiated urgent requests — your faculty supervisor can raise an urgent request for time-critical research (e.g. reviewer comments, publication deadlines).",
-        "Workflow: request is submitted → wallet/faculty approval if required → lab/OIC decision → you are notified of approval or rejection.",
-        "Use Dashboard / My Urgent Requests to track status; do not treat urgent requests as a substitute for normal advance booking.",
-      ],
-    },
-    {
-      id: "repeat-sample",
-      title: "Repeat Sample Facility",
-      paragraphs: [
-        "If a sample run fails because of an operational mistake by laboratory personnel, you may be eligible for a repeat sample without a new charge (subject to approval).",
-      ],
-      bullets: [
-        "Eligibility: error attributable to lab operations (not user sample preparation fault), within the lab’s repeat-sample policy window.",
-        "Raise the request from the booking detail / repeat-sample action when available, or via Support Ticket referencing the booking ID.",
-        "Lab/OIC reviews and approves or declines; you are notified of the outcome.",
-        "Conditions: one repeat per incident is typical; abuse or user-side sample issues are not covered.",
-      ],
-    },
-    {
-      id: "disruption",
-      title: "Disruption Policy",
-      paragraphs: [
-        "Equipment can break down or require unexpected maintenance. The portal surfaces disruption statuses so you can choose how to proceed.",
-      ],
-      bullets: [
-        "Statuses such as Under Maintenance, Other Disruption, or Awaiting your choice (disruption) appear on affected bookings.",
-        "You may be offered reschedule, cancel, or hold options — respond promptly from My Bookings / dashboard alerts.",
-        "Compensation or free reschedule follows institutional / lab rules for disruption caused by the facility.",
-        "Watch email and in-app notifications during disruption events.",
-      ],
-    },
-    {
-      id: "results",
-      title: "Online Result Availability",
-      paragraphs: [
-        "Test reports and result files are published to your booking on the portal whenever the lab uploads them.",
-      ],
-      bullets: [
-        "Open My Bookings → booking detail to download results from your dashboard.",
-        "You generally do not need to visit the laboratory in person to collect reports.",
-        "You still receive completion notifications by email when configured.",
-      ],
-    },
-    {
-      id: "atmosphere",
-      title: "Atmosphere-Sensitive Samples",
-      paragraphs: [
-        "Some equipment offers an atmosphere-sensitive sample option so you can bring/submit samples closer to the slot start and reduce degradation risk.",
-      ],
-      bullets: [
-        "Enable the option only when your sample truly requires it and the instrument supports it.",
-        "When selected, sample submission deadlines / countdown timers may extend up to the start of the booked slot (per lab configuration).",
-        "Standard (non-sensitive) samples still follow the usual lead-time deadline — plan accordingly.",
-      ],
-    },
-    {
-      id: "samples",
-      title: "Sample Submission Process",
-      paragraphs: [
-        "Most runs require physical sample submission before the slot. Deadlines are enforced.",
-      ],
-      bullets: [
-        "Note the deadline on your booking; dashboard and email reminders (including advance warnings) help you submit on time.",
-        "Lab staff accept or reject samples per published rules.",
-        "After Completed status, collect results online as described above.",
-      ],
-    },
-    {
-      id: "payments",
-      title: "Payments & Charges",
-      paragraphs: [
-        "Student bookings normally debit a linked faculty/department wallet — not personal cards.",
-      ],
-      bullets: [
-        "Link your supervisor’s wallet from Wallet / Profile before booking.",
-        "Use Calculate Charges for student rates and accessories.",
-        "Insufficient balance blocks confirmation — ask your faculty to recharge or approve funding.",
-      ],
-    },
-    {
-      id: "profile",
-      title: "Registration & Profile",
-      paragraphs: ["Complete your profile after first Channel i login."],
-      bullets: [
-        "Confirm department, branch, degree, and phone under Profile.",
-        "Link the correct faculty supervisor for wallet access.",
-        "Keep program validity dates updated to avoid access-on-hold.",
+        "Open My Bookings → select the booking → Cancel (full or partial when enabled).",
+        "If a slot is full, join the FCFS waitlist; you will be notified if a place opens.",
+        "Respond promptly to short-notice waitlist offers — they may expire.",
       ],
     },
     bookingStatusSection(),
     notificationsSection([
-      "Waitlist promotion and disruption choice alerts are especially important for students.",
+      "Sample submission deadline reminders — prepare and submit samples before the cut-off shown on the booking.",
     ]),
-    {
-      id: "support",
-      title: "Support Ticket System",
-      paragraphs: [
-        "Use the integrated support system for booking issues, equipment questions, and lab communication.",
-      ],
-      bullets: [
-        "Raise a ticket from User menu → Support Tickets, or Raise Support Request on an equipment page.",
-        "Track status (Open / In Progress / Resolved) and reply in the conversation thread.",
-        "Receive email and in-app updates when staff respond or resolve the ticket.",
-        "Mention booking ID and equipment code for faster routing to the Officer In Charge.",
-      ],
-    },
-    {
-      id: "faq",
-      title: "Frequently Asked Questions",
-      paragraphs: ["Common student questions:"],
-      bullets: [
-        "Channel i vs email login — Prefer Channel i for campus accounts.",
-        "Wallet not linked — Link faculty under Wallet; ask supervisor to approve if needed.",
-        "Why waitlisted? — No free slot; FCFS promotion happens when someone cancels.",
-        "Can I cancel part of a booking? — Yes when the UI offers partial cancel and you are within time limits.",
-        "Where are my results? — My Bookings → booking detail downloads.",
-      ],
-    },
     bestPracticesSection([
-      "Book early for popular tools; use waitlist instead of last-minute urgent requests when possible.",
-      "Cancel unused capacity so FCFS waitlisted peers can proceed.",
+      "Coordinate with your faculty supervisor so the correct wallet is linked before you book.",
     ]),
+    permissionsSection({
+      paragraphs: [
+        "Student accounts use internal rates and campus booking windows. Some features depend on equipment and lab configuration.",
+      ],
+      bullets: [
+        "You can book eligible equipment and manage your own bookings.",
+        "You cannot manage other users’ bookings or lab operations.",
+        "Programme validity dates may limit access — keep profile dates current.",
+        "Urgent requests and repeat samples appear only when enabled for that equipment/lab.",
+      ],
+    }),
+    faqSection([
+      {
+        question: "Why can’t I see a wallet when booking?",
+        answer:
+          "Ask your faculty supervisor to add you to their wallet (or use the wallet join request flow). Without a linked wallet, payment cannot complete for many internal bookings.",
+      },
+      {
+        question: "Where do I download results?",
+        answer:
+          "Open the completed booking on your Dashboard / My Bookings. When the lab publishes files, download links appear there — a lab visit is usually not required.",
+      },
+      {
+        question: "What if Channel i redirects fail?",
+        answer:
+          "Try another browser or clear cookies for the portal domains, then raise a Support Ticket with the approximate time of the failure.",
+      },
+    ]),
+    troubleshootingSection([
+      "Refresh the page or try an Incognito window if the calendar looks stale.",
+      "Confirm you are signed in with your student Channel i account (not a guest email).",
+      "If charges look wrong, re-open Calculate Charges and verify accessories/sample count.",
+      "For payment failures, check wallet balance and supervisor approval of join requests.",
+    ]),
+    supportSection(),
   ],
 };

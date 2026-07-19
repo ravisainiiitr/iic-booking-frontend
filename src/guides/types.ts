@@ -1,11 +1,29 @@
 /** Role-specific onboarding user guide types and shared section builders. */
 
+export const PRODUCT_NAME = "Institute Equipment Booking Portal";
+export const PRODUCT_NAME_SHORT = "Equipment Booking System";
+
 export type GuideAudienceId =
   | "external"
   | "student"
   | "faculty"
   | "project_staff"
-  | "startup";
+  | "startup"
+  | "oic"
+  | "operator"
+  | "dept_admin"
+  | "admin";
+
+export interface GuideStep {
+  title: string;
+  body: string;
+  screenshotCaption?: string;
+}
+
+export interface GuideFaq {
+  question: string;
+  answer: string;
+}
 
 export interface GuideSection {
   id: string;
@@ -13,6 +31,8 @@ export interface GuideSection {
   paragraphs: string[];
   bullets?: string[];
   callouts?: string[];
+  steps?: GuideStep[];
+  faqs?: GuideFaq[];
 }
 
 export interface UserGuideContent {
@@ -28,12 +48,16 @@ export interface UserGuideContent {
 export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
   external: "External Users",
   student: "Internal Students",
-  faculty: "Faculty Members",
+  faculty: "Internal Faculty",
   project_staff: "Project Staff",
   startup: "Startup Users",
+  oic: "Equipment Officer-in-Charge",
+  operator: "Lab In-Charge / Operator",
+  dept_admin: "Department Administrator",
+  admin: "Institute Administrator",
 };
 
-/** Shared booking status explanations used across guides. */
+/** Shared booking status explanations used across end-user guides. */
 export function bookingStatusSection(tweaks?: { extraBullets?: string[] }): GuideSection {
   return {
     id: "statuses",
@@ -61,7 +85,7 @@ export function notificationsSection(audienceNotes?: string[]): GuideSection {
     id: "notifications",
     title: "Notifications",
     paragraphs: [
-      "The portal keeps you informed by email and in-app notifications so you do not miss critical deadlines.",
+      `The ${PRODUCT_NAME} keeps you informed by email and in-app notifications so you do not miss critical deadlines.`,
     ],
     bullets: [
       "Email — Booking confirmation, status changes, payment updates, and resolution of support tickets.",
@@ -110,5 +134,69 @@ export function bestPracticesSection(extra?: string[]): GuideSection {
       "Track sample submission deadlines; late samples may not be accepted for that run.",
       ...(extra ?? []),
     ],
+  };
+}
+
+export function loginAccountSection(opts: {
+  paragraphs: string[];
+  bullets: string[];
+  callouts?: string[];
+}): GuideSection {
+  return {
+    id: "login-account",
+    title: "Login and Account Management",
+    paragraphs: opts.paragraphs,
+    bullets: opts.bullets,
+    callouts: opts.callouts,
+  };
+}
+
+export function troubleshootingSection(bullets: string[]): GuideSection {
+  return {
+    id: "troubleshooting",
+    title: "Troubleshooting",
+    paragraphs: [
+      "Try these steps before raising a support ticket. Many issues resolve with a refresh, a different browser, or an updated profile.",
+    ],
+    bullets,
+  };
+}
+
+export function permissionsSection(opts: {
+  paragraphs: string[];
+  bullets: string[];
+  callouts?: string[];
+}): GuideSection {
+  return {
+    id: "permissions",
+    title: "Permissions and Limitations",
+    paragraphs: opts.paragraphs,
+    bullets: opts.bullets,
+    callouts: opts.callouts,
+  };
+}
+
+export function faqSection(faqs: GuideFaq[]): GuideSection {
+  return {
+    id: "faqs",
+    title: "Frequently Asked Questions",
+    paragraphs: [
+      "Quick answers to questions users in your role ask most often.",
+    ],
+    faqs,
+  };
+}
+
+export function purposeSection(opts: {
+  paragraphs: string[];
+  bullets: string[];
+  callouts?: string[];
+}): GuideSection {
+  return {
+    id: "purpose",
+    title: "Purpose and Responsibilities",
+    paragraphs: opts.paragraphs,
+    bullets: opts.bullets,
+    callouts: opts.callouts,
   };
 }
