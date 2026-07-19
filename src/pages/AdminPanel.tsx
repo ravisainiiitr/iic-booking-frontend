@@ -226,7 +226,7 @@ const AdminPanel = () => {
             </CardContent>
           </Card>
 
-          {(isStrictAdmin || isDeptAdmin) && (
+          {isStrictAdmin && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
@@ -234,21 +234,13 @@ const AdminPanel = () => {
                   Department Administration
                 </CardTitle>
                 <CardDescription>
-                  {isStrictAdmin
-                    ? "Manage department staff modules and permission caps."
-                    : "Manage OIC, Lab In Charge, and Accounts In Charge in your department."}
+                  Manage department staff modules and permission caps.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-1">
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate(
-                      isStrictAdmin
-                        ? "/admin/department-administration"
-                        : "/manage/department-administration"
-                    )
-                  }
+                  onClick={() => navigate("/admin/department-administration")}
                   className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-accent/50 hover:border-primary/30 transition-colors"
                 >
                   <span className="flex items-center gap-3">

@@ -227,8 +227,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const userTypeStr = String(user?.user_type ?? "").toLowerCase();
   const isDeptAdmin = userTypeStr === "dept_admin";
   const lockDepartmentId =
-    isDeptAdmin && equipmentId == null && user?.department_id != null
-      ? Number(user.department_id)
+    isDeptAdmin && equipmentId == null && user?.department != null
+      ? Number(user.department)
       : null;
   const isDeptAdminPendingCreate = lockDepartmentId != null;
 
@@ -790,9 +790,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                           ? ` (${choices.internal_departments.find((d) => Number(d.id) === Number(formData.internal_department))!.code})`
                           : ""
                       }`
-                    : formData.internal_department != null
-                      ? `Department #${formData.internal_department}`
-                      : "—"
+                    : user?.department_name
+                      ? `${user.department_name}${user.department_code ? ` (${user.department_code})` : ""}`
+                      : formData.internal_department != null
+                        ? `Department #${formData.internal_department}`
+                        : "—"
                 }
               />
               <p className="text-muted-foreground text-xs">
@@ -1090,7 +1092,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   ...p,
                   print_materials: [
                     ...(p.print_materials ?? []),
-                    { code: "", name: "", density_g_per_cm3: "1.24", price_per_gram: "2.5", is_active: true, display_order: (p.print_materials?.length ?? 0) },
+                    { code: "", name: "", density_g_per_cm3: "1.24", price_per_gram: "2.5", user_type: null, is_active: true, display_order: (p.print_materials?.length ?? 0) },
                   ],
                 }))
               }
@@ -1119,11 +1121,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 }
               />
               <Select
-                value={(mat.user_type ?? "") || ""}
+                value={mat.user_type ? String(mat.user_type) : "__all__"}
                 onValueChange={(value) =>
                   setFormData((p) => {
                     const rows = [...(p.print_materials ?? [])];
-                    rows[idx] = { ...rows[idx], user_type: value ? value : null };
+                    rows[idx] = { ...rows[idx], user_type: value === "__all__" ? null : value };
                     return { ...p, print_materials: rows };
                   })
                 }
@@ -1132,9 +1134,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <SelectValue placeholder="User type (all)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All user types</SelectItem>
-                  {(choices?.user_type_choices ?? []).map((ut) => (
-                    <SelectItem key={ut.value} value={ut.value}>
+                  <SelectItem value="__all__">All user types</SelectItem>
+                  {(choices?.user_type_choices ?? [])
+                    .filter((ut) => String(ut.value ?? "").trim() !== "")
+                    .map((ut) => (
+                    <SelectItem key={ut.value} value={String(ut.value)}>
                       {ut.label}
                     </SelectItem>
                   ))}

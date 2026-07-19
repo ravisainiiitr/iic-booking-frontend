@@ -342,7 +342,7 @@ const Dashboard = () => {
   const isDeptAdmin = userTypeStr === 'dept_admin';
   const isExternalRelations = userTypeStr === 'external_relations';
   const isOrgAdmin = userTypeStr === 'org_admin';
-  const canManageDeptRbac = isAdmin || isDeptAdmin;
+  const canManageDeptRbac = isAdmin;
   const canVerifyExternalOrgs = isAdmin || isExternalRelations || hasRbacPermission(user, "external.org.verify");
   const canManageWalletTools =
     isAdmin || hasRbacPermission(user, "wallet.manage");
@@ -1074,6 +1074,11 @@ const Dashboard = () => {
   };
 
   const fetchPendingRatingBookings = async () => {
+    // Staff and Department Administrators are not rating-eligible.
+    if (isOperatorOrManager || isDeptAdmin) {
+      setPendingRatingBookings([]);
+      return;
+    }
     try {
       const response = await apiClient.getBookings({ status: "COMPLETED", limit: 50 });
       if (response.error || !response.data?.bookings) {
@@ -2244,8 +2249,8 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* Pending rating prompt for internal (student, faculty) and external users */}
-        {!isOperatorOrManager && pendingRatingBookings.length > 0 && (
+        {/* Pending rating prompt for bookable end-users only (not staff / Dept Admin) */}
+        {!isOperatorOrManager && !isDeptAdmin && pendingRatingBookings.length > 0 && (
           <Card className="dashboard-notice-card dashboard-notice-warning mb-8 border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950/40 shadow-md">
             <CardContent className="py-5 px-6">
               <div className="flex flex-wrap items-center gap-4">
