@@ -65,7 +65,7 @@ export default function EquipmentCatalogCard({
 
   return (
     <Card
-      className={`relative flex h-full cursor-pointer flex-col overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1 ${accent.border}`}
+      className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${accent.border}`}
       onClick={() => navigate(`/equipment/${item.id}`)}
     >
       <div className={`absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r ${accent.bar}`} />
@@ -107,7 +107,7 @@ export default function EquipmentCatalogCard({
         )}
         <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${accent.bar}`} />
         {item.category ? (
-          <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium tracking-wide text-foreground/90 backdrop-blur-sm dark:bg-black/55 dark:text-foreground">
+          <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-teal-700/90 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white backdrop-blur-sm">
             {item.category}
           </span>
         ) : null}
@@ -173,11 +173,11 @@ export default function EquipmentCatalogCard({
         })()}
       </CardHeader>
 
-      <CardContent className="mt-auto flex-shrink-0 pt-0">
+      <CardContent className="mt-auto flex-shrink-0 border-t border-teal-100/80 bg-gradient-to-b from-teal-50/30 to-background pt-4 dark:border-teal-900/40 dark:from-teal-950/20">
         <div className="flex flex-col gap-3">
           {canChangeSlotStatus && onRequestStatusChange ? (
             <div
-              className="flex flex-col gap-2 rounded-lg border border-border bg-card/30 p-3"
+              className="flex flex-col gap-2 rounded-lg border border-teal-200/70 bg-teal-50/50 p-3 dark:border-teal-800/50 dark:bg-teal-950/25"
               onClick={(e) => e.stopPropagation()}
             >
               <Label className="text-sm font-medium leading-none">Status</Label>
@@ -207,17 +207,17 @@ export default function EquipmentCatalogCard({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card/30 p-3">
-            <span className="shrink-0 text-sm font-medium text-muted-foreground">Current status</span>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-teal-200/70 bg-teal-50/40 px-3 py-2.5 dark:border-teal-800/50 dark:bg-teal-950/20">
+            <span className="shrink-0 text-sm font-medium text-teal-800/80 dark:text-teal-200/80">Current status</span>
             <span
-              className={`min-w-0 text-right text-sm font-semibold ${isOperational ? "text-green-600" : "text-amber-600"}`}
+              className={`min-w-0 text-right text-sm font-semibold ${isOperational ? "text-teal-700 dark:text-teal-300" : "text-amber-600 dark:text-amber-400"}`}
             >
               {item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
             </span>
           </div>
 
           <Button
-            className={`w-full ${accent.button} text-white`}
+            className={`w-full text-white ${accent.button}`}
             disabled={!isOperational}
             onClick={(e) => {
               e.stopPropagation();
@@ -239,7 +239,7 @@ export default function EquipmentCatalogCard({
           {canChangeSlotStatus ? (
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full border-teal-300/80 text-teal-800 hover:bg-teal-50 dark:border-teal-700 dark:text-teal-200 dark:hover:bg-teal-950/40"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(`/book-equipment?equipment_id=${item.id}&mode=status`);
@@ -252,7 +252,7 @@ export default function EquipmentCatalogCard({
 
           <Button
             variant="outline"
-            className="w-full border-[#E4E6F0] bg-[#F7F8FC] text-foreground hover:bg-[#EEF0F8]"
+            className="w-full border-teal-200/90 bg-teal-50/60 text-teal-900 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/30 dark:text-teal-100 dark:hover:bg-teal-950/50"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/equipment/${item.id}`);

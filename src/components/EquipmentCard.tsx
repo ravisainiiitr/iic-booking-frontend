@@ -284,7 +284,7 @@ const EquipmentCard = ({
 
   return (
     <Card
-      className="cursor-pointer overflow-hidden border-0 shadow-md rounded-2xl transition-all duration-200 hover:shadow-xl hover:-translate-y-1"
+      className="group cursor-pointer overflow-hidden rounded-2xl border border-border/80 shadow-md transition-all duration-200 hover:-translate-y-1 hover:border-teal-300/60 hover:shadow-xl dark:hover:border-teal-700/50"
       onClick={() => {
         if (id == null) return;
         navigate(`/equipment/${id}`);
@@ -339,7 +339,7 @@ const EquipmentCard = ({
           />
         )}
         {category ? (
-          <span className="absolute top-3 left-3 rounded-full bg-white/90 dark:bg-black/50 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
+          <span className="absolute top-3 left-3 rounded-full bg-teal-700/90 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
             {category}
           </span>
         ) : null}
@@ -428,7 +428,7 @@ const EquipmentCard = ({
         <div className="pt-1">
           <Button
             size="sm"
-            variant="outline"
+            className="bg-teal-700 text-white hover:bg-teal-800"
             onClick={(e) => {
               e.stopPropagation();
               setDialogOpen(true);
