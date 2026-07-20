@@ -1626,6 +1626,95 @@ const BookEquipment = () => {
     setSelectedSlotIdsForStatus((prev) => prev.filter((id) => !weekIds.has(id)));
   };
 
+  const statusChangeCanSelectSlot = (s: DailySlot | null | undefined) => {
+    if (!s) return false;
+    if (newSlotStatus === "BOOKING_NOT_UTILIZED" || newSlotStatus === RESCHEDULE_OPERATION_VALUE)
+      return s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED";
+    if (s.status === "BOOKED" && (s.booking_status || "").toUpperCase() === "COMPLETED") return false;
+    return true;
+  };
+
+  const selectEntireWeekInPopup = () => {
+    if (!statusChangeSlots?.length) return;
+    const ids = statusChangeSlots.filter((s) => statusChangeCanSelectSlot(s)).map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+    toast.success(`Selected ${ids.length} slot(s) for this week.`);
+  };
+
+  const selectWeekdaysInPopup = () => {
+    if (!statusChangeSlots?.length || !statusChangePopupWeekStart) return;
+    const ids = statusChangeSlots
+      .filter((s) => {
+        const dStr = calendarDateStrFromSlot(s);
+        if (!dStr) return false;
+        const dow = parseISO(`${dStr}T12:00:00`).getDay();
+        return dow >= 1 && dow <= 5 && statusChangeCanSelectSlot(s);
+      })
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+    toast.success(`Selected ${ids.length} weekday slot(s).`);
+  };
+
+  const selectWeekendsInPopup = () => {
+    if (!statusChangeSlots?.length) return;
+    const ids = statusChangeSlots
+      .filter((s) => {
+        const dStr = calendarDateStrFromSlot(s);
+        if (!dStr) return false;
+        const dow = parseISO(`${dStr}T12:00:00`).getDay();
+        return (dow === 0 || dow === 6) && statusChangeCanSelectSlot(s);
+      })
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+    toast.success(`Selected ${ids.length} weekend slot(s).`);
+  };
+
+  const slotTimeHour = (time: string) => {
+    const m = time.match(/^(\d{1,2}):(\d{2})/);
+    return m ? Number(m[1]) : 12;
+  };
+
+  const selectMorningSlotsInPopup = () => {
+    if (!statusChangeSlots?.length) return;
+    const ids = statusChangeSlots
+      .filter((s) => slotTimeHour(timeKeyFromDailySlot(s)) < 12 && statusChangeCanSelectSlot(s))
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+    toast.success(`Selected ${ids.length} morning slot(s).`);
+  };
+
+  const selectAfternoonSlotsInPopup = () => {
+    if (!statusChangeSlots?.length) return;
+    const ids = statusChangeSlots
+      .filter((s) => slotTimeHour(timeKeyFromDailySlot(s)) >= 12 && statusChangeCanSelectSlot(s))
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    setSelectedSlotIdsForStatus((prev) => Array.from(new Set([...prev, ...ids])));
+    toast.success(`Selected ${ids.length} afternoon slot(s).`);
+  };
+
+  const invertSelectionInPopup = () => {
+    if (!statusChangeSlots?.length) return;
+    const selectableIds = statusChangeSlots.filter((s) => statusChangeCanSelectSlot(s)).map((s) => s.id);
+    setSelectedSlotIdsForStatus((prev) => {
+      const prevSet = new Set(prev);
+      const next = new Set(prev);
+      selectableIds.forEach((id) => {
+        if (prevSet.has(id)) next.delete(id);
+        else next.add(id);
+      });
+      return Array.from(next);
+    });
+    toast.success("Selection inverted for this week.");
+  };
+
+  const statusChangeBulkChipClass =
+    "h-8 rounded-md border border-teal-200/80 bg-teal-50/80 px-2.5 text-xs font-medium text-teal-900 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100 dark:hover:bg-teal-900/50";
+
   // Week popup: navigate to previous/next week
   const goToPrevWeekInPopup = () => {
     if (statusChangePopupWeekStart) setStatusChangePopupWeekStart(subWeeks(statusChangePopupWeekStart, 1));
@@ -5118,422 +5207,19 @@ const BookEquipment = () => {
                     )}
                   </ul>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Choose operation below and click Apply to confirm changes.
+                    Open week view for slot-level selection, then choose an operation in the panel below the calendar.
                   </p>
                 </div>
               )}
 
-              {/* Apply status */}
-              <div className="flex flex-wrap items-center gap-4 pt-6 border-t-2 border-primary/10">
-                {updatingSlotStatus && (
-                  <div className="w-full space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Applying changes…</p>
-                    <Progress value={applyProgressPercent} className="h-2.5 w-full" />
-                  </div>
-                )}
-                <Label className="shrink-0 font-bold text-lg text-foreground">Select Operation</Label>
-                <Select
-                  value={newSlotStatus}
-                  onValueChange={(v) => {
-                    if (v === BULK_EMAIL_OPERATION_VALUE) {
-                      openBulkEmailFromStatusCard();
-                      return;
-                    }
-                    setNewSlotStatus(v);
-                  }}
-                >
-                  <SelectTrigger className="w-[260px] md:w-[280px] h-12 text-base font-medium">
-                    <SelectValue placeholder="Select operation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BLOCKED" className="text-base">Other Reasons</SelectItem>
-                    <SelectItem value="UNDER_MAINTENANCE" className="text-base">Under Maintenance</SelectItem>
-                    <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
-                    <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
-                    <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
-                    <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available (closed day)</SelectItem>
-                    <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
-                    <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
-                      Reserve for non-home department
-                    </SelectItem>
-                    <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
-                      Clear non-home reservation (home dept)
-                    </SelectItem>
-                    <SelectItem value={RESCHEDULE_OPERATION_VALUE} className="text-base">Reschedule</SelectItem>
-                    <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
-                      <span className="flex items-center gap-2">
-                        <Mail className="h-5 w-5" />
-                        Bulk email
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {newSlotStatus === RESCHEDULE_OPERATION_VALUE && (
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Open week view, select booked slot(s) from one booking, then Apply to choose new available
-                    slots.
-                  </p>
-                )}
-                {(newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
-                  newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE) && (
-                  <p className="text-sm text-muted-foreground max-w-lg">
-                    Marked slots: reserved for non-home department users. Other slots: home department
-                    only (while any upcoming reserved mark exists). Unbooked reserved slots open to all
-                    departments within the equipment&apos;s Reschedule Hours Threshold before start.
-                    Quotas still apply.
-                  </p>
-                )}
-                {newSlotStatus === "BLOCKED" && (
-                  <Input
-                    placeholder="Other Reasons label (optional)"
-                    value={blockedLabelForStatus}
-                    onChange={(e) => setBlockedLabelForStatus(e.target.value)}
-                    className="max-w-[240px] h-12 text-base"
-                  />
-                )}
-                {newSlotStatus === "BOOKING_NOT_UTILIZED" && isAdminOrOIC() && (
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      id="send-email-wallet-owner-not-utilized"
-                      checked={sendEmailToWalletOwnerForNotUtilized}
-                      onCheckedChange={(c) => setSendEmailToWalletOwnerForNotUtilized(c === true)}
-                      className="h-5 w-5"
-                    />
-                    <Label htmlFor="send-email-wallet-owner-not-utilized" className="text-base font-medium cursor-pointer">
-                      Send email to Supervisor
-                    </Label>
-                  </div>
-                )}
-                {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
-                <Button
-                  size="default"
-                  className="h-12 px-6 text-base font-semibold bg-teal-700 hover:bg-teal-800 text-white shadow-md"
-                  disabled={
-                    (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
-                    updatingSlotStatus ||
-                    updatingReserveExternal ||
-                    updatingHomeDepartmentOnly ||
-                    statusChangeRescheduleLoading ||
-                    (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0) ||
-                    (newSlotStatus === RESCHEDULE_OPERATION_VALUE && selectedSlotIdsForStatus.length === 0)
-                  }
-                  onClick={async () => {
-                    const effectiveDates = getEffectiveDatesForStatus();
-                    // Week grid: apply by slot_ids only when no month/year/date list is active (avoids sending dates=[one day] while user picked many slots).
-                    const bySlots =
-                      statusChangePopupWeekStart !== null &&
-                      selectedSlotIdsForStatus.length > 0 &&
-                      selectedDatesForStatus.length === 0 &&
-                      statusChangeSelectedMonths.length === 0;
-                    // Reschedule uses selected week-view slots only (do not require bySlots/date mode).
-                    if (
-                      newSlotStatus !== RESCHEDULE_OPERATION_VALUE &&
-                      !bySlots &&
-                      effectiveDates.length === 0
-                    ) {
-                      return;
-                    }
-                    if (newSlotStatus === "BOOKING_NOT_UTILIZED" && !bySlots) {
-                      toast.error("For 'Booking Not Utilized' please use Week view to select booked slots only.");
-                      return;
-                    }
-                    if (newSlotStatus === RESCHEDULE_OPERATION_VALUE) {
-                      if (!selectedEquipment?.id) {
-                        toast.error("Select equipment first.");
-                        return;
-                      }
-                      if (selectedSlotIdsForStatus.length === 0) {
-                        toast.error("For Reschedule, open Week view and select booked slot(s) from one booking.");
-                        return;
-                      }
-                      const selectedSlots =
-                        (statusChangeSlots || []).filter((s) => selectedSlotIdsForStatus.includes(s.id));
-                      const resolveSlotBookingPk = (s: DailySlot): number | null => {
-                        if (typeof s.real_booking_id === "number" && !Number.isNaN(s.real_booking_id)) {
-                          return s.real_booking_id;
-                        }
-                        return getRealBookingId({
-                          booking_id: s.booking_id as string | number,
-                          real_booking_id: s.real_booking_id,
-                        });
-                      };
-                      const booked = selectedSlots.filter(
-                        (s) =>
-                          String(s.status || "").toUpperCase() === "BOOKED" &&
-                          (s.booking_id != null || s.real_booking_id != null) &&
-                          (s.booking_status || "").toUpperCase() !== "COMPLETED"
-                      );
-                      if (booked.length === 0) {
-                        toast.error("Select at least one booked (non-completed) slot to reschedule.");
-                        return;
-                      }
-                      const bookingIds = [
-                        ...new Set(
-                          booked
-                            .map((s) => resolveSlotBookingPk(s))
-                            .filter((id): id is number => id != null && !Number.isNaN(id))
-                        ),
-                      ];
-                      if (bookingIds.length !== 1) {
-                        toast.error(
-                          bookingIds.length === 0
-                            ? "Could not resolve booking id for the selected slots. Try again or open booking details first."
-                            : "Select slots that belong to the same booking only."
-                        );
-                        return;
-                      }
-                      const bookingPk = bookingIds[0];
-                      setStatusChangeRescheduleLoading(true);
-                      try {
-                        let dailySlots: Array<{
-                          id: number;
-                          start_datetime: string;
-                          end_datetime: string;
-                          date: string;
-                        }> = [];
-                        let startTime = "";
-                        let endTime = "";
-                        let equipmentId = selectedEquipment.id;
-                        let maintenanceExtra = false;
-                        let bookingStatus: string | undefined;
-
-                        const res = await apiClient.getBooking(bookingPk);
-                        if (!res.error && res.data) {
-                          const b = res.data as {
-                            booking_id: number | string;
-                            real_booking_id?: number | null;
-                            equipment: number;
-                            start_time: string;
-                            end_time: string;
-                            status?: string;
-                            maintenance_reschedule_extra_week?: boolean;
-                            daily_slots?: Array<{
-                              id: number;
-                              start_datetime: string;
-                              end_datetime: string;
-                              date: string;
-                            }>;
-                          };
-                          dailySlots = (b.daily_slots ?? []).map((s) => ({
-                            id: s.id,
-                            start_datetime: s.start_datetime,
-                            end_datetime: s.end_datetime,
-                            date: s.date,
-                          }));
-                          startTime = b.start_time;
-                          endTime = b.end_time;
-                          equipmentId = b.equipment ?? selectedEquipment.id;
-                          maintenanceExtra = Boolean(b.maintenance_reschedule_extra_week);
-                          bookingStatus = b.status;
-                        }
-
-                        // Fallback: build from week grid slots of the same booking
-                        if (dailySlots.length === 0) {
-                          const sameBooking = (statusChangeSlots || []).filter(
-                            (s) => resolveSlotBookingPk(s) === bookingPk
-                          );
-                          const source = sameBooking.length > 0 ? sameBooking : booked;
-                          dailySlots = [...source]
-                            .sort(
-                              (a, b) =>
-                                new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
-                            )
-                            .map((s) => ({
-                              id: s.id,
-                              start_datetime: s.start_datetime,
-                              end_datetime: s.end_datetime,
-                              date: s.date || calendarDateStrFromSlot(s),
-                            }));
-                          if (dailySlots.length > 0) {
-                            startTime = dailySlots[0].start_datetime;
-                            endTime = dailySlots[dailySlots.length - 1].end_datetime;
-                          }
-                        }
-
-                        if (dailySlots.length === 0 || !startTime || !endTime) {
-                          throw new Error(
-                            res.error || "Could not load booking slots for reschedule."
-                          );
-                        }
-
-                        setStatusChangeRescheduleBooking({
-                          booking_id: bookingPk,
-                          equipment: equipmentId,
-                          start_time: startTime,
-                          end_time: endTime,
-                          daily_slots: dailySlots,
-                          maintenance_reschedule_extra_week: maintenanceExtra,
-                          status: bookingStatus,
-                        });
-                        setStatusChangeRescheduleOpen(true);
-                      } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : "Failed to open reschedule.");
-                      } finally {
-                        setStatusChangeRescheduleLoading(false);
-                      }
-                      return;
-                    }
-                    if (
-                      newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
-                      newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE
-                    ) {
-                      setUpdatingHomeDepartmentOnly(true);
-                      try {
-                        const mark = newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE;
-                        const payload: {
-                          home_department_only: boolean;
-                          dates?: string[];
-                          slot_ids?: number[];
-                        } = { home_department_only: mark };
-                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
-                        else payload.dates = effectiveDates;
-                        const res = await apiClient.adminEquipmentBulkHomeDepartmentOnly(
-                          selectedEquipment.id,
-                          payload
-                        );
-                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
-                        const data = (res as { data?: { updated?: number; message?: string } }).data;
-                        toast.success(
-                          data?.message ??
-                            `Marked ${data?.updated ?? 0} slot(s) as ${
-                              mark
-                                ? "Reserved for non-home department"
-                                : "Home department (cleared non-home reservation)"
-                            }.`
-                        );
-                        setSelectedDatesForStatus([]);
-                        setSelectedSlotIdsForStatus([]);
-                        setStatusChangeSelectedMonths([]);
-                        setLastFetchedWeek(null);
-                        if (statusChangePopupWeekStart) {
-                          await fetchSlotsForWeek(true, statusChangePopupWeekStart);
-                        } else if (effectiveDates.length > 0) {
-                          const earliest = [...effectiveDates].sort()[0];
-                          await fetchSlotsForWeek(true, parseISO(earliest));
-                        } else {
-                          await fetchSlotsForWeek(true);
-                        }
-                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
-                      } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : "Failed to update home-department marking");
-                      } finally {
-                        setUpdatingHomeDepartmentOnly(false);
-                      }
-                      return;
-                    }
-                    if (newSlotStatus === RESERVED_FOR_EXTERNAL_VALUE) {
-                      setUpdatingReserveExternal(true);
-                      try {
-                        const payload: { reserved_for_external: boolean; dates?: string[]; slot_ids?: number[] } = { reserved_for_external: true };
-                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
-                        else payload.dates = effectiveDates;
-                        const res = await apiClient.adminEquipmentBulkReserveExternal(selectedEquipment.id, payload);
-                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
-                        const data = (res as { data?: { updated?: number; message?: string } }).data;
-                        toast.success(data?.message ?? `Marked ${data?.updated ?? 0} slot(s) as Reserved for External.`);
-                        setSelectedDatesForStatus([]);
-                        setSelectedSlotIdsForStatus([]);
-                        setStatusChangeSelectedMonths([]);
-                        setLastFetchedWeek(null);
-                        if (statusChangePopupWeekStart) {
-                          await fetchSlotsForWeek(true, statusChangePopupWeekStart);
-                        } else if (effectiveDates.length > 0) {
-                          const earliest = [...effectiveDates].sort()[0];
-                          await fetchSlotsForWeek(true, parseISO(earliest));
-                        } else {
-                          await fetchSlotsForWeek(true);
-                        }
-                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
-                      } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : "Failed to update slots");
-                      } finally {
-                        setUpdatingReserveExternal(false);
-                      }
-                      return;
-                    }
-                    if (applyProgressIntervalRef.current) {
-                      clearInterval(applyProgressIntervalRef.current);
-                      applyProgressIntervalRef.current = null;
-                    }
-                    setApplyProgressPercent(0);
-                    setUpdatingSlotStatus(true);
-                    applyProgressIntervalRef.current = setInterval(() => {
-                      setApplyProgressPercent((p) => (p >= 90 ? 90 : p + Math.random() * 8 + 4));
-                    }, 200);
-                    try {
-                      const payload: { status: string; blocked_label?: string | null; dates?: string[]; slot_ids?: number[]; send_email_to_wallet_owner?: boolean } = {
-                        status: newSlotStatus,
-                      };
-                      if (newSlotStatus === "BLOCKED") payload.blocked_label = blockedLabelForStatus.trim() || null;
-                      if (newSlotStatus === "BOOKING_NOT_UTILIZED") payload.send_email_to_wallet_owner = sendEmailToWalletOwnerForNotUtilized;
-                      if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
-                      else payload.dates = effectiveDates;
-                      const res = await apiClient.adminEquipmentBulkSlotStatus(selectedEquipment.id, payload);
-                      if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
-                      const payloadData = (res as { data?: { updated?: number; message?: string } }).data;
-                      toast.success(payloadData?.message ?? `Updated ${payloadData?.updated ?? (bySlots ? selectedSlotIdsForStatus.length : effectiveDates.length)} slot(s).`);
-                      setSelectedDatesForStatus([]);
-                      setSelectedSlotIdsForStatus([]);
-                      setStatusChangeSelectedMonths([]);
-                      setLastFetchedWeek(null);
-                      if (statusChangePopupWeekStart) {
-                        await fetchSlotsForWeek(true, statusChangePopupWeekStart);
-                      } else if (effectiveDates.length > 0) {
-                        const earliest = [...effectiveDates].sort()[0];
-                        await fetchSlotsForWeek(true, parseISO(earliest));
-                      } else {
-                        await fetchSlotsForWeek(true);
-                      }
-                      // Refetch inline week view so the grid shows updated slot statuses
-                      if (statusChangePopupWeekStart) {
-                        await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
-                      }
-                    } catch (e: unknown) {
-                      toast.error(e instanceof Error ? e.message : "Failed to update slots");
-                    } finally {
-                      if (applyProgressIntervalRef.current) {
-                        clearInterval(applyProgressIntervalRef.current);
-                        applyProgressIntervalRef.current = null;
-                      }
-                      setApplyProgressPercent(100);
-                      setTimeout(() => {
-                        setUpdatingSlotStatus(false);
-                        setApplyProgressPercent(0);
-                      }, 400);
-                    }
-                  }}
-                >
-                  {statusChangeRescheduleLoading
-                    ? "Opening reschedule…"
-                    : updatingSlotStatus || updatingReserveExternal || updatingHomeDepartmentOnly
-                    ? "Applying…"
-                    : newSlotStatus === RESCHEDULE_OPERATION_VALUE
-                      ? selectedSlotIdsForStatus.length > 0
-                        ? `Reschedule ${selectedSlotIdsForStatus.length} slot(s)…`
-                        : "Select booked slots to reschedule"
-                      : selectedSlotIdsForStatus.length > 0
-                      ? `Apply to ${selectedSlotIdsForStatus.length} slot(s)`
-                      : `Apply to ${getEffectiveDatesForStatus().length} date(s)`}
-                </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="default"
-                  className="h-12 px-5 text-base font-medium"
-                  onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); setStatusChangePopupWeekStart(null); }}
-                  disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
-                >
-                  Clear all selection
-                </Button>
-              </div>
             </CardContent>
           </Card>
         )}
 
         {/* Inline week view (pick by time) */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
-          <div className="w-full max-w-none mx-auto mb-10 rounded-2xl overflow-hidden border-2 border-primary/15 shadow-xl">
-            <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-6 py-5 text-white">
+          <div className="w-full max-w-none mx-auto mb-6 rounded-2xl overflow-hidden border border-border/60 shadow-lg">
+            <div className="sticky top-0 z-20 bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-6 py-5 text-white">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4">
                   <Button variant="secondary" size="icon" className="h-12 w-12 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
@@ -5558,36 +5244,59 @@ const BookEquipment = () => {
                   Hide week view
                 </Button>
               </div>
-              <p className="text-white/90 text-base mt-3">
-                Click a slot to select it for status update. Use row actions to select a time for the whole week or month.
+              <p className="text-white/90 text-sm md:text-base mt-3 max-w-3xl">
+                Click slots to select them. Use row and column actions for week, month, or year bulk selection.
               </p>
-              <div className="flex flex-wrap items-center gap-3 mt-4">
-                <span className="text-sm font-bold uppercase tracking-wider text-white/90 mr-2">Selection</span>
-                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={selectAllAvailableSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
-                  Select all available
-                </Button>
-                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={selectAllBookedSlotsInPopup} disabled={!statusChangeSlots?.length}>
-                  Select all booked
-                </Button>
-                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={selectAllNonCompletedSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
-                  Select all (excl. completed)
-                </Button>
-                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 border-0 text-white h-10 px-4 text-sm font-medium" onClick={clearPopupWeekSelection} disabled={selectedSlotIdsForStatus.length === 0}>
-                  Clear selection
-                </Button>
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-white/80 mr-1">Quick select</span>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectEntireWeekInPopup} disabled={!statusChangeSlots?.length}>
+                    Entire week
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectWeekdaysInPopup} disabled={!statusChangeSlots?.length}>
+                    Weekdays
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectWeekendsInPopup} disabled={!statusChangeSlots?.length}>
+                    Weekends
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectMorningSlotsInPopup} disabled={!statusChangeSlots?.length}>
+                    Morning
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAfternoonSlotsInPopup} disabled={!statusChangeSlots?.length}>
+                    Afternoon
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-white/80 mr-1">Filter</span>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAllAvailableSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
+                    All available
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAllBookedSlotsInPopup} disabled={!statusChangeSlots?.length}>
+                    All booked
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAllNonCompletedSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
+                    Excl. completed
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={invertSelectionInPopup} disabled={!statusChangeSlots?.length}>
+                    Invert
+                  </Button>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={clearPopupWeekSelection} disabled={selectedSlotIdsForStatus.length === 0}>
+                    Clear week
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="overflow-auto p-4 md:p-6 bg-gradient-to-b from-background to-muted/10">
+            <div className="overflow-auto max-h-[min(70vh,720px)] p-4 md:p-6 bg-gradient-to-b from-background to-teal-50/20 dark:to-teal-950/10">
               {loadingStatusSlots ? (
                 <div className="flex items-center justify-center py-16 text-muted-foreground text-lg">
                   <span className="animate-pulse">Loading slots…</span>
                 </div>
               ) : (
                 <TooltipProvider delayDuration={200}>
-                <div className="min-w-[900px] rounded-xl border-2 border-primary/10 bg-card overflow-hidden shadow-lg">
-                  <div className="grid gap-0 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700" style={{ gridTemplateColumns: "120px 1fr 1fr 1fr 1fr 1fr 1fr 1fr" }}>
-                    <div className="font-bold text-base p-4 border-b border-r">Time</div>
+                <div className="min-w-[920px] rounded-2xl border border-border/60 bg-card overflow-hidden shadow-md">
+                  <div className="grid gap-0 bg-teal-50/80 dark:bg-teal-950/30 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "132px repeat(7, minmax(0, 1fr))" }}>
+                    <div className="font-semibold text-sm p-3 border-r border-border/50 bg-background/95 backdrop-blur-sm sticky left-0 z-30">Time</div>
                     {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                       const day = addDays(statusChangePopupWeekStart, dayOffset);
                       const dateStr = format(day, "yyyy-MM-dd");
@@ -5639,38 +5348,27 @@ const BookEquipment = () => {
                           </div>
                         ) : null;
                       return (
-                        <div key={dayOffset} className="font-bold text-base p-3 text-center border-b border-r last:border-r-0 text-slate-700 dark:text-slate-200">
-                          <div>{format(day, "EEE")}</div>
-                          <div className="text-slate-600 dark:text-slate-400">{format(day, "MMM d")}</div>
+                        <div
+                          key={dayOffset}
+                          className={cn(
+                            "p-3 text-center border-r border-border/50 last:border-r-0 bg-background/95 backdrop-blur-sm",
+                            isSatHeader && "bg-indigo-50/80 dark:bg-indigo-950/25",
+                            isSunHeader && "bg-rose-50/80 dark:bg-rose-950/25",
+                          )}
+                        >
+                          <div className="text-sm font-bold text-foreground">{format(day, "EEE")}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{format(day, "MMM d")}</div>
                           {headerBadge}
                           <div className="flex flex-wrap gap-1 justify-center mt-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-[11px] h-7 px-1.5 font-medium"
-                              onClick={() => selectDayColumnForWeek(dayOffset)}
-                            >
-                              Column (week)
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-[11px] h-7 px-1.5 font-medium"
-                              onClick={() => void selectDayColumnForMonth(dayOffset)}
-                            >
+                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectDayColumnForWeek(dayOffset)}>
+                              Week
+                            </button>
+                            <button type="button" className={statusChangeBulkChipClass} onClick={() => void selectDayColumnForMonth(dayOffset)}>
                               Month
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-[11px] h-7 px-1.5 font-medium"
-                              onClick={() => void selectDayColumnForYear(dayOffset)}
-                            >
+                            </button>
+                            <button type="button" className={statusChangeBulkChipClass} onClick={() => void selectDayColumnForYear(dayOffset)}>
                               Year
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       );
@@ -5695,13 +5393,7 @@ const BookEquipment = () => {
                     const adminSaturdayColor = equipmentDetail?.calendar_colors?.saturday_color ?? "#c7d2fe";
                     const adminSundayColor = equipmentDetail?.calendar_colors?.sunday_color ?? "#fbcfe8";
                     const adminHolidayDefaultColor = equipmentDetail?.calendar_colors?.holiday_default ?? "#f59e0b";
-                    const canSelectSlot = (s: DailySlot | null | undefined) => {
-                      if (!s) return false;
-                      if (newSlotStatus === "BOOKING_NOT_UTILIZED" || newSlotStatus === RESCHEDULE_OPERATION_VALUE)
-                        return s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED";
-                      if (s.status === "BOOKED" && (s.booking_status || "").toUpperCase() === "COMPLETED") return false;
-                      return true;
-                    };
+                    const canSelectSlot = statusChangeCanSelectSlot;
                     if (timeSlots.length === 0) {
                       return (
                         <div className="p-10 text-center text-muted-foreground text-lg">
@@ -5710,19 +5402,19 @@ const BookEquipment = () => {
                       );
                     }
                     return timeSlots.map((time) => (
-                      <div key={time} className="grid gap-0 border-b last:border-b-0" style={{ gridTemplateColumns: "120px 1fr 1fr 1fr 1fr 1fr 1fr 1fr" }}>
-                        <div className="flex flex-col gap-2 items-stretch justify-center p-3 border-r bg-muted/30">
-                          <span className="font-bold text-base">{time}</span>
-                          <div className="flex flex-wrap gap-2">
-                            <Button variant="ghost" size="sm" className="text-sm h-8" onClick={() => selectTimeRowForWeek(time)}>
-                              Row (week)
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-sm h-8" onClick={() => selectTimeRowForMonth(time)}>
+                      <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "132px repeat(7, minmax(0, 1fr))" }}>
+                        <div className="flex flex-col gap-2 items-stretch justify-center p-3 border-r border-border/50 bg-muted/20 sticky left-0 z-10">
+                          <span className="font-semibold text-sm tabular-nums">{time}</span>
+                          <div className="flex flex-col gap-1">
+                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectTimeRowForWeek(time)}>
+                              Week
+                            </button>
+                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectTimeRowForMonth(time)}>
                               Month
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-sm h-8" onClick={() => selectTimeRowForYear(time)}>
+                            </button>
+                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectTimeRowForYear(time)}>
                               Year
-                            </Button>
+                            </button>
                           </div>
                         </div>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
@@ -5783,12 +5475,12 @@ const BookEquipment = () => {
                             (holidayName && (holidayColorCell ?? adminHolidayDefaultColor)) ||
                             (isSaturdayCol ? adminSaturdayColor : isSundayCol ? adminSundayColor : undefined);
                           const cell3dStyle: CSSProperties = {
-                            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.14), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 1px 0 0 rgba(255,255,255,0.28)",
-                            border: "2px solid rgba(255,255,255,0.45)",
-                            borderRadius: "12px",
+                            boxShadow: "0 1px 3px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.35)",
+                            border: "1px solid rgba(148,163,184,0.35)",
+                            borderRadius: "10px",
                           };
                           return (
-                            <div key={dayOffset} className="min-h-[64px] p-2 border-r last:border-r-0">
+                            <div key={dayOffset} className="min-h-[72px] p-1.5 border-r border-border/30 last:border-r-0">
                               {slot ? (
                                 (() => {
                                   const userDetailLines = bookedSlotUserDetailLines(slot);
@@ -5799,9 +5491,10 @@ const BookEquipment = () => {
                                         onClick={() => { if (slotSelectable) toggleStatusChangeSlotSelection(slot.id); }}
                                         disabled={!slotSelectable}
                                         className={cn(
-                                          "flex-1 min-h-[60px] p-2 text-sm font-semibold text-left transition-all flex items-center justify-center",
-                                          !slotSelectable && "cursor-not-allowed opacity-75",
-                                          isSelected && "ring-2 ring-primary ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg"
+                                          "flex-1 min-h-[64px] p-2 text-xs sm:text-sm font-medium text-left transition-all flex items-center justify-center rounded-lg",
+                                          !slotSelectable && "cursor-not-allowed opacity-70",
+                                          slotSelectable && !isSelected && "hover:brightness-[0.97] hover:shadow-md",
+                                          isSelected && "ring-2 ring-teal-600 ring-offset-2 bg-teal-700 text-white hover:bg-teal-800 shadow-md scale-[1.02]"
                                         )}
                                         style={
                                           !isSelected && slot
@@ -5916,17 +5609,446 @@ const BookEquipment = () => {
               )}
             </div>
 
-            <div className="border-t-2 border-primary/10 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center gap-4 flex-wrap">
-              <p className="text-base font-semibold text-foreground mr-auto">
-                {selectedSlotIdsForStatus.length} slot(s) selected in week view.
+            <div className="border-t border-teal-200/60 px-5 py-3 bg-teal-50/40 dark:border-teal-900/50 dark:bg-teal-950/20 flex items-center gap-3 flex-wrap">
+              <p className="text-sm font-medium text-foreground mr-auto">
+                <span className="font-semibold text-teal-800 dark:text-teal-200">{selectedSlotIdsForStatus.length}</span> slot(s) selected in week view
               </p>
-              <Button variant="outline" size="default" className="h-11 px-5 text-base font-medium" onClick={() => setSelectedSlotIdsForStatus([])} disabled={selectedSlotIdsForStatus.length === 0}>
+              <p className="text-xs text-muted-foreground">Scroll down to choose operation and apply.</p>
+              <Button variant="outline" size="sm" className="h-9 border-teal-200 text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-200" onClick={() => setSelectedSlotIdsForStatus([])} disabled={selectedSlotIdsForStatus.length === 0}>
                 Clear selected slots
               </Button>
             </div>
           </div>
         )}
 
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
+          <div className="sticky bottom-4 z-30 w-full max-w-none mx-auto mb-10 rounded-2xl border border-teal-200/80 bg-card/95 shadow-xl backdrop-blur-sm">
+            <div className="border-b border-teal-100/80 bg-gradient-to-r from-teal-50/90 to-cyan-50/50 px-5 py-4 dark:border-teal-900/50 dark:from-teal-950/40 dark:to-cyan-950/20">
+              <h3 className="text-lg font-semibold text-foreground">Apply changes</h3>
+              <p className="text-sm text-muted-foreground mt-1">Select slots or dates above, choose an operation, then apply.</p>
+            </div>
+            <div className="p-5 md:p-6 space-y-4">
+              {(selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
+                <div className="rounded-xl border border-teal-200/70 bg-teal-50/50 px-4 py-3 dark:border-teal-800/50 dark:bg-teal-950/20">
+                  <p className="text-sm font-semibold text-foreground">Selected slots summary</p>
+                  <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                    {selectedSlotIdsForStatus.length > 0 && (
+                      <li><strong className="text-foreground">{selectedSlotIdsForStatus.length}</strong> slot(s) selected</li>
+                    )}
+                    {getEffectiveDatesForStatus().length > 0 && (
+                      <li><strong className="text-foreground">{getEffectiveDatesForStatus().length}</strong> date(s) in scope</li>
+                    )}
+                    {statusChangeSelectedMonths.length > 0 && (
+                      <li><strong className="text-foreground">{statusChangeSelectedMonths.length}</strong> month(s) at year level</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-4">
+                                {updatingSlotStatus && (
+                                  <div className="w-full space-y-2">
+                                    <p className="text-sm font-medium text-muted-foreground">Applying changes…</p>
+                                    <Progress value={applyProgressPercent} className="h-2.5 w-full" />
+                                  </div>
+                                )}
+                                <Label className="shrink-0 font-bold text-lg text-foreground">Select Operation</Label>
+                                <Select
+                                  value={newSlotStatus}
+                                  onValueChange={(v) => {
+                                    if (v === BULK_EMAIL_OPERATION_VALUE) {
+                                      openBulkEmailFromStatusCard();
+                                      return;
+                                    }
+                                    setNewSlotStatus(v);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[260px] md:w-[280px] h-12 text-base font-medium">
+                                    <SelectValue placeholder="Select operation" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="BLOCKED" className="text-base">Other Reasons</SelectItem>
+                                    <SelectItem value="UNDER_MAINTENANCE" className="text-base">Under Maintenance</SelectItem>
+                                    <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
+                                    <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
+                                    <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
+                                    <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available (closed day)</SelectItem>
+                                    <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
+                                    <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
+                                      Reserve for non-home department
+                                    </SelectItem>
+                                    <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
+                                      Clear non-home reservation (home dept)
+                                    </SelectItem>
+                                    <SelectItem value={RESCHEDULE_OPERATION_VALUE} className="text-base">Reschedule</SelectItem>
+                                    <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
+                                      <span className="flex items-center gap-2">
+                                        <Mail className="h-5 w-5" />
+                                        Bulk email
+                                      </span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {newSlotStatus === RESCHEDULE_OPERATION_VALUE && (
+                                  <p className="text-sm text-muted-foreground max-w-md">
+                                    Open week view, select booked slot(s) from one booking, then Apply to choose new available
+                                    slots.
+                                  </p>
+                                )}
+                                {(newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
+                                  newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE) && (
+                                  <p className="text-sm text-muted-foreground max-w-lg">
+                                    Marked slots: reserved for non-home department users. Other slots: home department
+                                    only (while any upcoming reserved mark exists). Unbooked reserved slots open to all
+                                    departments within the equipment&apos;s Reschedule Hours Threshold before start.
+                                    Quotas still apply.
+                                  </p>
+                                )}
+                                {newSlotStatus === "BLOCKED" && (
+                                  <Input
+                                    placeholder="Other Reasons label (optional)"
+                                    value={blockedLabelForStatus}
+                                    onChange={(e) => setBlockedLabelForStatus(e.target.value)}
+                                    className="max-w-[240px] h-12 text-base"
+                                  />
+                                )}
+                                {newSlotStatus === "BOOKING_NOT_UTILIZED" && isAdminOrOIC() && (
+                                  <div className="flex items-center gap-3">
+                                    <Checkbox
+                                      id="send-email-wallet-owner-not-utilized"
+                                      checked={sendEmailToWalletOwnerForNotUtilized}
+                                      onCheckedChange={(c) => setSendEmailToWalletOwnerForNotUtilized(c === true)}
+                                      className="h-5 w-5"
+                                    />
+                                    <Label htmlFor="send-email-wallet-owner-not-utilized" className="text-base font-medium cursor-pointer">
+                                      Send email to Supervisor
+                                    </Label>
+                                  </div>
+                                )}
+                                {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
+                                <Button
+                                  size="default"
+                                  className="h-12 px-6 text-base font-semibold bg-teal-700 hover:bg-teal-800 text-white shadow-md"
+                                  disabled={
+                                    (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
+                                    updatingSlotStatus ||
+                                    updatingReserveExternal ||
+                                    updatingHomeDepartmentOnly ||
+                                    statusChangeRescheduleLoading ||
+                                    (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0) ||
+                                    (newSlotStatus === RESCHEDULE_OPERATION_VALUE && selectedSlotIdsForStatus.length === 0)
+                                  }
+                                  onClick={async () => {
+                                    const effectiveDates = getEffectiveDatesForStatus();
+                                    // Week grid: apply by slot_ids only when no month/year/date list is active (avoids sending dates=[one day] while user picked many slots).
+                                    const bySlots =
+                                      statusChangePopupWeekStart !== null &&
+                                      selectedSlotIdsForStatus.length > 0 &&
+                                      selectedDatesForStatus.length === 0 &&
+                                      statusChangeSelectedMonths.length === 0;
+                                    // Reschedule uses selected week-view slots only (do not require bySlots/date mode).
+                                    if (
+                                      newSlotStatus !== RESCHEDULE_OPERATION_VALUE &&
+                                      !bySlots &&
+                                      effectiveDates.length === 0
+                                    ) {
+                                      return;
+                                    }
+                                    if (newSlotStatus === "BOOKING_NOT_UTILIZED" && !bySlots) {
+                                      toast.error("For 'Booking Not Utilized' please use Week view to select booked slots only.");
+                                      return;
+                                    }
+                                    if (newSlotStatus === RESCHEDULE_OPERATION_VALUE) {
+                                      if (!selectedEquipment?.id) {
+                                        toast.error("Select equipment first.");
+                                        return;
+                                      }
+                                      if (selectedSlotIdsForStatus.length === 0) {
+                                        toast.error("For Reschedule, open Week view and select booked slot(s) from one booking.");
+                                        return;
+                                      }
+                                      const selectedSlots =
+                                        (statusChangeSlots || []).filter((s) => selectedSlotIdsForStatus.includes(s.id));
+                                      const resolveSlotBookingPk = (s: DailySlot): number | null => {
+                                        if (typeof s.real_booking_id === "number" && !Number.isNaN(s.real_booking_id)) {
+                                          return s.real_booking_id;
+                                        }
+                                        return getRealBookingId({
+                                          booking_id: s.booking_id as string | number,
+                                          real_booking_id: s.real_booking_id,
+                                        });
+                                      };
+                                      const booked = selectedSlots.filter(
+                                        (s) =>
+                                          String(s.status || "").toUpperCase() === "BOOKED" &&
+                                          (s.booking_id != null || s.real_booking_id != null) &&
+                                          (s.booking_status || "").toUpperCase() !== "COMPLETED"
+                                      );
+                                      if (booked.length === 0) {
+                                        toast.error("Select at least one booked (non-completed) slot to reschedule.");
+                                        return;
+                                      }
+                                      const bookingIds = [
+                                        ...new Set(
+                                          booked
+                                            .map((s) => resolveSlotBookingPk(s))
+                                            .filter((id): id is number => id != null && !Number.isNaN(id))
+                                        ),
+                                      ];
+                                      if (bookingIds.length !== 1) {
+                                        toast.error(
+                                          bookingIds.length === 0
+                                            ? "Could not resolve booking id for the selected slots. Try again or open booking details first."
+                                            : "Select slots that belong to the same booking only."
+                                        );
+                                        return;
+                                      }
+                                      const bookingPk = bookingIds[0];
+                                      setStatusChangeRescheduleLoading(true);
+                                      try {
+                                        let dailySlots: Array<{
+                                          id: number;
+                                          start_datetime: string;
+                                          end_datetime: string;
+                                          date: string;
+                                        }> = [];
+                                        let startTime = "";
+                                        let endTime = "";
+                                        let equipmentId = selectedEquipment.id;
+                                        let maintenanceExtra = false;
+                                        let bookingStatus: string | undefined;
+                
+                                        const res = await apiClient.getBooking(bookingPk);
+                                        if (!res.error && res.data) {
+                                          const b = res.data as {
+                                            booking_id: number | string;
+                                            real_booking_id?: number | null;
+                                            equipment: number;
+                                            start_time: string;
+                                            end_time: string;
+                                            status?: string;
+                                            maintenance_reschedule_extra_week?: boolean;
+                                            daily_slots?: Array<{
+                                              id: number;
+                                              start_datetime: string;
+                                              end_datetime: string;
+                                              date: string;
+                                            }>;
+                                          };
+                                          dailySlots = (b.daily_slots ?? []).map((s) => ({
+                                            id: s.id,
+                                            start_datetime: s.start_datetime,
+                                            end_datetime: s.end_datetime,
+                                            date: s.date,
+                                          }));
+                                          startTime = b.start_time;
+                                          endTime = b.end_time;
+                                          equipmentId = b.equipment ?? selectedEquipment.id;
+                                          maintenanceExtra = Boolean(b.maintenance_reschedule_extra_week);
+                                          bookingStatus = b.status;
+                                        }
+                
+                                        // Fallback: build from week grid slots of the same booking
+                                        if (dailySlots.length === 0) {
+                                          const sameBooking = (statusChangeSlots || []).filter(
+                                            (s) => resolveSlotBookingPk(s) === bookingPk
+                                          );
+                                          const source = sameBooking.length > 0 ? sameBooking : booked;
+                                          dailySlots = [...source]
+                                            .sort(
+                                              (a, b) =>
+                                                new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
+                                            )
+                                            .map((s) => ({
+                                              id: s.id,
+                                              start_datetime: s.start_datetime,
+                                              end_datetime: s.end_datetime,
+                                              date: s.date || calendarDateStrFromSlot(s),
+                                            }));
+                                          if (dailySlots.length > 0) {
+                                            startTime = dailySlots[0].start_datetime;
+                                            endTime = dailySlots[dailySlots.length - 1].end_datetime;
+                                          }
+                                        }
+                
+                                        if (dailySlots.length === 0 || !startTime || !endTime) {
+                                          throw new Error(
+                                            res.error || "Could not load booking slots for reschedule."
+                                          );
+                                        }
+                
+                                        setStatusChangeRescheduleBooking({
+                                          booking_id: bookingPk,
+                                          equipment: equipmentId,
+                                          start_time: startTime,
+                                          end_time: endTime,
+                                          daily_slots: dailySlots,
+                                          maintenance_reschedule_extra_week: maintenanceExtra,
+                                          status: bookingStatus,
+                                        });
+                                        setStatusChangeRescheduleOpen(true);
+                                      } catch (e: unknown) {
+                                        toast.error(e instanceof Error ? e.message : "Failed to open reschedule.");
+                                      } finally {
+                                        setStatusChangeRescheduleLoading(false);
+                                      }
+                                      return;
+                                    }
+                                    if (
+                                      newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE ||
+                                      newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE
+                                    ) {
+                                      setUpdatingHomeDepartmentOnly(true);
+                                      try {
+                                        const mark = newSlotStatus === HOME_DEPARTMENT_ONLY_VALUE;
+                                        const payload: {
+                                          home_department_only: boolean;
+                                          dates?: string[];
+                                          slot_ids?: number[];
+                                        } = { home_department_only: mark };
+                                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
+                                        else payload.dates = effectiveDates;
+                                        const res = await apiClient.adminEquipmentBulkHomeDepartmentOnly(
+                                          selectedEquipment.id,
+                                          payload
+                                        );
+                                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
+                                        const data = (res as { data?: { updated?: number; message?: string } }).data;
+                                        toast.success(
+                                          data?.message ??
+                                            `Marked ${data?.updated ?? 0} slot(s) as ${
+                                              mark
+                                                ? "Reserved for non-home department"
+                                                : "Home department (cleared non-home reservation)"
+                                            }.`
+                                        );
+                                        setSelectedDatesForStatus([]);
+                                        setSelectedSlotIdsForStatus([]);
+                                        setStatusChangeSelectedMonths([]);
+                                        setLastFetchedWeek(null);
+                                        if (statusChangePopupWeekStart) {
+                                          await fetchSlotsForWeek(true, statusChangePopupWeekStart);
+                                        } else if (effectiveDates.length > 0) {
+                                          const earliest = [...effectiveDates].sort()[0];
+                                          await fetchSlotsForWeek(true, parseISO(earliest));
+                                        } else {
+                                          await fetchSlotsForWeek(true);
+                                        }
+                                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                                      } catch (e: unknown) {
+                                        toast.error(e instanceof Error ? e.message : "Failed to update home-department marking");
+                                      } finally {
+                                        setUpdatingHomeDepartmentOnly(false);
+                                      }
+                                      return;
+                                    }
+                                    if (newSlotStatus === RESERVED_FOR_EXTERNAL_VALUE) {
+                                      setUpdatingReserveExternal(true);
+                                      try {
+                                        const payload: { reserved_for_external: boolean; dates?: string[]; slot_ids?: number[] } = { reserved_for_external: true };
+                                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
+                                        else payload.dates = effectiveDates;
+                                        const res = await apiClient.adminEquipmentBulkReserveExternal(selectedEquipment.id, payload);
+                                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
+                                        const data = (res as { data?: { updated?: number; message?: string } }).data;
+                                        toast.success(data?.message ?? `Marked ${data?.updated ?? 0} slot(s) as Reserved for External.`);
+                                        setSelectedDatesForStatus([]);
+                                        setSelectedSlotIdsForStatus([]);
+                                        setStatusChangeSelectedMonths([]);
+                                        setLastFetchedWeek(null);
+                                        if (statusChangePopupWeekStart) {
+                                          await fetchSlotsForWeek(true, statusChangePopupWeekStart);
+                                        } else if (effectiveDates.length > 0) {
+                                          const earliest = [...effectiveDates].sort()[0];
+                                          await fetchSlotsForWeek(true, parseISO(earliest));
+                                        } else {
+                                          await fetchSlotsForWeek(true);
+                                        }
+                                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                                      } catch (e: unknown) {
+                                        toast.error(e instanceof Error ? e.message : "Failed to update slots");
+                                      } finally {
+                                        setUpdatingReserveExternal(false);
+                                      }
+                                      return;
+                                    }
+                                    if (applyProgressIntervalRef.current) {
+                                      clearInterval(applyProgressIntervalRef.current);
+                                      applyProgressIntervalRef.current = null;
+                                    }
+                                    setApplyProgressPercent(0);
+                                    setUpdatingSlotStatus(true);
+                                    applyProgressIntervalRef.current = setInterval(() => {
+                                      setApplyProgressPercent((p) => (p >= 90 ? 90 : p + Math.random() * 8 + 4));
+                                    }, 200);
+                                    try {
+                                      const payload: { status: string; blocked_label?: string | null; dates?: string[]; slot_ids?: number[]; send_email_to_wallet_owner?: boolean } = {
+                                        status: newSlotStatus,
+                                      };
+                                      if (newSlotStatus === "BLOCKED") payload.blocked_label = blockedLabelForStatus.trim() || null;
+                                      if (newSlotStatus === "BOOKING_NOT_UTILIZED") payload.send_email_to_wallet_owner = sendEmailToWalletOwnerForNotUtilized;
+                                      if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
+                                      else payload.dates = effectiveDates;
+                                      const res = await apiClient.adminEquipmentBulkSlotStatus(selectedEquipment.id, payload);
+                                      if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
+                                      const payloadData = (res as { data?: { updated?: number; message?: string } }).data;
+                                      toast.success(payloadData?.message ?? `Updated ${payloadData?.updated ?? (bySlots ? selectedSlotIdsForStatus.length : effectiveDates.length)} slot(s).`);
+                                      setSelectedDatesForStatus([]);
+                                      setSelectedSlotIdsForStatus([]);
+                                      setStatusChangeSelectedMonths([]);
+                                      setLastFetchedWeek(null);
+                                      if (statusChangePopupWeekStart) {
+                                        await fetchSlotsForWeek(true, statusChangePopupWeekStart);
+                                      } else if (effectiveDates.length > 0) {
+                                        const earliest = [...effectiveDates].sort()[0];
+                                        await fetchSlotsForWeek(true, parseISO(earliest));
+                                      } else {
+                                        await fetchSlotsForWeek(true);
+                                      }
+                                      // Refetch inline week view so the grid shows updated slot statuses
+                                      if (statusChangePopupWeekStart) {
+                                        await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+                                      }
+                                    } catch (e: unknown) {
+                                      toast.error(e instanceof Error ? e.message : "Failed to update slots");
+                                    } finally {
+                                      if (applyProgressIntervalRef.current) {
+                                        clearInterval(applyProgressIntervalRef.current);
+                                        applyProgressIntervalRef.current = null;
+                                      }
+                                      setApplyProgressPercent(100);
+                                      setTimeout(() => {
+                                        setUpdatingSlotStatus(false);
+                                        setApplyProgressPercent(0);
+                                      }, 400);
+                                    }
+                                  }}
+                                >
+                                  {statusChangeRescheduleLoading
+                                    ? "Opening rescheduleΓÇª"
+                                    : updatingSlotStatus || updatingReserveExternal || updatingHomeDepartmentOnly
+                                    ? "ApplyingΓÇª"
+                                    : newSlotStatus === RESCHEDULE_OPERATION_VALUE
+                                      ? selectedSlotIdsForStatus.length > 0
+                                        ? `Reschedule ${selectedSlotIdsForStatus.length} slot(s)ΓÇª`
+                                        : "Select booked slots to reschedule"
+                                      : selectedSlotIdsForStatus.length > 0
+                                      ? `Apply to ${selectedSlotIdsForStatus.length} slot(s)`
+                                      : `Apply to ${getEffectiveDatesForStatus().length} date(s)`}
+                                </Button>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="default"
+                                  className="h-12 px-5 text-base font-medium"
+                                  onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); setStatusChangePopupWeekStart(null); }}
+                                  disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
+                                >
+                                  Clear all selection
+                                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         <Dialog
           open={statusChangeRescheduleOpen}
           onOpenChange={(open) => {
@@ -6378,7 +6500,7 @@ const BookEquipment = () => {
 
                 {/* Step 1: Input Fields Section */}
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-4">Step 1: Provide Additional Information</h3>
+                  <h3 className="text-lg font-semibold mb-4">Step 1: Sample Information</h3>
                   {repeatSourceBooking && (
                     <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
                       Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.

@@ -2689,29 +2689,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>)}
 
-          {!isLabInchargeUser && (<Card 
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-            onClick={() => navigate("/tickets")}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
-                  <MessageSquarePlus className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support Tickets</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                      Report issues, ask the lab, or track support conversations
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
-            </CardHeader>
-            <CardContent>
-                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open Support</Button>
-            </CardContent>
-          </Card>)}
-
           {isOperatorOrManager && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
@@ -3359,6 +3336,31 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isLabInchargeUser && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => navigate("/tickets")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+                    <MessageSquarePlus className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Support Tickets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Report issues, ask the lab, or track support conversations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open Support</Button>
               </CardContent>
             </Card>
           )}
