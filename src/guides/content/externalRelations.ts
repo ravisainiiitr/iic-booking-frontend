@@ -37,31 +37,31 @@ export const externalRelationsGuide: UserGuideContent = {
         "Reopen this guide anytime from User Guide in the menu.",
       ],
     }),
-    notificationsSection({
-      paragraphs: ["Monitor notifications for pending verification items."],
-    }),
+    notificationsSection([
+      "Monitor notifications for pending verification items.",
+    ]),
     permissionsSection({
       paragraphs: [
         "Access is limited to External Relations modules enabled by Institute Admin.",
       ],
-    }),
-    bestPracticesSection({
       bullets: [
-        "Document verification decisions clearly.",
+        "Use only the verification and relations tools assigned to your role.",
         "Escalate ambiguous cases to Institute Admin rather than inventing local policy.",
       ],
     }),
-    troubleshootingSection({
-      paragraphs: ["If a module is missing, ask Institute Admin to enable the relevant Admin Panel module for your role."],
-    }),
-    supportSection({}),
-    faqSection({
-      faqs: [
-        {
-          question: "Can I reopen this guide later?",
-          answer: "Yes — User menu → User Guide, or the footer User Guide link while signed in.",
-        },
-      ],
-    }),
+    bestPracticesSection([
+      "Document verification decisions clearly.",
+      "Escalate ambiguous cases to Institute Admin rather than inventing local policy.",
+    ]),
+    troubleshootingSection([
+      "If a module is missing, ask Institute Admin to enable the relevant Admin Panel module for your role.",
+    ]),
+    supportSection(),
+    faqSection([
+      {
+        question: "Can I reopen this guide later?",
+        answer: "Yes — User menu → User Guide, or the footer User Guide link while signed in.",
+      },
+    ]),
   ],
 };

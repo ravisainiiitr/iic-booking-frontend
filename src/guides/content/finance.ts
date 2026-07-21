@@ -61,9 +61,9 @@ export const financeGuide: UserGuideContent = {
         },
       ],
     },
-    notificationsSection({
-      paragraphs: ["Watch email and in-app notifications for new receipts needing attention."],
-    }),
+    notificationsSection([
+      "Watch email and in-app notifications for new receipts needing attention.",
+    ]),
     permissionsSection({
       paragraphs: [
         "Your access is limited to Accounts In Charge tools for your assigned department unless Admin grants additional modules.",
@@ -73,23 +73,19 @@ export const financeGuide: UserGuideContent = {
         "Escalate disputed payments to Dept Admin or Institute Admin as needed.",
       ],
     }),
-    bestPracticesSection({
-      bullets: [
-        "Never mark a receipt processed without verifying the bank credit.",
-        "Use consistent remarks so finance audits remain readable.",
-      ],
-    }),
-    troubleshootingSection({
-      paragraphs: ["If a receipt is missing or a user cannot book after payment, confirm processing status and escalate."],
-    }),
-    supportSection({}),
-    faqSection({
-      faqs: [
-        {
-          question: "Where do I reopen this guide?",
-          answer: "User menu → User Guide, or the User Guide link in the footer when signed in.",
-        },
-      ],
-    }),
+    bestPracticesSection([
+      "Never mark a receipt processed without verifying the bank credit.",
+      "Use consistent remarks so finance audits remain readable.",
+    ]),
+    troubleshootingSection([
+      "If a receipt is missing or a user cannot book after payment, confirm processing status and escalate.",
+    ]),
+    supportSection(),
+    faqSection([
+      {
+        question: "Where do I reopen this guide?",
+        answer: "User menu → User Guide, or the User Guide link in the footer when signed in.",
+      },
+    ]),
   ],
 };
