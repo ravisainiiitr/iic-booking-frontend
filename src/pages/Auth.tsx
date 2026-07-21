@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { consumePostLoginRedirect } from "@/lib/authRedirect";
 import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
+import { storeOmniportState } from "@/lib/omniportAuth";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -376,10 +377,7 @@ const Auth = () => {
 
       if (response.data?.auth_url) {
         console.log('Received auth_url from backend:', response.data.auth_url);
-        // Store state for verification
-        if (response.data.state) {
-          localStorage.setItem('omniport_state', response.data.state);
-        }
+        storeOmniportState(response.data.auth_url, response.data.state);
         // Redirect to Omniport
         window.location.href = response.data.auth_url;
       } else {

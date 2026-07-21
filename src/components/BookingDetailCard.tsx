@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiClient, type PrintAnalysisResult } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
+import { formatINR } from "@/lib/money";
+import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -570,17 +572,24 @@ export function BookingDetailCard({
   const navigate = useNavigate();
 
   /** Reload full booking (includes sample_trace, slots, status) after lifecycle API updates. */
-  const refreshBookingDetail = useCallback(async () => {
+  const refreshBookingDetail = useCallback(async (opts?: { silent?: boolean }) => {
     const id = getRealBookingId(booking);
     if (id == null) return;
     const res = await apiClient.getBookings({ booking_id: id, limit: 1 });
     if (res.error) {
-      toast.error(res.error);
+      if (!opts?.silent) toast.error(res.error);
       return;
     }
     const b = res.data?.bookings?.[0];
     if (b) setBooking(b as BookingDetailCardBooking);
   }, [booking]);
+
+  // Auto-refresh sample lifecycle while this booking detail is open
+  useVisibilityPolling({
+    enabled: !isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D",
+    intervalMs: 12000,
+    onPoll: () => refreshBookingDetail({ silent: true }),
+  });
 
   const handleAtmosphereSensitiveChange = async (checked: boolean) => {
     if (bookingPk == null || atmosphereSaving) return;
@@ -1328,7 +1337,7 @@ export function BookingDetailCard({
               </div>
               <div>
                 <p className="text-base text-muted-foreground">Total Cost</p>
-                <p className="font-medium text-base text-primary">₹{Number(booking.total_charge).toFixed(2)}</p>
+                <p className="font-medium text-base text-primary">{formatINR(booking.total_charge)}</p>
               </div>
             </div>
           ) : (
@@ -2656,7 +2665,7 @@ export function BookingDetailCard({
                 {booking.charge_breakdown.map((charge, index) => (
                   <li key={index} className="text-base text-muted-foreground flex justify-between gap-4 items-start">
                     <span className="whitespace-pre-line min-w-0 shrink">{charge.description}</span>
-                    <span className="shrink-0 tabular-nums">{charge.amount >= 0 ? `₹${Number(charge.amount).toFixed(2)}` : `-₹${Number(-charge.amount).toFixed(2)}`}</span>
+                    <span className="shrink-0 tabular-nums">{charge.amount >= 0 ? formatINR(charge.amount) : `-${formatINR(-charge.amount)}`}</span>
                   </li>
                 ))}
               </ul>
@@ -2682,17 +2691,17 @@ export function BookingDetailCard({
                       <>
                         <div className="flex justify-between text-muted-foreground">
                           <span>Total amount</span>
-                          <span>₹{totalBeforeDiscount.toFixed(2)}</span>
+                          <span>{formatINR(totalBeforeDiscount)}</span>
                         </div>
                         <div className="flex justify-between text-muted-foreground">
                           <span>Discount</span>
-                          <span>-₹{discountAmount.toFixed(2)}</span>
+                          <span>-{formatINR(discountAmount)}</span>
                         </div>
                       </>
                     )}
                     <div className="flex justify-between font-medium">
                       <span>{hasDiscount ? "Final amount after discount" : "Total"}</span>
-                      <span className="text-primary">₹{totalCharge.toFixed(2)}</span>
+                      <span className="text-primary">{formatINR(totalCharge)}</span>
                     </div>
                   </div>
                 );
@@ -2706,17 +2715,17 @@ export function BookingDetailCard({
               <div className="text-sm space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Previous charge</span>
-                  <span>₹{(Number(booking.total_charge) - Number(booking.charge_recalculation_pending_amount)).toFixed(2)}</span>
+                  <span>{formatINR(Number(booking.total_charge) - Number(booking.charge_recalculation_pending_amount))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">New charge</span>
-                  <span>₹{Number(booking.total_charge).toFixed(2)}</span>
+                  <span>{formatINR(booking.total_charge)}</span>
                 </div>
                 {Number(booking.charge_recalculation_pending_amount) < 0 ? (
                   <>
                     <div className="flex justify-between font-medium text-green-600 dark:text-green-500">
                       <span>Refund amount</span>
-                      <span>₹{Math.abs(Number(booking.charge_recalculation_pending_amount)).toFixed(2)}</span>
+                      <span>{formatINR(Math.abs(Number(booking.charge_recalculation_pending_amount)))}</span>
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">
                       {isManagerOrAdmin
@@ -2732,7 +2741,7 @@ export function BookingDetailCard({
                   <>
                     <div className="flex justify-between font-medium text-amber-600 dark:text-amber-500">
                       <span>Extra amount to pay</span>
-                      <span>₹{Number(booking.charge_recalculation_pending_amount).toFixed(2)}</span>
+                      <span>{formatINR(booking.charge_recalculation_pending_amount)}</span>
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">
                       {isManagerOrAdmin
@@ -2818,7 +2827,7 @@ export function BookingDetailCard({
                       <span>Supervisor Name: {actionDialog.booking.wallet_owner_name}</span>
                     </div>
                   )}
-                  <p className="text-sm text-muted-foreground">Amount: ₹{Number(actionDialog.booking.total_charge).toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">Amount: {formatINR(actionDialog.booking.total_charge)}</p>
                 </div>
               </>
             )}

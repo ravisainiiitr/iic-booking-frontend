@@ -7,6 +7,7 @@ import Autoplay from "embla-carousel-autoplay";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
+import { storeOmniportState } from "@/lib/omniportAuth";
 import { toast } from "sonner";
 import instrument1 from "@/assets/instrument-1.jpeg";
 import instrument2 from "@/assets/instrument-2.jpeg";
@@ -56,9 +57,7 @@ const Hero = () => {
         return;
       }
       if (response.data?.auth_url) {
-        if (response.data.state) {
-          localStorage.setItem("omniport_state", response.data.state);
-        }
+        storeOmniportState(response.data.auth_url, response.data.state);
         window.location.href = response.data.auth_url;
         return;
       }

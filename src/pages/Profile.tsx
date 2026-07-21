@@ -84,6 +84,8 @@ const Profile = () => {
     branch_name: "",
     degree_name: "",
     designation: "",
+    joining_date: "",
+    graduation_date: "",
     email_verified: false,
     admin_approved: false,
     is_active: false,
@@ -198,6 +200,8 @@ const Profile = () => {
         branch_name: response.data.branch_name || "",
         degree_name: response.data.degree_name || "",
         designation: response.data.designation || "",
+        joining_date: response.data.joining_date || "",
+        graduation_date: response.data.graduation_date || "",
         email_verified: response.data.email_verified || false,
         admin_approved: response.data.admin_approved || false,
         is_active: response.data.is_active || false,
@@ -739,7 +743,33 @@ const Profile = () => {
                     value={profileData.designation}
                     disabled
                   />
-                  <p className="text-xs text-muted-foreground">Designation (read-only)</p>
+                  <p className="text-xs text-muted-foreground">From Channel i (read-only)</p>
+                </div>
+              )}
+
+              {profileData.joining_date && (
+                <div className="space-y-2">
+                  <Label htmlFor="joining_date">Joining Date</Label>
+                  <Input
+                    id="joining_date"
+                    type="text"
+                    value={new Date(profileData.joining_date).toLocaleDateString()}
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground">Institute joining / programme start (from Channel i)</p>
+                </div>
+              )}
+
+              {profileData.graduation_date && (
+                <div className="space-y-2">
+                  <Label htmlFor="graduation_date">Graduation Date</Label>
+                  <Input
+                    id="graduation_date"
+                    type="text"
+                    value={new Date(profileData.graduation_date).toLocaleDateString()}
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground">Programme end / graduation (from Channel i)</p>
                 </div>
               )}
 

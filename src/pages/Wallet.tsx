@@ -2086,19 +2086,30 @@ const Wallet = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
               <div className="text-4xl font-bold text-primary">
                 ₹{balance.toFixed(2)}
               </div>
-              {canShowWalletRecharge && (
-                <Button
-                  onClick={() => openRechargeDialog()}
-                  className="flex items-center gap-2"
-                >
-                  <WalletIcon className="h-4 w-4" />
-                  Recharge Wallet
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {isFacultyEffective && !isShared && (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/wallet/transfer")}
+                    className="flex items-center gap-2"
+                  >
+                    Transfer
+                  </Button>
+                )}
+                {canShowWalletRecharge && (
+                  <Button
+                    onClick={() => openRechargeDialog()}
+                    className="flex items-center gap-2"
+                  >
+                    <WalletIcon className="h-4 w-4" />
+                    Recharge Wallet
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Recharge Dialog */}

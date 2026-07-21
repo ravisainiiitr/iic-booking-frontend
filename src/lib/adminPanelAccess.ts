@@ -76,6 +76,7 @@ const PATH_TO_MODULE_KEY: Array<{ path: string; key: string }> = [
   { path: "/admin/section/subWalletTransactions", key: "user_management.sub_wallet_transactions" },
   { path: "/admin/section/walletRazorpayOrders", key: "user_management.wallet_razorpay_orders" },
   { path: "/admin/section/walletRechargeRequests", key: "user_management.wallet_recharge_requests" },
+  { path: "/admin-settings/wallet-recharge-requests", key: "user_management.wallet_recharge_requests" },
   { path: "/admin/section/userDocuments", key: "user_management.user_documents" },
   { path: "/admin/section/userGroups", key: "user_management.user_groups" },
   { path: "/admin/section/userGroupMembers", key: "user_management.user_group_members" },

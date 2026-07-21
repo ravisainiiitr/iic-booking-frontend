@@ -106,9 +106,9 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
   {
     key: "walletRechargeRequests",
     label: "Wallet Recharge Requests",
-    description: "View and manage recharge requests (mirrors Django admin/users/walletrechargerequest/)",
+    description: "History, search/filters, audit trail, and admin approve / reject / cancel",
     icon: <ShoppingCart className="h-6 w-6" />,
-    path: "/admin/section/walletRechargeRequests",
+    path: "/admin-settings/wallet-recharge-requests",
     requiresPermission: "admin_settings.wallet",
     moduleKey: "user_management.wallet_recharge_requests",
   },

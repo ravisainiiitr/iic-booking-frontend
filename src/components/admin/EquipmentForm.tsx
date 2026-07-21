@@ -179,7 +179,9 @@ export type EquipmentFormData = {
     is_required?: boolean;
     editing_required?: boolean;
     default_value?: string;
-    options?: string[];
+    options?: string[] | Record<string, unknown>;
+    /** When true (NUMERIC), negative values are allowed within configured limits. */
+    allow_negative?: boolean;
     help_text?: string;
     source_element_field_key?: string | null;
   }>;
@@ -544,17 +546,34 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           breakpoint: p.breakpoint ?? null,
           time_formula: p.time_formula ?? null,
         })) : prev.charge_profiles ?? [],
-        input_fields: Array.isArray(inputs) ? inputs.map((i) => ({
-          field_key: String(i.field_key ?? ""),
-          field_label: String(i.field_label ?? ""),
-          field_type: String(i.field_type ?? "TEXT"),
-          is_required: i.is_required === true,
-          editing_required: i.editing_required === true,
-          default_value: String(i.default_value ?? ""),
-          options: Array.isArray(i.options) ? i.options as string[] : [],
-          help_text: String(i.help_text ?? ""),
-          source_element_field_key: (i.source_element_field_key as string | null) ?? null,
-        })) : prev.input_fields ?? [],
+        input_fields: Array.isArray(inputs) ? inputs.map((i) => {
+          const rawOpts = i.options;
+          const optsObj =
+            rawOpts && typeof rawOpts === "object" && !Array.isArray(rawOpts)
+              ? (rawOpts as Record<string, unknown>)
+              : null;
+          const allowNeg =
+            optsObj != null &&
+            (optsObj.allow_negative === true ||
+              optsObj.allowNegative === true ||
+              String(optsObj.allow_negative ?? "").toLowerCase() === "true");
+          return {
+            field_key: String(i.field_key ?? ""),
+            field_label: String(i.field_label ?? ""),
+            field_type: String(i.field_type ?? "TEXT"),
+            is_required: i.is_required === true,
+            editing_required: i.editing_required === true,
+            default_value: String(i.default_value ?? ""),
+            options: Array.isArray(rawOpts)
+              ? (rawOpts as string[])
+              : optsObj
+                ? optsObj
+                : [],
+            allow_negative: allowNeg,
+            help_text: String(i.help_text ?? ""),
+            source_element_field_key: (i.source_element_field_key as string | null) ?? null,
+          };
+        }) : prev.input_fields ?? [],
         print_materials: Array.isArray(d.print_materials)
           ? (d.print_materials as Array<Record<string, unknown>>).map((m) => ({
               code: String(m.code ?? ""),
@@ -671,7 +690,25 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       equipment_additional_accessories: formData.equipment_additional_accessories ?? [],
       slot_masters: formData.slot_masters ?? [],
       charge_profiles: formData.charge_profiles ?? [],
-      input_fields: formData.input_fields ?? [],
+      input_fields: (formData.input_fields ?? []).map((f) => {
+        const fieldType = String(f.field_type || "").toUpperCase();
+        if (fieldType === "NUMERIC") {
+          const base =
+            f.options && typeof f.options === "object" && !Array.isArray(f.options)
+              ? { ...(f.options as Record<string, unknown>) }
+              : ({} as Record<string, unknown>);
+          if (f.allow_negative) base.allow_negative = true;
+          else delete base.allow_negative;
+          return {
+            ...f,
+            options: Object.keys(base).length > 0 ? base : [],
+          };
+        }
+        return {
+          ...f,
+          options: Array.isArray(f.options) ? f.options : [],
+        };
+      }),
       print_materials: formData.print_materials ?? [],
       param_definitions: (formData.param_definitions ?? []).map((row) => ({
         user_type: row.user_type || null,
@@ -2483,7 +2520,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <Label className="text-xs">Options (one per line)</Label>
                   <Textarea
                     rows={3}
-                    value={(f.options ?? []).join("\n")}
+                    value={Array.isArray(f.options) ? f.options.join("\n") : ""}
                     onChange={(e) =>
                       setFormData((p) => {
                         const arr = [...(p.input_fields ?? [])];
@@ -2495,7 +2532,28 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       })
                     }
                     placeholder={"For RADIO / COMBO / MULTI_SELECT, one option per line"}
+                    disabled={String(f.field_type || "").toUpperCase() === "NUMERIC"}
                   />
+                  {String(f.field_type || "").toUpperCase() === "NUMERIC" && (
+                    <div className="flex items-center gap-2 pt-2">
+                      <input
+                        id={`allow-neg-${idx}`}
+                        type="checkbox"
+                        className="h-4 w-4 rounded border"
+                        checked={Boolean(f.allow_negative)}
+                        onChange={(e) =>
+                          setFormData((p) => {
+                            const arr = [...(p.input_fields ?? [])];
+                            arr[idx] = { ...arr[idx], allow_negative: e.target.checked };
+                            return { ...p, input_fields: arr };
+                          })
+                        }
+                      />
+                      <Label htmlFor={`allow-neg-${idx}`} className="text-xs font-normal cursor-pointer">
+                        Allow negative values (signed). Still respects min/max from help text.
+                      </Label>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Help text</Label>
@@ -2509,7 +2567,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         return { ...p, input_fields: arr };
                       })
                     }
-                    placeholder="NUMERIC: line 1 = lower limit, line 2 = upper limit, line 3 = step. PERIODIC_TABLE: one element per line to disable."
+                    placeholder="NUMERIC: line 1 = lower limit (can be negative), line 2 = upper limit, line 3 = step. PERIODIC_TABLE: one element per line to disable."
                   />
                 </div>
               </div>

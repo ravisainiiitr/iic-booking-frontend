@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { consumePostLoginRedirect } from "@/lib/authRedirect";
+import { formatOmniportCallbackError, storeOmniportState } from "@/lib/omniportAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,14 @@ const AuthCallback = () => {
       const state = searchParams.get('state');
       const token = searchParams.get('token');
       const errorParam = searchParams.get('error');
+      const errorCode = searchParams.get('error_code');
 
       // Handle OAuth errors
       if (errorParam) {
+        const message = formatOmniportCallbackError(errorParam, errorCode);
         setStatus('error');
-        setError(errorParam);
-        toast.error(`Authentication failed: ${errorParam}`);
+        setError(message);
+        toast.error(`Authentication failed: ${message}`);
         return;
       }
 

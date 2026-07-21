@@ -265,6 +265,8 @@ interface User {
   branch_name?: string | null;
   degree_name?: string | null;
   designation?: string | null;
+  joining_date?: string | null;
+  graduation_date?: string | null;
   date_joined?: string | null;
   last_login?: string | null;
   auto_slot_selection?: boolean;
@@ -3643,6 +3645,88 @@ class ApiClient {
     }>('/wallet/credit-facility/my-status/', { method: 'GET' });
   }
 
+  async getWalletPeerTransferSourceDepartments() {
+    return this.request<{
+      departments: Array<{
+        id: number;
+        name: string;
+        code?: string;
+        grant_code?: string;
+        balance: string;
+      }>;
+      count: number;
+    }>('/wallet/peer-transfer/source-departments/');
+  }
+
+  async searchWalletPeerTransferRecipients(departmentId: number, q?: string, limit = 20) {
+    const params = new URLSearchParams({
+      department_id: String(departmentId),
+      limit: String(limit),
+    });
+    if (q?.trim()) params.set('q', q.trim());
+    return this.request<{
+      results: Array<{
+        id: number;
+        name: string;
+        email: string;
+        emp_id?: string;
+        department?: string;
+        grant_code?: string;
+        has_wallet?: boolean;
+      }>;
+      grant_code?: string;
+      count: number;
+    }>(`/wallet/peer-transfer/eligible-recipients/?${params.toString()}`);
+  }
+
+  async sendWalletPeerTransferOtp(payload: {
+    department_id: number;
+    recipient_id: number;
+    amount: number | string;
+    remarks?: string;
+  }) {
+    return this.request<{
+      message: string;
+      transfer: Record<string, unknown> & { id: number; transaction_id: string };
+      otp_expires_at?: string | null;
+    }>('/wallet/peer-transfer/send-otp/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async confirmWalletPeerTransfer(payload: { transfer_id: number; otp: string }) {
+    return this.request<{
+      message: string;
+      transfer: Record<string, unknown>;
+    }>('/wallet/peer-transfer/confirm/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getWalletPeerTransferHistory(statusFilter?: string) {
+    const q = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
+    return this.request<{
+      transfers: Array<Record<string, unknown> & {
+        id: number;
+        transaction_id: string;
+        amount: string;
+        status: string;
+        status_display?: string;
+        grant_code?: string;
+        department_name?: string;
+        sender_name?: string;
+        recipient_name?: string;
+        sender_email?: string;
+        recipient_email?: string;
+        created_at?: string;
+        completed_at?: string | null;
+      }>;
+      count: number;
+    }>(`/wallet/peer-transfer/history/${q}`);
+  }
+
   async sendUserOtpForRecharge(
     amount: number,
     departmentId: number,
@@ -3757,6 +3841,9 @@ class ApiClient {
       request: any;
       transaction?: any;
       message: string;
+      already_processed?: boolean;
+      page_code?: string;
+      error?: string;
     }>(`/wallet/recharge-requests/${requestId}/approve/`, {
       method: 'POST',
       body: JSON.stringify({
@@ -3769,12 +3856,66 @@ class ApiClient {
     return this.request<{
       request: any;
       message: string;
+      already_processed?: boolean;
+      page_code?: string;
+      error?: string;
     }>(`/wallet/recharge-requests/${requestId}/reject/`, {
       method: 'POST',
       body: JSON.stringify({
         response_message: responseMessage,
+        reason_code: 'other',
+        reason_text: responseMessage,
       }),
     });
+  }
+
+  /** Public email-action detail (token from SRIC approval email). */
+  async getWalletRechargeActionDetail(token: string) {
+    return this.request<Record<string, unknown>>(`/wallet/recharge-action/${encodeURIComponent(token)}/`);
+  }
+
+  async approveWalletRechargeByToken(token: string, responseMessage?: string) {
+    return this.request<Record<string, any>>(`/wallet/recharge-action/${encodeURIComponent(token)}/approve/`, {
+      method: 'POST',
+      body: JSON.stringify({ response_message: responseMessage || undefined }),
+    });
+  }
+
+  async rejectWalletRechargeByToken(
+    token: string,
+    payload: { reason_code: string; reason_text?: string }
+  ) {
+    return this.request<Record<string, any>>(`/wallet/recharge-action/${encodeURIComponent(token)}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async adminWalletRechargeRequestApprove(id: number | string, responseMessage?: string) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ message?: string; request?: unknown; already_processed?: boolean; error?: string }>(
+      `${endpoint}${id}/approve/`,
+      { method: 'POST', body: JSON.stringify({ response_message: responseMessage || '' }) }
+    );
+  }
+
+  async adminWalletRechargeRequestReject(
+    id: number | string,
+    payload: { reason_code: string; reason_text?: string }
+  ) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ message?: string; request?: unknown; already_processed?: boolean; error?: string }>(
+      `${endpoint}${id}/reject/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  async adminWalletRechargeRequestCancel(id: number | string, note?: string) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ message?: string; request?: unknown; already_processed?: boolean; error?: string }>(
+      `${endpoint}${id}/cancel/`,
+      { method: 'POST', body: JSON.stringify({ note: note || '' }) }
+    );
   }
 
   // Booking endpoints

@@ -37,6 +37,7 @@ import MyNominationRequests from "./pages/MyNominationRequests";
 import TAAssignments from "./pages/TAAssignments";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Wallet from "./pages/Wallet";
+import WalletPeerTransfer from "./pages/WalletPeerTransfer";
 import Reports from "./pages/Reports";
 import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
@@ -86,6 +87,8 @@ import Print3DAnalyzerTest from "./pages/Print3DAnalyzerTest";
 import EquipmentProfile from "./pages/EquipmentProfile";
 import Tickets from "./pages/Tickets";
 import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
+import WalletRechargeEmailAction from "./pages/WalletRechargeEmailAction";
+import AdminWalletRechargeRequests from "./pages/AdminWalletRechargeRequests";
 import WalletRechargeParse from "./pages/WalletRechargeParse";
 import LegacyWalletImportTest from "./pages/LegacyWalletImportTest";
 import CmsPageView from "./pages/CmsPageView";
@@ -148,6 +151,7 @@ const App = () => (
                 <Route path="/ta-nominations-log" element={<TANominationsLog />} />
                 <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
                 <Route path="/wallet" element={<Wallet />} />
+                <Route path="/wallet/transfer" element={<WalletPeerTransfer />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/bookings" element={<ReportBookingsList />} />
                 <Route path="/proforma-invoice" element={<ProformaInvoice />} />
@@ -197,6 +201,7 @@ const App = () => (
                 <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
                 <Route path="/admin-settings/wallet-sric-settings" element={<AdminWalletSricSettings />} />
                 <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
+                <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
                 <Route path="/admin-settings/wallet-credit-facility-settings" element={<AdminWalletCreditFacilitySettings />} />
                 <Route path="/admin-settings/wallet-student-recharge-settings" element={<AdminWalletStudentRechargeSettings />} />
                 <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
@@ -216,7 +221,9 @@ const App = () => (
                 <Route path="/tickets" element={<Tickets />} />
                 <Route path="/dev/user-guides" element={<UserGuidePreview />} />
                 <Route path="/page/:slug" element={<CmsPageView />} />
-                {/* Wallet recharge request action pages - redirect to Django backend */}
+                {/* Wallet recharge: email token approval + legacy request-id pages */}
+                <Route path="/wallet/recharge-action/:token" element={<WalletRechargeEmailAction />} />
+                <Route path="/wallet/recharge-action/:token/:action" element={<WalletRechargeEmailAction />} />
                 <Route path="/wallet/recharge-requests/:requestId" element={<WalletRechargeRequestAction />} />
                 <Route path="/wallet/recharge-requests/:requestId/approve" element={<WalletRechargeRequestAction />} />
                 <Route path="/wallet/recharge-requests/:requestId/reject" element={<WalletRechargeRequestAction />} />

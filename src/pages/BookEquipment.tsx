@@ -16,10 +16,13 @@ import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/li
 import {
   formatNumericBound,
   formatStepAttr,
+  isNumericInputDraft,
   nudgeNumericValue,
+  numericFieldAllowsNegative,
   resolveNumericFieldBounds,
   roundToStepPrecision,
 } from "@/lib/numericFieldLimits";
+import { formatINR } from "@/lib/money";
 import {
   CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
   getChargeEstimateUserTypeLabel,
@@ -4065,7 +4068,23 @@ const BookEquipment = () => {
     );
     const changedFieldType = String(changedField?.field_type || "").toUpperCase().trim();
     // NUMERIC: clamp to resolved min/max (help_text / options / defaults 0–100)
+    // Allow intermediate signed drafts ("-", "-.") when negatives are configured.
     if (changedFieldType === "NUMERIC") {
+      if (typeof value === "string" && isNumericInputDraft(value)) {
+        const draftBounds = resolveNumericFieldBounds(changedField);
+        if (value.trim().startsWith("-") && !numericFieldAllowsNegative(draftBounds)) {
+          value = String(draftBounds.min);
+        } else {
+          setInputFieldValues((prev) => ({
+            ...prev,
+            [fieldKey]: value,
+          }));
+          if (searchParams.get("mode") === "calculate") {
+            lastCalculatedValuesRef.current = "";
+          }
+          return;
+        }
+      }
       const formulaMax =
         String(fieldKey || "").toUpperCase() === "A" && !bookingAsExternalTarget
           ? resolveDynamicMaxForFieldA(
@@ -6546,6 +6565,7 @@ const BookEquipment = () => {
                                     : undefined;
                                 const bounds = resolveNumericFieldBounds(field, formulaMax);
                                 const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
+                                const allowsNegative = numericFieldAllowsNegative(bounds);
                                 const stepAttr = formatStepAttr(effectiveStep);
                                 const currentRaw = inputFieldValues[field.field_key];
                                 const nudge = (direction: 1 | -1) => {
@@ -6561,7 +6581,7 @@ const BookEquipment = () => {
                                       <Input
                                         id={field.field_key}
                                         type="number"
-                                        inputMode="decimal"
+                                        inputMode={allowsNegative ? "text" : "decimal"}
                                         value={
                                           currentRaw === undefined || currentRaw === null
                                             ? ""
@@ -6579,7 +6599,11 @@ const BookEquipment = () => {
                                         }}
                                         onBlur={(e) => {
                                           const value = e.target.value.trim();
-                                          if (value === "") return;
+                                          if (value === "" || isNumericInputDraft(value)) {
+                                            if (value === "-" || value === "-." || value === "." || value === "") {
+                                              return;
+                                            }
+                                          }
                                           const n = Number(value.replace(",", "."));
                                           if (!Number.isFinite(n)) {
                                             handleInputFieldChange(field.field_key, formatNumericBound(effectiveMin));
@@ -7341,7 +7365,7 @@ const BookEquipment = () => {
                           {calculatedCharge.charge_breakdown.map((item, index) => (
                             <div key={index} className="flex justify-between gap-4 text-sm items-start">
                               <span className="text-muted-foreground whitespace-pre-line shrink min-w-0">{item.description}</span>
-                              <span className="shrink-0 tabular-nums">₹{Number(item.amount).toFixed(2)}</span>
+                              <span className="shrink-0 tabular-nums">{formatINR(item.amount)}</span>
                             </div>
                           ))}
                         </div>
@@ -7349,7 +7373,7 @@ const BookEquipment = () => {
                       <div className="mt-4 pt-3 border-t space-y-1.5">
                         <div className="flex justify-between font-semibold text-base pt-1">
                           <span>Final amount</span>
-                          <span>₹{Number(calculatedCharge.total_charge).toFixed(2)}</span>
+                          <span>{formatINR(calculatedCharge.total_charge)}</span>
                         </div>
                       </div>
                       {rewardSummary?.config?.is_enabled && !isCalculateChargesFlow && (
@@ -8094,9 +8118,11 @@ const BookEquipment = () => {
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-muted-foreground">Total Cost</span>
                           <span className="text-2xl font-bold">
-                            ₹{calculatedCharge
-                              ? Number(calculatedCharge.total_charge).toFixed(2)
-                              : calculateTotalCost().toFixed(2)}
+                            {formatINR(
+                              calculatedCharge
+                                ? calculatedCharge.total_charge
+                                : calculateTotalCost()
+                            )}
                           </span>
                         </div>
                       </div>

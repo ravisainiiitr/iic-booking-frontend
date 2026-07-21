@@ -428,8 +428,8 @@ export default function SampleTraceTimeline({
   return (
     <div className="space-y-4">
       <p className="text-base font-medium text-foreground">Sample Lifecycle</p>
-      <div className="overflow-x-auto">
-        <div className="min-w-[880px] flex items-stretch gap-0">
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="flex flex-col gap-3 md:min-w-[880px] md:flex-row md:items-stretch md:gap-0">
         {steps.map((step, index) => {
           const event = getEventForStep(sampleTrace, step);
 

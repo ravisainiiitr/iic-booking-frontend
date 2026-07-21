@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { formatINR } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -110,7 +111,7 @@ const ReportBookingsList = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount Spent</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">₹{totalSpent.toFixed(2)}</p>
+                  <p className="text-2xl font-bold">{formatINR(totalSpent)}</p>
                 </CardContent>
               </Card>
               <Card>
@@ -163,7 +164,7 @@ const ReportBookingsList = () => {
                               {b.end_time ? new Date(b.end_time).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "—"}
                             </TableCell>
                             <TableCell className="text-right font-medium">{b.total_hours.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">₹{Number(b.total_charge).toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-medium">{formatINR(b.total_charge)}</TableCell>
                             <TableCell>
                               <span className="capitalize">{b.status_display || b.status}</span>
                             </TableCell>

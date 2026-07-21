@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,22 +57,24 @@ export default function EquipmentLifecycleHub() {
     setSelectedEquipmentId((prev) => (prev ? prev : eq[0] ? String(eq[0].equipment_id) : ""));
   }, []);
 
-  const loadLifecycle = useCallback(async () => {
+  const loadLifecycle = useCallback(async (opts?: { silent?: boolean }) => {
     if (!selectedEquipmentId) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       const res = await apiClient.getEquipmentLifecycle(selectedEquipmentId);
       if (res.error) {
-        toast.error(String(res.error));
-        setLifecyclePayload(null);
+        if (!opts?.silent) toast.error(String(res.error));
+        if (!opts?.silent) setLifecyclePayload(null);
         return;
       }
       setLifecyclePayload((res.data as Record<string, unknown>) || null);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to load lifecycle.");
-      setLifecyclePayload(null);
+      if (!opts?.silent) {
+        toast.error(e instanceof Error ? e.message : "Failed to load lifecycle.");
+        setLifecyclePayload(null);
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [selectedEquipmentId]);
 
@@ -87,6 +90,12 @@ export default function EquipmentLifecycleHub() {
   useEffect(() => {
     if (selectedEquipmentId) loadLifecycle();
   }, [selectedEquipmentId, loadLifecycle]);
+
+  useVisibilityPolling({
+    enabled: Boolean(selectedEquipmentId) && isAdminPanel,
+    intervalMs: 15000,
+    onPoll: () => loadLifecycle({ silent: true }),
+  });
 
   const lifecycle = (lifecyclePayload?.lifecycle as Record<string, string | null> | undefined) || {};
   const accessories = (lifecyclePayload?.accessories as Array<Record<string, unknown>>) || [];

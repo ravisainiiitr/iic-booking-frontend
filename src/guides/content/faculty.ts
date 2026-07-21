@@ -16,7 +16,7 @@ export const facultyGuide: UserGuideContent = {
   audience: "faculty",
   audienceLabel: "Internal Faculty",
   title: "Faculty User Guide",
-  subtitle: `${PRODUCT_NAME} — personal booking, wallets, and student approvals`,
+  subtitle: `${PRODUCT_NAME}`,
   welcomeHeadline: "Welcome, IIT Roorkee faculty",
   welcomeBody: `Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. This guide explains Channel i login and the institute-wide features that keep research groups productive on the ${PRODUCT_NAME}.`,
   sections: [

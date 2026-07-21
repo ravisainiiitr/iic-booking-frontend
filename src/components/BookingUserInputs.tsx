@@ -24,7 +24,7 @@ import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
-import { formatNumericBound, formatStepAttr, nudgeNumericValue, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
+import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
 
 export interface InputFieldDef {
   field_key: string;
@@ -623,6 +623,7 @@ export function BookingUserInputs({
                   {type === "NUMERIC" && (() => {
                     const bounds = resolveNumericFieldBounds(f);
                     const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
+                    const allowsNegative = numericFieldAllowsNegative(bounds);
                     const stepAttr = formatStepAttr(effectiveStep);
                     const nudge = (direction: 1 | -1) => {
                       updateFormValue(
@@ -636,7 +637,7 @@ export function BookingUserInputs({
                           <Input
                             id={`edit-${f.field_key}`}
                             type="number"
-                            inputMode="decimal"
+                            inputMode={allowsNegative ? "text" : "decimal"}
                             className="text-base h-10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             min={effectiveMin}
                             max={effectiveMax}
@@ -644,8 +645,12 @@ export function BookingUserInputs({
                             value={val === undefined || val === null || val === "" ? "" : String(val)}
                             onChange={(e) => {
                               const v = e.target.value;
-                              if (v === "") {
-                                updateFormValue(f.field_key, "");
+                              if (v === "" || isNumericInputDraft(v)) {
+                                if (v.trim().startsWith("-") && !allowsNegative) {
+                                  updateFormValue(f.field_key, effectiveMin);
+                                  return;
+                                }
+                                updateFormValue(f.field_key, v);
                                 return;
                               }
                               updateFormValue(f.field_key, v);
@@ -660,7 +665,10 @@ export function BookingUserInputs({
                               }
                             }}
                             onBlur={() => {
-                              if (val === "" || val === undefined || val === null) return;
+                              if (val === "" || val === undefined || val === null || isNumericInputDraft(String(val))) {
+                                if (String(val) === "-" || String(val) === "-." || String(val) === ".") return;
+                                return;
+                              }
                               const n = Number(String(val).replace(",", "."));
                               if (!Number.isFinite(n)) {
                                 updateFormValue(f.field_key, effectiveMin);

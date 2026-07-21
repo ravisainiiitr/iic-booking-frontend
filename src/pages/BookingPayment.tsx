@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { formatINR } from "@/lib/money";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -145,17 +146,17 @@ export default function BookingPayment() {
             <div className="rounded-lg border p-4 space-y-2">
               <div className="flex justify-between">
                 <span>Total charge</span>
-                <span className="font-medium">₹{total.toFixed(2)}</span>
+                <span className="font-medium">{formatINR(total)}</span>
               </div>
               {walletApplied > 0 && (
                 <div className="flex justify-between text-emerald-700">
                   <span>From wallet ({booking?.settlement_department_name || "department"})</span>
-                  <span>−₹{walletApplied.toFixed(2)}</span>
+                  <span>−{formatINR(walletApplied)}</span>
                 </div>
               )}
               <div className="flex justify-between font-semibold text-base border-t pt-2">
                 <span>Amount to pay</span>
-                <span>₹{due.toFixed(2)}</span>
+                <span>{formatINR(due)}</span>
               </div>
             </div>
 

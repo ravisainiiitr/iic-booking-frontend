@@ -4112,7 +4112,7 @@ const Dashboard = () => {
                               </span>
                               <span>{booking.total_hours} hr{booking.total_hours !== 1 ? 's' : ''}</span>
                               {booking.total_charge && (
-                                <span className="font-medium text-foreground">₹{parseFloat(booking.total_charge).toFixed(2)}</span>
+                                <span className="font-medium text-foreground">₹{Math.round(parseFloat(booking.total_charge))}</span>
                               )}
                             </div>
                           </div>

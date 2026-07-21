@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { formatINR, formatRupees } from "@/lib/money";
 import {
   readProformaLineItemsFromStorage,
   writeProformaLineItemsToStorage,
@@ -216,7 +217,7 @@ export default function ProformaInvoice() {
                   <span className="capitalize font-medium">{result.user_type?.replace(/_/g, " ")}</span>
                 </p>
                 <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[640px] text-sm">
                     <thead>
                       <tr className="bg-muted/60">
                         <th className="text-left p-3 font-medium w-10">#</th>
@@ -257,7 +258,7 @@ export default function ProformaInvoice() {
                                   <ul className="list-none space-y-0.5 text-muted-foreground">
                                     {row.charge_breakdown.map((b, i) => (
                                       <li key={i} className="whitespace-pre-line">
-                                        {b.description}: ₹{b.amount.toFixed(2)}
+                                        {b.description}: {formatINR(b.amount)}
                                       </li>
                                     ))}
                                   </ul>
@@ -265,9 +266,9 @@ export default function ProformaInvoice() {
                                 {!inputParts.length && (!row.charge_breakdown || !row.charge_breakdown.length) && "—"}
                               </div>
                             </td>
-                            <td className="p-3 text-right align-top">{Number(row.base_charge).toFixed(2)}</td>
-                            <td className="p-3 text-right align-top">{Number(row.gst_amount).toFixed(2)}</td>
-                            <td className="p-3 text-right font-medium align-top">{Number(row.total_charge).toFixed(2)}</td>
+                            <td className="p-3 text-right align-top">{formatRupees(row.base_charge)}</td>
+                            <td className="p-3 text-right align-top">{formatRupees(row.gst_amount)}</td>
+                            <td className="p-3 text-right font-medium align-top">{formatRupees(row.total_charge)}</td>
                             <td className="p-2 align-top">
                               <div className="flex items-center justify-end gap-0.5">
                                 <Button
@@ -305,9 +306,9 @@ export default function ProformaInvoice() {
                         <td colSpan={3} className="p-3 text-right">
                           Subtotal
                         </td>
-                        <td className="p-3 text-right">{Number(result.subtotal).toFixed(2)}</td>
-                        <td className="p-3 text-right">{Number(result.total_gst).toFixed(2)}</td>
-                        <td className="p-3 text-right">₹{Number(result.total_amount).toFixed(2)}</td>
+                        <td className="p-3 text-right">{formatRupees(result.subtotal)}</td>
+                        <td className="p-3 text-right">{formatRupees(result.total_gst)}</td>
+                        <td className="p-3 text-right">{formatINR(result.total_amount)}</td>
                         <td />
                       </tr>
                       <tr className="border-t bg-primary/10 font-bold">
@@ -319,7 +320,7 @@ export default function ProformaInvoice() {
                             </span>
                           )}
                         </td>
-                        <td className="p-3 text-right">₹{Number(result.total_amount).toFixed(2)}</td>
+                        <td className="p-3 text-right">{formatINR(result.total_amount)}</td>
                         <td />
                       </tr>
                     </tbody>

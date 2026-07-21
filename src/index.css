@@ -365,3 +365,27 @@ All colors MUST be HSL.
   border-color: hsl(222 38% 36% / 0.72) !important;
   box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.62) !important;
 }
+
+/* Responsive helpers — prevent overflow on phones/tablets */
+@layer utilities {
+  .table-scroll {
+    @apply w-full overflow-x-auto -mx-1 px-1;
+  }
+  .safe-pad {
+    @apply px-3 sm:px-4 md:px-6;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    overflow-x: clip;
+  }
+  .page-shell main,
+  .page-shell .container {
+    max-width: 100%;
+  }
+  /* Dialogs / sheets: keep actions reachable on small screens */
+  [role="dialog"] {
+    max-height: min(92vh, 100%);
+  }
+}

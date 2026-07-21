@@ -547,8 +547,8 @@ const BookingManagement = () => {
                   bookings. Click a booking ID to view full details.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
-                <Table>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table className="min-w-[720px]">
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
                       <TableHead className="font-semibold">Booking ID</TableHead>

@@ -10,6 +10,27 @@ export const DEFAULT_NUMERIC_MIN = 0;
 export const DEFAULT_NUMERIC_MAX = 100;
 export const DEFAULT_NUMERIC_STEP = 1;
 
+function isTruthyOption(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    return s === "true" || s === "1" || s === "yes";
+  }
+  return false;
+}
+
+/** True when the field config allows values below zero. */
+export function numericFieldAllowsNegative(bounds: NumericFieldBounds): boolean {
+  return bounds.min < 0;
+}
+
+/** Intermediate typed values while entering a signed number (e.g. "-", "-.", "1."). */
+export function isNumericInputDraft(value: string): boolean {
+  const v = value.trim().replace(",", ".");
+  if (v === "" || v === "-" || v === "." || v === "-.") return true;
+  return /^-?\d+\.$/.test(v);
+}
+
 function toFiniteNumber(value: unknown): number | undefined {
   if (value == null || value === false || value === true) return undefined;
   let raw = String(value).trim();
@@ -87,7 +108,7 @@ export function resolveNumericFieldBounds(
       : {};
   const fromHelp = parseNumericHelpText(field?.help_text);
 
-  const min = toFiniteNumber(opts.min) ?? fromHelp.min ?? DEFAULT_NUMERIC_MIN;
+  let min = toFiniteNumber(opts.min) ?? fromHelp.min ?? DEFAULT_NUMERIC_MIN;
   let max: number;
   if (formulaMax !== undefined && formulaMax !== null && Number.isFinite(formulaMax)) {
     max = Number(formulaMax);
@@ -96,6 +117,14 @@ export function resolveNumericFieldBounds(
   }
   let step = toFiniteNumber(opts.step) ?? fromHelp.step ?? DEFAULT_NUMERIC_STEP;
   if (step <= 0) step = DEFAULT_NUMERIC_STEP;
+
+  // Explicit allow_negative: if min is still non-negative, open the floor to -max.
+  const allowNegative =
+    isTruthyOption(opts.allow_negative) || isTruthyOption(opts.allowNegative);
+  if (allowNegative && min >= 0) {
+    min = -Math.abs(max === 0 ? DEFAULT_NUMERIC_MAX : max);
+  }
+
   if (max < min) max = min;
   return { min, max, step };
 }

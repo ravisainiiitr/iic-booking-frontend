@@ -29,6 +29,8 @@ export interface User {
   branch_name?: string | null;
   degree_name?: string | null;
   designation?: string | null;
+  joining_date?: string | null;
+  graduation_date?: string | null;
   date_joined?: string | null;
   last_login?: string | null;
   user_type_alias?: string | null;
