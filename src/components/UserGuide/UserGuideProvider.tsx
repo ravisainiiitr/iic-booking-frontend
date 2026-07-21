@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -29,12 +30,14 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, updateUser } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [autoPromptChecked, setAutoPromptChecked] = useState(false);
+  /** User id we already decided auto-show for (show or skip). Survives user-object refreshes. */
+  const autoShowHandledUserIdRef = useRef<number | null>(null);
+  const autoShowTimeoutRef = useRef<number | null>(null);
 
   const guide = useMemo(() => {
     if (!user) return null;
     return getGuideForUser(user.user_type, user.user_type_alias);
-  }, [user]);
+  }, [user?.id, user?.user_type, user?.user_type_alias]);
 
   const markGuideViewed = useCallback(async () => {
     if (!user?.id || user.user_guide_viewed) return;
@@ -56,13 +59,22 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
 
   const closeGuide = useCallback(() => setOpen(false), []);
 
+  // Reset auto-show bookkeeping on logout
+  useEffect(() => {
+    if (isAuthenticated) return;
+    autoShowHandledUserIdRef.current = null;
+    if (autoShowTimeoutRef.current != null) {
+      window.clearTimeout(autoShowTimeoutRef.current);
+      autoShowTimeoutRef.current = null;
+    }
+    setOpen(false);
+  }, [isAuthenticated]);
+
   // First successful login → first dashboard landing: show role guide once
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
-    if (autoPromptChecked) return;
-
-    setAutoPromptChecked(true);
+    if (autoShowHandledUserIdRef.current === user.id) return;
 
     if (
       !shouldAutoShowUserGuide({
@@ -71,27 +83,32 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
         userGuideViewed: user.user_guide_viewed === true,
       })
     ) {
+      autoShowHandledUserIdRef.current = user.id;
       return;
     }
 
+    // Wait until guide content is available (do not mark handled yet)
     if (!guide) return;
 
-    const t = window.setTimeout(() => setOpen(true), 600);
-    return () => window.clearTimeout(t);
+    autoShowHandledUserIdRef.current = user.id;
+
+    // Do not clear this timeout on later user refreshes — that was cancelling the first-login prompt
+    if (autoShowTimeoutRef.current != null) {
+      window.clearTimeout(autoShowTimeoutRef.current);
+    }
+    autoShowTimeoutRef.current = window.setTimeout(() => {
+      autoShowTimeoutRef.current = null;
+      setOpen(true);
+    }, 900);
   }, [
     isAuthenticated,
     user?.id,
     user?.user_type,
     user?.user_type_alias,
     user?.user_guide_viewed,
-    autoPromptChecked,
     location.pathname,
     guide,
   ]);
-
-  useEffect(() => {
-    if (!isAuthenticated) setAutoPromptChecked(false);
-  }, [isAuthenticated]);
 
   const value = useMemo(
     () => ({
