@@ -56,14 +56,19 @@ export const deptAdminGuide: UserGuideContent = {
           screenshotCaption: "Department Administration hub",
         },
         {
-          title: "Choose a role",
-          body: "Open OIC, Lab, or Accounts management for your department.",
-          screenshotCaption: "Role selection — OIC / Lab / Accounts",
+          title: "Choose a role or Faculty Credit Facility",
+          body: "Open OIC, Lab, or Accounts management for your department, or open Faculty Credit Facility to configure the one-time negative-balance credit line for newly joined faculty.",
+          screenshotCaption: "Role selection — OIC / Lab / Accounts / Faculty Credit",
         },
         {
           title: "Map users to roles",
           body: "Create or map users to manager/operator/finance within your department when you have user-management access.",
           screenshotCaption: "Staff mapping form",
+        },
+        {
+          title: "Configure Faculty Credit Facility (optional)",
+          body: "Enable the facility, set the eligible Date of Joining cut-off, and the maximum credit limit (₹). Faculty spend against a controlled negative department sub-wallet balance; recharges recover outstanding credit first. Once recovered, the facility closes permanently for that faculty member.",
+          screenshotCaption: "Faculty Credit Facility settings",
         },
         {
           title: "Verify equipment coverage",

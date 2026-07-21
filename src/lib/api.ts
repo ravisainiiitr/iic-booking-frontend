@@ -3727,6 +3727,89 @@ class ApiClient {
     }>(`/wallet/peer-transfer/history/${q}`);
   }
 
+  async getDepartmentFacultyCreditFacilitySettings(params?: { department_id?: number }) {
+    const q = params?.department_id != null ? `?department_id=${params.department_id}` : "";
+    return this.request<{
+      department_id: number;
+      department_name: string;
+      enabled: boolean;
+      joining_date_cutoff: string | null;
+      max_credit_limit: string;
+      updated_at?: string | null;
+      updated_by_email?: string | null;
+    }>(`/department-faculty-credit-facility/settings/${q}`);
+  }
+
+  async updateDepartmentFacultyCreditFacilitySettings(data: {
+    enabled?: boolean;
+    joining_date_cutoff?: string | null;
+    max_credit_limit?: string | number;
+    department_id?: number;
+  }) {
+    return this.request<{
+      department_id: number;
+      department_name: string;
+      enabled: boolean;
+      joining_date_cutoff: string | null;
+      max_credit_limit: string;
+      updated_at?: string | null;
+      updated_by_email?: string | null;
+    }>("/department-faculty-credit-facility/settings/", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDepartmentFacultyCreditFacilityFaculty(params?: {
+    department_id?: number;
+    include_available?: boolean;
+  }) {
+    const search = new URLSearchParams();
+    if (params?.department_id != null) search.set("department_id", String(params.department_id));
+    if (params?.include_available === false) search.set("include_available", "0");
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return this.request<{
+      department_id: number;
+      results: Array<{
+        id: number | null;
+        faculty_user_id: number;
+        faculty_name: string;
+        faculty_email: string;
+        joining_date: string | null;
+        status: string;
+        status_display: string;
+        credit_limit: string;
+        wallet_balance: string;
+        outstanding_credit: string;
+        remaining_credit: string;
+        availed_at: string | null;
+        closed_at: string | null;
+      }>;
+      count: number;
+    }>(`/department-faculty-credit-facility/faculty/${q}`);
+  }
+
+  async getDepartmentFacultyCreditFacilityAudit(params?: { department_id?: number; limit?: number }) {
+    const search = new URLSearchParams();
+    if (params?.department_id != null) search.set("department_id", String(params.department_id));
+    if (params?.limit != null) search.set("limit", String(params.limit));
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return this.request<{
+      department_id: number;
+      results: Array<{
+        id: number;
+        event_type: string;
+        event_type_display: string;
+        message: string;
+        faculty_email: string | null;
+        faculty_name: string | null;
+        actor_email: string | null;
+        created_at: string | null;
+      }>;
+      count: number;
+    }>(`/department-faculty-credit-facility/audit/${q}`);
+  }
+
   async sendUserOtpForRecharge(
     amount: number,
     departmentId: number,

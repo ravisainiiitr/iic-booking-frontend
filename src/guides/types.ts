@@ -12,7 +12,9 @@ export type GuideAudienceId =
   | "oic"
   | "operator"
   | "dept_admin"
-  | "admin";
+  | "admin"
+  | "finance"
+  | "external_relations";
 
 export interface GuideStep {
   title: string;
@@ -55,6 +57,8 @@ export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
   operator: "Lab In-Charge / Operator",
   dept_admin: "Department Administrator",
   admin: "Institute Administrator",
+  finance: "Accounts In Charge",
+  external_relations: "External Relations Administrator",
 };
 
 /** Shared booking status explanations used across end-user guides. */

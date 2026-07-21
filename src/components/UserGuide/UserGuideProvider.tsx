@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { getGuideForUser, shouldAutoShowUserGuide } from "@/guides";
@@ -26,6 +27,7 @@ const UserGuideContext = createContext<UserGuideContextValue | undefined>(undefi
 
 export function UserGuideProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, updateUser } = useAuth();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [autoPromptChecked, setAutoPromptChecked] = useState(false);
 
@@ -54,22 +56,26 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
 
   const closeGuide = useCallback(() => setOpen(false), []);
 
-  // First-login / first-session auto launch for eligible end users
+  // First successful login → first dashboard landing: show role guide once
   useEffect(() => {
-    if (!isAuthenticated || !user?.id || autoPromptChecked) return;
+    if (!isAuthenticated || !user?.id) return;
+    if (location.pathname !== "/dashboard") return;
+    if (autoPromptChecked) return;
+
     setAutoPromptChecked(true);
 
     if (
       !shouldAutoShowUserGuide({
         userType: user.user_type,
         userTypeAlias: user.user_type_alias,
-        userGuideViewed: user.user_guide_viewed,
+        userGuideViewed: user.user_guide_viewed === true,
       })
     ) {
       return;
     }
 
-    // Avoid stacking with other dashboard toasts: slight delay
+    if (!guide) return;
+
     const t = window.setTimeout(() => setOpen(true), 600);
     return () => window.clearTimeout(t);
   }, [
@@ -79,9 +85,10 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     user?.user_type_alias,
     user?.user_guide_viewed,
     autoPromptChecked,
+    location.pathname,
+    guide,
   ]);
 
-  // Reset auto-check when user logs out / switches
   useEffect(() => {
     if (!isAuthenticated) setAutoPromptChecked(false);
   }, [isAuthenticated]);
@@ -118,7 +125,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
 export function useUserGuide() {
   const ctx = useContext(UserGuideContext);
   if (!ctx) {
-    throw new Error("useUserGuide must be used within UserGuideProvider");
+    throw new Error("useUserGuide must be used within a UserGuideProvider");
   }
   return ctx;
 }

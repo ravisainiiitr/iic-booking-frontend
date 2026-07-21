@@ -45,6 +45,7 @@ import AdminSection from "./pages/AdminSection";
 import DepartmentRbacManagement from "./pages/DepartmentRbacManagement";
 import DepartmentAdministrationHub from "./pages/DepartmentAdministrationHub";
 import DepartmentStaffManagement from "./pages/DepartmentStaffManagement";
+import DepartmentFacultyCreditFacility from "./pages/DepartmentFacultyCreditFacility";
 import AdminHeroSlides from "./pages/AdminHeroSlides";
 import ContentManagement from "./pages/ContentManagement";
 import AdminSettings from "./pages/AdminSettings";
@@ -161,6 +162,10 @@ const App = () => (
                 <Route path="/admin/section/:section" element={<AdminSection />} />
                 <Route path="/admin/department-rbac" element={<DepartmentRbacManagement />} />
                 <Route path="/admin/department-administration" element={<DepartmentAdministrationHub />} />
+                <Route
+                  path="/admin/department-administration/faculty-credit-facility"
+                  element={<DepartmentFacultyCreditFacility />}
+                />
                 <Route path="/admin/department-administration/:role" element={<DepartmentStaffManagement />} />
                 <Route path="/manage/external-user-management" element={<ExternalUserManagement />} />
                 <Route path="/manage/external-user-management/departments" element={<ExternalDepartmentAdditionVerification />} />
@@ -168,6 +173,10 @@ const App = () => (
                 <Route path="/manage/section/:section" element={<AdminSection />} />
                 <Route path="/manage/department-rbac" element={<DepartmentAdministrationHub />} />
                 <Route path="/manage/department-administration" element={<DepartmentAdministrationHub />} />
+                <Route
+                  path="/manage/department-administration/faculty-credit-facility"
+                  element={<DepartmentFacultyCreditFacility />}
+                />
                 <Route path="/manage/department-administration/:role" element={<DepartmentStaffManagement />} />
                 <Route path="/organization/users" element={<OrganizationUsersManagement />} />
                 <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />

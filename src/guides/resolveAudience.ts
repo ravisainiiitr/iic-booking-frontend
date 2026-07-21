@@ -28,6 +28,8 @@ export function resolveGuideAudience(
   if (code === "manager") return "oic";
   if (code === "operator") return "operator";
   if (code === "dept_admin") return "dept_admin";
+  if (code === "finance") return "finance";
+  if (code === "external_relations") return "external_relations";
 
   if (code === "startup_incubated_iitr" || code === "external_startup_msme") {
     return "startup";

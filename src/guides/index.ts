@@ -8,6 +8,8 @@ import { oicGuide } from "./content/oic";
 import { operatorGuide } from "./content/operator";
 import { deptAdminGuide } from "./content/deptAdmin";
 import { adminGuide } from "./content/admin";
+import { financeGuide } from "./content/finance";
+import { externalRelationsGuide } from "./content/externalRelations";
 import { resolveGuideAudience } from "./resolveAudience";
 
 const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, UserGuideContent> = {
@@ -20,6 +22,8 @@ const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, UserGuideContent> = {
   operator: operatorGuide,
   dept_admin: deptAdminGuide,
   admin: adminGuide,
+  finance: financeGuide,
+  external_relations: externalRelationsGuide,
 };
 
 export function getGuideContent(audience: GuideAudienceId): UserGuideContent {

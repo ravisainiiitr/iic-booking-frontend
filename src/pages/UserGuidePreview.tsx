@@ -17,6 +17,8 @@ const AUDIENCES: GuideAudienceId[] = [
   "operator",
   "dept_admin",
   "admin",
+  "finance",
+  "external_relations",
 ];
 
 /**

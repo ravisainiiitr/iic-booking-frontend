@@ -30,6 +30,7 @@ export const facultyGuide: UserGuideContent = {
         "Create and manage wallets used by your group",
         "Approve wallet join requests and related student actions",
         "Track bookings, sample deadlines, and published results",
+        "If your department enables Faculty Credit Facility and you are eligible, bookings may use a controlled negative department sub-wallet balance until recharges recover it",
       ],
     }),
     loginAccountSection({

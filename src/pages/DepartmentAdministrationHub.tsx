@@ -5,7 +5,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, FlaskConical, ShieldCheck, UserCog, Wallet } from "lucide-react";
+import { ArrowLeft, CreditCard, FlaskConical, ShieldCheck, UserCog, Wallet } from "lucide-react";
 
 const MODULES = [
   {
@@ -34,6 +34,16 @@ const MODULES = [
     icon: Wallet,
     gradient: "from-emerald-500 to-green-700",
     button: "bg-emerald-600 hover:bg-emerald-700",
+  },
+  {
+    key: "faculty-credit",
+    title: "Faculty Credit Facility",
+    description:
+      "Enable a one-time controlled negative balance for newly joined faculty on this department’s sub-wallet.",
+    path: "/manage/department-administration/faculty-credit-facility",
+    icon: CreditCard,
+    gradient: "from-amber-500 to-orange-700",
+    button: "bg-amber-600 hover:bg-amber-700",
   },
 ] as const;
 
@@ -72,12 +82,12 @@ export default function DepartmentAdministrationHub() {
             Department Administration
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Manage Officer In Charge, Lab In Charge, and Accounts In Charge for your department.
-            All actions are limited to your assigned department.
+            Manage Officer In Charge, Lab In Charge, Accounts In Charge, and Faculty Credit Facility for your
+            department. All actions are limited to your assigned department.
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
           {MODULES.map((m) => {
             const Icon = m.icon;
             return (
