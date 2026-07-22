@@ -8,7 +8,6 @@ import {
   LifeBuoy,
   Target,
   Inbox,
-  Wallet,
   Shield,
   Trophy,
   Database,
@@ -105,14 +104,6 @@ const AdminSettings = () => {
               title="Inbox Email"
               description="Fetch and view the configured IMAP mailbox"
               onClick={() => navigate("/admin-settings/inbox-email")}
-            />
-          )}
-          {can("admin_settings.wallet") && (
-            <SettingsTile
-              icon={<Wallet className="h-5 w-5" />}
-              title="Wallet Management"
-              description="Parse and manage wallet recharge emails"
-              onClick={() => navigate("/admin-settings/wallet-recharge-parse")}
             />
           )}
           {can("admin_settings.legacy_wallet") && (

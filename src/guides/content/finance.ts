@@ -17,7 +17,7 @@ export const financeGuide: UserGuideContent = {
   title: "Accounts In Charge User Guide",
   subtitle: `${PRODUCT_NAME} — department payment and receipt workflows`,
   welcomeHeadline: "Welcome, Accounts In Charge",
-  welcomeBody: `As Accounts In Charge you process payment receipts and support department finance workflows in the ${PRODUCT_NAME}. This guide covers sign-in, receipt processing, and how your role relates to Department Administrators and Officer-in-Charge users.`,
+  welcomeBody: `As Department Account In-charge you monitor and manage financial activities for your department in the ${PRODUCT_NAME} — including wallet recharge requests, grant utilization, wallet transactions, credit facility usage, and related department financial records. This guide covers sign-in, receipt processing, and how your role relates to Department Administrators and Officers-in-Charge.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -25,8 +25,9 @@ export const financeGuide: UserGuideContent = {
         "Your dashboard emphasises finance queues rather than end-user booking cards.",
       ],
       bullets: [
-        "Review pending payment receipts for your department",
-        "Mark receipts processed with remarks when required",
+        "Monitor wallet recharge requests and payment receipts for your department",
+        "Oversee grant utilization, wallet transactions, and credit facility–related records",
+        "Process and verify payment receipts with clear remarks when required",
         "Coordinate with Dept Admin / OIC when payment status blocks bookings",
         "Keep profile contact details current for operational notices",
       ],

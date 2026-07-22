@@ -17,7 +17,6 @@ import UserProfile from "@/components/UserProfile";
 import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
-import { cn } from "@/lib/utils";
 import { useAlert } from "@/hooks/use-alert";
 import {
   Table,
@@ -34,15 +33,83 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const WALLET_RECHARGE_DRAFT_KEY = "walletRechargeDraft";
+
+type OfflineRechargeMode = "project_grant" | "direct_cash_deposit";
+
+type WalletRechargeDraft = {
+  rechargeAmount: string;
+  rechargeDepartmentId: number | null;
+  selectedProjectId: number | null;
+  rechargeType: "sbiepay" | "request";
+  otpStep?: "form" | "otp" | "sric";
+  studentReceiptUtr?: string;
+  offlineRechargeMode?: OfflineRechargeMode;
+  cashUndertakingAccepted?: boolean;
+};
+
+function saveWalletRechargeDraft(draft: WalletRechargeDraft) {
+  try {
+    const payload: WalletRechargeDraft = {
+      rechargeAmount: draft.rechargeAmount,
+      rechargeDepartmentId: draft.rechargeDepartmentId,
+      selectedProjectId: draft.selectedProjectId,
+      rechargeType: draft.rechargeType,
+      studentReceiptUtr: draft.studentReceiptUtr ?? "",
+      offlineRechargeMode: draft.offlineRechargeMode,
+      cashUndertakingAccepted: Boolean(draft.cashUndertakingAccepted),
+    };
+    if (draft.otpStep === "form") {
+      payload.otpStep = "form";
+    }
+    sessionStorage.setItem(WALLET_RECHARGE_DRAFT_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function loadWalletRechargeDraft(): WalletRechargeDraft | null {
+  try {
+    const raw = sessionStorage.getItem(WALLET_RECHARGE_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WalletRechargeDraft;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearWalletRechargeDraft() {
+  sessionStorage.removeItem(WALLET_RECHARGE_DRAFT_KEY);
+  sessionStorage.removeItem("returnToWalletRecharge");
+}
+
+type DeptFacultyCreditStatus = {
+  id: number | null;
+  faculty_user_id: number;
+  department_id: number;
+  department_name: string;
+  status: string;
+  status_display: string;
+  credit_limit: string;
+  department_max_credit_limit?: string;
+  wallet_balance: string;
+  outstanding_credit: string;
+  remaining_credit: string;
+  availed_at: string | null;
+  closed_at: string | null;
+  eligible?: boolean;
+  can_avail?: boolean;
+  settings_enabled?: boolean;
+};
 
 interface Transaction {
   id: number;
@@ -131,7 +198,7 @@ const Wallet = () => {
   >(false);
   const [resendingJoinRequestId, setResendingJoinRequestId] = useState<number | null>(null);
   const [isFaculty, setIsFaculty] = useState(false);
-  /** Aligns with backend `is_faculty` / `user_type` so credit preflight is not skipped after hydration. */
+  /** Aligns with backend `is_faculty` / `user_type` so faculty-only wallet flows work after hydration. */
   const isFacultyEffective = useMemo(() => {
     return (
       isFaculty ||
@@ -166,6 +233,10 @@ const Wallet = () => {
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [recharging, setRecharging] = useState(false);
   const [rechargeType, setRechargeType] = useState<"sbiepay" | "request">("sbiepay");
+  const [offlineRechargeMode, setOfflineRechargeMode] = useState<OfflineRechargeMode>("direct_cash_deposit");
+  const [cashUndertakingAccepted, setCashUndertakingAccepted] = useState(false);
+  /** When IITR student receipt offline is enabled: choose receipt upload vs cash-deposit OTP. */
+  const [studentOfflinePath, setStudentOfflinePath] = useState<"receipt" | "cash">("receipt");
   const [studentReceiptFile, setStudentReceiptFile] = useState<File | null>(null);
   const [studentReceiptUtr, setStudentReceiptUtr] = useState("");
   const [submittingStudentReceipt, setSubmittingStudentReceipt] = useState(false);
@@ -203,27 +274,14 @@ const Wallet = () => {
   const [internalDepartments, setInternalDepartments] = useState<Array<{ id: number; name: string; code: string | null }>>([]);
   const [rechargeDepartmentId, setRechargeDepartmentId] = useState<number | null>(null);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
-  /** Faculty: OTP send may open credit-facility offer when department balance is below admin threshold. */
-  const [creditFacilityOfferOpen, setCreditFacilityOfferOpen] = useState(false);
-  const [creditFacilitySettings, setCreditFacilitySettings] = useState<{
-    balance_threshold_inr: string;
-    credit_window_days: number;
-    max_credit_inr: string;
-    can_activate_new_credit: boolean;
-  } | null>(null);
-  const [walletCreditFacilityItems, setWalletCreditFacilityItems] = useState<
-    Array<{
-      request_id: number;
-      department_name: string;
-      amount: string;
-      credit_limit_inr: string | null;
-      credit_window_ends_at: string | null;
-      credit_facility_status: string;
-      sub_wallet_balance: string;
-      bookings_blocked: boolean;
-    }>
-  >([]);
-  const [pendingCreditOptInDepartmentIds, setPendingCreditOptInDepartmentIds] = useState<number[]>([]);
+  const skipRechargeResetRef = useRef(false);
+  const [deptFacultyCreditByDept, setDeptFacultyCreditByDept] = useState<
+    Record<number, DeptFacultyCreditStatus>
+  >({});
+  const [availCreditOpen, setAvailCreditOpen] = useState(false);
+  const [availCreditDeptId, setAvailCreditDeptId] = useState<number | null>(null);
+  const [availCreditAmount, setAvailCreditAmount] = useState("");
+  const [availingCredit, setAvailingCredit] = useState(false);
 
   // External user withdrawal (bank transfer)
   const [isExternalUser, setIsExternalUser] = useState(false);
@@ -258,13 +316,20 @@ const Wallet = () => {
 
   const canShowWalletRecharge = !isShared || (isStudent && iitrStudentRechargeEnabled);
   const isIitrStudentReceiptOffline = isStudent && iitrStudentRechargeEnabled;
+  const isProjectGrantMode = offlineRechargeMode === "project_grant";
+  const isCashDepositMode = offlineRechargeMode === "direct_cash_deposit";
+  const sricDestinationLabel = isCashDepositMode ? "SRIC Bill Section" : "SRIC Office";
 
   const openRechargeDialog = useCallback((departmentId?: number | null) => {
+    skipRechargeResetRef.current = false;
     if (isFacultyEffective) {
       setRechargeType("request");
+      setOfflineRechargeMode("project_grant");
     } else {
       setRechargeType("sbiepay");
+      setOfflineRechargeMode("direct_cash_deposit");
     }
+    setCashUndertakingAccepted(false);
     if (departmentId != null) {
       setRechargeDepartmentId(departmentId);
     }
@@ -301,10 +366,28 @@ const Wallet = () => {
       return;
     }
 
-    // Check if user returned from profile page and reopen recharge dialog
-    const returnToRecharge = sessionStorage.getItem('returnToWalletRecharge');
-    if (returnToRecharge === 'true') {
-      sessionStorage.removeItem('returnToWalletRecharge');
+    // Check if user returned from profile page and reopen recharge dialog with draft
+    const returnToRecharge = sessionStorage.getItem("returnToWalletRecharge");
+    if (returnToRecharge === "true") {
+      const draft = loadWalletRechargeDraft();
+      if (draft) {
+        if (typeof draft.rechargeAmount === "string") setRechargeAmount(draft.rechargeAmount);
+        if (draft.rechargeDepartmentId != null) setRechargeDepartmentId(draft.rechargeDepartmentId);
+        if (draft.selectedProjectId != null) setSelectedProjectId(draft.selectedProjectId);
+        if (draft.rechargeType === "sbiepay" || draft.rechargeType === "request") {
+          setRechargeType(draft.rechargeType);
+        }
+        if (draft.offlineRechargeMode === "project_grant" || draft.offlineRechargeMode === "direct_cash_deposit") {
+          setOfflineRechargeMode(draft.offlineRechargeMode);
+        }
+        if (typeof draft.cashUndertakingAccepted === "boolean") {
+          setCashUndertakingAccepted(draft.cashUndertakingAccepted);
+        }
+        if (draft.otpStep === "form") setOtpStep("form");
+        if (typeof draft.studentReceiptUtr === "string") setStudentReceiptUtr(draft.studentReceiptUtr);
+      }
+      clearWalletRechargeDraft();
+      skipRechargeResetRef.current = false;
       // Small delay to ensure wallet data is loaded
       setTimeout(() => {
         setShowRechargeDialog(true);
@@ -316,6 +399,7 @@ const Wallet = () => {
   useEffect(() => {
     if (showRechargeDialog && isFacultyEffective) {
       setRechargeType("request");
+      setOfflineRechargeMode((prev) => (prev === "direct_cash_deposit" ? prev : "project_grant"));
     }
   }, [showRechargeDialog, isFacultyEffective]);
 
@@ -382,6 +466,41 @@ const Wallet = () => {
     }
   };
 
+  const fetchDeptFacultyCreditStatus = async () => {
+    try {
+      const res = await apiClient.getMyDepartmentFacultyCreditFacilityStatus();
+      if (res.error || !res.data?.results) {
+        setDeptFacultyCreditByDept({});
+        return;
+      }
+      const byDept: Record<number, DeptFacultyCreditStatus> = {};
+      for (const row of res.data.results) {
+        byDept[row.department_id] = row;
+      }
+      setDeptFacultyCreditByDept(byDept);
+    } catch (error) {
+      console.error("Failed to fetch department faculty credit status:", error);
+      setDeptFacultyCreditByDept({});
+    }
+  };
+
+  const goToAddProjectFromRecharge = () => {
+    skipRechargeResetRef.current = true;
+    saveWalletRechargeDraft({
+      rechargeAmount,
+      rechargeDepartmentId,
+      selectedProjectId,
+      rechargeType,
+      otpStep: otpStep === "form" ? "form" : undefined,
+      studentReceiptUtr,
+      offlineRechargeMode,
+      cashUndertakingAccepted,
+    });
+    sessionStorage.setItem("returnToWalletRecharge", "true");
+    setShowRechargeDialog(false);
+    navigate("/profile#projects");
+  };
+
 
   // Fetch join requests when request form is shown
   useEffect(() => {
@@ -401,9 +520,6 @@ const Wallet = () => {
         setLoadingDepartments(false);
       }).catch(() => setLoadingDepartments(false));
     }
-    if (!showRechargeDialog) {
-      setRechargeDepartmentId(null);
-    }
   }, [showRechargeDialog]);
 
   // Auto-select department when exactly one internal department is available
@@ -415,8 +531,7 @@ const Wallet = () => {
     setRechargeDepartmentId((prev) => (prev === onlyId ? prev : onlyId));
   }, [showRechargeDialog, internalDepartments]);
 
-  // When several recharge departments exist, default to the sub-wallet with the lowest balance so
-  // the credit-facility preflight matches the consolidated balance the user is looking at.
+  // When several recharge departments exist, default to the sub-wallet with the lowest balance.
   useEffect(() => {
     if (!showRechargeDialog || internalDepartments.length <= 1) return;
     setRechargeDepartmentId((prev) => {
@@ -1244,23 +1359,13 @@ const Wallet = () => {
           await fetchJoinRequests();
         }
 
-        const cr = await apiClient.getWalletCreditFacilityMyStatus();
-        if (!cr.error && cr.data?.items) {
-          setWalletCreditFacilityItems(cr.data.items);
-          setPendingCreditOptInDepartmentIds(
-            cr.data.pending_credit_opt_in_department_ids ?? []
-          );
-        } else {
-          setWalletCreditFacilityItems([]);
-          setPendingCreditOptInDepartmentIds([]);
-        }
+        await fetchDeptFacultyCreditStatus();
       }
     } catch (error: any) {
       // Don't redirect on error, just show empty state
       setBalance(0);
       setTransactions([]);
-      setWalletCreditFacilityItems([]);
-      setPendingCreditOptInDepartmentIds([]);
+      setDeptFacultyCreditByDept({});
       toast.error(error.message || "Failed to load wallet data. Showing empty wallet.");
     } finally {
       setLoading(false);
@@ -1456,8 +1561,13 @@ const Wallet = () => {
       toast.error("Please enter a valid amount (minimum ₹100)");
       return;
     }
-    if (isFacultyEffective && !selectedProjectId) {
+    const isProjectGrant = offlineRechargeMode === "project_grant";
+    if (isProjectGrant && !selectedProjectId) {
       toast.error("Please select a project. Add projects from your profile if none are available.");
+      return;
+    }
+    if (!isProjectGrant && !cashUndertakingAccepted) {
+      toast.error("Please accept the undertaking before continuing.");
       return;
     }
     try {
@@ -1465,8 +1575,12 @@ const Wallet = () => {
       const response = await apiClient.sendUserOtpForRecharge(
         amount,
         rechargeDepartmentId,
-        isFacultyEffective ? selectedProjectId : null,
-        creditFacilityOptedIn
+        isProjectGrant ? selectedProjectId : null,
+        creditFacilityOptedIn,
+        {
+          rechargeMode: offlineRechargeMode,
+          undertakingAccepted: cashUndertakingAccepted,
+        }
       );
 
       if (response.error) {
@@ -1485,92 +1599,90 @@ const Wallet = () => {
   };
 
   const handleSendOtp = async () => {
-    const amount = parseFloat(rechargeAmount);
-    if (!rechargeDepartmentId) {
-      toast.error("Please select a department (sub-wallet to credit)");
-      return;
-    }
-    if (!amount || amount < 100) {
-      toast.error("Please enter a valid amount (minimum ₹100)");
-      return;
-    }
-    if (isFacultyEffective && !selectedProjectId) {
-      toast.error("Please select a project. Add projects from your profile if none are available.");
-      return;
-    }
-    if (!isFacultyEffective) {
-      await completeRechargeOtpSend(false);
-      return;
-    }
-    try {
-      setSendingOtp(true);
-      const offerRes = await apiClient.getWalletCreditFacilityOfferForRecharge(rechargeDepartmentId);
-      if (offerRes.error || !offerRes.data) {
-        toast.error(offerRes.error || "Could not check credit facility eligibility");
-        return;
-      }
-      void apiClient.getWalletCreditFacilityMyStatus().then((cr) => {
-        if (!cr.error && cr.data?.items) {
-          setWalletCreditFacilityItems(cr.data.items);
-          setPendingCreditOptInDepartmentIds(cr.data.pending_credit_opt_in_department_ids ?? []);
-        }
-      });
-      void apiClient.getWallet().then((wr) => {
-        if (!wr.error && wr.data && Array.isArray(wr.data.sub_wallets)) {
-          setSubWallets(wr.data.sub_wallets as typeof subWallets);
-        }
-      });
-      const payload = offerRes.data as Record<string, unknown>;
-      const rawShow = payload.show_offer ?? payload.showOffer;
-      const showOffer =
-        rawShow === true ||
-        rawShow === "true" ||
-        rawShow === 1 ||
-        rawShow === "1";
-      const reason = String(payload.reason ?? "");
-      const subBal = parseFloat(String(payload.sub_wallet_balance ?? "0"));
-      const thr = parseFloat(String(payload.balance_threshold_inr ?? "0"));
-      const numericBelowThreshold = thr > 0 && !Number.isNaN(subBal) && subBal < thr;
-      const badReasons = new Set([
-        "not_faculty",
-        "no_wallet",
-        "invalid_department",
-        "negative_balance",
-        "at_or_above_threshold",
-      ]);
-      const shouldShowCreditDialog =
-        showOffer ||
-        reason === "below_threshold" ||
-        (numericBelowThreshold && !badReasons.has(reason));
-      if (shouldShowCreditDialog) {
-        setCreditFacilitySettings({
-          balance_threshold_inr: String(payload.balance_threshold_inr ?? offerRes.data.balance_threshold_inr),
-          credit_window_days: Number(payload.credit_window_days ?? offerRes.data.credit_window_days),
-          max_credit_inr: String(payload.max_credit_inr ?? offerRes.data.max_credit_inr),
-          can_activate_new_credit: payload.can_activate_new_credit !== false,
-        });
-        setCreditFacilityOfferOpen(true);
-        return;
-      }
-      await completeRechargeOtpSend(false);
-    } finally {
-      setSendingOtp(false);
-    }
+    await completeRechargeOtpSend(false);
   };
 
   const resetRechargeDialog = () => {
+    if (skipRechargeResetRef.current) {
+      skipRechargeResetRef.current = false;
+      setShowRechargeDialog(false);
+      return;
+    }
     setShowRechargeDialog(false);
     setRechargeAmount("");
     setRechargeDepartmentId(null);
     setSelectedProjectId(null);
     setRechargeType(isFacultyEffective ? "request" : "sbiepay");
+    setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
+    setCashUndertakingAccepted(false);
+    setStudentOfflinePath("receipt");
     setOtpStep("form");
     setUserOtp("");
     setTempRequestId(null);
-    setCreditFacilityOfferOpen(false);
-    setCreditFacilitySettings(null);
     setStudentReceiptFile(null);
     setStudentReceiptUtr("");
+  };
+
+  const openAvailCreditDialog = (departmentId: number) => {
+    const status = deptFacultyCreditByDept[departmentId];
+    const remaining =
+      parseFloat(
+        String(
+          status?.remaining_credit ||
+            status?.department_max_credit_limit ||
+            status?.credit_limit ||
+            "0"
+        )
+      ) || 0;
+    setAvailCreditDeptId(departmentId);
+    setAvailCreditAmount(remaining > 0 ? String(remaining) : "");
+    setAvailCreditOpen(true);
+  };
+
+  const handleAvailCreditFacility = async () => {
+    if (availCreditDeptId == null) return;
+    const status = deptFacultyCreditByDept[availCreditDeptId];
+    const remaining =
+      parseFloat(
+        String(
+          status?.remaining_credit ||
+            status?.department_max_credit_limit ||
+            status?.credit_limit ||
+            "0"
+        )
+      ) || 0;
+    const amount = parseFloat(availCreditAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Enter a credit amount greater than zero.");
+      return;
+    }
+    if (amount > remaining) {
+      toast.error(
+        `Credit amount cannot exceed ₹${remaining.toLocaleString("en-IN", { maximumFractionDigits: 2 })}.`
+      );
+      return;
+    }
+    try {
+      setAvailingCredit(true);
+      const res = await apiClient.availDepartmentFacultyCreditFacility({
+        department_id: availCreditDeptId,
+        amount,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.data?.message || "Credit facility availed successfully.");
+      setAvailCreditOpen(false);
+      setAvailCreditDeptId(null);
+      setAvailCreditAmount("");
+      await fetchDeptFacultyCreditStatus();
+      await fetchWalletData();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to avail credit facility");
+    } finally {
+      setAvailingCredit(false);
+    }
   };
 
   const handleSubmitStudentReceipt = async () => {
@@ -1597,7 +1709,7 @@ const Wallet = () => {
       }
       toast.success(
         res.data?.message ||
-          "Payment receipt submitted. Funds will be parked in the faculty wallet after finance approval."
+          "Payment receipt submitted. Funds will be parked in the faculty wallet after Department Account In-charge approval."
       );
       resetRechargeDialog();
       await fetchWalletData();
@@ -1616,12 +1728,12 @@ const Wallet = () => {
         toast.error(response.error);
         return;
       }
-      toast.success(response.data?.message || "Request sent to SRIC Office.");
+      toast.success(response.data?.message || `Request sent to ${sricDestinationLabel}.`);
       await fetchWalletData();
       await fetchRechargeRequests();
       onSuccess?.();
     } catch (error: any) {
-      toast.error(error.message || "Failed to send to SRIC Office");
+      toast.error(error.message || `Failed to send to ${sricDestinationLabel}`);
     } finally {
       setSendingSric(false);
     }
@@ -1661,7 +1773,9 @@ const Wallet = () => {
       if (needsSric) {
         toast.success(
           response.data?.message ||
-            "Recharge request created. You can now notify the SRIC Office (if auto-notify did not run)."
+            (isCashDepositMode
+              ? `Recharge request created. You can now notify the ${sricDestinationLabel} (if auto-notify did not run).`
+              : "Recharge request created. You can now notify the SRIC Office (if auto-notify did not run).")
         );
         setTempRequestId(req.id);
         setOtpStep("sric");
@@ -1674,7 +1788,9 @@ const Wallet = () => {
       toast.success(
         response.data?.message ||
           (isFacultyEffective && req?.sric_notification_sent
-            ? "Recharge request submitted. SRIC Office, accounts, and staff have been notified where configured. You will receive email when the recharge is credited from the accounts file."
+            ? isCashDepositMode
+              ? `Recharge request submitted. ${sricDestinationLabel}, accounts, and staff have been notified where configured. You will receive email when the recharge is credited from the accounts file.`
+              : "Recharge request submitted. SRIC Office, accounts, and staff have been notified where configured. You will receive email when the recharge is credited from the accounts file."
             : "Recharge request created successfully. The accounts team will review your request.")
       );
       resetRechargeDialog();
@@ -2020,60 +2136,6 @@ const Wallet = () => {
           </p>
         </div>
 
-        {walletCreditFacilityItems.length > 0 && (
-          <Card
-            className={cn(
-              "mb-6 border-amber-300/80 bg-amber-50/90 dark:bg-amber-950/20",
-              walletCreditFacilityItems.some((x) => x.bookings_blocked) &&
-                "border-destructive/60 bg-destructive/5 dark:bg-destructive/10"
-            )}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Recharge credit facility — timeline
-              </CardTitle>
-              <CardDescription>
-                Temporary credit tied to pending wallet recharge requests (department sub-wallets).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {walletCreditFacilityItems.map((row) => (
-                <div
-                  key={row.request_id}
-                  className="rounded-lg border border-border/80 bg-background/60 px-3 py-2 space-y-1"
-                >
-                  <div className="font-medium text-foreground">
-                    {row.department_name || "Department"} — Request #{row.request_id} (₹{row.amount})
-                  </div>
-                  {row.credit_limit_inr != null && <div>Credit line: up to ₹{row.credit_limit_inr}</div>}
-                  {row.credit_window_ends_at && (
-                    <div className="text-muted-foreground">
-                      Window ends:{" "}
-                      {new Date(row.credit_window_ends_at).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </div>
-                  )}
-                  <div className="text-muted-foreground">Sub-wallet balance: ₹{row.sub_wallet_balance}</div>
-                  {row.bookings_blocked ? (
-                    <div className="text-destructive font-medium">
-                      Bookings for this department are on hold until the recharge is credited via accounts
-                      (parse).
-                    </div>
-                  ) : (
-                    <div className="text-muted-foreground">
-                      Credit window active — book within the approved line until it ends or the recharge is
-                      credited.
-                    </div>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
         <Card className="mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/50">
             <CardTitle>Current Balance</CardTitle>
@@ -2141,7 +2203,7 @@ const Wallet = () => {
                         <div className="p-4 border rounded-lg bg-muted/30">
                           <p className="text-sm font-medium">OTP verified</p>
                           <p className="text-sm text-muted-foreground mt-2">
-                            Your recharge request has been created. Send it to the SRIC Office by email.
+                            Your recharge request has been created. Send it to the {sricDestinationLabel} by email.
                           </p>
                         </div>
                         <Button
@@ -2164,7 +2226,7 @@ const Wallet = () => {
                           ) : (
                             <>
                               <Send className="h-4 w-4 mr-2" />
-                              Send to SRIC Office
+                              Send to {sricDestinationLabel}
                             </>
                           )}
                         </Button>
@@ -2225,7 +2287,11 @@ const Wallet = () => {
                             type="button"
                             variant={rechargeType === "request" ? "default" : "ghost"}
                             className="rounded-b-none border-b-2 border-transparent"
-                            onClick={() => setRechargeType("request")}
+                            onClick={() => {
+                              setRechargeType("request");
+                              setOfflineRechargeMode("direct_cash_deposit");
+                              setCashUndertakingAccepted(false);
+                            }}
                             disabled={recharging || requestingRecharge}
                           >
                             <FileText className="h-4 w-4 mr-2" />
@@ -2328,6 +2394,48 @@ const Wallet = () => {
                     )}
 
                     {rechargeType === "request" && otpStep === "form" && isIitrStudentReceiptOffline && (
+                      <div className="space-y-2">
+                        <Label>Offline recharge option</Label>
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setStudentOfflinePath("receipt")}
+                            className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
+                              studentOfflinePath === "receipt"
+                                ? "border-primary bg-primary/5"
+                                : "border-input hover:bg-muted/40"
+                            }`}
+                          >
+                            <span className="font-medium">Upload payment receipt</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStudentOfflinePath("cash");
+                              setOfflineRechargeMode("direct_cash_deposit");
+                              setCashUndertakingAccepted(false);
+                            }}
+                            className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
+                              studentOfflinePath === "cash"
+                                ? "border-primary bg-primary/5"
+                                : "border-input hover:bg-muted/40"
+                            }`}
+                          >
+                            <span>
+                              <span className="font-medium block">Direct Cash Deposit / Bank Transfer</span>
+                              <span className="text-xs text-muted-foreground">
+                                Request routed to SRIC Bill Section (OTP verification).
+                              </span>
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {rechargeType === "request" &&
+                      otpStep === "form" &&
+                      isIitrStudentReceiptOffline &&
+                      studentOfflinePath === "receipt" && (
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="student-receipt-file">Payment receipt *</Label>
@@ -2358,7 +2466,7 @@ const Wallet = () => {
                         </div>
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                           <p className="text-sm text-blue-700 dark:text-blue-400">
-                            After finance verifies the receipt, the amount is parked in your faculty member&apos;s wallet for the selected department.
+                            After the Department Account In-charge verifies the receipt, the amount is parked in your faculty member&apos;s wallet for the selected department. The Department Account In-charge monitors department financial activities including wallet recharges, grant utilization, transactions, and credit facility usage.
                           </p>
                         </div>
                         <Button
@@ -2388,9 +2496,71 @@ const Wallet = () => {
                       </>
                     )}
 
-                    {rechargeType === "request" && otpStep === "form" && !isIitrStudentReceiptOffline && (
+                    {rechargeType === "request" &&
+                      otpStep === "form" &&
+                      (!isIitrStudentReceiptOffline || studentOfflinePath === "cash") && (
                       <>
                         {isFacultyEffective && (
+                          <div className="space-y-2">
+                            <Label>Offline recharge mode</Label>
+                            <div className="grid gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOfflineRechargeMode("project_grant");
+                                  setCashUndertakingAccepted(false);
+                                }}
+                                disabled={sendingOtp}
+                                className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
+                                  isProjectGrantMode
+                                    ? "border-primary bg-primary/5"
+                                    : "border-input hover:bg-muted/40"
+                                }`}
+                              >
+                                <span
+                                  className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
+                                    isProjectGrantMode ? "border-primary bg-primary" : "border-muted-foreground"
+                                  }`}
+                                  aria-hidden
+                                />
+                                <span>
+                                  <span className="font-medium block">Recharge via Project Grant</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Fund from an active project. Project selection required.
+                                  </span>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOfflineRechargeMode("direct_cash_deposit");
+                                  setSelectedProjectId(null);
+                                }}
+                                disabled={sendingOtp}
+                                className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
+                                  isCashDepositMode
+                                    ? "border-primary bg-primary/5"
+                                    : "border-input hover:bg-muted/40"
+                                }`}
+                              >
+                                <span
+                                  className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
+                                    isCashDepositMode ? "border-primary bg-primary" : "border-muted-foreground"
+                                  }`}
+                                  aria-hidden
+                                />
+                                <span>
+                                  <span className="font-medium block">Direct Cash Deposit / Bank Transfer</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Amount only — no project. Use when no project grant is available.
+                                  </span>
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {isFacultyEffective && isProjectGrantMode && (
                           <div className="space-y-2">
                             <Label htmlFor="project-select">Project *</Label>
                             {loadingProjects ? (
@@ -2404,16 +2574,11 @@ const Wallet = () => {
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => {
-                                    // Store that we're navigating from wallet recharge
-                                    sessionStorage.setItem('returnToWalletRecharge', 'true');
-                                    setShowRechargeDialog(false);
-                                    navigate("/profile");
-                                  }}
+                                  onClick={goToAddProjectFromRecharge}
                                   className="w-full"
                                 >
                                   <ExternalLink className="h-4 w-4 mr-2" />
-                                  Go to Profile to Add Projects
+                                  Add Project
                                 </Button>
                               </div>
                             ) : (
@@ -2438,28 +2603,55 @@ const Wallet = () => {
                                   </SelectContent>
                                 </Select>
                                 <p className="text-xs text-muted-foreground">
-                                  Select an active project associated with this recharge request. Required for all recharge requests.
+                                  Select an active project associated with this recharge request. Required for project grant recharge.
                                 </p>
+                                <button
+                                  type="button"
+                                  onClick={goToAddProjectFromRecharge}
+                                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Add Project
+                                </button>
                               </>
                             )}
                           </div>
                         )}
+
+                        {isCashDepositMode && (
+                          <div className="flex items-start gap-3 rounded-md border border-input p-3">
+                            <Checkbox
+                              id="cash-undertaking"
+                              checked={cashUndertakingAccepted}
+                              onCheckedChange={(checked) => setCashUndertakingAccepted(checked === true)}
+                              disabled={sendingOtp}
+                              className="mt-0.5"
+                            />
+                            <Label htmlFor="cash-undertaking" className="text-sm font-normal leading-snug cursor-pointer">
+                              This option should be used only when no active project grant is available for funding the requested recharge. Direct Cash Deposit / Bank Transfer should be chosen only in such situations.
+                            </Label>
+                          </div>
+                        )}
+
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                           <p className="text-sm text-blue-700 dark:text-blue-400">
-                            ℹ️{" "}
-                            {isFacultyEffective
-                              ? "Submit checks your department balance against the institute threshold. If it is below the limit, you can choose a temporary credit line; otherwise an OTP is sent to your email to continue."
-                              : "An OTP will be sent to your email for verification before submitting the request."}
+                            An OTP will be sent to your email for verification before submitting the request.
+                            {isCashDepositMode
+                              ? " After verification, send the request to the SRIC Bill Section."
+                              : isFacultyEffective
+                                ? " After verification, send the request to the SRIC Office."
+                                : ""}
                           </p>
                         </div>
                         <Button
                           onClick={handleSendOtp}
                           disabled={
-                            sendingOtp || 
-                            !rechargeDepartmentId || 
-                            !rechargeAmount || 
+                            sendingOtp ||
+                            !rechargeDepartmentId ||
+                            !rechargeAmount ||
                             parseFloat(rechargeAmount) < 100 ||
-                            (isFacultyEffective && (!selectedProjectId || projects.length === 0))
+                            (isProjectGrantMode && (!selectedProjectId || projects.length === 0)) ||
+                            (isCashDepositMode && !cashUndertakingAccepted)
                           }
                           className="w-full"
                           size="lg"
@@ -2467,12 +2659,12 @@ const Wallet = () => {
                           {sendingOtp ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              {isFacultyEffective ? "Please wait…" : "Sending OTP..."}
+                              Sending OTP...
                             </>
                           ) : (
                             <>
                               <FileText className="h-4 w-4 mr-2" />
-                              {isFacultyEffective ? "Submit request" : "Send OTP to Email"}
+                              {isFacultyEffective && isProjectGrantMode ? "Submit request" : "Send OTP to Email"}
                             </>
                           )}
                         </Button>
@@ -2779,7 +2971,9 @@ const Wallet = () => {
               Department Sub-Wallets
             </CardTitle>
             <CardDescription>
-              Funds allocated by department. Equipment linked to a department deducts from the corresponding sub-wallet.
+              Funds allocated by department. Equipment linked to a department deducts from the corresponding
+              sub-wallet. Eligible faculty can avail a one-time Credit Facility here, and track limit,
+              outstanding, and recovery after recharges.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -2790,22 +2984,68 @@ const Wallet = () => {
             ) : (
               <>
                 <ul className="space-y-3">
-                  {(showAllSubWallets ? subWallets : subWallets.slice(0, SUB_WALLETS_PREVIEW_COUNT)).map((sw) => (
-                    <li
-                      key={sw.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-                    >
-                      <div>
-                        <p className="font-medium">{sw.department_name}</p>
-                        {sw.department_code && (
-                          <p className="text-xs text-muted-foreground">{sw.department_code}</p>
+                  {(showAllSubWallets ? subWallets : subWallets.slice(0, SUB_WALLETS_PREVIEW_COUNT)).map((sw) => {
+                    const credit = deptFacultyCreditByDept[sw.department_id];
+                    const statusLower = String(credit?.status || "").toLowerCase();
+                    const showActiveBadges =
+                      statusLower === "active" || statusLower === "exhausted";
+                    const showClosed = statusLower === "closed";
+                    const canAvail = Boolean(credit?.can_avail);
+                    return (
+                      <li
+                        key={sw.id}
+                        className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/30"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{sw.department_name}</p>
+                            {sw.department_code && (
+                              <p className="text-xs text-muted-foreground">{sw.department_code}</p>
+                            )}
+                          </div>
+                          <span className="text-lg font-semibold text-primary shrink-0">
+                            ₹{Number(sw.balance).toFixed(2)}
+                          </span>
+                        </div>
+                        {isFacultyEffective && credit && (
+                          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50">
+                            {canAvail && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openAvailCreditDialog(sw.department_id)}
+                              >
+                                Avail Credit Facility
+                              </Button>
+                            )}
+                            {showActiveBadges && (
+                              <>
+                                <Badge variant="secondary">
+                                  Limit ₹{Number(credit.credit_limit).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                </Badge>
+                                <Badge variant="outline">
+                                  Outstanding ₹{Number(credit.outstanding_credit).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                </Badge>
+                                <Badge variant="outline">
+                                  Remaining ₹{Number(credit.remaining_credit).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                </Badge>
+                                {statusLower === "exhausted" && (
+                                  <Badge variant="destructive">{credit.status_display || "Exhausted"}</Badge>
+                                )}
+                                {statusLower === "active" && (
+                                  <Badge variant="default">{credit.status_display || "Active"}</Badge>
+                                )}
+                              </>
+                            )}
+                            {showClosed && (
+                              <span className="text-xs text-muted-foreground">Credit facility closed</span>
+                            )}
+                          </div>
                         )}
-                      </div>
-                      <span className="text-lg font-semibold text-primary">
-                        ₹{Number(sw.balance).toFixed(2)}
-                      </span>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {subWallets.length > SUB_WALLETS_PREVIEW_COUNT && (
                   <Button
@@ -3722,96 +3962,137 @@ const Wallet = () => {
         </Card>
       </main>
 
-      <AlertDialog open={creditFacilityOfferOpen} onOpenChange={setCreditFacilityOfferOpen}>
-        <AlertDialogContent className="max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Temporary credit facility</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p>
-                  Your selected department balance is below ₹
-                  {creditFacilitySettings
-                    ? parseFloat(creditFacilitySettings.balance_threshold_inr).toLocaleString("en-IN")
-                    : "—"}{" "}
-                  (admin threshold).
-                  {creditFacilitySettings?.can_activate_new_credit
-                    ? " You may use a short-term credit line while your wallet recharge request is processed through accounts (parse)."
-                    : " You already have an active temporary credit line for this department from a pending recharge. Submit this request without a new credit line, or wait until that recharge is completed."}
-                </p>
-                {creditFacilitySettings?.can_activate_new_credit ? (
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>
-                      Credit window:{" "}
-                      <span className="font-medium text-foreground">
-                        {creditFacilitySettings?.credit_window_days ?? "—"} days
-                      </span>{" "}
-                      from OTP verification.
-                    </li>
-                    <li>
-                      Line cap:{" "}
-                      <span className="font-medium text-foreground">
-                        ₹
-                        {Math.min(
-                          parseFloat(rechargeAmount || "0") || 0,
-                          parseFloat(creditFacilitySettings?.max_credit_inr || "0") || 0
-                        ).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                      </span>{" "}
-                      (lesser of your request amount and admin maximum).
-                    </li>
-                    <li>
-                      If the recharge is not credited via parse before the window ends, bookings for that
-                      department are put on hold and you will be emailed.
-                    </li>
-                    <li>
-                      Once accounts confirm the recharge, your balance updates and you can start a fresh
-                      request; the credit window no longer applies to that completed recharge.
-                    </li>
-                  </ul>
-                ) : (
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>
-                      After accounts credit your pending recharge, you can raise a new request and opt in
-                      again if your balance is still below the threshold.
-                    </li>
-                    <li>
-                      If the recharge is not credited before the credit window ends, bookings for that
-                      department stay on hold until the balance is restored.
-                    </li>
-                  </ul>
+      <Dialog
+        open={availCreditOpen}
+        onOpenChange={(open) => {
+          setAvailCreditOpen(open);
+          if (!open) {
+            setAvailCreditDeptId(null);
+            setAvailCreditAmount("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Avail Credit Facility</DialogTitle>
+            <DialogDescription>
+              One-time department credit for your sub-wallet. Review the terms carefully before confirming.
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const status = availCreditDeptId != null ? deptFacultyCreditByDept[availCreditDeptId] : null;
+            const max =
+              parseFloat(String(status?.department_max_credit_limit || status?.credit_limit || "0")) || 0;
+            const outstanding =
+              parseFloat(String(status?.outstanding_credit || "0")) || 0;
+            const remaining =
+              parseFloat(String(status?.remaining_credit || max)) || max;
+            const fmt = (n: number) =>
+              n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+            return (
+              <div className="space-y-4 py-1">
+                {status && (
+                  <p className="text-sm text-muted-foreground">
+                    Department:{" "}
+                    <span className="font-medium text-foreground">{status.department_name}</span>
+                  </p>
                 )}
+
+                <div className="rounded-lg border bg-muted/40 p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Maximum credit</span>
+                    <span className="font-medium">₹{fmt(max)}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Already utilized</span>
+                    <span className="font-medium">₹{fmt(outstanding)}</span>
+                  </div>
+                  <div className="flex justify-between gap-2 border-t pt-1.5">
+                    <span className="text-muted-foreground">Maximum additional credit available</span>
+                    <span className="font-semibold text-primary">₹{fmt(remaining)}</span>
+                  </div>
+                </div>
+
+                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4 leading-relaxed">
+                  <li>This is a one-time credit facility for this department only.</li>
+                  <li>
+                    Approved credit applies only to bookings against this department&apos;s sub-wallet — it
+                    cannot be transferred or used for equipment in other departments.
+                  </li>
+                  <li>Each department independently manages its own credit policy.</li>
+                  <li>Please recharge this sub-wallet at the earliest opportunity.</li>
+                  <li>Future wallet recharges automatically recover the outstanding credit balance.</li>
+                  <li>
+                    Once outstanding credit is fully recovered, the facility is permanently closed and cannot
+                    be availed again.
+                  </li>
+                </ul>
+
+                <div className="space-y-2">
+                  <Label htmlFor="avail-credit-amount">Credit amount required (₹)</Label>
+                  <Input
+                    id="avail-credit-amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    max={remaining || undefined}
+                    value={availCreditAmount}
+                    onChange={(e) => setAvailCreditAmount(e.target.value)}
+                    disabled={availingCredit}
+                    placeholder="Enter amount"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter an amount greater than 0 and up to ₹{fmt(remaining)}.
+                  </p>
+                  {parseFloat(availCreditAmount) > remaining && remaining > 0 && (
+                    <p className="text-xs text-destructive">
+                      Amount exceeds the maximum additional credit available.
+                    </p>
+                  )}
+                </div>
               </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            {creditFacilitySettings?.can_activate_new_credit ? (
-              <>
-                <AlertDialogCancel
-                  onClick={() => {
-                    void completeRechargeOtpSend(false);
-                  }}
-                >
-                  Continue without credit
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    void completeRechargeOtpSend(true);
-                  }}
-                >
-                  Accept credit facility
-                </AlertDialogAction>
-              </>
-            ) : (
-              <AlertDialogAction
-                onClick={() => {
-                  void completeRechargeOtpSend(false);
-                }}
-              >
-                Continue without new credit line
-              </AlertDialogAction>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAvailCreditOpen(false)}
+              disabled={availingCredit}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleAvailCreditFacility()}
+              disabled={
+                availingCredit ||
+                !availCreditAmount ||
+                parseFloat(availCreditAmount) <= 0 ||
+                (availCreditDeptId != null &&
+                  parseFloat(availCreditAmount) >
+                    (parseFloat(
+                      String(
+                        deptFacultyCreditByDept[availCreditDeptId]?.remaining_credit ||
+                          deptFacultyCreditByDept[availCreditDeptId]?.department_max_credit_limit ||
+                          deptFacultyCreditByDept[availCreditDeptId]?.credit_limit ||
+                          "0"
+                      )
+                    ) || 0))
+              }
+            >
+              {availingCredit ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Confirming...
+                </>
+              ) : (
+                "Confirm & Avail"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {AlertComponent}
       {ConfirmComponent}

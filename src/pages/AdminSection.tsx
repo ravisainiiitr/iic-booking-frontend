@@ -887,7 +887,8 @@ export default function AdminSection() {
       if (isDeptAdmin && !["manager", "operator", "finance"].includes(staffType)) {
         toast({
           title: "Invalid user type",
-          description: "Department Administrators can only create Officer In Charge, Lab Incharge, or Accounts In Charge.",
+          description:
+            "Department Administrators can only create Officer In Charge, Lab Incharge, or Accounts In Charge (Department Account In-charge for wallet recharges, grants, transactions, and credit facility records).",
           variant: "destructive",
         });
         return;

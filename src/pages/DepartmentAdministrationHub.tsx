@@ -5,7 +5,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, CreditCard, FlaskConical, ShieldCheck, UserCog, Wallet } from "lucide-react";
+import { ArrowLeft, CreditCard, FlaskConical, Mail, ShieldCheck, UserCog, Wallet } from "lucide-react";
 
 const MODULES = [
   {
@@ -29,7 +29,8 @@ const MODULES = [
   {
     key: "accounts",
     title: "Manage Accounts In Charge",
-    description: "Create, map, edit, and activate/deactivate Accounts (finance) users in your department.",
+    description:
+      "Create and manage Department Account In-charge users. They monitor and manage department financial activities including wallet recharges, grant utilization, wallet transactions, credit facility usage, and related financial records.",
     path: "/manage/department-administration/accounts",
     icon: Wallet,
     gradient: "from-emerald-500 to-green-700",
@@ -44,6 +45,16 @@ const MODULES = [
     icon: CreditCard,
     gradient: "from-amber-500 to-orange-700",
     button: "bg-amber-600 hover:bg-amber-700",
+  },
+  {
+    key: "sric-bill-section",
+    title: "SRIC Bill Section Email",
+    description:
+      "Configure Bill Section email recipients used for Direct Cash Deposit / Bank Transfer wallet recharge requests.",
+    path: "/admin-settings/wallet-sric-settings",
+    icon: Mail,
+    gradient: "from-sky-500 to-blue-700",
+    button: "bg-sky-600 hover:bg-sky-700",
   },
 ] as const;
 
@@ -82,8 +93,8 @@ export default function DepartmentAdministrationHub() {
             Department Administration
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Manage Officer In Charge, Lab In Charge, Accounts In Charge, and Faculty Credit Facility for your
-            department. All actions are limited to your assigned department.
+            Manage Officer In Charge, Lab In Charge, Accounts In Charge, Faculty Credit Facility, and SRIC Bill
+            Section email settings for your department. All actions are limited to your assigned department.
           </p>
         </div>
 

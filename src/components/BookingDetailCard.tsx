@@ -2401,16 +2401,23 @@ export function BookingDetailCard({
               })()}
               hideSampleStatusActions={(() => {
                 if (isRefunded || isOperatorUnavailable || isBookingNotUtilized || isHold) return true;
+                // External bookings: staff only get Hold / Forward (no Accepted/Rejected/Analysis/etc.)
+                if (isExternalBookingType) return true;
                 if (isOperatorOrManager && !isFinanceUser) return false;
                 return true;
               })()}
               canSetHeldForwardedActions={
-                // Accounts can do Held/Forwarded; Admin may also.
-                isFinanceUser || normalizedCurrentUserType === "admin"
+                // Internal: Accounts + Admin. External: operators/managers/admin/finance.
+                isExternalBookingType
+                  ? isOperatorOrManager || isFinanceUser
+                  : isFinanceUser || normalizedCurrentUserType === "admin"
               }
               showHeldForwardedDespiteHideSampleActions={
-                isFinanceUser && isExternalBookingType && !traceHasReturned
+                isExternalBookingType &&
+                (isOperatorOrManager || isFinanceUser) &&
+                !traceHasReturned
               }
+              useExternalHoldForwardLabels={isExternalBookingType}
               restrictBookingUserActionsToSampleSent={(() => {
                 if (isRefunded || isOperatorUnavailable || isBookingNotUtilized || isHold) return true;
                 // Admin/OIC/Lab staff see all actions. Other users see only Sample Sent in sample lifecycle section.

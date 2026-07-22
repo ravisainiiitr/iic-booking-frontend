@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Banknote, RotateCcw, Eye, Check, X, Ban } from "lucide-react";
+import { ArrowLeft, Loader2, Banknote, RotateCcw, Eye, Check, X, Ban, BadgeCheck } from "lucide-react";
 
 interface AuditLog {
   id: number;
@@ -72,6 +72,11 @@ interface WalletRechargeRequestRow {
   responded_at?: string | null;
   audit_logs?: AuditLog[];
   user_otp_verified?: boolean;
+  recharge_mode?: string;
+  fund_receipt_verified?: boolean;
+  fund_receipt_verified_by_name?: string;
+  fund_receipt_verified_at?: string | null;
+  fund_receipt_verification_remarks?: string;
 }
 
 const STATUS_OPTIONS = [
@@ -94,10 +99,19 @@ const statusBadgeClass = (status: string) => {
   return "bg-amber-100 text-amber-800 border-amber-200";
 };
 
+const rechargeModeLabel = (mode?: string) => {
+  if (mode === "direct_cash_deposit") return "Direct Cash Deposit / Bank Transfer";
+  if (mode === "project_grant") return "Project Grant";
+  return mode || "—";
+};
+
 export default function AdminWalletRechargeRequests() {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
+  const isFinance = userTypeStr === "finance";
+  const isAdmin = userTypeStr === "admin";
+  const canVerifyFundReceipt = isFinance || isAdmin || userTypeStr === "dept_admin";
   const canAccess =
     userTypeStr === "admin" ||
     userTypeStr === "dept_admin" ||
@@ -114,6 +128,8 @@ export default function AdminWalletRechargeRequests() {
   const [detailRow, setDetailRow] = useState<WalletRechargeRequestRow | null>(null);
   const [actionRow, setActionRow] = useState<WalletRechargeRequestRow | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | "cancel" | null>(null);
+  const [verifyRow, setVerifyRow] = useState<WalletRechargeRequestRow | null>(null);
+  const [verifyRemarks, setVerifyRemarks] = useState("");
   const [reasonCode, setReasonCode] = useState("");
   const [reasonText, setReasonText] = useState("");
   const [note, setNote] = useState("");
@@ -166,6 +182,11 @@ export default function AdminWalletRechargeRequests() {
     setNote("");
   };
 
+  const openVerify = (row: WalletRechargeRequestRow) => {
+    setVerifyRow(row);
+    setVerifyRemarks("");
+  };
+
   const submitAction = async () => {
     if (!actionRow || !actionType) return;
     if (actionType === "reject") {
@@ -207,6 +228,25 @@ export default function AdminWalletRechargeRequests() {
     fetchRows();
   };
 
+  const submitVerify = async () => {
+    if (!verifyRow) return;
+    setSubmitting(true);
+    const res = await apiClient.adminWalletRechargeRequestVerifyFundReceipt(
+      verifyRow.id,
+      verifyRemarks.trim() || undefined
+    );
+    setSubmitting(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.data?.message || "Fund receipt verified");
+    setVerifyRow(null);
+    setVerifyRemarks("");
+    setDetailRow(null);
+    fetchRows();
+  };
+
   if (!canAccess && !authLoading) return null;
 
   return (
@@ -223,8 +263,9 @@ export default function AdminWalletRechargeRequests() {
             Wallet Recharge Requests
           </h1>
           <p className="text-muted-foreground mt-1">
-            Full history with search, filters, audit trail, and admin approve / reject / cancel.
-            Admin actions immediately invalidate email approval links.
+            {isFinance
+              ? "View wallet recharge requests and verify fund receipt. You cannot approve, reject, or cancel requests."
+              : "Full history with search, filters, audit trail, and admin approve / reject / cancel. Admin actions immediately invalidate email approval links."}
           </p>
         </div>
 
@@ -299,8 +340,10 @@ export default function AdminWalletRechargeRequests() {
                       <TableHead>User</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead>Mode</TableHead>
                       <TableHead>Project grant</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Fund receipt</TableHead>
                       <TableHead>Requested</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -321,9 +364,27 @@ export default function AdminWalletRechargeRequests() {
                           <div className="text-xs text-muted-foreground">{row.department_grant_code || ""}</div>
                         </TableCell>
                         <TableCell>₹{row.amount}</TableCell>
+                        <TableCell className="text-sm">{rechargeModeLabel(row.recharge_mode)}</TableCell>
                         <TableCell className="text-sm">{row.project_grant_code || "—"}</TableCell>
                         <TableCell>
                           <Badge className={statusBadgeClass(row.status)}>{row.status_display || row.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {row.fund_receipt_verified ? (
+                            <div>
+                              <Badge className="bg-primary/10 text-primary border-primary/20">Verified</Badge>
+                              {row.fund_receipt_verified_by_name || row.fund_receipt_verified_at ? (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {row.fund_receipt_verified_by_name || "—"}
+                                  {row.fund_receipt_verified_at
+                                    ? ` · ${new Date(row.fund_receipt_verified_at).toLocaleString()}`
+                                    : ""}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <Badge variant="outline">Not verified</Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
@@ -333,7 +394,17 @@ export default function AdminWalletRechargeRequests() {
                             <Button variant="ghost" size="icon" onClick={() => setDetailRow(row)} title="Details">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {row.status === "PENDING" && row.user_otp_verified !== false ? (
+                            {canVerifyFundReceipt && !row.fund_receipt_verified ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openVerify(row)}
+                                title="Verify Fund Receipt"
+                              >
+                                <BadgeCheck className="h-4 w-4 text-primary" />
+                              </Button>
+                            ) : null}
+                            {!isFinance && row.status === "PENDING" && row.user_otp_verified !== false ? (
                               <>
                                 <Button
                                   variant="ghost"
@@ -396,6 +467,10 @@ export default function AdminWalletRechargeRequests() {
                 {detailRow.department_name || "—"} / {detailRow.department_grant_code || "—"}
               </p>
               <p>
+                <span className="text-muted-foreground">Recharge mode:</span>{" "}
+                {rechargeModeLabel(detailRow.recharge_mode)}
+              </p>
+              <p>
                 <span className="text-muted-foreground">Project grant (debit):</span> {detailRow.project_grant_code || "—"}
               </p>
               <p>
@@ -404,6 +479,30 @@ export default function AdminWalletRechargeRequests() {
               <p>
                 <span className="text-muted-foreground">Status:</span> {detailRow.status_display || detailRow.status}
               </p>
+              <p>
+                <span className="text-muted-foreground">Fund receipt:</span>{" "}
+                {detailRow.fund_receipt_verified ? "Verified" : "Not verified"}
+              </p>
+              {detailRow.fund_receipt_verified ? (
+                <>
+                  <p>
+                    <span className="text-muted-foreground">Verified by:</span>{" "}
+                    {detailRow.fund_receipt_verified_by_name || "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Verified at:</span>{" "}
+                    {detailRow.fund_receipt_verified_at
+                      ? new Date(detailRow.fund_receipt_verified_at).toLocaleString()
+                      : "—"}
+                  </p>
+                  {detailRow.fund_receipt_verification_remarks ? (
+                    <p>
+                      <span className="text-muted-foreground">Verification remarks:</span>{" "}
+                      {detailRow.fund_receipt_verification_remarks}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
               {detailRow.response_message ? (
                 <p>
                   <span className="text-muted-foreground">Message:</span> {detailRow.response_message}
@@ -413,6 +512,12 @@ export default function AdminWalletRechargeRequests() {
                 <p>
                   <span className="text-muted-foreground">Processed by:</span> {detailRow.approved_by_email}
                 </p>
+              ) : null}
+              {canVerifyFundReceipt && !detailRow.fund_receipt_verified ? (
+                <Button size="sm" onClick={() => openVerify(detailRow)}>
+                  <BadgeCheck className="h-4 w-4 mr-2" />
+                  Verify Fund Receipt
+                </Button>
               ) : null}
               <div>
                 <div className="font-medium mb-2">Audit log</div>
@@ -437,6 +542,36 @@ export default function AdminWalletRechargeRequests() {
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!verifyRow} onOpenChange={(open) => !open && setVerifyRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verify Fund Receipt</DialogTitle>
+            <DialogDescription>
+              {verifyRow?.request_id || `#${verifyRow?.id}`} — ₹{verifyRow?.amount}. Confirm that funds have been
+              received for this recharge request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Optional remarks</Label>
+            <Textarea
+              value={verifyRemarks}
+              onChange={(e) => setVerifyRemarks(e.target.value)}
+              rows={3}
+              placeholder="Optional notes about fund receipt"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerifyRow(null)}>
+              Close
+            </Button>
+            <Button disabled={submitting} onClick={submitVerify}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirm verification
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -87,7 +87,6 @@ const PATH_TO_MODULE_KEY: Array<{ path: string; key: string }> = [
   { path: "/admin-settings/auth", key: "admin_settings.auth" },
   { path: "/admin-settings/communication", key: "admin_settings.communication" },
   { path: "/admin-settings/inbox-email", key: "admin_settings.inbox_email" },
-  { path: "/admin-settings/wallet-recharge-parse", key: "admin_settings.wallet" },
   { path: "/admin-settings/legacy-wallet-import", key: "admin_settings.legacy_wallet" },
   { path: "/admin-settings/equipment", key: "admin_settings.equipment" },
   { path: "/admin/equipment-addition-requests", key: "admin_settings.equipment.addition_requests" },

@@ -38,11 +38,27 @@ type StaffRoleKey = "oic" | "lab" | "accounts";
 
 const ROLE_CONFIG: Record<
   StaffRoleKey,
-  { userType: string; title: string; assignPermission: string }
+  { userType: string; title: string; assignPermission: string; description: string }
 > = {
-  oic: { userType: "manager", title: "Officer In Charge", assignPermission: "oic.assign" },
-  lab: { userType: "operator", title: "Lab In Charge", assignPermission: "lab.assign" },
-  accounts: { userType: "finance", title: "Accounts In Charge", assignPermission: "finance.assign" },
+  oic: {
+    userType: "manager",
+    title: "Officer In Charge",
+    assignPermission: "oic.assign",
+    description: "Create, map Channel-i users, edit, and activate/deactivate within your department only.",
+  },
+  lab: {
+    userType: "operator",
+    title: "Lab In Charge",
+    assignPermission: "lab.assign",
+    description: "Create, map Channel-i users, edit, and activate/deactivate within your department only.",
+  },
+  accounts: {
+    userType: "finance",
+    title: "Accounts In Charge",
+    assignPermission: "finance.assign",
+    description:
+      "The Department Account In-charge monitors and manages all financial activities for the assigned department — including wallet recharge requests, grant utilization, wallet transactions, credit facility usage, and other department-specific financial records.",
+  },
 };
 
 type StaffUser = {
@@ -294,9 +310,7 @@ export default function DepartmentStaffManagement() {
               Department Administration
             </Button>
             <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-            <p className="mt-1 text-muted-foreground">
-              Create, map Channel-i users, edit, and activate/deactivate within your department only.
-            </p>
+            <p className="mt-1 text-muted-foreground max-w-2xl">{config.description}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={openMap}>

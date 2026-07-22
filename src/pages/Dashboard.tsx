@@ -244,18 +244,6 @@ const Dashboard = () => {
   const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
   const [externalProfileNeedsAddress, setExternalProfileNeedsAddress] = useState(false);
   const [showWalletLinkPrompt, setShowWalletLinkPrompt] = useState(false);
-  const [walletCreditFacilityItems, setWalletCreditFacilityItems] = useState<
-    Array<{
-      request_id: number;
-      department_name: string;
-      amount: string;
-      credit_limit_inr: string | null;
-      credit_window_ends_at: string | null;
-      credit_facility_status: string;
-      sub_wallet_balance: string;
-      bookings_blocked: boolean;
-    }>
-  >([]);
   const [labOperatorDashLoading, setLabOperatorDashLoading] = useState(false);
   const [labOperatorDash, setLabOperatorDash] = useState<{
     today: string;
@@ -344,8 +332,6 @@ const Dashboard = () => {
   const isOrgAdmin = userTypeStr === 'org_admin';
   const canManageDeptRbac = isAdmin;
   const canVerifyExternalOrgs = isAdmin || isExternalRelations || hasRbacPermission(user, "external.org.verify");
-  const canManageWalletTools =
-    isAdmin || hasRbacPermission(user, "wallet.manage");
   const isFacultyUser = userTypeStr === "faculty";
   const isInternalFacultyUser =
     isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
@@ -569,19 +555,6 @@ const Dashboard = () => {
       cancelled = true;
     };
   }, [isAuthenticated, authLoading, user?.id, navigate]);
-
-  useEffect(() => {
-    if (!isAuthenticated || authLoading || !user?.id) return;
-    let cancelled = false;
-    (async () => {
-      const res = await apiClient.getWalletCreditFacilityMyStatus();
-      if (cancelled || res.error || !res.data?.items) return;
-      setWalletCreditFacilityItems(res.data.items);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, authLoading, user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1207,66 +1180,6 @@ const Dashboard = () => {
                 className="bg-teal-700 hover:bg-teal-800 text-white"
               >
                 Go to Profile
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-        {walletCreditFacilityItems.length > 0 && (
-          <Card
-            className={cn(
-              "dashboard-notice-card mb-6 border-amber-300/80 bg-amber-50/90 dark:bg-amber-950/20",
-              walletCreditFacilityItems.some((x) => x.bookings_blocked) &&
-                "border-destructive/60 bg-destructive/5 dark:bg-destructive/10"
-            )}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Wallet recharge credit facility
-              </CardTitle>
-              <CardDescription>
-                Timeline for temporary credit tied to pending recharge requests (department sub-wallets).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {walletCreditFacilityItems.map((row) => (
-                <div
-                  key={row.request_id}
-                  className="rounded-lg border border-border/80 bg-background/60 px-3 py-2 space-y-1"
-                >
-                  <div className="font-medium text-foreground">
-                    {row.department_name || "Department"} — Request #{row.request_id} (₹{row.amount})
-                  </div>
-                  {row.credit_limit_inr != null && (
-                    <div>Credit line: up to ₹{row.credit_limit_inr}</div>
-                  )}
-                  {row.credit_window_ends_at && (
-                    <div className="text-muted-foreground">
-                      Window ends:{" "}
-                      {new Date(row.credit_window_ends_at).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </div>
-                  )}
-                  <div className="text-muted-foreground">
-                    Sub-wallet balance shown: ₹{row.sub_wallet_balance}
-                  </div>
-                  {row.bookings_blocked ? (
-                    <div className="text-destructive font-medium">
-                      Bookings for this department are on hold until the recharge is credited via accounts
-                      (parse).
-                    </div>
-                  ) : (
-                    <div className="text-muted-foreground">
-                      Credit window active — you may book within the approved line until the window ends or the
-                      recharge is credited.
-                    </div>
-                  )}
-                </div>
-              ))}
-              <Button variant="outline" size="sm" onClick={() => navigate("/wallet")}>
-                Open wallet
               </Button>
             </CardContent>
           </Card>
@@ -3024,7 +2937,7 @@ const Dashboard = () => {
                     <CardDescription className="text-sm mt-0.5">
                       {isAdmin
                         ? "Manage department staff modules and permission caps"
-                        : "Manage OIC, Lab In Charge, and Accounts In Charge"}
+                        : "Manage OIC, Lab In Charge, Accounts In Charge (department finances), and Faculty Credit Facility"}
                     </CardDescription>
                   </div>
                 </div>
@@ -3086,31 +2999,6 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canManageWalletTools && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/admin-settings/wallet-recharge-parse")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Wallet className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet Management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manual credits, imports, IMAP, and recharge history
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open wallet tools</Button>
               </CardContent>
             </Card>
           )}

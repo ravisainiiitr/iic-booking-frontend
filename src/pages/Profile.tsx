@@ -119,6 +119,14 @@ const Profile = () => {
         document.getElementById("istem-portal-ack")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 150);
     }
+    if (window.location.hash === "#projects") {
+      setTimeout(() => {
+        document.getElementById("projects")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+      if (sessionStorage.getItem("returnToWalletRecharge") === "true") {
+        setShowProjectForm(true);
+      }
+    }
   }, []);
 
   const checkAuthAndLoadProfile = async () => {
@@ -341,6 +349,9 @@ const Profile = () => {
       setProjectForm({ name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true });
       setShowProjectForm(false);
       await fetchProjects();
+      if (sessionStorage.getItem("returnToWalletRecharge") === "true") {
+        navigate("/wallet");
+      }
     } catch (error: any) {
       toast.error("Error adding project: " + (error.message || "Unknown error"));
     } finally {
@@ -1171,7 +1182,7 @@ const Profile = () => {
             {/* Projects Section - Only for Faculty */}
             {isFacultyUser() && (
               <>
-                <div className="space-y-4">
+                <div id="projects" className="space-y-4 scroll-mt-24">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold">Projects</h3>

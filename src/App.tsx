@@ -90,7 +90,6 @@ import Tickets from "./pages/Tickets";
 import WalletRechargeRequestAction from "./pages/WalletRechargeRequestAction";
 import WalletRechargeEmailAction from "./pages/WalletRechargeEmailAction";
 import AdminWalletRechargeRequests from "./pages/AdminWalletRechargeRequests";
-import WalletRechargeParse from "./pages/WalletRechargeParse";
 import LegacyWalletImportTest from "./pages/LegacyWalletImportTest";
 import CmsPageView from "./pages/CmsPageView";
 import ExternalUserManagement from "./pages/ExternalUserManagement";
@@ -193,7 +192,6 @@ const App = () => (
                 <Route path="/admin-settings/auth" element={<AdminSettingsAuth />} />
                 <Route path="/admin-settings/communication" element={<AdminCommunication />} />
                 <Route path="/admin-settings/inbox-email" element={<InboxEmail />} />
-                <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
                 <Route path="/admin-settings/legacy-wallet-import" element={<LegacyWalletImportTest />} />
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
                 <Route path="/inventory-management" element={<InventoryManagement />} />

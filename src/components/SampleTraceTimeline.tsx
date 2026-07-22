@@ -113,6 +113,11 @@ interface SampleTraceTimelineProps {
    * if staff may set those statuses.
    */
   showHeldForwardedDespiteHideSampleActions?: boolean;
+  /**
+   * When true (external booking flow), use "Hold Booking" / "Forward to Laboratory" button labels
+   * instead of "Held at Office" / "Forwarded to Lab".
+   */
+  useExternalHoldForwardLabels?: boolean;
   /** When true, show the Not Utilized branch in lifecycle UI. */
   bookingNotUtilized?: boolean;
   /** When true, show terminal "Refunded" state in lifecycle UI. */
@@ -133,6 +138,7 @@ export default function SampleTraceTimeline({
   hideSampleStatusActions = false,
   restrictBookingUserActionsToSampleSent = false,
   showHeldForwardedDespiteHideSampleActions = false,
+  useExternalHoldForwardLabels = false,
   bookingNotUtilized = false,
   bookingRefunded = false,
   bookingOperatorUnavailable = false,
@@ -798,12 +804,12 @@ export default function SampleTraceTimeline({
               disabled={heldOrForwardedDone || !sampleSentDone || inAnalysisDone || analyzedReadyDone || !!loading}
             >
               {loading === "HELD_AT_OFFICE" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Package className="h-4 w-4 mr-2" />}
-              Held at Office
+              {useExternalHoldForwardLabels ? "Hold Booking" : "Held at Office"}
             </Button>
             <Dialog open={heldDialogOpen} onOpenChange={setHeldDialogOpen}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Held at Office</DialogTitle>
+                  <DialogTitle>{useExternalHoldForwardLabels ? "Hold Booking" : "Held at Office"}</DialogTitle>
                   <DialogDescription>Please specify a reason (required).</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2">
@@ -834,7 +840,7 @@ export default function SampleTraceTimeline({
               disabled={(heldOrForwardedDone && latestHeldOrForwarded?.status === "FORWARDED_TO_LAB") || !sampleSentDone || inAnalysisDone || analyzedReadyDone || !!loading}
             >
               {loading === "FORWARDED_TO_LAB" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
-              Forwarded to Lab
+              {useExternalHoldForwardLabels ? "Forward to Laboratory" : "Forwarded to Lab"}
             </Button>
           </>
         )}
