@@ -2205,9 +2205,9 @@ const Dashboard = () => {
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Leave Management</CardTitle>
+                    <CardTitle className="text-lg">Operator Availability</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Apply for leave and track requests
+                      Intimate periods when you are unavailable for equipment operations
                     </CardDescription>
                   </div>
                 </div>
@@ -2221,7 +2221,7 @@ const Dashboard = () => {
                     navigate("/leave-management");
                   }}
                 >
-                  Apply for leave
+                  Intimate Unavailability
                 </Button>
               </CardContent>
             </Card>
@@ -2239,7 +2239,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Leave Management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Review leave requests and apply for self
+                      Review operator leave / unavailability intimations and apply for self
                     </CardDescription>
                   </div>
                 </div>

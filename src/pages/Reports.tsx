@@ -237,7 +237,10 @@ const Reports = () => {
           : [];
       setEquipmentList(list);
       if (list.length > 0) {
-        setEquipmentId(String(list[0].equipment_id));
+        setEquipmentId((prev) => {
+          if (prev && prev !== "all" && list.some((e) => String(e.equipment_id) === prev)) return prev;
+          return String(list[0].equipment_id);
+        });
       }
     } catch {
       setEquipmentList([]);
@@ -1003,10 +1006,12 @@ const Reports = () => {
                   <Label>Equipment</Label>
                   <Select value={equipmentId} onValueChange={setEquipmentId}>
                     <SelectTrigger className="w-56">
-                      <SelectValue placeholder="All equipment" />
+                      <SelectValue
+                        placeholder={isLabInchargeUser ? "Select equipment" : "All equipment"}
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All equipment</SelectItem>
+                      {!isLabInchargeUser && <SelectItem value="all">All equipment</SelectItem>}
                       {equipmentList.map((eq) => (
                         <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
                           {eq.code} – {eq.name}
@@ -1014,6 +1019,11 @@ const Reports = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {isLabInchargeUser && (
+                    <p className="text-xs text-muted-foreground">
+                      Only equipment assigned to you is listed.
+                    </p>
+                  )}
                 </div>
                 <Button onClick={loadEquipmentReport} disabled={equipmentLoading}>
                   {equipmentLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

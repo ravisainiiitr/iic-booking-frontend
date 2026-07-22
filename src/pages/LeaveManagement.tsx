@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
-import { ArrowLeft, CalendarDays, Clock, Loader2, Paperclip } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, Info, Loader2, Paperclip } from "lucide-react";
 
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -86,10 +87,9 @@ export default function LeaveManagement() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const [approvedDaysThisYear, setApprovedDaysThisYear] = useState<number>(0);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
 
-  // Apply leave form (global for operator; applies to all associated equipment)
+  // Intimate unavailability form (global for operator; applies to all associated equipment)
   const [startDate, setStartDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [startSession, setStartSession] = useState<LeaveSession>("FN");
@@ -108,17 +108,11 @@ export default function LeaveManagement() {
   const refresh = async (y: number) => {
     setLoading(true);
     try {
-      const [summaryRes, listRes] = await Promise.all([
-        apiClient.getOperatorLeaveSummary({ year: y }),
-        apiClient.listOperatorLeaveRequests({ year: y }),
-      ]);
-      if (summaryRes.error) throw new Error(summaryRes.error);
+      const listRes = await apiClient.listOperatorLeaveRequests({ year: y });
       if (listRes.error) throw new Error(listRes.error);
-      setApprovedDaysThisYear(summaryRes.data?.approved_days_this_year ?? 0);
       setLeaves(listRes.data?.leaves ?? []);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load leave data.");
-      setApprovedDaysThisYear(0);
+      toast.error(e instanceof Error ? e.message : "Failed to load unavailability history.");
       setLeaves([]);
     } finally {
       setLoading(false);
@@ -200,9 +194,9 @@ export default function LeaveManagement() {
                 Dashboard
               </Button>
               <div className="min-w-0">
-                <h1 className="text-2xl font-semibold tracking-tight">Leave management</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">Operator Availability</h1>
                 <p className="text-sm text-white/85">
-                  Apply quickly (full/half-day) and track approvals for the current year.
+                  Intimate periods when you are unavailable for equipment operations so bookings can be managed.
                 </p>
               </div>
             </div>
@@ -216,22 +210,25 @@ export default function LeaveManagement() {
                 min={2000}
                 max={2100}
               />
-              <div className="rounded-2xl border border-white/20 bg-white/10 px-3 py-2">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Approved</div>
-                <div className="text-lg font-bold tabular-nums">
-                  {loading ? "…" : approvedDaysThisYear}
-                </div>
-              </div>
             </div>
           </div>
         </div>
+
+        <Alert className="mb-6 border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
+          <Info className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+          <AlertDescription>
+            This module is not a leave approval system. Official leave must continue to be applied through the
+            Institute&apos;s official leave portal. This section only informs the equipment booking system about
+            periods when you will be unavailable so bookings can be managed appropriately.
+          </AlertDescription>
+        </Alert>
 
         <div className="space-y-6">
           <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
             <CardHeader className="border-b border-border/60 bg-gradient-to-br from-teal-700/[0.10] via-background to-background">
               <CardTitle className="flex items-center gap-2">
                 <CalendarDays className="h-5 w-5 text-teal-700" />
-                Apply for leave
+                Intimate Unavailability
               </CardTitle>
               <CardDescription>
                 Choose <span className="font-medium text-foreground">full day</span> or{" "}
@@ -240,7 +237,7 @@ export default function LeaveManagement() {
             </CardHeader>
             <CardContent className="space-y-5 p-5 sm:p-6">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Leave type</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Unavailability type</Label>
                 <ToggleGroup
                   type="single"
                   value={leaveType}
@@ -335,7 +332,7 @@ export default function LeaveManagement() {
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm text-muted-foreground">
-                    This request will count as{" "}
+                    This intimation will count as{" "}
                     <span className="font-semibold tabular-nums text-foreground">{leaveDaysPreview}</span>{" "}
                     day{leaveDaysPreview === 1 ? "" : "s"}.
                   </div>
@@ -395,13 +392,13 @@ export default function LeaveManagement() {
                       attachment,
                     });
                     if (res.error) throw new Error(res.error);
-                    toast.success("Leave request submitted to OIC.");
+                    toast.success("Unavailability intimation submitted to OIC.");
                     setReason("");
                     setAttachment(null);
                     setLeaveType("FULL_DAY");
                     await refresh(year);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Failed to submit leave request.");
+                    toast.error(e instanceof Error ? e.message : "Failed to submit unavailability intimation.");
                   } finally {
                     setSubmitting(false);
                   }
@@ -413,7 +410,7 @@ export default function LeaveManagement() {
                     Submitting…
                   </>
                 ) : (
-                  "Submit leave request"
+                  "Submit"
                 )}
               </Button>
             </CardContent>
@@ -422,12 +419,12 @@ export default function LeaveManagement() {
           <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
             <CardHeader className="border-b border-border/60 bg-muted/10">
               <CardTitle className="flex items-center justify-between gap-3">
-                <span>Leave requests ({year})</span>
+                <span>History</span>
                 <Badge variant="secondary" className="tabular-nums">
                   Total: {leaves.length}
                 </Badge>
               </CardTitle>
-              <CardDescription>Track your submitted leave requests and OIC decisions.</CardDescription>
+              <CardDescription>Track your unavailability intimations and OIC decisions.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
@@ -437,7 +434,7 @@ export default function LeaveManagement() {
                 </div>
               ) : leaves.length === 0 ? (
                 <div className="p-6">
-                  <p className="text-sm text-muted-foreground">No leave requests found for {year}.</p>
+                  <p className="text-sm text-muted-foreground">No unavailability intimations found for {year}.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">

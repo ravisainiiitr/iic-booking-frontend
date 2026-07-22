@@ -332,8 +332,26 @@ function getInitialDynamicInputValue(field: any): string | boolean | string[] | 
     return 0;
   }
   if (fieldType === "TABLE") {
-    const cols = Array.isArray(field.options) ? field.options.length : 0;
-    return cols ? [Array(cols).fill("")] : [];
+    const sourceKey = String(field.source_element_field_key || "").trim();
+    let cols = Array.isArray(field.options)
+      ? field.options.map((h: any) => String(h?.value ?? h ?? "").trim()).filter(Boolean)
+      : [];
+    if (sourceKey) {
+      const first = (cols[0] || "").toLowerCase();
+      const hasSerial =
+        first.includes("sr") ||
+        first.includes("serial") ||
+        first === "s.no" ||
+        first === "s.no." ||
+        first === "s no";
+      if (!hasSerial) cols = ["Sr. No.", ...cols];
+      if (cols.length === 0) cols = ["Sr. No."];
+    }
+    const colCount = cols.length;
+    if (!colCount) return [];
+    if (!sourceKey) return [Array(colCount).fill("")];
+    // Row count driven by another field — start with 0 rows until that value is known
+    return [];
   }
   if ((field.field_key === "A" || field.field_key === "B") && fieldType === "NUMERIC") {
     const num = Number(field.default_value);
@@ -778,6 +796,9 @@ const BookEquipment = () => {
   const [statusChangeHolidays, setStatusChangeHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
   const [loadingStatusSlots, setLoadingStatusSlots] = useState(false);
   const [selectedSlotIdsForStatus, setSelectedSlotIdsForStatus] = useState<number[]>([]);
+  /** Last focused time row / day column for week-view bulk scope dropdowns */
+  const [statusBulkFocusTime, setStatusBulkFocusTime] = useState<string | null>(null);
+  const [statusBulkFocusDayOffset, setStatusBulkFocusDayOffset] = useState<number | null>(null);
   const [newSlotStatus, setNewSlotStatus] = useState<string>('BLOCKED');
   const [blockedLabelForStatus, setBlockedLabelForStatus] = useState<string>('');
   const [sendEmailToWalletOwnerForNotUtilized, setSendEmailToWalletOwnerForNotUtilized] = useState(true);
@@ -1714,9 +1735,6 @@ const BookEquipment = () => {
     });
     toast.success("Selection inverted for this week.");
   };
-
-  const statusChangeBulkChipClass =
-    "h-8 rounded-md border border-teal-200/80 bg-teal-50/80 px-2.5 text-xs font-medium text-teal-900 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100 dark:hover:bg-teal-900/50";
 
   // Week popup: navigate to previous/next week
   const goToPrevWeekInPopup = () => {
@@ -4121,6 +4139,56 @@ const BookEquipment = () => {
     }
   };
 
+  /** Keep TABLE rows in sync when a row-count field (source_element_field_key) changes. */
+  useEffect(() => {
+    const fields = equipmentDetail?.input_fields;
+    if (!Array.isArray(fields) || fields.length === 0) return;
+    setInputFieldValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const field of fields) {
+        if (String(field.field_type || "").toUpperCase().trim() !== "TABLE") continue;
+        const sourceKey = String(field.source_element_field_key || "").trim();
+        if (!sourceKey) continue;
+        const rawCount = prev[sourceKey];
+        const n = Math.max(0, Math.floor(Number(rawCount) || 0));
+        let cols = Array.isArray(field.options)
+          ? field.options.map((h: any) => String(h?.value ?? h ?? "").trim()).filter(Boolean)
+          : [];
+        const first = (cols[0] || "").toLowerCase();
+        const hasSerial =
+          first.includes("sr") ||
+          first.includes("serial") ||
+          first === "s.no" ||
+          first === "s.no." ||
+          first === "s no";
+        if (!hasSerial) cols = ["Sr. No.", ...cols];
+        if (cols.length === 0) cols = ["Sr. No."];
+        const colCount = cols.length;
+        const prevRows = (Array.isArray(prev[field.field_key]) ? prev[field.field_key] : []) as string[][];
+        const built: string[][] = [];
+        for (let i = 0; i < n; i++) {
+          const row = prevRows[i] ? prevRows[i].slice() : Array(colCount).fill("");
+          while (row.length < colCount) row.push("");
+          row[0] = String(i + 1);
+          built.push(row.slice(0, colCount));
+        }
+        const same =
+          prevRows.length === built.length &&
+          built.every(
+            (r, i) =>
+              r.length === (prevRows[i]?.length || 0) &&
+              r.every((c, j) => c === (prevRows[i]?.[j] ?? ""))
+          );
+        if (!same) {
+          next[field.field_key] = built as any;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [equipmentDetail?.input_fields, inputFieldValues]);
+
   const handlePrint3DReady = useCallback((values: Print3DBookingValues | null) => {
     if (!values) {
       setPrintAnalysisId(null);
@@ -5237,85 +5305,203 @@ const BookEquipment = () => {
 
         {/* Inline week view (pick by time) */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
-          <div className="w-full max-w-none mx-auto mb-6 rounded-2xl overflow-hidden border border-border/60 shadow-lg">
-            <div className="sticky top-0 z-20 bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-6 py-5 text-white">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-4">
-                  <Button variant="secondary" size="icon" className="h-12 w-12 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
-                    <ChevronLeft className="h-6 w-6" />
+          <div className="w-full max-w-none mx-auto mb-6 rounded-xl overflow-hidden border border-border/60 shadow-md">
+            {/* Compact week header */}
+            <div className="sticky top-0 z-20 bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-3 py-2 text-white">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <div className="text-center min-w-[280px]">
-                    <h3 className="text-xl md:text-2xl font-bold">
+                  <div className="text-center min-w-[200px]">
+                    <h3 className="text-sm md:text-base font-semibold leading-tight">
                       Week of {format(statusChangePopupWeekStart, "MMM d")} – {format(addDays(statusChangePopupWeekStart, 6), "MMM d, yyyy")}
                     </h3>
-                    <p className="text-white/90 text-base mt-1">Week view (pick by time)</p>
+                    <p className="text-white/80 text-[11px] mt-0.5">Click slots · time labels select rows · day headers select columns</p>
                   </div>
-                  <Button variant="secondary" size="icon" className="h-12 w-12 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToNextWeekInPopup} aria-label="Next week">
-                    <ChevronRight className="h-6 w-6" />
+                  <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToNextWeekInPopup} aria-label="Next week">
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
                 <Button
                   variant="secondary"
-                  size="default"
-                  className="bg-white/20 hover:bg-white/30 border-0 text-white h-11 px-5 text-base font-medium"
+                  size="sm"
+                  className="bg-white/20 hover:bg-white/30 border-0 text-white h-8 px-3 text-xs font-medium"
                   onClick={() => { setStatusChangePopupWeekStart(null); }}
                 >
                   Hide week view
                 </Button>
               </div>
-              <p className="text-white/90 text-sm md:text-base mt-3 max-w-3xl">
-                Click slots to select them. Use row and column actions for week, month, or year bulk selection.
-              </p>
-              <div className="mt-4 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-white/80 mr-1">Quick select</span>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectEntireWeekInPopup} disabled={!statusChangeSlots?.length}>
-                    Entire week
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectWeekdaysInPopup} disabled={!statusChangeSlots?.length}>
-                    Weekdays
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectWeekendsInPopup} disabled={!statusChangeSlots?.length}>
-                    Weekends
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectMorningSlotsInPopup} disabled={!statusChangeSlots?.length}>
-                    Morning
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAfternoonSlotsInPopup} disabled={!statusChangeSlots?.length}>
-                    Afternoon
-                  </Button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-white/80 mr-1">Filter</span>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAllAvailableSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
-                    All available
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAllBookedSlotsInPopup} disabled={!statusChangeSlots?.length}>
-                    All booked
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={selectAllNonCompletedSlotsInPopup} disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}>
-                    Excl. completed
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={invertSelectionInPopup} disabled={!statusChangeSlots?.length}>
-                    Invert
-                  </Button>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 border-0 text-white h-9" onClick={clearPopupWeekSelection} disabled={selectedSlotIdsForStatus.length === 0}>
-                    Clear week
-                  </Button>
-                </div>
+            </div>
+
+            {/* Sticky selection toolbar */}
+            <div className="sticky top-[52px] z-20 border-b border-border/60 bg-card/95 backdrop-blur-sm px-3 py-2 shadow-sm">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="h-7 px-2.5 text-xs font-semibold tabular-nums">
+                  {selectedSlotIdsForStatus.length} selected
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setSelectedSlotIdsForStatus([])}
+                  disabled={selectedSlotIdsForStatus.length === 0}
+                >
+                  Clear
+                </Button>
+                <div className="h-4 w-px bg-border mx-0.5" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs gap-1" disabled={!statusChangeSlots?.length}>
+                      Select…
+                      <ChevronDown className="h-3 w-3 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-52">
+                    <DropdownMenuItem onClick={selectEntireWeekInPopup}>Entire week</DropdownMenuItem>
+                    <DropdownMenuItem onClick={selectWeekdaysInPopup}>Weekdays</DropdownMenuItem>
+                    <DropdownMenuItem onClick={selectWeekendsInPopup}>Weekends</DropdownMenuItem>
+                    <DropdownMenuItem onClick={selectMorningSlotsInPopup}>Morning</DropdownMenuItem>
+                    <DropdownMenuItem onClick={selectAfternoonSlotsInPopup}>Afternoon</DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!statusBulkFocusTime}
+                      onClick={() => {
+                        if (statusBulkFocusTime) selectTimeRowForWeek(statusBulkFocusTime);
+                      }}
+                    >
+                      This time row{statusBulkFocusTime ? ` (${statusBulkFocusTime})` : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={statusBulkFocusDayOffset == null}
+                      onClick={() => {
+                        if (statusBulkFocusDayOffset != null) selectDayColumnForWeek(statusBulkFocusDayOffset);
+                      }}
+                    >
+                      This day column
+                      {statusBulkFocusDayOffset != null
+                        ? ` (${format(addDays(statusChangePopupWeekStart, statusBulkFocusDayOffset), "EEE")})`
+                        : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}
+                      onClick={selectAllAvailableSlotsInPopup}
+                    >
+                      All available
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={selectAllBookedSlotsInPopup}>All booked</DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!statusChangeSlots?.length || newSlotStatus === "BOOKING_NOT_UTILIZED"}
+                      onClick={selectAllNonCompletedSlotsInPopup}
+                    >
+                      Excl. completed
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={invertSelectionInPopup}>Invert</DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={selectedSlotIdsForStatus.length === 0}
+                      onClick={clearPopupWeekSelection}
+                    >
+                      Clear week selection
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs gap-1"
+                      disabled={!statusBulkFocusTime || !statusChangeSlots?.length}
+                      title={statusBulkFocusTime ? `Row: ${statusBulkFocusTime}` : "Click a time label first"}
+                    >
+                      Row scope
+                      {statusBulkFocusTime ? `: ${statusBulkFocusTime}` : ""}
+                      <ChevronDown className="h-3 w-3 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (statusBulkFocusTime) selectTimeRowForWeek(statusBulkFocusTime);
+                      }}
+                    >
+                      Week
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (statusBulkFocusTime) void selectTimeRowForMonth(statusBulkFocusTime);
+                      }}
+                    >
+                      Month
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (statusBulkFocusTime) void selectTimeRowForYear(statusBulkFocusTime);
+                      }}
+                    >
+                      Year
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs gap-1"
+                      disabled={statusBulkFocusDayOffset == null || !statusChangeSlots?.length}
+                      title={
+                        statusBulkFocusDayOffset != null
+                          ? `Column: ${format(addDays(statusChangePopupWeekStart, statusBulkFocusDayOffset), "EEE MMM d")}`
+                          : "Click a day header first"
+                      }
+                    >
+                      Column scope
+                      {statusBulkFocusDayOffset != null
+                        ? `: ${format(addDays(statusChangePopupWeekStart, statusBulkFocusDayOffset), "EEE")}`
+                        : ""}
+                      <ChevronDown className="h-3 w-3 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (statusBulkFocusDayOffset != null) selectDayColumnForWeek(statusBulkFocusDayOffset);
+                      }}
+                    >
+                      Week
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (statusBulkFocusDayOffset != null) void selectDayColumnForMonth(statusBulkFocusDayOffset);
+                      }}
+                    >
+                      Month
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (statusBulkFocusDayOffset != null) void selectDayColumnForYear(statusBulkFocusDayOffset);
+                      }}
+                    >
+                      Year
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <span className="text-[11px] text-muted-foreground ml-auto hidden sm:inline">
+                  Scroll down to apply status changes
+                </span>
               </div>
             </div>
 
-            <div className="overflow-auto max-h-[min(70vh,720px)] p-4 md:p-6 bg-gradient-to-b from-background to-teal-50/20 dark:to-teal-950/10">
+            <div className="overflow-auto max-h-[min(70vh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-teal-50/20 dark:to-teal-950/10">
               {loadingStatusSlots ? (
-                <div className="flex items-center justify-center py-16 text-muted-foreground text-lg">
+                <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
                   <span className="animate-pulse">Loading slots…</span>
                 </div>
               ) : (
                 <TooltipProvider delayDuration={200}>
-                <div className="min-w-[920px] rounded-2xl border border-border/60 bg-card overflow-hidden shadow-md">
-                  <div className="grid gap-0 bg-teal-50/80 dark:bg-teal-950/30 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "132px repeat(7, minmax(0, 1fr))" }}>
-                    <div className="font-semibold text-sm p-3 border-r border-border/50 bg-background/95 backdrop-blur-sm sticky left-0 z-30">Time</div>
+                <div className="min-w-[640px] rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm">
+                  <div className="grid gap-0 bg-muted/40 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))" }}>
+                    <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground px-1.5 py-1.5 border-r border-border/50 bg-background/95 backdrop-blur-sm sticky left-0 z-30 flex items-center">Time</div>
                     {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                       const day = addDays(statusChangePopupWeekStart, dayOffset);
                       const dateStr = format(day, "yyyy-MM-dd");
@@ -5328,68 +5514,65 @@ const BookEquipment = () => {
                       const adminSat = equipmentDetail?.calendar_colors?.saturday_color ?? "#c7d2fe";
                       const adminSun = equipmentDetail?.calendar_colors?.sunday_color ?? "#fbcfe8";
                       const adminHolDefault = equipmentDetail?.calendar_colors?.holiday_default ?? "#f59e0b";
+                      const isDayFocused = statusBulkFocusDayOffset === dayOffset;
                       const headerBadge =
                         holidayLabel != null && holidayLabel !== "" ? (
                           <div
-                            className="text-sm truncate mt-1"
+                            className="text-[9px] truncate mt-0.5 leading-tight"
                             style={{
                               backgroundColor: holidayColor ?? adminHolDefault,
                               color: getContrastTextColor(holidayColor ?? adminHolDefault),
-                              padding: "4px 8px",
-                              borderRadius: 6,
+                              padding: "1px 4px",
+                              borderRadius: 3,
                             }}
                           >
                             {holidayLabel}
                           </div>
                         ) : isSatHeader ? (
                           <div
-                            className="text-sm font-semibold truncate mt-1"
+                            className="text-[9px] font-medium truncate mt-0.5 leading-tight"
                             style={{
                               backgroundColor: adminSat,
                               color: getContrastTextColor(adminSat),
-                              padding: "4px 8px",
-                              borderRadius: 6,
+                              padding: "1px 4px",
+                              borderRadius: 3,
                             }}
                           >
-                            Saturday
+                            Sat
                           </div>
                         ) : isSunHeader ? (
                           <div
-                            className="text-sm font-semibold truncate mt-1"
+                            className="text-[9px] font-medium truncate mt-0.5 leading-tight"
                             style={{
                               backgroundColor: adminSun,
                               color: getContrastTextColor(adminSun),
-                              padding: "4px 8px",
-                              borderRadius: 6,
+                              padding: "1px 4px",
+                              borderRadius: 3,
                             }}
                           >
-                            Sunday
+                            Sun
                           </div>
                         ) : null;
                       return (
-                        <div
+                        <button
                           key={dayOffset}
+                          type="button"
+                          title={`Select all slots on ${format(day, "EEE MMM d")} (this week)`}
+                          onClick={() => {
+                            setStatusBulkFocusDayOffset(dayOffset);
+                            selectDayColumnForWeek(dayOffset);
+                          }}
                           className={cn(
-                            "p-3 text-center border-r border-border/50 last:border-r-0 bg-background/95 backdrop-blur-sm",
+                            "px-1 py-1.5 text-center border-r border-border/50 last:border-r-0 bg-background/95 backdrop-blur-sm hover:bg-teal-50/80 dark:hover:bg-teal-950/30 transition-colors cursor-pointer",
                             isSatHeader && "bg-indigo-50/80 dark:bg-indigo-950/25",
                             isSunHeader && "bg-rose-50/80 dark:bg-rose-950/25",
+                            isDayFocused && "ring-2 ring-inset ring-teal-500",
                           )}
                         >
-                          <div className="text-sm font-bold text-foreground">{format(day, "EEE")}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{format(day, "MMM d")}</div>
+                          <div className="text-[11px] font-bold text-foreground leading-none">{format(day, "EEE")}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5 leading-none">{format(day, "MMM d")}</div>
                           {headerBadge}
-                          <div className="flex flex-wrap gap-1 justify-center mt-2">
-                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectDayColumnForWeek(dayOffset)}>
-                              Week
-                            </button>
-                            <button type="button" className={statusChangeBulkChipClass} onClick={() => void selectDayColumnForMonth(dayOffset)}>
-                              Month
-                            </button>
-                            <button type="button" className={statusChangeBulkChipClass} onClick={() => void selectDayColumnForYear(dayOffset)}>
-                              Year
-                            </button>
-                          </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -5415,27 +5598,27 @@ const BookEquipment = () => {
                     const canSelectSlot = statusChangeCanSelectSlot;
                     if (timeSlots.length === 0) {
                       return (
-                        <div className="p-10 text-center text-muted-foreground text-lg">
+                        <div className="p-6 text-center text-muted-foreground text-sm">
                           No slots for this week.
                         </div>
                       );
                     }
                     return timeSlots.map((time) => (
-                      <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "132px repeat(7, minmax(0, 1fr))" }}>
-                        <div className="flex flex-col gap-2 items-stretch justify-center p-3 border-r border-border/50 bg-muted/20 sticky left-0 z-10">
-                          <span className="font-semibold text-sm tabular-nums">{time}</span>
-                          <div className="flex flex-col gap-1">
-                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectTimeRowForWeek(time)}>
-                              Week
-                            </button>
-                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectTimeRowForMonth(time)}>
-                              Month
-                            </button>
-                            <button type="button" className={statusChangeBulkChipClass} onClick={() => selectTimeRowForYear(time)}>
-                              Year
-                            </button>
-                          </div>
-                        </div>
+                      <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))" }}>
+                        <button
+                          type="button"
+                          title={`Select all slots at ${time} (this week)`}
+                          onClick={() => {
+                            setStatusBulkFocusTime(time);
+                            selectTimeRowForWeek(time);
+                          }}
+                          className={cn(
+                            "flex items-center justify-center px-1 py-0.5 border-r border-border/50 bg-muted/20 sticky left-0 z-10 hover:bg-teal-50/80 dark:hover:bg-teal-950/30 transition-colors cursor-pointer",
+                            statusBulkFocusTime === time && "ring-2 ring-inset ring-teal-500 bg-teal-50/60 dark:bg-teal-950/40",
+                          )}
+                        >
+                          <span className="font-semibold text-[11px] tabular-nums leading-none">{time}</span>
+                        </button>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                           const day = addDays(statusChangePopupWeekStart, dayOffset);
                           const slot = getStatusChangeSlotAt(day, time);
@@ -5462,9 +5645,9 @@ const BookEquipment = () => {
                             holidayName && holidayName !== ""
                               ? holidayName
                               : isSaturdayCol
-                                ? "Saturday"
+                                ? "Sat"
                                 : isSundayCol
-                                  ? "Sunday"
+                                  ? "Sun"
                                   : "—";
                           const calendarDayBg =
                             (holidayName && (holidayColorCell ?? adminHolidayDefaultColor)) ||
@@ -5494,26 +5677,30 @@ const BookEquipment = () => {
                             (holidayName && (holidayColorCell ?? adminHolidayDefaultColor)) ||
                             (isSaturdayCol ? adminSaturdayColor : isSundayCol ? adminSundayColor : undefined);
                           const cell3dStyle: CSSProperties = {
-                            boxShadow: "0 1px 3px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.35)",
-                            border: "1px solid rgba(148,163,184,0.35)",
-                            borderRadius: "10px",
+                            boxShadow: "0 1px 2px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.3)",
+                            border: "1px solid rgba(148,163,184,0.3)",
+                            borderRadius: "4px",
                           };
                           return (
-                            <div key={dayOffset} className="min-h-[72px] p-1.5 border-r border-border/30 last:border-r-0">
+                            <div key={dayOffset} className="min-h-[32px] p-0.5 border-r border-border/30 last:border-r-0">
                               {slot ? (
                                 (() => {
                                   const userDetailLines = bookedSlotUserDetailLines(slot);
                                   const cellInner = (
-                                    <div className="w-full h-full min-h-[60px] relative flex items-stretch">
+                                    <div className="w-full h-full min-h-[28px] relative flex items-stretch">
                                       <button
                                         type="button"
-                                        onClick={() => { if (slotSelectable) toggleStatusChangeSlotSelection(slot.id); }}
+                                        onClick={() => {
+                                          setStatusBulkFocusTime(time);
+                                          setStatusBulkFocusDayOffset(dayOffset);
+                                          if (slotSelectable) toggleStatusChangeSlotSelection(slot.id);
+                                        }}
                                         disabled={!slotSelectable}
                                         className={cn(
-                                          "flex-1 min-h-[64px] p-2 text-xs sm:text-sm font-medium text-left transition-all flex items-center justify-center rounded-lg",
+                                          "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
                                           !slotSelectable && "cursor-not-allowed opacity-70",
-                                          slotSelectable && !isSelected && "hover:brightness-[0.97] hover:shadow-md",
-                                          isSelected && "ring-2 ring-teal-600 ring-offset-2 bg-teal-700 text-white hover:bg-teal-800 shadow-md scale-[1.02]"
+                                          slotSelectable && !isSelected && "hover:brightness-[0.97]",
+                                          isSelected && "ring-2 ring-teal-600 ring-offset-1 bg-teal-700 text-white hover:bg-teal-800"
                                         )}
                                         style={
                                           !isSelected && slot
@@ -5531,7 +5718,7 @@ const BookEquipment = () => {
                                         <button
                                           type="button"
                                           aria-label="View booking details"
-                                          className="absolute top-1 right-1 p-1 rounded-md opacity-90 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+                                          className="absolute top-0 right-0 p-0.5 rounded opacity-80 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
                                           style={{ color: getContrastTextColor(displayBg) }}
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -5557,7 +5744,7 @@ const BookEquipment = () => {
                                               .finally(() => setExpandedSlotBookingLoading(false));
                                           }}
                                         >
-                                          <ExternalLink className="h-4 w-4" />
+                                          <ExternalLink className="h-3 w-3" />
                                         </button>
                                       )}
                                     </div>
@@ -5579,7 +5766,7 @@ const BookEquipment = () => {
                                 })()
                               ) : (
                                 <div
-                                  className="w-full min-h-[60px] p-2 rounded-xl text-sm font-semibold flex items-center justify-center border-2 border-white/40"
+                                  className="w-full min-h-[28px] px-1 py-0.5 rounded text-[10px] font-medium flex items-center justify-center truncate"
                                   style={
                                     emptyCellBg
                                       ? {
@@ -5626,16 +5813,6 @@ const BookEquipment = () => {
                   />
                 </div>
               )}
-            </div>
-
-            <div className="border-t border-teal-200/60 px-5 py-3 bg-teal-50/40 dark:border-teal-900/50 dark:bg-teal-950/20 flex items-center gap-3 flex-wrap">
-              <p className="text-sm font-medium text-foreground mr-auto">
-                <span className="font-semibold text-teal-800 dark:text-teal-200">{selectedSlotIdsForStatus.length}</span> slot(s) selected in week view
-              </p>
-              <p className="text-xs text-muted-foreground">Scroll down to choose operation and apply.</p>
-              <Button variant="outline" size="sm" className="h-9 border-teal-200 text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:text-teal-200" onClick={() => setSelectedSlotIdsForStatus([])} disabled={selectedSlotIdsForStatus.length === 0}>
-                Clear selected slots
-              </Button>
             </div>
           </div>
         )}
@@ -7013,17 +7190,36 @@ const BookEquipment = () => {
                               }
 
                               case 'TABLE': {
-                                const columns = Array.isArray(field.options) ? field.options.map((h: any) => String(h?.value ?? h ?? '')) : [];
+                                const sourceKey = String(field.source_element_field_key || "").trim();
+                                let columns = Array.isArray(field.options)
+                                  ? field.options.map((h: any) => String(h?.value ?? h ?? "").trim()).filter(Boolean)
+                                  : [];
+                                const firstHdr = (columns[0] || "").toLowerCase();
+                                const hasSerialHdr =
+                                  firstHdr.includes("sr") ||
+                                  firstHdr.includes("serial") ||
+                                  firstHdr === "s.no" ||
+                                  firstHdr === "s.no." ||
+                                  firstHdr === "s no";
+                                const rowCountDriven = Boolean(sourceKey);
+                                if (rowCountDriven && !hasSerialHdr) {
+                                  columns = ["Sr. No.", ...columns];
+                                }
+                                if (rowCountDriven && columns.length === 0) columns = ["Sr. No."];
                                 const rows = (inputFieldValues[field.field_key] as string[][] | undefined) || [];
+                                const serialLocked = rowCountDriven;
                                 const addRow = () => {
+                                  if (serialLocked) return;
                                   const newRow = Array(columns.length).fill('');
                                   handleInputFieldChange(field.field_key, [...rows, newRow] as any);
                                 };
                                 const deleteRow = (rowIdx: number) => {
+                                  if (serialLocked) return;
                                   const next = rows.filter((_, i) => i !== rowIdx);
                                   handleInputFieldChange(field.field_key, next as any);
                                 };
                                 const setCell = (rowIdx: number, colIdx: number, val: string) => {
+                                  if (serialLocked && colIdx === 0) return;
                                   const next = rows.map((r, i) => (i === rowIdx ? r.slice() : r));
                                   if (!next[rowIdx]) next[rowIdx] = Array(columns.length).fill('');
                                   next[rowIdx][colIdx] = val;
@@ -7032,8 +7228,18 @@ const BookEquipment = () => {
                                 if (columns.length === 0) {
                                   return <p className="text-sm text-muted-foreground">No columns defined for this table.</p>;
                                 }
+                                const sourceVal = sourceKey ? Number(inputFieldValues[sourceKey]) : NaN;
                                 return (
                                   <div className="space-y-2">
+                                    {rowCountDriven && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Rows follow field <span className="font-medium text-foreground">{sourceKey}</span>
+                                        {Number.isFinite(sourceVal) && sourceVal > 0
+                                          ? ` (${Math.floor(sourceVal)} row${Math.floor(sourceVal) === 1 ? "" : "s"}).`
+                                          : ". Enter a value in that field to generate rows."}
+                                        {" "}First column is Serial Number.
+                                      </p>
+                                    )}
                                     <div className="rounded-md border overflow-x-auto">
                                       <table className="w-full text-sm border-collapse">
                                         <thead>
@@ -7043,14 +7249,19 @@ const BookEquipment = () => {
                                                 {header}
                                               </th>
                                             ))}
-                                            <th className="w-10 p-2 text-center"> </th>
+                                            {!serialLocked && <th className="w-10 p-2 text-center"> </th>}
                                           </tr>
                                         </thead>
                                         <tbody>
                                           {rows.length === 0 ? (
                                             <tr>
-                                              <td colSpan={columns.length + 1} className="p-2 text-muted-foreground text-center">
-                                                No rows. Click + to add.
+                                              <td
+                                                colSpan={columns.length + (serialLocked ? 0 : 1)}
+                                                className="p-2 text-muted-foreground text-center"
+                                              >
+                                                {serialLocked
+                                                  ? "No rows yet — set the row-count field above."
+                                                  : "No rows. Click + to add."}
                                               </td>
                                             </tr>
                                           ) : (
@@ -7058,40 +7269,50 @@ const BookEquipment = () => {
                                               <tr key={ri} className="border-b last:border-0">
                                                 {columns.map((_, ci) => (
                                                   <td key={ci} className="p-1 border-r last:border-r-0">
-                                                    <Input
-                                                      className="h-8 text-sm"
-                                                      value={row[ci] ?? ''}
-                                                      onChange={(e) => setCell(ri, ci, e.target.value)}
-                                                      placeholder=""
-                                                      disabled={!!repeatSourceBooking}
-                                                    />
+                                                    {serialLocked && ci === 0 ? (
+                                                      <span className="inline-flex h-8 items-center px-2 text-sm font-medium tabular-nums text-muted-foreground">
+                                                        {row[ci] ?? String(ri + 1)}
+                                                      </span>
+                                                    ) : (
+                                                      <Input
+                                                        className="h-8 text-sm"
+                                                        value={row[ci] ?? ''}
+                                                        onChange={(e) => setCell(ri, ci, e.target.value)}
+                                                        placeholder=""
+                                                        disabled={!!repeatSourceBooking}
+                                                      />
+                                                    )}
                                                   </td>
                                                 ))}
-                                                <td className="p-1 w-10 text-center align-middle">
-                                                  <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                                    onClick={() => deleteRow(ri)}
-                                                    title="Delete row"
-                                                    disabled={!!repeatSourceBooking}
-                                                  >
-                                                    <Trash2 className="h-4 w-4" />
-                                                  </Button>
-                                                </td>
+                                                {!serialLocked && (
+                                                  <td className="p-1 w-10 text-center align-middle">
+                                                    <Button
+                                                      type="button"
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                                      onClick={() => deleteRow(ri)}
+                                                      title="Delete row"
+                                                      disabled={!!repeatSourceBooking}
+                                                    >
+                                                      <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                  </td>
+                                                )}
                                               </tr>
                                             ))
                                           )}
                                         </tbody>
                                       </table>
                                     </div>
-                                    <div className="flex gap-2">
-                                      <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={!!repeatSourceBooking}>
-                                        <Plus className="h-4 w-4 mr-1" />
-                                        Add row
-                                      </Button>
-                                    </div>
+                                    {!serialLocked && (
+                                      <div className="flex gap-2">
+                                        <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={!!repeatSourceBooking}>
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Add row
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               }

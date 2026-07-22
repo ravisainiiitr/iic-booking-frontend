@@ -2464,7 +2464,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Source element field key</Label>
+                  <Label className="text-xs">
+                    {String(f.field_type || "").toUpperCase() === "TABLE"
+                      ? "Row count field key"
+                      : "Source element field key"}
+                  </Label>
                   <Select
                     value={f.source_element_field_key || "__none__"}
                     onValueChange={(v) =>
@@ -2483,7 +2487,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground">For ICPMS Standard Coverage: the Periodic Table field key providing the element list.</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {String(f.field_type || "").toUpperCase() === "TABLE"
+                      ? "When set (e.g. A), the table auto-generates that many rows from the referenced field’s value. First column is Serial Number (1…N)."
+                      : "For ICPMS Standard Coverage: the Periodic Table field key providing the element list."}
+                  </p>
                 </div>
                 <div className="flex items-center gap-4 pb-1">
                   <div className="flex items-center gap-1.5">

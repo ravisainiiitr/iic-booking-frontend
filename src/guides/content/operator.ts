@@ -16,17 +16,17 @@ export const operatorGuide: UserGuideContent = {
   title: "Lab In-Charge / Operator User Guide",
   subtitle: `${PRODUCT_NAME} — day-of-run operations for assigned equipment`,
   welcomeHeadline: "Welcome, Lab In-Charge",
-  welcomeBody: `As Lab In-Charge / Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, leave, team calendar, and how your role differs from Officer-in-Charge.`,
+  welcomeBody: `As Lab In-Charge / Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, Operator Availability, team calendar, and how your role differs from Officer-in-Charge.`,
   sections: [
     purposeSection({
       paragraphs: [
         "You support laboratory operations for instruments where you are assigned as operator.",
-        "Your lab-style dashboard emphasises Booking Management and leave rather than end-user booking cards.",
+        "Your lab-style dashboard emphasises Booking Management and Operator Availability rather than end-user booking cards.",
       ],
       bullets: [
         "Complete bookings and mark not utilized for assigned equipment",
         "Change slot status on the equipment calendar where permitted",
-        "Apply for and track leave via Leave Management",
+        "Intimate and track unavailability via Operator Availability",
         "View team calendar and equipment-performance style reports when available",
       ],
     }),
@@ -35,7 +35,7 @@ export const operatorGuide: UserGuideContent = {
         "Sign in with the staff credentials or Channel i path provided for your campus account.",
       ],
       bullets: [
-        "Open Dashboard after login — look for Booking Management and Leave Management.",
+        "Open Dashboard after login — look for Booking Management and Operator Availability.",
         "Keep Profile phone/email current for operational notifications.",
         "Use User Guide from the menu to reopen these instructions.",
       ],
@@ -63,9 +63,9 @@ export const operatorGuide: UserGuideContent = {
           screenshotCaption: "Complete / Not Utilized actions",
         },
         {
-          title: "Log leave when unavailable",
-          body: "Use Leave Management so coverage can be planned; coordinate with your OIC for instrument coverage.",
-          screenshotCaption: "Leave Management",
+          title: "Intimate unavailability when needed",
+          body: "Use Operator Availability so coverage can be planned; coordinate with your OIC for instrument coverage. This is not the Institute leave portal.",
+          screenshotCaption: "Operator Availability",
         },
       ],
     },
@@ -81,12 +81,12 @@ export const operatorGuide: UserGuideContent = {
       ],
     },
     notificationsSection([
-      "Operator leave and duty-related emails when configured by administrators.",
+      "Operator availability and duty-related emails when configured by administrators.",
     ]),
     bestPracticesSection([
       "Complete bookings the same day the run finishes whenever possible.",
       "Escalate refunds, disruptions, and policy exceptions to the OIC promptly.",
-      "Record leave early so Temporary OIC / coverage can be arranged.",
+      "Intimate unavailability early so Temporary OIC / coverage can be arranged.",
     ]),
     permissionsSection({
       paragraphs: [
@@ -120,7 +120,7 @@ export const operatorGuide: UserGuideContent = {
     troubleshootingSection([
       "No equipment listed: confirm operator assignment with Dept Admin.",
       "Action buttons missing: the booking may require an OIC, or it is already completed/cancelled.",
-      "Leave form errors: refresh and ensure dates do not overlap existing leave entries.",
+      "Operator Availability form errors: refresh and ensure dates do not overlap existing unavailability entries.",
     ]),
   ],
 };
