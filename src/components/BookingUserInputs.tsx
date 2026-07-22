@@ -24,12 +24,14 @@ import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
-import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
+import { formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
 import {
   resolveTableColumns,
+  resolveTableRowCountSourceKey,
   parseTableRowCount,
   syncTableRowsToCount,
-  tableRowsEqual,
+  applyTableRowSyncToValues,
+  getFieldValueCI,
 } from "@/lib/dynamicTableField";
 
 export interface InputFieldDef {
@@ -286,12 +288,12 @@ export function BookingUserInputs({
         rows = raw as string[][];
       }
 
-      const sourceKey = String(f.source_element_field_key ?? "").trim();
+      const sourceKey = resolveTableRowCountSourceKey(f, fields);
       const { columns, hasSerialColumn } = resolveTableColumns(f.options, {
         rowCountDriven: Boolean(sourceKey),
       });
       if (sourceKey) {
-        const n = parseTableRowCount(initial[sourceKey] ?? iv[sourceKey]);
+        const n = parseTableRowCount(getFieldValueCI(initial as Record<string, unknown>, sourceKey) ?? iv[sourceKey]);
         initial[f.field_key] = syncTableRowsToCount(rows, n, columns.length, hasSerialColumn);
       } else if (hasSerialColumn && rows.length > 0) {
         initial[f.field_key] = syncTableRowsToCount(rows, rows.length, columns.length, true);
@@ -425,9 +427,11 @@ export function BookingUserInputs({
     elementsValue?: string
   ) => {
     setEditFormValues((prev) => {
-      const next = { ...prev, [fieldKey]: value };
+      const next: Record<string, unknown> = { ...prev, [fieldKey]: value };
       if (elementsValue !== undefined) next[`${fieldKey}_elements`] = elementsValue;
-      return next;
+      const defs = editableFields.length > 0 ? editableFields : fields;
+      applyTableRowSyncToValues(next, defs, fieldKey);
+      return next as typeof prev;
     });
   };
 
@@ -436,24 +440,9 @@ export function BookingUserInputs({
     if (!editDialogOpen) return;
     const defs = editableFields.length > 0 ? editableFields : fields;
     setEditFormValues((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const f of defs) {
-        if (String(f.field_type || "").toUpperCase() !== "TABLE") continue;
-        const sourceKey = String(f.source_element_field_key ?? "").trim();
-        if (!sourceKey) continue;
-        const n = parseTableRowCount(prev[sourceKey]);
-        const { columns, hasSerialColumn } = resolveTableColumns(f.options, {
-          rowCountDriven: true,
-        });
-        const prevRows = (Array.isArray(prev[f.field_key]) ? prev[f.field_key] : []) as string[][];
-        const built = syncTableRowsToCount(prevRows, n, columns.length, hasSerialColumn);
-        if (!tableRowsEqual(prevRows, built)) {
-          next[f.field_key] = built;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
+      const next: Record<string, unknown> = { ...prev };
+      const changed = applyTableRowSyncToValues(next, defs);
+      return changed ? (next as typeof prev) : prev;
     });
   }, [editDialogOpen, editFormValues, editableFields, fields]);
 
@@ -745,10 +734,6 @@ export function BookingUserInputs({
                             </Button>
                           </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Allowed range {formatNumericBound(effectiveMin)}–{formatNumericBound(effectiveMax)}
-                          {" · "}step {formatNumericBound(effectiveStep)}
-                        </p>
                       </div>
                     );
                   })()}
@@ -932,7 +917,8 @@ export function BookingUserInputs({
                     );
                   })()}
                   {type === "TABLE" && (() => {
-                    const sourceKey = String(f.source_element_field_key ?? "").trim();
+                    const defs = editableFields.length > 0 ? editableFields : fields;
+                    const sourceKey = resolveTableRowCountSourceKey(f, defs);
                     const rowCountDriven = Boolean(sourceKey);
                     const { columns, hasSerialColumn } = resolveTableColumns(f.options, {
                       rowCountDriven,
@@ -963,7 +949,9 @@ export function BookingUserInputs({
                     if (columns.length === 0) {
                       return <p className="text-sm text-muted-foreground">No columns defined.</p>;
                     }
-                    const sourceVal = sourceKey ? parseTableRowCount(editFormValues[sourceKey]) : 0;
+                    const sourceVal = sourceKey
+                      ? parseTableRowCount(getFieldValueCI(editFormValues as Record<string, unknown>, sourceKey))
+                      : 0;
                     return (
                       <div className="space-y-2 pt-1">
                         <p className="text-sm text-muted-foreground">

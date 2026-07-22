@@ -67,6 +67,89 @@ export function parseTableRowCount(raw: unknown): number {
   return n;
 }
 
+type FieldLike = {
+  field_key?: string | null;
+  field_type?: string | null;
+  source_element_field_key?: string | null;
+  options?: unknown;
+};
+
+/**
+ * Resolve which field key drives a TABLE's row count.
+ * Prefer configured source_element_field_key; otherwise fall back to NUMERIC "A"
+ * (common "No. of Samples" pattern), then the first NUMERIC field.
+ */
+export function resolveTableRowCountSourceKey(
+  tableField: FieldLike,
+  allFields: FieldLike[] | null | undefined
+): string {
+  const configured = String(tableField?.source_element_field_key ?? "").trim().toUpperCase();
+  const fields = Array.isArray(allFields) ? allFields : [];
+  const numericKeys = fields
+    .filter((f) => String(f?.field_type || "").toUpperCase().trim() === "NUMERIC")
+    .map((f) => String(f?.field_key || "").trim().toUpperCase())
+    .filter(Boolean);
+
+  if (configured) {
+    if (numericKeys.length === 0 || numericKeys.includes(configured)) return configured;
+    return configured;
+  }
+  if (numericKeys.includes("A")) return "A";
+  return numericKeys[0] || "";
+}
+
+/** Look up a value in a field-values map with case-insensitive key match. */
+export function getFieldValueCI(
+  values: Record<string, unknown> | null | undefined,
+  fieldKey: string
+): unknown {
+  if (!values || !fieldKey) return undefined;
+  if (Object.prototype.hasOwnProperty.call(values, fieldKey)) return values[fieldKey];
+  const want = fieldKey.toUpperCase();
+  for (const k of Object.keys(values)) {
+    if (k.toUpperCase() === want) return values[k];
+  }
+  return undefined;
+}
+
+/**
+ * Apply TABLE row-count sync onto a values map. Returns whether anything changed.
+ * When `onlySourceKey` is set, only tables driven by that key are updated.
+ */
+export function applyTableRowSyncToValues(
+  values: Record<string, unknown>,
+  allFields: FieldLike[] | null | undefined,
+  onlySourceKey?: string | null
+): boolean {
+  const fields = Array.isArray(allFields) ? allFields : [];
+  if (fields.length === 0) return false;
+  const only = onlySourceKey ? String(onlySourceKey).trim().toUpperCase() : "";
+  let changed = false;
+
+  for (const field of fields) {
+    if (String(field?.field_type || "").toUpperCase().trim() !== "TABLE") continue;
+    const sourceKey = resolveTableRowCountSourceKey(field, fields);
+    if (!sourceKey) continue;
+    if (only && sourceKey !== only) continue;
+
+    const tableKey = String(field?.field_key || "").trim();
+    if (!tableKey) continue;
+
+    const n = parseTableRowCount(getFieldValueCI(values, sourceKey));
+    const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
+      rowCountDriven: true,
+    });
+    const prevRows = getFieldValueCI(values, tableKey);
+    const built = syncTableRowsToCount(prevRows, n, columns.length, hasSerialColumn);
+    const prevArr = (Array.isArray(prevRows) ? prevRows : []) as string[][];
+    if (!tableRowsEqual(prevArr, built)) {
+      values[tableKey] = built;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /**
  * Build table rows for the desired count.
  * Preserves existing cell data for overlapping rows; pads/truncates as needed.

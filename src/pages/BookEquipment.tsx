@@ -85,9 +85,11 @@ import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePe
 import { cn } from "@/lib/utils";
 import {
   resolveTableColumns,
+  resolveTableRowCountSourceKey,
   parseTableRowCount,
   syncTableRowsToCount,
-  tableRowsEqual,
+  applyTableRowSyncToValues,
+  getFieldValueCI,
 } from "@/lib/dynamicTableField";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { toast } from "sonner";
@@ -322,7 +324,10 @@ function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: str
 }
 
 /** Default value for a dynamic input field when equipment is loaded or booking form resets. */
-function getInitialDynamicInputValue(field: any): string | boolean | string[] | number {
+function getInitialDynamicInputValue(
+  field: any,
+  allFields?: any[]
+): string | boolean | string[] | number | string[][] {
   const fieldType = String(field.field_type || "").toUpperCase().trim();
   if (fieldType === "TOGGLE") {
     return field.default_value === "true" || field.default_value === true;
@@ -338,7 +343,7 @@ function getInitialDynamicInputValue(field: any): string | boolean | string[] | 
     return 0;
   }
   if (fieldType === "TABLE") {
-    const sourceKey = String(field.source_element_field_key || "").trim();
+    const sourceKey = resolveTableRowCountSourceKey(field, allFields);
     const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
       rowCountDriven: Boolean(sourceKey),
     });
@@ -349,7 +354,7 @@ function getInitialDynamicInputValue(field: any): string | boolean | string[] | 
       if (hasSerialColumn) row[0] = "1";
       return [row];
     }
-    // Row count driven by another field — start with 0 rows until that value is known
+    // Row count driven by another field — start empty; sync fills from source value
     return [];
   }
   if ((field.field_key === "A" || field.field_key === "B") && fieldType === "NUMERIC") {
@@ -2008,7 +2013,7 @@ const BookEquipment = () => {
       // Initialize input field values with default values
       if (eq.input_fields && eq.input_fields.length > 0) {
         
-        const initialValues: Record<string, string | boolean | string[] | number> = {};
+        const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
         eq.input_fields.forEach((field: any) => {
           const fieldType = String(field.field_type || '').toUpperCase().trim();
           if (fieldType === 'PERIODIC_TABLE') {
@@ -2024,9 +2029,10 @@ const BookEquipment = () => {
             initialValues[field.field_key] = billable.length;
             initialValues[field.field_key + '_elements'] = all.join(',');
           } else {
-            initialValues[field.field_key] = getInitialDynamicInputValue(field);
+            initialValues[field.field_key] = getInitialDynamicInputValue(field, eq.input_fields);
           }
         });
+        applyTableRowSyncToValues(initialValues as Record<string, unknown>, eq.input_fields);
         setInputFieldValues(initialValues);
         setIcpmsCoverageByFieldKey({});
       }
@@ -4138,10 +4144,11 @@ const BookEquipment = () => {
         if (value.trim().startsWith("-") && !numericFieldAllowsNegative(draftBounds)) {
           value = String(draftBounds.min);
         } else {
-          setInputFieldValues((prev) => ({
-            ...prev,
-            [fieldKey]: value,
-          }));
+          setInputFieldValues((prev) => {
+            const next: Record<string, unknown> = { ...prev, [fieldKey]: value };
+            applyTableRowSyncToValues(next, equipmentDetail?.input_fields, fieldKey);
+            return next as typeof prev;
+          });
           if (searchParams.get("mode") === "calculate") {
             lastCalculatedValuesRef.current = "";
           }
@@ -4175,38 +4182,24 @@ const BookEquipment = () => {
         }
       }
     }
-    setInputFieldValues(prev => ({
-      ...prev,
-      [fieldKey]: value
-    }));
+    setInputFieldValues((prev) => {
+      const next: Record<string, unknown> = { ...prev, [fieldKey]: value };
+      applyTableRowSyncToValues(next, equipmentDetail?.input_fields, fieldKey);
+      return next as typeof prev;
+    });
     if (searchParams.get("mode") === "calculate") {
       lastCalculatedValuesRef.current = "";
     }
   };
 
-  /** Keep TABLE rows in sync when a row-count field (source_element_field_key) changes. */
+  /** Keep TABLE rows in sync when linked numeric values change (initial load / external updates). */
   useEffect(() => {
     const fields = equipmentDetail?.input_fields;
     if (!Array.isArray(fields) || fields.length === 0) return;
     setInputFieldValues((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const field of fields) {
-        if (String(field.field_type || "").toUpperCase().trim() !== "TABLE") continue;
-        const sourceKey = String(field.source_element_field_key || "").trim();
-        if (!sourceKey) continue;
-        const n = parseTableRowCount(prev[sourceKey]);
-        const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
-          rowCountDriven: true,
-        });
-        const prevRows = (Array.isArray(prev[field.field_key]) ? prev[field.field_key] : []) as string[][];
-        const built = syncTableRowsToCount(prevRows, n, columns.length, hasSerialColumn);
-        if (!tableRowsEqual(prevRows, built)) {
-          next[field.field_key] = built as any;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
+      const next: Record<string, unknown> = { ...prev };
+      const changed = applyTableRowSyncToValues(next, fields);
+      return changed ? (next as typeof prev) : prev;
     });
   }, [equipmentDetail?.input_fields, inputFieldValues]);
 
@@ -4477,16 +4470,17 @@ const BookEquipment = () => {
     setBookAnyAvailableSlots(false);
     setBookEvenIfSingleSlotAvailable(false);
     if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
-      const initialValues: Record<string, string | boolean | string[] | number> = {};
+      const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
       equipmentDetail.input_fields.forEach((field: any) => {
         const fieldType = String(field.field_type || '').toUpperCase().trim();
         if (fieldType === 'PERIODIC_TABLE') {
-          initialValues[field.field_key] = getInitialDynamicInputValue(field);
+          initialValues[field.field_key] = getInitialDynamicInputValue(field, equipmentDetail.input_fields);
           initialValues[field.field_key + '_elements'] = (field.options && Array.isArray(field.options) ? field.options.join(',') : '') || '';
         } else {
-          initialValues[field.field_key] = getInitialDynamicInputValue(field);
+          initialValues[field.field_key] = getInitialDynamicInputValue(field, equipmentDetail.input_fields);
         }
       });
+      applyTableRowSyncToValues(initialValues as Record<string, unknown>, equipmentDetail.input_fields);
       setInputFieldValues(initialValues);
       setIcpmsCoverageByFieldKey({});
     }
@@ -6860,10 +6854,6 @@ const BookEquipment = () => {
                                         </Button>
                                       </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Allowed range {formatNumericBound(effectiveMin)}–{formatNumericBound(effectiveMax)}
-                                      {" · "}step {formatNumericBound(effectiveStep)}
-                                    </p>
                                   </div>
                                 );
                               }
@@ -7218,7 +7208,10 @@ const BookEquipment = () => {
                               }
 
                               case 'TABLE': {
-                                const sourceKey = String(field.source_element_field_key || "").trim();
+                                const sourceKey = resolveTableRowCountSourceKey(
+                                  field,
+                                  equipmentDetail?.input_fields
+                                );
                                 const rowCountDriven = Boolean(sourceKey);
                                 const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
                                   rowCountDriven,
@@ -7249,7 +7242,9 @@ const BookEquipment = () => {
                                 if (columns.length === 0) {
                                   return <p className="text-sm text-muted-foreground">No columns defined for this table.</p>;
                                 }
-                                const sourceVal = sourceKey ? parseTableRowCount(inputFieldValues[sourceKey]) : 0;
+                                const sourceVal = sourceKey
+                                  ? parseTableRowCount(getFieldValueCI(inputFieldValues, sourceKey))
+                                  : 0;
                                 return (
                                   <div className="space-y-2">
                                     {rowCountDriven && (
