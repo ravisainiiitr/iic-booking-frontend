@@ -189,8 +189,10 @@ const Reports = () => {
 
     const adminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
     const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
+    const userTypeLower = String(userResponse.data.user_type || "").toLowerCase();
     const canEquipReports =
-      String(userResponse.data.user_type || "").toLowerCase() === "admin" ||
+      userTypeLower === "admin" ||
+      userTypeLower === "finance" ||
       hasRbacPermission(userResponse.data, "reports.view") ||
       adminByType;
     setIsAdmin(canEquipReports || adminCheck.data?.is_admin === true);

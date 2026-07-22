@@ -118,6 +118,11 @@ interface SampleTraceTimelineProps {
    * instead of "Held at Office" / "Forwarded to Lab".
    */
   useExternalHoldForwardLabels?: boolean;
+  /**
+   * When true (Accounts In Charge), Hold / Forward remain enabled even if Sample Sent
+   * has not been marked by the external user yet.
+   */
+  allowHoldForwardWithoutSampleSent?: boolean;
   /** When true, show the Not Utilized branch in lifecycle UI. */
   bookingNotUtilized?: boolean;
   /** When true, show terminal "Refunded" state in lifecycle UI. */
@@ -139,6 +144,7 @@ export default function SampleTraceTimeline({
   restrictBookingUserActionsToSampleSent = false,
   showHeldForwardedDespiteHideSampleActions = false,
   useExternalHoldForwardLabels = false,
+  allowHoldForwardWithoutSampleSent = false,
   bookingNotUtilized = false,
   bookingRefunded = false,
   bookingOperatorUnavailable = false,
@@ -801,7 +807,13 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setHeldDialogOpen(true)}
-              disabled={heldOrForwardedDone || !sampleSentDone || inAnalysisDone || analyzedReadyDone || !!loading}
+              disabled={
+                heldOrForwardedDone ||
+                (!allowHoldForwardWithoutSampleSent && !sampleSentDone) ||
+                inAnalysisDone ||
+                analyzedReadyDone ||
+                !!loading
+              }
             >
               {loading === "HELD_AT_OFFICE" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Package className="h-4 w-4 mr-2" />}
               {useExternalHoldForwardLabels ? "Hold Booking" : "Held at Office"}
@@ -837,7 +849,13 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setStatus("FORWARDED_TO_LAB")}
-              disabled={(heldOrForwardedDone && latestHeldOrForwarded?.status === "FORWARDED_TO_LAB") || !sampleSentDone || inAnalysisDone || analyzedReadyDone || !!loading}
+              disabled={
+                (heldOrForwardedDone && latestHeldOrForwarded?.status === "FORWARDED_TO_LAB") ||
+                (!allowHoldForwardWithoutSampleSent && !sampleSentDone) ||
+                inAnalysisDone ||
+                analyzedReadyDone ||
+                !!loading
+              }
             >
               {loading === "FORWARDED_TO_LAB" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
               {useExternalHoldForwardLabels ? "Forward to Laboratory" : "Forwarded to Lab"}

@@ -2418,6 +2418,7 @@ export function BookingDetailCard({
                 !traceHasReturned
               }
               useExternalHoldForwardLabels={isExternalBookingType}
+              allowHoldForwardWithoutSampleSent={isFinanceUser}
               restrictBookingUserActionsToSampleSent={(() => {
                 if (isRefunded || isOperatorUnavailable || isBookingNotUtilized || isHold) return true;
                 // Admin/OIC/Lab staff see all actions. Other users see only Sample Sent in sample lifecycle section.
