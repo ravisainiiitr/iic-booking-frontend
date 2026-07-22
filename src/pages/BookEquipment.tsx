@@ -1068,6 +1068,8 @@ const BookEquipment = () => {
   });
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const statusChangeDateClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusWeekSlotsFetchGenRef = useRef(0);
+  const fetchStatusChangeSlotsForWeekRef = useRef<(weekStart: Date) => Promise<void>>(async () => {});
   const fetchingSlotsRef = useRef<boolean>(false);
   const hasCheckedEmptyCurrentWeekRef = useRef<boolean>(false);
   const lastEquipmentIdRef = useRef<number | null>(null);
@@ -1336,10 +1338,19 @@ const BookEquipment = () => {
 
   /** Open week grid for per-slot selection. Clears month/year date selection so Apply uses slot_ids (not a single-day dates payload). */
   const openWeekSlotPopup = (day: Date) => {
+    if (statusChangeDateClickTimerRef.current) {
+      clearTimeout(statusChangeDateClickTimerRef.current);
+      statusChangeDateClickTimerRef.current = null;
+    }
     setSelectedDatesForStatus([]);
     setStatusChangeSelectedMonths([]);
     setSelectedSlotIdsForStatus([]);
-    setStatusChangePopupWeekStart(startOfWeek(day, { weekStartsOn: 1 }));
+    setStatusBulkFocusTime(null);
+    setStatusBulkFocusDayOffset(null);
+    const weekStart = startOfWeek(day, { weekStartsOn: 1 });
+    setStatusChangePopupWeekStart(weekStart);
+    // Always load slots immediately (covers same-week reopen where useEffect may not re-fire).
+    void fetchStatusChangeSlotsForWeekRef.current(weekStart);
   };
 
   // Admin status-change: select the week (Mon–Sun) that contains the given date (for date-based apply)
@@ -1436,28 +1447,63 @@ const BookEquipment = () => {
   // When week slot popup opens, fetch slots for that week
   const fetchStatusChangeSlotsForWeek = useCallback(async (weekStart: Date) => {
     if (!selectedEquipment?.id) return;
+    const fetchGen = ++statusWeekSlotsFetchGenRef.current;
     setLoadingStatusSlots(true);
+    setStatusChangeSlots(null);
     try {
       const weekEnd = addDays(weekStart, 6);
-      const res = await apiClient.getEquipmentSlots(selectedEquipment.id, format(weekStart, 'yyyy-MM-dd'), format(weekEnd, 'yyyy-MM-dd'));
-      if ((res as any)?.error) throw new Error((res as any).error);
-      const data = (res as { data?: { slots?: DailySlot[]; slot_master_times?: string[]; holidays?: Record<string, string> } }).data;
-      if (data?.slots) setStatusChangeSlots(data.slots);
-      else setStatusChangeSlots([]);
-      const times = data?.slot_master_times && data.slot_master_times.length > 0
-        ? data.slot_master_times.map(formatTimeForDisplay).sort()
-        : [];
+      const res = await apiClient.getEquipmentSlots(
+        selectedEquipment.id,
+        format(weekStart, "yyyy-MM-dd"),
+        format(weekEnd, "yyyy-MM-dd")
+      );
+      if (fetchGen !== statusWeekSlotsFetchGenRef.current) return;
+      if (res.error) throw new Error(res.error);
+      const data = res.data;
+      const slots = Array.isArray(data?.slots) ? data.slots : [];
+      setStatusChangeSlots(slots);
+      let times =
+        data?.slot_master_times && data.slot_master_times.length > 0
+          ? data.slot_master_times.map((t) => formatTimeForDisplay(String(t)))
+          : [];
+      // Fallback: derive from returned slots, then from equipment detail masters
+      if (times.length === 0 && slots.length > 0) {
+        const fromSlots = new Set<string>();
+        slots.forEach((s) => {
+          if (s.start_datetime || (s as DailySlot).slot_open_time) {
+            fromSlots.add(timeKeyFromDailySlot(s as DailySlot));
+          }
+        });
+        times = Array.from(fromSlots);
+      }
+      if (times.length === 0) {
+        const detailTimes = (equipmentDetail as { slot_master_times?: string[] } | null)?.slot_master_times;
+        if (Array.isArray(detailTimes) && detailTimes.length > 0) {
+          times = detailTimes.map((t) => formatTimeForDisplay(String(t)));
+        }
+      }
+      times = [...new Set(times.map((t) => normalizeSlotGridTimeKey(t)).filter(Boolean))].sort();
       setStatusChangeSlotMasterTimes(times);
       setStatusChangeHolidays(data?.holidays ?? {});
     } catch {
+      if (fetchGen !== statusWeekSlotsFetchGenRef.current) return;
       toast.error("Could not load status-change slots for this week.");
       setStatusChangeSlots([]);
       setStatusChangeSlotMasterTimes([]);
       setStatusChangeHolidays({});
     } finally {
-      setLoadingStatusSlots(false);
+      if (fetchGen === statusWeekSlotsFetchGenRef.current) {
+        setLoadingStatusSlots(false);
+      }
     }
-  }, [selectedEquipment?.id]);
+  }, [
+    selectedEquipment?.id,
+    // Only the master times fallback — avoid refetch loops on unrelated equipmentDetail identity changes
+    Array.isArray((equipmentDetail as { slot_master_times?: string[] } | null)?.slot_master_times)
+      ? (equipmentDetail as { slot_master_times?: string[] }).slot_master_times!.join("|")
+      : "",
+  ]);
+  fetchStatusChangeSlotsForWeekRef.current = fetchStatusChangeSlotsForWeek;
   useEffect(() => {
     if (statusChangePopupWeekStart && selectedEquipment?.id) {
       fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
@@ -5227,18 +5273,28 @@ const BookEquipment = () => {
                         <button
                           key={dateStr}
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
                             if (!inMonth) return;
+                            // Second click of a double-click: do not schedule single-click (avoids racing week open).
+                            if (e.detail >= 2) {
+                              if (statusChangeDateClickTimerRef.current) {
+                                clearTimeout(statusChangeDateClickTimerRef.current);
+                                statusChangeDateClickTimerRef.current = null;
+                              }
+                              return;
+                            }
                             if (statusChangeDateClickTimerRef.current) {
                               clearTimeout(statusChangeDateClickTimerRef.current);
                             }
-                            const wasSelected = selectedDatesForStatus.includes(dateStr);
                             statusChangeDateClickTimerRef.current = setTimeout(() => {
+                              statusChangeDateClickTimerRef.current = null;
                               toggleDateForStatus(dateStr);
-                              if (wasSelected) setStatusChangePopupWeekStart(null);
-                            }, 220);
+                              // Do not close the week grid when toggling date selection — week view is independent.
+                            }, 280);
                           }}
-                          onDoubleClick={() => {
+                          onDoubleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             if (!inMonth) return;
                             if (statusChangeDateClickTimerRef.current) {
                               clearTimeout(statusChangeDateClickTimerRef.current);
