@@ -76,6 +76,32 @@ function getUserCategoryLabel(userType: number | string | undefined | null, user
   return getUserTypeDisplayName(userType == null ? null : String(userType));
 }
 
+/** Normalize role codes / labels for Accounts In Charge detection (API may send code or display text). */
+function normalizeRoleKey(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function isAccountsInChargeRole(user: {
+  user_type?: unknown;
+  user_type_display?: unknown;
+  user_type_alias?: unknown;
+} | null | undefined): boolean {
+  const code = normalizeRoleKey(user?.user_type);
+  const display = normalizeRoleKey(user?.user_type_display);
+  const alias = normalizeRoleKey(user?.user_type_alias);
+  const blob = `${code}|${display}|${alias}`;
+  return (
+    code === "finance" ||
+    display === "finance" ||
+    blob.includes("finance") ||
+    blob.includes("accountsincharge") ||
+    blob.includes("accountincharge")
+  );
+}
+
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
@@ -319,7 +345,7 @@ const Dashboard = () => {
   /** OIC (manager): keeps extra dashboard tools; lab-style hero + lab dashboard also shown. */
   const isOicUser = userTypeStr === "manager";
   /** Department Account In-charge: focused dashboard only (recharge, external bookings, reports). */
-  const isAccountsInChargeUser = userTypeStr === "finance";
+  const isAccountsInChargeUser = isAccountsInChargeRole(user);
   /** Same weekly metrics, instrument hero, and week calendar as Lab Incharge. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
   const isOperatorOrManager = 
@@ -2277,6 +2303,7 @@ const Dashboard = () => {
           </Card>
         </div>
         ) : (
+        <>
         <div className={`dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
           {isLabInchargeUser && (
             <Card
@@ -3337,7 +3364,6 @@ const Dashboard = () => {
             </Card>
           )}
         </div>
-        )}
 
         {showsLabStyleDashboard && (
           <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-teal-950/[0.06] dark:shadow-none">
@@ -4022,7 +4048,7 @@ const Dashboard = () => {
         )}
 
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
-        {!isOperatorOrManager && !isAccountsInChargeUser && (
+        {!isOperatorOrManager && (
           <section className="mt-12 space-y-8">
             <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
               Your activity
@@ -4195,6 +4221,8 @@ const Dashboard = () => {
               </Card>
             </div>
           </section>
+        )}
+        </>
         )}
 
       </main>
