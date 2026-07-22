@@ -86,10 +86,8 @@ import { cn } from "@/lib/utils";
 import {
   resolveTableColumns,
   resolveTableRowCountSourceKey,
-  parseTableRowCount,
   syncTableRowsToCount,
   applyTableRowSyncToValues,
-  getFieldValueCI,
 } from "@/lib/dynamicTableField";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { toast } from "sonner";
@@ -7242,20 +7240,8 @@ const BookEquipment = () => {
                                 if (columns.length === 0) {
                                   return <p className="text-sm text-muted-foreground">No columns defined for this table.</p>;
                                 }
-                                const sourceVal = sourceKey
-                                  ? parseTableRowCount(getFieldValueCI(inputFieldValues, sourceKey))
-                                  : 0;
                                 return (
                                   <div className="space-y-2">
-                                    {rowCountDriven && (
-                                      <p className="text-xs text-muted-foreground">
-                                        Rows follow field <span className="font-medium text-foreground">{sourceKey}</span>
-                                        {sourceVal > 0
-                                          ? ` (${sourceVal} row${sourceVal === 1 ? "" : "s"}).`
-                                          : ". Enter a value in that field to generate rows."}
-                                        {hasSerialColumn ? " First column is Serial Number (read-only)." : ""}
-                                      </p>
-                                    )}
                                     <div className="rounded-md border overflow-x-auto">
                                       <table className="w-full text-sm border-collapse">
                                         <thead>

@@ -949,18 +949,8 @@ export function BookingUserInputs({
                     if (columns.length === 0) {
                       return <p className="text-sm text-muted-foreground">No columns defined.</p>;
                     }
-                    const sourceVal = sourceKey
-                      ? parseTableRowCount(getFieldValueCI(editFormValues as Record<string, unknown>, sourceKey))
-                      : 0;
                     return (
                       <div className="space-y-2 pt-1">
-                        <p className="text-sm text-muted-foreground">
-                          {rowCountDriven
-                            ? `Rows follow field ${sourceKey}${sourceVal > 0 ? ` (${sourceVal})` : ""}. First column is Serial Number (read-only).`
-                            : hasSerialColumn
-                              ? "Headers are fixed. First column (S.No.) is read-only. Use Add row / delete to change rows."
-                              : "Headers are fixed. Edit any cell below; use Add row to add rows and the delete icon to remove a row."}
-                        </p>
                         <div className="rounded-lg border overflow-x-auto">
                           <table className="w-full text-base border-collapse">
                             <thead>
