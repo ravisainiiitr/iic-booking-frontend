@@ -1254,6 +1254,7 @@ export function BookingDetailCard({
   const hasDownloadableResults = !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0);
   const showIstemWorkflow =
     !isWaitlistedEntry &&
+    !isFinanceUser &&
     (Boolean(booking.require_istem_fbr) || booking.istem_fbr_status != null);
   const istemPortalUrl = (booking.istem_portal_url || "https://www.istem.gov.in/").trim();
   const istemFbrStatusUrl = (booking.istem_fbr_status_url || "").trim();
@@ -2070,6 +2071,7 @@ export function BookingDetailCard({
               {!isHold &&
                 !isOperator &&
                 !isLabInchargeUser &&
+                !isFinanceUser &&
                 canPerformAction(booking, "reschedule", isOperator) &&
                 !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("reschedule", booking)}>
@@ -2579,7 +2581,7 @@ export function BookingDetailCard({
             </DialogContent>
           </Dialog>
 
-          {booking.equipment_profile_type === "PRINT_3D" &&
+          {!isFinanceUser && booking.equipment_profile_type === "PRINT_3D" &&
             (booking.print_analyses?.length || booking.print_analysis) && (
             <div className="rounded-lg border p-4 space-y-2">
               <p className="text-sm font-medium">Print files</p>
@@ -2623,7 +2625,7 @@ export function BookingDetailCard({
             />
           )}
 
-          {booking.input_values && Object.keys(booking.input_values).length > 0 ? (
+          {!isFinanceUser && booking.input_values && Object.keys(booking.input_values).length > 0 ? (
             <BookingUserInputs
               inputValues={booking.input_values}
               inputFields={booking.input_fields ?? undefined}
@@ -2649,7 +2651,7 @@ export function BookingDetailCard({
                 onUpdated();
               }}
             />
-          ) : (
+          ) : !isFinanceUser ? (
             <div className="mt-6 pt-6 border-t border-border/80">
               <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
                 <ul className="divide-y divide-border/50">
@@ -2664,7 +2666,7 @@ export function BookingDetailCard({
                 </ul>
               </div>
             </div>
-          )}
+          ) : null}
 
           {!isWaitlistedEntry && booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
             <div className="mt-4 pt-4 border-t">

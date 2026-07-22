@@ -29,6 +29,7 @@ const Header = () => {
   const hasCheckedRef = useRef(false);
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : '';
   const canManageBookings = ['admin', 'operator', 'manager'].includes(userTypeStr);
+  const isAccountsInCharge = userTypeStr === 'finance';
 
   useEffect(() => {
     // Only check admin status once if authenticated
@@ -150,13 +151,21 @@ const Header = () => {
                       <Calendar className="mr-2 h-4 w-4" />
                       <span>Back to Dashboard</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
-                      <Package className="mr-2 h-4 w-4" />
-                      <span>Browse Equipment</span>
-                    </DropdownMenuItem>
+                    {!isAccountsInCharge && (
+                      <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>Browse Equipment</span>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => safeNavigate(canManageBookings ? "/booking-management" : "/my-bookings")}>
                       <ClipboardList className="mr-2 h-4 w-4" />
-                      <span>{canManageBookings ? "Manage booking" : "My Booking"}</span>
+                      <span>
+                        {canManageBookings
+                          ? "Manage booking"
+                          : isAccountsInCharge
+                            ? "External bookings"
+                            : "My Booking"}
+                      </span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                       <UserIcon className="mr-2 h-4 w-4" />

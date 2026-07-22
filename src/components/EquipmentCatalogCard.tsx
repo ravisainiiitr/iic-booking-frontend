@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import EquipmentImage from "@/components/EquipmentImage";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type EquipmentCardAccent = {
   gradient: string;
@@ -53,7 +54,10 @@ export default function EquipmentCatalogCard({
   onRequestStatusChange,
 }: Props) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [playingVideo, setPlayingVideo] = useState(false);
+  const isAccountsInCharge =
+    user?.user_type != null && String(user.user_type).toLowerCase() === "finance";
 
   const status = (item.status || "").toString();
   const isOperational = status === "ACTIVE";
@@ -216,6 +220,7 @@ export default function EquipmentCatalogCard({
             </span>
           </div>
 
+          {!isAccountsInCharge && (
           <Button
             className={`w-full text-white ${accent.button}`}
             disabled={!isOperational}
@@ -235,8 +240,9 @@ export default function EquipmentCatalogCard({
           >
             Book now
           </Button>
+          )}
 
-          {canChangeSlotStatus ? (
+          {canChangeSlotStatus && !isAccountsInCharge ? (
             <Button
               variant="outline"
               className="w-full border-teal-300/80 text-teal-800 hover:bg-teal-50 dark:border-teal-700 dark:text-teal-200 dark:hover:bg-teal-950/40"

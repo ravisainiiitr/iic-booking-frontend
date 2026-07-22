@@ -222,6 +222,52 @@ export interface FacultyWalletExpenseReportData {
   }>;
 }
 
+/** Response from GET /finance/reports/dashboard/ (Account In-charge / finance dashboard). */
+export interface FinanceReportDashboardData {
+  meta: {
+    institute_name: string;
+    report_title: string;
+    date_from: string;
+    date_to: string;
+    generated_at: string;
+    generated_by: string;
+    note?: string;
+  };
+  summary: {
+    total_revenue: number;
+    internal_revenue: number;
+    external_revenue: number;
+    wallet_recharges: number;
+    pending_payments: number;
+    refunded_amount: number;
+    outstanding_dues: number;
+    booking_count: number;
+    avg_booking_value: number;
+  };
+  charts: {
+    revenue_trend: Array<{ date: string; revenue: number }>;
+    internal_vs_external: Array<{ name: string; value: number }>;
+    revenue_by_department: Array<{ name: string; revenue: number; bookings: number }>;
+    revenue_by_org_category: Array<{ name: string; revenue: number; bookings: number; pct: number }>;
+    equipment_revenue: Array<{ name: string; code: string; revenue: number; bookings: number }>;
+  };
+  tables: {
+    internal_by_department: Array<{ name: string; revenue: number; bookings: number }>;
+    internal_by_equipment: Array<{ name: string; code: string; revenue: number; bookings: number }>;
+    external_by_category: Array<{ name: string; revenue: number; bookings: number }>;
+    equipment_analysis: Array<{ name: string; code: string; revenue: number; bookings: number; booking_hours: number }>;
+    payment_analytics: {
+      wallet_recharge_approved: number;
+      wallet_recharge_pending: number;
+      wallet_recharge_rejected: number;
+      wallet_recharge_cancelled: number;
+      project_grant: number;
+      direct_cash_deposit: number;
+      online_payments: number;
+    };
+  };
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -2261,6 +2307,22 @@ class ApiClient {
     const qs = q.toString();
     return this.request<FacultyWalletExpenseReportData>(
       `/wallet/faculty-expense-report/${qs ? `?${qs}` : ""}`,
+    );
+  }
+
+  /** Account In-charge (finance): executive department finance report (date preset or custom range). */
+  async getFinanceReportDashboard(params?: {
+    preset?: string;
+    date_from?: string;
+    date_to?: string;
+  }) {
+    const q = new URLSearchParams();
+    if (params?.preset) q.set("preset", params.preset);
+    if (params?.date_from) q.set("date_from", params.date_from);
+    if (params?.date_to) q.set("date_to", params.date_to);
+    const qs = q.toString();
+    return this.request<FinanceReportDashboardData>(
+      `/finance/reports/dashboard/${qs ? `?${qs}` : ""}`,
     );
   }
 

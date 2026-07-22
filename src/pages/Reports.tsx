@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import DashboardHeader from "@/components/DashboardHeader";
+import FinanceReports from "@/pages/FinanceReports";
 import { useToast } from "@/hooks/use-toast";
 import {
   PieChart,
@@ -144,6 +145,8 @@ const Reports = () => {
   });
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  /** Account In-charge (finance): dedicated executive finance dashboard, replaces this whole page. */
+  const [isFinanceUser, setIsFinanceUser] = useState(false);
   /** Lab Incharge (operator): restricted view — equipment performance only. */
   const [isLabInchargeUser, setIsLabInchargeUser] = useState(false);
   /** IITR Faculty: research-group wallet spend vs balance (linked students). */
@@ -187,9 +190,16 @@ const Reports = () => {
       return;
     }
 
+    const userTypeLower0 = String(userResponse.data.user_type || "").toLowerCase();
+    if (userTypeLower0 === "finance") {
+      setIsFinanceUser(true);
+      setLoading(false);
+      return;
+    }
+
     const adminByType = apiClient.isAdminPanelUser(userResponse.data.user_type);
     const adminCheck = await apiClient.checkAdminRole(String(userResponse.data.id));
-    const userTypeLower = String(userResponse.data.user_type || "").toLowerCase();
+    const userTypeLower = userTypeLower0;
     const canEquipReports =
       userTypeLower === "admin" ||
       userTypeLower === "finance" ||
@@ -391,6 +401,10 @@ const Reports = () => {
         </div>
       </div>
     );
+  }
+
+  if (isFinanceUser) {
+    return <FinanceReports />;
   }
 
   return (
