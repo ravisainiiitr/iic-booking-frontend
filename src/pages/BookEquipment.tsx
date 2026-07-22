@@ -81,8 +81,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
+import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
+import {
+  resolveTableColumns,
+  parseTableRowCount,
+  syncTableRowsToCount,
+  tableRowsEqual,
+} from "@/lib/dynamicTableField";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
@@ -333,23 +339,16 @@ function getInitialDynamicInputValue(field: any): string | boolean | string[] | 
   }
   if (fieldType === "TABLE") {
     const sourceKey = String(field.source_element_field_key || "").trim();
-    let cols = Array.isArray(field.options)
-      ? field.options.map((h: any) => String(h?.value ?? h ?? "").trim()).filter(Boolean)
-      : [];
-    if (sourceKey) {
-      const first = (cols[0] || "").toLowerCase();
-      const hasSerial =
-        first.includes("sr") ||
-        first.includes("serial") ||
-        first === "s.no" ||
-        first === "s.no." ||
-        first === "s no";
-      if (!hasSerial) cols = ["Sr. No.", ...cols];
-      if (cols.length === 0) cols = ["Sr. No."];
-    }
-    const colCount = cols.length;
+    const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
+      rowCountDriven: Boolean(sourceKey),
+    });
+    const colCount = columns.length;
     if (!colCount) return [];
-    if (!sourceKey) return [Array(colCount).fill("")];
+    if (!sourceKey) {
+      const row = Array(colCount).fill("");
+      if (hasSerialColumn) row[0] = "1";
+      return [row];
+    }
     // Row count driven by another field — start with 0 rows until that value is known
     return [];
   }
@@ -4196,37 +4195,13 @@ const BookEquipment = () => {
         if (String(field.field_type || "").toUpperCase().trim() !== "TABLE") continue;
         const sourceKey = String(field.source_element_field_key || "").trim();
         if (!sourceKey) continue;
-        const rawCount = prev[sourceKey];
-        const n = Math.max(0, Math.floor(Number(rawCount) || 0));
-        let cols = Array.isArray(field.options)
-          ? field.options.map((h: any) => String(h?.value ?? h ?? "").trim()).filter(Boolean)
-          : [];
-        const first = (cols[0] || "").toLowerCase();
-        const hasSerial =
-          first.includes("sr") ||
-          first.includes("serial") ||
-          first === "s.no" ||
-          first === "s.no." ||
-          first === "s no";
-        if (!hasSerial) cols = ["Sr. No.", ...cols];
-        if (cols.length === 0) cols = ["Sr. No."];
-        const colCount = cols.length;
+        const n = parseTableRowCount(prev[sourceKey]);
+        const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
+          rowCountDriven: true,
+        });
         const prevRows = (Array.isArray(prev[field.field_key]) ? prev[field.field_key] : []) as string[][];
-        const built: string[][] = [];
-        for (let i = 0; i < n; i++) {
-          const row = prevRows[i] ? prevRows[i].slice() : Array(colCount).fill("");
-          while (row.length < colCount) row.push("");
-          row[0] = String(i + 1);
-          built.push(row.slice(0, colCount));
-        }
-        const same =
-          prevRows.length === built.length &&
-          built.every(
-            (r, i) =>
-              r.length === (prevRows[i]?.length || 0) &&
-              r.every((c, j) => c === (prevRows[i]?.[j] ?? ""))
-          );
-        if (!same) {
+        const built = syncTableRowsToCount(prevRows, n, columns.length, hasSerialColumn);
+        if (!tableRowsEqual(prevRows, built)) {
           next[field.field_key] = built as any;
           changed = true;
         }
@@ -7017,7 +6992,7 @@ const BookEquipment = () => {
                                 const elementsStr = (inputFieldValues[field.field_key + '_elements'] as string) || '';
                                 const elementsList = elementsStr ? elementsStr.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
                                 const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(field.help_text);
-                                const { all: displayList, billable } = mergePeriodicDisplaySymbols(elementsList, field.help_text);
+                                const { all: displayList } = mergePeriodicDisplaySymbols(elementsList, field.help_text);
                                 const allowedList = displayList.filter((s) => !disabledSet.has(s));
                                 return (
                                   <div className="space-y-2">
@@ -7035,11 +7010,8 @@ const BookEquipment = () => {
                                     </Button>
                                     {(count > 0 || allowedList.length > 0) && (
                                       <p className="text-sm text-muted-foreground">
-                                        {allowedList.length} element(s) selected
-                                        {preselectedSet.size > 0
-                                          ? ` (${billable.length} for charge; ${Array.from(preselectedSet).join(", ")} locked)`
-                                          : ""}
-                                        {allowedList.length ? `: ${allowedList.join(', ')}` : ''}
+                                        {periodicSelectionChargeSummaryFromHelpText(allowedList, field.help_text)}
+                                        {allowedList.length ? ` Selected: ${allowedList.join(", ")}.` : ""}
                                       </p>
                                     )}
                                   </div>
@@ -7247,53 +7219,46 @@ const BookEquipment = () => {
 
                               case 'TABLE': {
                                 const sourceKey = String(field.source_element_field_key || "").trim();
-                                let columns = Array.isArray(field.options)
-                                  ? field.options.map((h: any) => String(h?.value ?? h ?? "").trim()).filter(Boolean)
-                                  : [];
-                                const firstHdr = (columns[0] || "").toLowerCase();
-                                const hasSerialHdr =
-                                  firstHdr.includes("sr") ||
-                                  firstHdr.includes("serial") ||
-                                  firstHdr === "s.no" ||
-                                  firstHdr === "s.no." ||
-                                  firstHdr === "s no";
                                 const rowCountDriven = Boolean(sourceKey);
-                                if (rowCountDriven && !hasSerialHdr) {
-                                  columns = ["Sr. No.", ...columns];
-                                }
-                                if (rowCountDriven && columns.length === 0) columns = ["Sr. No."];
+                                const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
+                                  rowCountDriven,
+                                });
                                 const rows = (inputFieldValues[field.field_key] as string[][] | undefined) || [];
-                                const serialLocked = rowCountDriven;
+                                const serialLocked = hasSerialColumn;
                                 const addRow = () => {
-                                  if (serialLocked) return;
-                                  const newRow = Array(columns.length).fill('');
+                                  if (rowCountDriven) return;
+                                  const newRow = Array(columns.length).fill("");
+                                  if (hasSerialColumn) newRow[0] = String(rows.length + 1);
                                   handleInputFieldChange(field.field_key, [...rows, newRow] as any);
                                 };
                                 const deleteRow = (rowIdx: number) => {
-                                  if (serialLocked) return;
+                                  if (rowCountDriven) return;
                                   const next = rows.filter((_, i) => i !== rowIdx);
-                                  handleInputFieldChange(field.field_key, next as any);
+                                  const renumbered = hasSerialColumn
+                                    ? syncTableRowsToCount(next, next.length, columns.length, true)
+                                    : next;
+                                  handleInputFieldChange(field.field_key, renumbered as any);
                                 };
                                 const setCell = (rowIdx: number, colIdx: number, val: string) => {
                                   if (serialLocked && colIdx === 0) return;
                                   const next = rows.map((r, i) => (i === rowIdx ? r.slice() : r));
-                                  if (!next[rowIdx]) next[rowIdx] = Array(columns.length).fill('');
+                                  if (!next[rowIdx]) next[rowIdx] = Array(columns.length).fill("");
                                   next[rowIdx][colIdx] = val;
                                   handleInputFieldChange(field.field_key, next as any);
                                 };
                                 if (columns.length === 0) {
                                   return <p className="text-sm text-muted-foreground">No columns defined for this table.</p>;
                                 }
-                                const sourceVal = sourceKey ? Number(inputFieldValues[sourceKey]) : NaN;
+                                const sourceVal = sourceKey ? parseTableRowCount(inputFieldValues[sourceKey]) : 0;
                                 return (
                                   <div className="space-y-2">
                                     {rowCountDriven && (
                                       <p className="text-xs text-muted-foreground">
                                         Rows follow field <span className="font-medium text-foreground">{sourceKey}</span>
-                                        {Number.isFinite(sourceVal) && sourceVal > 0
-                                          ? ` (${Math.floor(sourceVal)} row${Math.floor(sourceVal) === 1 ? "" : "s"}).`
+                                        {sourceVal > 0
+                                          ? ` (${sourceVal} row${sourceVal === 1 ? "" : "s"}).`
                                           : ". Enter a value in that field to generate rows."}
-                                        {" "}First column is Serial Number.
+                                        {hasSerialColumn ? " First column is Serial Number (read-only)." : ""}
                                       </p>
                                     )}
                                     <div className="rounded-md border overflow-x-auto">
@@ -7305,17 +7270,17 @@ const BookEquipment = () => {
                                                 {header}
                                               </th>
                                             ))}
-                                            {!serialLocked && <th className="w-10 p-2 text-center"> </th>}
+                                            {!rowCountDriven && <th className="w-10 p-2 text-center"> </th>}
                                           </tr>
                                         </thead>
                                         <tbody>
                                           {rows.length === 0 ? (
                                             <tr>
                                               <td
-                                                colSpan={columns.length + (serialLocked ? 0 : 1)}
+                                                colSpan={columns.length + (rowCountDriven ? 0 : 1)}
                                                 className="p-2 text-muted-foreground text-center"
                                               >
-                                                {serialLocked
+                                                {rowCountDriven
                                                   ? "No rows yet — set the row-count field above."
                                                   : "No rows. Click + to add."}
                                               </td>
@@ -7340,7 +7305,7 @@ const BookEquipment = () => {
                                                     )}
                                                   </td>
                                                 ))}
-                                                {!serialLocked && (
+                                                {!rowCountDriven && (
                                                   <td className="p-1 w-10 text-center align-middle">
                                                     <Button
                                                       type="button"
@@ -7361,7 +7326,7 @@ const BookEquipment = () => {
                                         </tbody>
                                       </table>
                                     </div>
-                                    {!serialLocked && (
+                                    {!rowCountDriven && (
                                       <div className="flex gap-2">
                                         <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={!!repeatSourceBooking}>
                                           <Plus className="h-4 w-4 mr-1" />
@@ -7486,15 +7451,9 @@ const BookEquipment = () => {
                           return (
                             <>
                               <p className="text-sm text-muted-foreground">
-                                {selectedPeriodicSymbols.size} element(s) selected. Count for charge excludes locked preselected elements.
-                                {disabledSet.size > 0 && (
-                                  <span className="block mt-1"> Elements listed in Help text (admin) are disabled and cannot be selected.</span>
-                                )}
-                                {preselectedSet.size > 0 && (
-                                  <span className="block mt-1">
-                                    {" "}
-                                    Locked (Help text <code className="text-xs">/Symbol</code>): {Array.from(preselectedSet).join(", ")} — always selected, not charged, cannot be deselected.
-                                  </span>
+                                {periodicSelectionChargeSummaryFromHelpText(
+                                  selectedPeriodicSymbols,
+                                  field?.help_text
                                 )}
                               </p>
                               <div className="overflow-x-auto">

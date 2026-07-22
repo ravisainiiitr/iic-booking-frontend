@@ -21,10 +21,16 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
-import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, type Element } from "@/data/periodicTableData";
+import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
+import {
+  resolveTableColumns,
+  parseTableRowCount,
+  syncTableRowsToCount,
+  tableRowsEqual,
+} from "@/lib/dynamicTableField";
 
 export interface InputFieldDef {
   field_key: string;
@@ -263,23 +269,34 @@ export function BookingUserInputs({
     fields.forEach((f) => {
       if (String(f.field_type || "").toUpperCase() !== "TABLE") return;
       const raw = iv[f.field_key];
+      let rows: string[][] = [];
       if (raw === undefined || raw === null) {
-        initial[f.field_key] = [];
-        return;
-      }
-      if (typeof raw === "string") {
+        rows = [];
+      } else if (typeof raw === "string") {
         try {
           const parsed = JSON.parse(raw) as unknown;
-          initial[f.field_key] = Array.isArray(parsed) && parsed.every((r) => Array.isArray(r))
-            ? (parsed as string[][])
-            : [];
+          rows =
+            Array.isArray(parsed) && parsed.every((r) => Array.isArray(r))
+              ? (parsed as string[][])
+              : [];
         } catch {
-          initial[f.field_key] = [];
+          rows = [];
         }
-        return;
+      } else if (Array.isArray(raw) && raw.every((r) => Array.isArray(r))) {
+        rows = raw as string[][];
       }
-      if (Array.isArray(raw) && raw.every((r) => Array.isArray(r))) {
-        initial[f.field_key] = raw as string[][];
+
+      const sourceKey = String(f.source_element_field_key ?? "").trim();
+      const { columns, hasSerialColumn } = resolveTableColumns(f.options, {
+        rowCountDriven: Boolean(sourceKey),
+      });
+      if (sourceKey) {
+        const n = parseTableRowCount(initial[sourceKey] ?? iv[sourceKey]);
+        initial[f.field_key] = syncTableRowsToCount(rows, n, columns.length, hasSerialColumn);
+      } else if (hasSerialColumn && rows.length > 0) {
+        initial[f.field_key] = syncTableRowsToCount(rows, rows.length, columns.length, true);
+      } else {
+        initial[f.field_key] = rows;
       }
     });
     setEditFormValues(initial);
@@ -413,6 +430,32 @@ export function BookingUserInputs({
       return next;
     });
   };
+
+  /** Keep TABLE rows in sync with linked numeric field while the edit dialog is open. */
+  useEffect(() => {
+    if (!editDialogOpen) return;
+    const defs = editableFields.length > 0 ? editableFields : fields;
+    setEditFormValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const f of defs) {
+        if (String(f.field_type || "").toUpperCase() !== "TABLE") continue;
+        const sourceKey = String(f.source_element_field_key ?? "").trim();
+        if (!sourceKey) continue;
+        const n = parseTableRowCount(prev[sourceKey]);
+        const { columns, hasSerialColumn } = resolveTableColumns(f.options, {
+          rowCountDriven: true,
+        });
+        const prevRows = (Array.isArray(prev[f.field_key]) ? prev[f.field_key] : []) as string[][];
+        const built = syncTableRowsToCount(prevRows, n, columns.length, hasSerialColumn);
+        if (!tableRowsEqual(prevRows, built)) {
+          next[f.field_key] = built;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [editDialogOpen, editFormValues, editableFields, fields]);
 
   return (
     <div className="mt-6 pt-6 border-t border-border/80">
@@ -851,13 +894,8 @@ export function BookingUserInputs({
                     return (
                       <div className="space-y-2 pt-1">
                         <p className="text-sm text-muted-foreground">
-                          {selectedSymbols.size} element(s) selected
-                          {preselectedSet.size > 0
-                            ? ` (${mergePeriodicDisplaySymbols(Array.from(selectedSymbols), f.help_text).billable.length} for charge; locked: ${Array.from(preselectedSet).join(", ")})`
-                            : ""}
-                          . Click elements to toggle.
-                          {disabledSet.size > 0 && " Elements listed in Help text are disabled."}
-                          {preselectedSet.size > 0 && " Slash-prefixed Help text elements are locked and not charged."}
+                          {periodicSelectionChargeSummaryFromHelpText(selectedSymbols, f.help_text)} Click
+                          elements to toggle.
                         </p>
                         <div className="overflow-x-auto rounded-md border p-2 bg-muted/30">
                           <div className="inline-block min-w-max">
@@ -894,19 +932,29 @@ export function BookingUserInputs({
                     );
                   })()}
                   {type === "TABLE" && (() => {
-                    const columns = Array.isArray(f.options)
-                      ? f.options.map((o) => (typeof o === "string" ? o : o?.label ?? o?.value ?? ""))
-                      : [];
+                    const sourceKey = String(f.source_element_field_key ?? "").trim();
+                    const rowCountDriven = Boolean(sourceKey);
+                    const { columns, hasSerialColumn } = resolveTableColumns(f.options, {
+                      rowCountDriven,
+                    });
                     const rows = (editFormValues[f.field_key] as string[][] | undefined) || [];
+                    const serialLocked = hasSerialColumn;
                     const addRow = () => {
+                      if (rowCountDriven) return;
                       const newRow = Array(columns.length).fill("");
+                      if (hasSerialColumn) newRow[0] = String(rows.length + 1);
                       updateFormValue(f.field_key, [...rows, newRow]);
                     };
                     const deleteRow = (rowIdx: number) => {
+                      if (rowCountDriven) return;
                       const next = rows.filter((_, i) => i !== rowIdx);
-                      updateFormValue(f.field_key, next);
+                      const renumbered = hasSerialColumn
+                        ? syncTableRowsToCount(next, next.length, columns.length, true)
+                        : next;
+                      updateFormValue(f.field_key, renumbered);
                     };
                     const setCell = (rowIdx: number, colIdx: number, cellVal: string) => {
+                      if (serialLocked && colIdx === 0) return;
                       const next = rows.map((r, i) => (i === rowIdx ? r.slice() : r));
                       if (!next[rowIdx]) next[rowIdx] = Array(columns.length).fill("");
                       next[rowIdx][colIdx] = cellVal;
@@ -915,10 +963,15 @@ export function BookingUserInputs({
                     if (columns.length === 0) {
                       return <p className="text-sm text-muted-foreground">No columns defined.</p>;
                     }
+                    const sourceVal = sourceKey ? parseTableRowCount(editFormValues[sourceKey]) : 0;
                     return (
                       <div className="space-y-2 pt-1">
                         <p className="text-sm text-muted-foreground">
-                          Headers are fixed. Edit any cell below; use Add row to add rows and the delete icon to remove a row.
+                          {rowCountDriven
+                            ? `Rows follow field ${sourceKey}${sourceVal > 0 ? ` (${sourceVal})` : ""}. First column is Serial Number (read-only).`
+                            : hasSerialColumn
+                              ? "Headers are fixed. First column (S.No.) is read-only. Use Add row / delete to change rows."
+                              : "Headers are fixed. Edit any cell below; use Add row to add rows and the delete icon to remove a row."}
                         </p>
                         <div className="rounded-lg border overflow-x-auto">
                           <table className="w-full text-base border-collapse">
@@ -929,14 +982,19 @@ export function BookingUserInputs({
                                     {header}
                                   </th>
                                 ))}
-                                <th className="w-10 p-2.5 text-center" title="Delete row"> </th>
+                                {!rowCountDriven && <th className="w-10 p-2.5 text-center" title="Delete row"> </th>}
                               </tr>
                             </thead>
                             <tbody>
                               {rows.length === 0 ? (
                                 <tr>
-                                  <td colSpan={columns.length + 1} className="p-3 text-muted-foreground text-center text-sm">
-                                    No rows. Click + to add.
+                                  <td
+                                    colSpan={columns.length + (rowCountDriven ? 0 : 1)}
+                                    className="p-3 text-muted-foreground text-center text-sm"
+                                  >
+                                    {rowCountDriven
+                                      ? "No rows yet — set the row-count field."
+                                      : "No rows. Click + to add."}
                                   </td>
                                 </tr>
                               ) : (
@@ -944,35 +1002,45 @@ export function BookingUserInputs({
                                   <tr key={ri} className="border-b last:border-0">
                                     {columns.map((_, ci) => (
                                       <td key={ci} className="p-1.5 border-r last:border-r-0">
-                                        <Input
-                                          className="h-9 text-base"
-                                          value={row[ci] ?? ""}
-                                          onChange={(e) => setCell(ri, ci, e.target.value)}
-                                        />
+                                        {serialLocked && ci === 0 ? (
+                                          <span className="inline-flex h-9 items-center px-3 text-base font-medium tabular-nums text-muted-foreground">
+                                            {row[ci] ?? String(ri + 1)}
+                                          </span>
+                                        ) : (
+                                          <Input
+                                            className="h-9 text-base"
+                                            value={row[ci] ?? ""}
+                                            onChange={(e) => setCell(ri, ci, e.target.value)}
+                                          />
+                                        )}
                                       </td>
                                     ))}
-                                    <td className="p-1 w-10 text-center align-middle">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                        onClick={() => deleteRow(ri)}
-                                        title="Delete row"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </td>
+                                    {!rowCountDriven && (
+                                      <td className="p-1 w-10 text-center align-middle">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                          onClick={() => deleteRow(ri)}
+                                          title="Delete row"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </td>
+                                    )}
                                   </tr>
                                 ))
                               )}
                             </tbody>
                           </table>
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={addRow}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add row
-                        </Button>
+                        {!rowCountDriven && (
+                          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add row
+                          </Button>
+                        )}
                       </div>
                     );
                   })()}

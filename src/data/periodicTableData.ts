@@ -250,3 +250,29 @@ export function mergePeriodicDisplaySymbols(
   const all = [...preselectedList, ...billable.filter((s) => !preselected.has(s))];
   return { all, billable, preselected: preselectedList };
 }
+
+/**
+ * User-facing summary for Periodic Table / Element Selector dialogs.
+ * Example: "6 elements selected. Charges will be calculated only for 5 elements."
+ */
+export function formatPeriodicSelectionChargeSummary(
+  selectedCount: number,
+  chargeableCount: number
+): string {
+  const selected = Math.max(0, Math.floor(selectedCount));
+  const chargeable = Math.max(0, Math.floor(chargeableCount));
+  const selectedPhrase =
+    selected === 1 ? "1 element selected" : `${selected} elements selected`;
+  const chargePhrase =
+    chargeable === 1 ? "1 element" : `${chargeable} elements`;
+  return `${selectedPhrase}. Charges will be calculated only for ${chargePhrase}.`;
+}
+
+/** Build the charge summary from current selection + field Help text configuration. */
+export function periodicSelectionChargeSummaryFromHelpText(
+  selectedSymbols: Iterable<string>,
+  helpText: string | null | undefined
+): string {
+  const { all, billable } = mergePeriodicDisplaySymbols(selectedSymbols, helpText);
+  return formatPeriodicSelectionChargeSummary(all.length, billable.length);
+}
