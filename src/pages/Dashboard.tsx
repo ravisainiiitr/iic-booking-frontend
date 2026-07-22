@@ -318,6 +318,8 @@ const Dashboard = () => {
   const isLabInchargeUser = userTypeStr === "operator";
   /** OIC (manager): keeps extra dashboard tools; lab-style hero + lab dashboard also shown. */
   const isOicUser = userTypeStr === "manager";
+  /** Department Account In-charge: focused dashboard only (recharge, external bookings, reports). */
+  const isAccountsInChargeUser = userTypeStr === "finance";
   /** Same weekly metrics, instrument hero, and week calendar as Lab Incharge. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
   const isOperatorOrManager = 
@@ -326,7 +328,8 @@ const Dashboard = () => {
   // Admin Settings section is visible to Main Admin always, and to other roles only when the
   // Main Administrator has configured Admin Panel access for their user type + department.
   const isAdmin = userTypeStr === 'admin';
-  const canSeeAdminSettingsCard = isAdmin || hasAdminPanelAccess(user);
+  const canSeeAdminSettingsCard =
+    !isAccountsInChargeUser && (isAdmin || hasAdminPanelAccess(user));
   const isDeptAdmin = userTypeStr === 'dept_admin';
   const isExternalRelations = userTypeStr === 'external_relations';
   const isOrgAdmin = userTypeStr === 'org_admin';
@@ -378,13 +381,13 @@ const Dashboard = () => {
     userTypeStr === "student" ||
     userTypeStr === "individual_student";
 
-  // Admin and OIC (manager, operator, finance) can see booking attempt log
+  // Admin and OIC (manager, operator) can see booking attempt log — not Account In-charge
   const canAccessBookingAttemptLog =
-    apiClient.isAdminPanelUser(user?.user_type) ||
-    userTypeStr === 'admin' ||
-    userTypeStr === 'manager' ||
-    userTypeStr === 'operator' ||
-    userTypeStr === 'finance';
+    !isAccountsInChargeUser &&
+    (apiClient.isAdminPanelUser(user?.user_type) ||
+      userTypeStr === "admin" ||
+      userTypeStr === "manager" ||
+      userTypeStr === "operator");
 
   const canAccessAdminTools = apiClient.isAdminPanelUser(user?.user_type) || canAccessBookingAttemptLog;
 
@@ -2162,8 +2165,8 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* Pending rating prompt for bookable end-users only (not staff / Dept Admin) */}
-        {!isOperatorOrManager && !isDeptAdmin && pendingRatingBookings.length > 0 && (
+        {/* Pending rating prompt for bookable end-users only (not staff / Dept Admin / Account In-charge) */}
+        {!isOperatorOrManager && !isDeptAdmin && !isAccountsInChargeUser && pendingRatingBookings.length > 0 && (
           <Card className="dashboard-notice-card dashboard-notice-warning mb-8 border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950/40 shadow-md">
             <CardContent className="py-5 px-6">
               <div className="flex flex-wrap items-center gap-4">
@@ -2193,6 +2196,87 @@ const Dashboard = () => {
           {isAdmin ? "Quick access" : "Get started"}
         </p>
 
+        {isAccountsInChargeUser ? (
+        <div className="dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
+            onClick={() => navigate("/admin-settings/wallet-recharge-requests")}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                  <Banknote className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Wallet Recharge Requests</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Review received recharge requests and approve them
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                Review &amp; approve
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800 h-full"
+            onClick={() => navigate("/my-bookings")}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
+                  <Globe2 className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">External Booking Requests</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Manage external sample bookings (hold and forward to laboratory)
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">
+                Manage external bookings
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { window.location.href = `${window.location.origin}/reports`; }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/reports`; } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View booking and financial reports
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors">
+                View Reports
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+        ) : (
         <div className={`dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
           {isLabInchargeUser && (
             <Card
@@ -3253,6 +3337,7 @@ const Dashboard = () => {
             </Card>
           )}
         </div>
+        )}
 
         {showsLabStyleDashboard && (
           <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-teal-950/[0.06] dark:shadow-none">
@@ -3937,7 +4022,7 @@ const Dashboard = () => {
         )}
 
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
-        {!isOperatorOrManager && (
+        {!isOperatorOrManager && !isAccountsInChargeUser && (
           <section className="mt-12 space-y-8">
             <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
               Your activity

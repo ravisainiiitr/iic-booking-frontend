@@ -254,9 +254,14 @@ export default function AdminWalletRechargeRequests() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/user-management")} className="mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(isFinance ? "/dashboard" : "/user-management")}
+            className="mb-2"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to User Management
+            {isFinance ? "Back to Dashboard" : "Back to User Management"}
           </Button>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Banknote className="h-8 w-8 text-primary" />
@@ -264,7 +269,7 @@ export default function AdminWalletRechargeRequests() {
           </h1>
           <p className="text-muted-foreground mt-1">
             {isFinance
-              ? "View wallet recharge requests and verify fund receipt. You cannot approve, reject, or cancel requests."
+              ? "Review wallet recharge requests, verify fund receipt, and approve pending requests. Reject and cancel remain with administrators."
               : "Full history with search, filters, audit trail, and admin approve / reject / cancel. Admin actions immediately invalidate email approval links."}
           </p>
         </div>
@@ -404,7 +409,7 @@ export default function AdminWalletRechargeRequests() {
                                 <BadgeCheck className="h-4 w-4 text-primary" />
                               </Button>
                             ) : null}
-                            {!isFinance && row.status === "PENDING" && row.user_otp_verified !== false ? (
+                            {row.status === "PENDING" && row.user_otp_verified !== false ? (
                               <>
                                 <Button
                                   variant="ghost"
@@ -414,22 +419,26 @@ export default function AdminWalletRechargeRequests() {
                                 >
                                   <Check className="h-4 w-4 text-primary" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openAction(row, "reject")}
-                                  title="Reject"
-                                >
-                                  <X className="h-4 w-4 text-destructive" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openAction(row, "cancel")}
-                                  title="Cancel"
-                                >
-                                  <Ban className="h-4 w-4" />
-                                </Button>
+                                {!isFinance ? (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => openAction(row, "reject")}
+                                      title="Reject"
+                                    >
+                                      <X className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => openAction(row, "cancel")}
+                                      title="Cancel"
+                                    >
+                                      <Ban className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                ) : null}
                               </>
                             ) : null}
                           </div>
