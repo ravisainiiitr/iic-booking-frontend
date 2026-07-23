@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Loader2, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { linesToOptions, normalizeOptionsList, optionsToLines } from "@/lib/dynamicFieldOptions";
 import {
   Dialog,
   DialogContent,
@@ -565,7 +566,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             editing_required: i.editing_required === true,
             default_value: String(i.default_value ?? ""),
             options: Array.isArray(rawOpts)
-              ? (rawOpts as string[])
+              ? normalizeOptionsList(rawOpts)
               : optsObj
                 ? optsObj
                 : [],
@@ -706,7 +707,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         }
         return {
           ...f,
-          options: Array.isArray(f.options) ? f.options : [],
+          options: normalizeOptionsList(f.options),
         };
       }),
       print_materials: formData.print_materials ?? [],
@@ -2424,7 +2425,21 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     onValueChange={(v) =>
                       setFormData((p) => {
                         const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = { ...arr[idx], field_type: v };
+                        const prev = arr[idx];
+                        const nextType = String(v || "").toUpperCase();
+                        const prevType = String(prev.field_type || "").toUpperCase();
+                        let nextOptions = prev.options;
+                        if (nextType === "NUMERIC") {
+                          nextOptions =
+                            prev.options && typeof prev.options === "object" && !Array.isArray(prev.options)
+                              ? prev.options
+                              : {};
+                        } else if (prevType === "NUMERIC" || !Array.isArray(prev.options)) {
+                          nextOptions = [];
+                        } else {
+                          nextOptions = normalizeOptionsList(prev.options);
+                        }
+                        arr[idx] = { ...prev, field_type: v, options: nextOptions as typeof prev.options };
                         return { ...p, input_fields: arr };
                       })
                     }
@@ -2528,18 +2543,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <Label className="text-xs">Options (one per line)</Label>
                   <Textarea
                     rows={3}
-                    value={Array.isArray(f.options) ? f.options.join("\n") : ""}
+                    value={optionsToLines(f.options)}
                     onChange={(e) =>
                       setFormData((p) => {
                         const arr = [...(p.input_fields ?? [])];
                         arr[idx] = {
                           ...arr[idx],
-                          options: e.target.value.split("\n").map((s) => s.trim()).filter((s) => s.length > 0),
+                          options: linesToOptions(e.target.value),
                         };
                         return { ...p, input_fields: arr };
                       })
                     }
-                    placeholder={"For RADIO / COMBO / MULTI_SELECT, one option per line"}
+                    placeholder={"For RADIO / COMBO / MULTI_SELECT / TABLE, one option (or column header) per line"}
                     disabled={String(f.field_type || "").toUpperCase() === "NUMERIC"}
                   />
                   {String(f.field_type || "").toUpperCase() === "NUMERIC" && (

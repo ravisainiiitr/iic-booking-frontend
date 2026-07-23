@@ -89,6 +89,7 @@ import {
   syncTableRowsToCount,
   applyTableRowSyncToValues,
 } from "@/lib/dynamicTableField";
+import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
@@ -6865,11 +6866,10 @@ const BookEquipment = () => {
                                     disabled={!!repeatSourceBooking}
                                   >
                                     {field.options && field.options.length > 0 ? (
-                                      field.options.map((option: any) => {
-                                        const optionValue = String(option.value || option);
-                                        const optionLabel = option.label || option;
+                                      field.options.map((option: any, oi: number) => {
+                                        const { value: optionValue, label: optionLabel } = normalizeChoiceOption(option, oi);
                                         return (
-                                          <div key={optionValue} className="flex items-center space-x-2">
+                                          <div key={`${field.field_key}-${oi}-${optionValue}`} className="flex items-center space-x-2">
                                             <RadioGroupItem value={optionValue} id={`${field.field_key}-${optionValue}`} />
                                             <Label
                                               htmlFor={`${field.field_key}-${optionValue}`}
@@ -6899,11 +6899,10 @@ const BookEquipment = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                       {field.options && field.options.length > 0 ? (
-                                        field.options.map((option: any) => {
-                                          const optionValue = String(option.value || option);
-                                          const optionLabel = option.label || option;
+                                        field.options.map((option: any, oi: number) => {
+                                          const { value: optionValue, label: optionLabel } = normalizeChoiceOption(option, oi);
                                           return (
-                                            <SelectItem key={optionValue} value={optionValue}>
+                                            <SelectItem key={`${field.field_key}-${oi}-${optionValue}`} value={optionValue}>
                                               {optionLabel}
                                             </SelectItem>
                                           );
@@ -6923,14 +6922,13 @@ const BookEquipment = () => {
                                 return (
                                   <div className="space-y-2">
                                     {field.options && field.options.length > 0 ? (
-                                      field.options.map((option: any) => {
-                                        const optionValue = option.value || option;
-                                        const optionLabel = option.label || option;
+                                      field.options.map((option: any, oi: number) => {
+                                        const { value: optionValue, label: optionLabel } = normalizeChoiceOption(option, oi);
                                         const currentValues = (inputFieldValues[field.field_key] as string[]) || [];
                                         const isChecked = currentValues.includes(optionValue);
                                         
                                         return (
-                                          <div key={optionValue} className="flex items-center space-x-2">
+                                          <div key={`${field.field_key}-${oi}-${optionValue}`} className="flex items-center space-x-2">
                                             <Checkbox
                                               id={`${field.field_key}-${optionValue}`}
                                               checked={isChecked}

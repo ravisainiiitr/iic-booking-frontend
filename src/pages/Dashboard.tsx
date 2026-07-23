@@ -2662,6 +2662,7 @@ const Dashboard = () => {
           )}
 
 
+          {!isLabInchargeUser && (
           <Card 
             role="button"
             tabIndex={0}
@@ -2689,6 +2690,7 @@ const Dashboard = () => {
               </span>
             </CardContent>
           </Card>
+          )}
 
           {!isLabInchargeUser && (<Card 
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"

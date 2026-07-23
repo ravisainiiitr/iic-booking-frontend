@@ -25,6 +25,7 @@ import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePe
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
+import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import {
   resolveTableColumns,
   resolveTableRowCountSourceKey,
@@ -81,8 +82,9 @@ function resolveRadioComboDisplay(
   if (type !== "RADIO" && type !== "COMBO") return formatVal(value);
   if (!options || options.length === 0) return formatVal(value);
 
-  const optionLabels = options.map((o) => (typeof o === "string" ? o : o.label ?? o.value ?? ""));
-  const optionValues = options.map((o, i) => (typeof o === "string" ? o : o.value ?? o.label ?? String(i + 1)));
+  const normalized = options.map((o, i) => normalizeChoiceOption(o, i));
+  const optionLabels = normalized.map((o) => o.label);
+  const optionValues = normalized.map((o) => o.value);
 
   // When value is boolean (or string "true"/"false"), map to option labels per optional text (e.g. Yes/No)
   const isBoolLike =
@@ -488,7 +490,7 @@ export function BookingUserInputs({
 
           if (isTable) {
             const columns = Array.isArray(f.options)
-              ? f.options.map((o) => (typeof o === "string" ? o : o?.label ?? o?.value ?? ""))
+              ? f.options.map((o, i) => normalizeChoiceOption(o, i).label).filter(Boolean)
               : [];
             const rows = (Array.isArray(val) && val.length > 0 && Array.isArray(val[0]) ? val : []) as string[][];
             return (
@@ -752,10 +754,9 @@ export function BookingUserInputs({
                       className="flex flex-wrap gap-3 pt-1"
                     >
                       {f.options.map((opt, i) => {
-                        const optionValue = typeof opt === "string" ? opt : opt.value ?? opt.label ?? String(i + 1);
-                        const optionLabel = typeof opt === "string" ? opt : opt.label ?? opt.value ?? optionValue;
+                        const { value: optionValue, label: optionLabel } = normalizeChoiceOption(opt, i);
                         return (
-                          <div key={optionValue} className="flex items-center gap-2">
+                          <div key={`edit-${f.field_key}-${i}-${optionValue}`} className="flex items-center gap-2">
                             <RadioGroupItem value={optionValue} id={`edit-${f.field_key}-${optionValue}`} />
                             <Label htmlFor={`edit-${f.field_key}-${optionValue}`} className="font-normal cursor-pointer">
                               {optionLabel}
@@ -775,10 +776,9 @@ export function BookingUserInputs({
                       </SelectTrigger>
                       <SelectContent>
                         {f.options.map((opt, i) => {
-                          const optionValue = typeof opt === "string" ? opt : opt.value ?? opt.label ?? String(i + 1);
-                          const optionLabel = typeof opt === "string" ? opt : opt.label ?? opt.value ?? optionValue;
+                          const { value: optionValue, label: optionLabel } = normalizeChoiceOption(opt, i);
                           return (
-                            <SelectItem key={optionValue} value={optionValue}>
+                            <SelectItem key={`edit-${f.field_key}-${i}-${optionValue}`} value={optionValue}>
                               {optionLabel}
                             </SelectItem>
                           );
