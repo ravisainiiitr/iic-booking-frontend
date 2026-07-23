@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { formatINR } from "@/lib/money";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
@@ -1531,20 +1532,66 @@ const Wallet = () => {
     }
     try {
       setRecharging(true);
-      const orderResponse = await apiClient.initiateSbiepayPayment({
+      const orderResponse = await apiClient.createRazorpayPaymentOrder({
         purpose: "WALLET_RECHARGE",
         amount,
         department_id: rechargeDepartmentId,
       });
       if (orderResponse.error || !orderResponse.data) {
-        toast.error(orderResponse.error || "Failed to start SBIePay payment");
+        toast.error(orderResponse.error || "Failed to create payment order");
         setRecharging(false);
         return;
       }
-      apiClient.submitSbiepayForm({
-        gateway_url: orderResponse.data.gateway_url,
-        form_fields: orderResponse.data.form_fields,
-      });
+      const RazorpayCtor = (window as any).Razorpay;
+      if (!RazorpayCtor) {
+        toast.error("Razorpay Checkout is not loaded. Please refresh and try again.");
+        setRecharging(false);
+        return;
+      }
+      const breakup = orderResponse.data.breakup;
+      if (breakup && Number(breakup.convenience_fee) > 0) {
+        toast.info(
+          `Payable ${formatINR(Number(breakup.total_amount))} (includes convenience fee)`
+        );
+      }
+      const options = {
+        key: orderResponse.data.key || orderResponse.data.key_id,
+        amount: orderResponse.data.amount,
+        currency: orderResponse.data.currency || "INR",
+        name: "IIC Wallet Recharge",
+        description: `Wallet recharge ₹${amount}`,
+        order_id: orderResponse.data.order_id,
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          try {
+            const verify = await apiClient.verifyRazorpayCheckout({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            if (verify.error) {
+              toast.error(verify.error);
+              return;
+            }
+            toast.success(verify.data?.message || "Wallet recharged successfully");
+            setRechargeAmount("");
+            await fetchWalletData();
+          } catch (err: any) {
+            toast.error(err?.message || "Payment verification failed");
+          } finally {
+            setRecharging(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setRecharging(false),
+        },
+        theme: { color: "#0f766e" },
+      };
+      const rzp = new RazorpayCtor(options);
+      rzp.open();
     } catch (error: any) {
       toast.error(error.message || "Failed to initiate payment");
       setRecharging(false);
@@ -2268,7 +2315,7 @@ const Wallet = () => {
                             title="Online payment is not available for faculty recharge"
                           >
                             <CreditCard className="h-4 w-4 mr-2" />
-                            SBIePay (Online)
+                            Razorpay (Online)
                           </Button>
                         </>
                       ) : (
@@ -2281,7 +2328,7 @@ const Wallet = () => {
                             disabled={recharging || requestingRecharge}
                           >
                             <CreditCard className="h-4 w-4 mr-2" />
-                            SBIePay (Online)
+                            Razorpay (Online)
                           </Button>
                           <Button
                             type="button"

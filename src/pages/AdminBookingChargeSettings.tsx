@@ -44,6 +44,9 @@ export default function AdminBookingChargeSettings() {
   const [editingRow, setEditingRow] = useState<BookingChargeSettingRow | null>(null);
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [feePercent, setFeePercent] = useState("0");
+  const [feeGstPercent, setFeeGstPercent] = useState("18");
+  const [savingFees, setSavingFees] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -65,6 +68,11 @@ export default function AdminBookingChargeSettings() {
       setRows([]);
     } else {
       setRows(extractAdminListItems<BookingChargeSettingRow>(res.data));
+    }
+    const feeRes = await apiClient.adminGetPaymentFeeSettings();
+    if (feeRes.data) {
+      setFeePercent(String(feeRes.data.fee_percent ?? "0"));
+      setFeeGstPercent(String(feeRes.data.fee_gst_percent ?? "18"));
     }
     setLoading(false);
   };
@@ -94,6 +102,21 @@ export default function AdminBookingChargeSettings() {
     fetchRows();
   };
 
+  const handleSaveFees = async () => {
+    setSavingFees(true);
+    const res = await apiClient.adminUpdatePaymentFeeSettings({
+      fee_percent: feePercent.trim(),
+      fee_gst_percent: feeGstPercent.trim(),
+    });
+    setSavingFees(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.data?.message || "Razorpay fee settings updated.");
+    fetchRows();
+  };
+
   if (!isAdmin && !authLoading) return null;
 
   return (
@@ -110,10 +133,45 @@ export default function AdminBookingChargeSettings() {
             Booking Charge Settings
           </h1>
           <p className="text-muted-foreground mt-1">
-            Admin-configurable key-value booking charge settings (e.g. GST percentage applied on top of base charge
-            for external users).
+            Admin-configurable booking charge settings (GST for external users, Razorpay convenience fee, etc.).
           </p>
         </div>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Razorpay convenience fee</CardTitle>
+            <CardDescription>
+              Fee is a % of payable base (booking shortfall or wallet recharge). GST applies on the fee only.
+              Default 0% means no fee until configured. Paid by the payer, not the institute.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 max-w-xl">
+            <div className="space-y-2">
+              <Label htmlFor="fee-percent">Convenience fee %</Label>
+              <Input
+                id="fee-percent"
+                value={feePercent}
+                onChange={(e) => setFeePercent(e.target.value)}
+                inputMode="decimal"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fee-gst-percent">GST on fee %</Label>
+              <Input
+                id="fee-gst-percent"
+                value={feeGstPercent}
+                onChange={(e) => setFeeGstPercent(e.target.value)}
+                inputMode="decimal"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button onClick={handleSaveFees} disabled={savingFees || loading}>
+                {savingFees ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Razorpay fees
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

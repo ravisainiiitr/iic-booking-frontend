@@ -2404,16 +2404,43 @@ class ApiClient {
   }
 
   async createRazorpayOrder(amount: number, departmentId: number) {
+    return this.createRazorpayPaymentOrder({
+      purpose: 'WALLET_RECHARGE',
+      amount,
+      department_id: departmentId,
+    });
+  }
+
+  /** Razorpay Payment module: create order for booking shortfall or wallet recharge. */
+  async createRazorpayPaymentOrder(payload: {
+    purpose: 'WALLET_RECHARGE' | 'BOOKING_SHORTFALL';
+    amount?: number | string;
+    department_id?: number;
+    booking_id?: number;
+  }) {
     return this.request<{
       order_id: string;
+      razorpay_order_id: string;
       amount: number;
       currency: string;
       key: string;
-      wallet_id: number;
-      department_id?: number;
-    }>('/wallet/razorpay/create-order/', {
+      key_id: string;
+      payment_order_id: number;
+      breakup: {
+        base_amount: string;
+        convenience_fee: string;
+        fee_gst: string;
+        total_amount: string;
+        fee_percent: string;
+        fee_gst_percent: string;
+      };
+      purpose: string;
+      booking_id?: number | null;
+      wallet_id?: number | null;
+      department_id?: number | null;
+    }>('/payments/razorpay/create-order/', {
       method: 'POST',
-      body: JSON.stringify({ amount, department_id: departmentId }),
+      body: JSON.stringify(payload),
     });
   }
 
@@ -2421,27 +2448,73 @@ class ApiClient {
     razorpayOrderId: string,
     razorpayPaymentId: string,
     razorpaySignature: string,
-    amount: number
+    amount?: number
   ) {
-    return this.request<{
-      wallet: {
-        balance: string;
-        transactions: any[];
-      };
-      transaction: any;
-      message: string;
-    }>('/wallet/razorpay/verify-payment/', {
-      method: 'POST',
-      body: JSON.stringify({
-        razorpay_order_id: razorpayOrderId,
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: razorpaySignature,
-        amount: amount,
-      }),
+    return this.verifyRazorpayCheckout({
+      razorpay_order_id: razorpayOrderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: razorpaySignature,
+      amount,
     });
   }
 
-  /** SBIePay: initiate wallet recharge or booking shortfall payment. */
+  async verifyRazorpayCheckout(payload: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    amount?: number;
+  }) {
+    return this.request<{
+      message: string;
+      order: Record<string, unknown>;
+      payment_id: string;
+      booking: {
+        booking_id: number;
+        status: string;
+        amount_due: string;
+        payment_settled_at: string | null;
+      } | null;
+      wallet_balance: string | null;
+      wallet?: {
+        balance: string;
+        transactions: any[];
+      };
+      transaction?: any;
+    }>('/payments/razorpay/verify/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getPaymentFeeSettings() {
+    return this.request<{
+      fee_percent: string;
+      fee_gst_percent: string;
+    }>('/payments/fee-settings/');
+  }
+
+  async adminGetPaymentFeeSettings() {
+    return this.request<{
+      fee_percent: string;
+      fee_gst_percent: string;
+    }>('/admin/payments/fee-settings/');
+  }
+
+  async adminUpdatePaymentFeeSettings(payload: {
+    fee_percent: number | string;
+    fee_gst_percent: number | string;
+  }) {
+    return this.request<{
+      fee_percent: string;
+      fee_gst_percent: string;
+      message: string;
+    }>('/admin/payments/fee-settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** SBIePay: initiate wallet recharge or booking shortfall payment (deprecated — returns 410). */
   async initiateSbiepayPayment(payload: {
     purpose: 'WALLET_RECHARGE' | 'BOOKING_SHORTFALL';
     amount: number | string;
