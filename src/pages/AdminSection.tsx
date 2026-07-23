@@ -114,10 +114,9 @@ const BOOKING_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 
 /** Equipment status options (matches Django admin /admin/equipment/equipment/ list_filter). */
 const EQUIPMENT_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "ACTIVE", label: "Active" },
-  { value: "INACTIVE", label: "Inactive" },
-  { value: "MAINTENANCE", label: "Maintenance" },
-  { value: "REPAIR", label: "Repair" },
+  { value: "ACTIVE", label: "Operational" },
+  { value: "INACTIVE", label: "Under Maintenance" },
+  { value: "REPAIR", label: "Under Maintenance" },
   { value: "DISPOSED", label: "Disposed" },
   { value: "OTHER", label: "Other" },
 ];

@@ -457,8 +457,9 @@ const Dashboard = () => {
     const code = String(eq.equipment_status || "").toUpperCase();
     const label = (eq.equipment_status_display || "").trim() || "Unknown";
     if (code === "ACTIVE") return { variant: "operational", label };
-    if (code === "REPAIR" || code === "INACTIVE") return { variant: "under_maintenance", label };
-    if (code === "MAINTENANCE") return { variant: "scheduled", label };
+    if (code === "REPAIR" || code === "INACTIVE" || code === "MAINTENANCE") {
+      return { variant: "under_maintenance", label };
+    }
     return { variant: "other", label };
   }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter, labOperatorDashLoading]);
 
@@ -2296,7 +2297,10 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors">
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
                 View Reports
               </span>
             </CardContent>
@@ -2685,7 +2689,10 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors">
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
                 View Reports
               </span>
             </CardContent>

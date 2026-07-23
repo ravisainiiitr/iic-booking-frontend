@@ -43,7 +43,7 @@ type Props = {
   accent: EquipmentCardAccent;
   canChangeSlotStatus: boolean;
   statusUpdatingId?: number | null;
-  onRequestStatusChange?: (next: { equipmentId: number; equipmentName: string; newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR" }) => void;
+  onRequestStatusChange?: (next: { equipmentId: number; equipmentName: string; newStatus: "ACTIVE" | "REPAIR" }) => void;
 };
 
 export default function EquipmentCatalogCard({
@@ -187,9 +187,15 @@ export default function EquipmentCatalogCard({
               <Label className="text-sm font-medium leading-none">Status</Label>
               <div className="w-full min-w-0">
                 <Select
-                  value={(item.status as any) || "ACTIVE"}
+                  value={
+                    item.status === "ACTIVE"
+                      ? "ACTIVE"
+                      : item.status === "REPAIR" || item.status === "MAINTENANCE" || item.status === "INACTIVE"
+                        ? "REPAIR"
+                        : (item.status as any) || "ACTIVE"
+                  }
                   onValueChange={(value) => {
-                    const next = value as "ACTIVE" | "MAINTENANCE" | "REPAIR";
+                    const next = value as "ACTIVE" | "REPAIR";
                     onRequestStatusChange({
                       equipmentId: Number(item.id),
                       equipmentName: item.name,
@@ -203,7 +209,6 @@ export default function EquipmentCatalogCard({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ACTIVE">Operational</SelectItem>
-                    <SelectItem value="MAINTENANCE">Maintenance Scheduled</SelectItem>
                     <SelectItem value="REPAIR">Under Maintenance</SelectItem>
                   </SelectContent>
                 </Select>

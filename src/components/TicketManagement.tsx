@@ -44,8 +44,11 @@ const TicketManagement = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("open");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
+  const isTicketStaff =
+    String(user?.user_type ?? "").toLowerCase() === "admin" ||
+    ["manager", "operator", "finance"].includes(String(user?.user_type ?? "").toLowerCase());
 
   const loadTickets = async () => {
     setLoading(true);
@@ -230,7 +233,7 @@ const TicketManagement = () => {
           setDetailOpen(open);
           if (!open) setSelectedTicket(null);
         }}
-        isStaff={false}
+        isStaff={isTicketStaff}
         onUpdated={() => void loadTickets()}
       />
     </div>

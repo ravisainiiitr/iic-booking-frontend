@@ -92,11 +92,12 @@ const EquipmentList = () => {
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
     equipmentName: string;
-    newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR";
+    newStatus: "ACTIVE" | "REPAIR";
   } | null>(null);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
-  const canChangeSlotStatus = ["admin", "manager", "operator"].includes(userTypeStr);
+  // Admin / OIC only — Lab In-charge (operator) cannot change operational status.
+  const canChangeEquipmentStatus = ["admin", "manager"].includes(userTypeStr);
   const isDeptAdmin = userTypeStr === "dept_admin";
   const daDepartmentId = (() => {
     const raw =
@@ -191,7 +192,7 @@ const EquipmentList = () => {
     };
   }, [authReady, searchQuery, selectedDepartmentId, fetchEquipment]);
 
-  const handleStatusToggle = async (equipmentId: number, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => {
+  const handleStatusToggle = async (equipmentId: number, newStatus: "ACTIVE" | "REPAIR") => {
     setStatusUpdatingId(equipmentId);
     setPendingStatusChange(null);
     try {
@@ -200,12 +201,7 @@ const EquipmentList = () => {
         toast.error(res.error || "Failed to update status");
         return;
       }
-      const label =
-        newStatus === "ACTIVE"
-          ? "Operational"
-          : newStatus === "MAINTENANCE"
-            ? "Maintenance Scheduled"
-            : "Under Maintenance";
+      const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
       const transformed = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
       setEquipment(transformed);
@@ -331,7 +327,7 @@ const EquipmentList = () => {
                 key={item.id}
                 item={item}
                 accent={accentForEquipmentId(item.id)}
-                canChangeSlotStatus={canChangeSlotStatus}
+                canChangeSlotStatus={canChangeEquipmentStatus}
                 statusUpdatingId={statusUpdatingId}
                 onRequestStatusChange={(next) => setPendingStatusChange(next)}
               />
@@ -349,11 +345,7 @@ const EquipmentList = () => {
                 <>
                   Set <strong>{pendingStatusChange.equipmentName}</strong> to{" "}
                   <strong>
-                    {pendingStatusChange.newStatus === "ACTIVE"
-                      ? "Operational"
-                      : pendingStatusChange.newStatus === "MAINTENANCE"
-                        ? "Maintenance Scheduled"
-                        : "Under Maintenance"}
+                    {pendingStatusChange.newStatus === "ACTIVE" ? "Operational" : "Under Maintenance"}
                   </strong>
                   ?
                   {pendingStatusChange.newStatus !== "ACTIVE" && (

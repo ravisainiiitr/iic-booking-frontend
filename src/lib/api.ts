@@ -1844,8 +1844,8 @@ class ApiClient {
     });
   }
 
-  /** Update equipment status. Admin/OIC only. */
-  async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'MAINTENANCE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER') {
+  /** Update equipment status. Admin / OIC only (not Lab In-charge). */
+  async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER') {
     return this.updateEquipment(String(equipmentId), { status });
   }
 

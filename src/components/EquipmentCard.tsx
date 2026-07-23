@@ -49,7 +49,7 @@ interface EquipmentCardProps {
   /** When true, show status dropdown (admin/OIC only). */
   showStatusToggle?: boolean;
   /** Callback when status is changed. */
-  onStatusChange?: (equipmentId: number, equipmentName: string, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => void | Promise<void>;
+  onStatusChange?: (equipmentId: number, equipmentName: string, newStatus: "ACTIVE" | "REPAIR") => void | Promise<void>;
   /** Equipment id that is currently updating (disables its switch). */
   statusUpdatingId?: number;
   avgRating?: number | null;
@@ -187,6 +187,7 @@ const EquipmentCard = ({
   const ratingSummaryAvg = avgRating != null ? Number(avgRating) : null;
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdminOrOIC = ["admin", "manager", "operator"].includes(userTypeStr);
+  const canChangeEquipmentStatus = ["admin", "manager"].includes(userTypeStr);
   const ratingSummaryFullStars = ratingSummaryAvg != null ? Math.floor(ratingSummaryAvg) : 0;
   const ratingSummaryHasHalfStar = ratingSummaryAvg != null ? ratingSummaryAvg - ratingSummaryFullStars >= 0.5 : false;
 
@@ -380,14 +381,20 @@ const EquipmentCard = ({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {showStatusToggle && onStatusChange && id != null ? (
+            {showStatusToggle && onStatusChange && id != null && canChangeEquipmentStatus ? (
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 <Label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                   Status
                 </Label>
                 <Select
-                  value={(status as any) || "ACTIVE"}
-                  onValueChange={(value) => onStatusChange(Number(id), name, value as any)}
+                  value={
+                    status === "ACTIVE"
+                      ? "ACTIVE"
+                      : status === "REPAIR" || status === "MAINTENANCE" || status === "INACTIVE"
+                        ? "REPAIR"
+                        : (status as any) || "ACTIVE"
+                  }
+                  onValueChange={(value) => onStatusChange(Number(id), name, value as "ACTIVE" | "REPAIR")}
                   disabled={statusUpdatingId === Number(id)}
                 >
                   <SelectTrigger className="h-8 w-[190px]">
@@ -395,7 +402,6 @@ const EquipmentCard = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ACTIVE">Operational</SelectItem>
-                    <SelectItem value="MAINTENANCE">Maintenance Scheduled</SelectItem>
                     <SelectItem value="REPAIR">Under Maintenance</SelectItem>
                   </SelectContent>
                 </Select>

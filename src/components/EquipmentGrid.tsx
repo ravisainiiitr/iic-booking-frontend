@@ -55,11 +55,12 @@ const EquipmentGrid = () => {
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
     equipmentName: string;
-    newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR";
+    newStatus: "ACTIVE" | "REPAIR";
   } | null>(null);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
-  const isAdminOrOIC = ["admin", "manager", "operator"].includes(userTypeStr);
+  // Admin / OIC only — Lab In-charge (operator) cannot change operational status.
+  const canChangeEquipmentStatus = ["admin", "manager"].includes(userTypeStr);
   const isDeptAdmin = userTypeStr === "dept_admin";
   const daDepartmentId = (() => {
     const raw =
@@ -155,7 +156,7 @@ const EquipmentGrid = () => {
     }));
   };
 
-  const handleStatusChange = async (equipmentId: number, newStatus: "ACTIVE" | "MAINTENANCE" | "REPAIR") => {
+  const handleStatusChange = async (equipmentId: number, newStatus: "ACTIVE" | "REPAIR") => {
     setStatusUpdatingId(equipmentId);
     setPendingStatusChange(null);
     try {
@@ -164,12 +165,7 @@ const EquipmentGrid = () => {
         toast.error(res.error || "Failed to update status");
         return;
       }
-      const label =
-        newStatus === "ACTIVE"
-          ? "Operational"
-          : newStatus === "MAINTENANCE"
-            ? "Maintenance Scheduled"
-            : "Under Maintenance";
+      const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
       await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
     } catch (e) {
@@ -181,7 +177,7 @@ const EquipmentGrid = () => {
 
   const displayEquipment = useMemo(() => {
     return transformEquipment(equipment);
-  }, [equipment, statusUpdatingId, isAdminOrOIC]);
+  }, [equipment, statusUpdatingId, canChangeEquipmentStatus]);
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 || (!isDeptAdmin && selectedDepartmentId !== "all");
@@ -252,7 +248,7 @@ const EquipmentGrid = () => {
               key={equipmentItem.id}
               item={equipmentItem as any}
               accent={accentForEquipmentId(equipmentItem.id)}
-              canChangeSlotStatus={isAdminOrOIC}
+              canChangeSlotStatus={canChangeEquipmentStatus}
               statusUpdatingId={statusUpdatingId}
               onRequestStatusChange={(next) => setPendingStatusChange(next)}
             />
@@ -269,11 +265,7 @@ const EquipmentGrid = () => {
                 <>
                   Set <strong>{pendingStatusChange.equipmentName}</strong> to{" "}
                   <strong>
-                    {pendingStatusChange.newStatus === "ACTIVE"
-                      ? "Operational"
-                      : pendingStatusChange.newStatus === "MAINTENANCE"
-                        ? "Maintenance Scheduled"
-                        : "Under Maintenance"}
+                    {pendingStatusChange.newStatus === "ACTIVE" ? "Operational" : "Under Maintenance"}
                   </strong>
                   ?
                   {pendingStatusChange.newStatus !== "ACTIVE" && (

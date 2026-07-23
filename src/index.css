@@ -125,6 +125,12 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01" on, "cv02" on;
+    color-scheme: light;
+  }
+
+  .dark body,
+  html.dark {
+    color-scheme: dark;
   }
 }
 
@@ -179,96 +185,22 @@ All colors MUST be HSL.
   }
 }
 
-/* Dashboard card color unification: muted professional palette */
-.dashboard-uniform-cards .cursor-pointer {
-  border: 1px solid hsl(220 18% 90%) !important;
-  background-color: hsl(0 0% 100%) !important;
-  box-shadow: 0 8px 20px -14px hsl(222 35% 20% / 0.35) !important;
-}
-
-.dashboard-uniform-cards .cursor-pointer:hover {
-  border-color: hsl(221 28% 76%) !important;
-  box-shadow: 0 16px 30px -18px hsl(222 45% 18% / 0.38) !important;
-}
-
-.dashboard-uniform-cards .rounded-xl.bg-gradient-to-br {
-  background-image: none !important;
-  background-color: hsl(219 40% 44%) !important;
-}
-
-.dashboard-uniform-cards .h-1.w-16.rounded-full {
-  background-image: none !important;
-  background-color: hsl(219 40% 44%) !important;
-}
-
-.dashboard-uniform-cards .w-full {
-  background-color: hsl(221 33% 36%) !important;
-  color: hsl(210 40% 98%) !important;
-}
-
-.dashboard-uniform-cards .w-full:hover {
-  background-color: hsl(221 36% 31%) !important;
-}
-
-.dark .dashboard-uniform-cards .cursor-pointer {
-  border-color: hsl(217 22% 24%) !important;
-  background-color: hsl(222 35% 14%) !important;
-  box-shadow: 0 12px 26px -16px hsl(0 0% 0% / 0.6) !important;
-}
-
-.dark .dashboard-uniform-cards .cursor-pointer:hover {
-  border-color: hsl(221 24% 42%) !important;
-}
-
-/* Dashboard visual refresh */
-.dashboard-page main.container {
-  max-width: 1320px;
-}
-
-.dashboard-section-title {
-  letter-spacing: 0.08em;
-  color: hsl(200 16% 42%);
-}
-
-.dashboard-hero-card {
-  border: 1px solid hsl(175 55% 42% / 0.45);
-  box-shadow: 0 24px 48px -22px hsl(175 60% 28% / 0.55);
-}
-
-.dashboard-notice-card {
-  border-width: 1px;
-  border-radius: 1rem;
-  box-shadow: 0 14px 28px -18px hsl(200 35% 30% / 0.42);
-}
-
-.dashboard-notice-primary {
-  border-color: hsl(175 65% 38% / 0.7) !important;
-  background: linear-gradient(90deg, hsl(175 55% 94%), hsl(188 50% 93%)) !important;
-}
-
-.dashboard-notice-info {
-  border-color: hsl(188 55% 42% / 0.65) !important;
-  background: linear-gradient(90deg, hsl(180 45% 94%), hsl(188 50% 93%)) !important;
-}
-
-.dashboard-notice-warning {
-  border-color: hsl(35 95% 56% / 0.68) !important;
-  background: linear-gradient(90deg, hsl(44 100% 92%), hsl(31 100% 92%)) !important;
-}
-
+/* Dashboard card color unification — theme-aware (light + dark) */
 .dashboard-uniform-cards .cursor-pointer {
   border-radius: 1rem !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+  box-shadow: var(--shadow-card) !important;
   --card-accent-from: hsl(175 72% 36%);
   --card-accent-to: hsl(188 65% 40%);
   --card-accent-solid: hsl(175 72% 28%);
   --card-accent-hover: hsl(175 72% 24%);
-  border: 1px solid hsl(175 45% 45% / 0.32) !important;
-  box-shadow: 0 16px 32px -20px hsl(200 40% 28% / 0.38) !important;
 }
 
 .dashboard-uniform-cards .cursor-pointer:hover {
-  border-color: hsl(175 55% 40% / 0.58) !important;
-  box-shadow: 0 22px 38px -20px hsl(175 45% 30% / 0.42) !important;
+  border-color: hsl(var(--primary) / 0.45) !important;
+  box-shadow: var(--shadow-elegant) !important;
 }
 
 .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 1) {
@@ -313,32 +245,130 @@ All colors MUST be HSL.
   --card-accent-hover: hsl(180 48% 26%);
 }
 
-.dashboard-uniform-cards .w-full {
+/* Action controls only — do not restyle every .w-full child (inputs/selects). */
+.dashboard-uniform-cards .cursor-pointer button.w-full,
+.dashboard-uniform-cards .cursor-pointer a.w-full,
+.dashboard-uniform-cards .cursor-pointer [data-dashboard-card-action].w-full {
   border-radius: 0.65rem !important;
   font-weight: 600 !important;
   background-color: var(--card-accent-solid) !important;
+  color: hsl(0 0% 100%) !important;
   box-shadow: 0 10px 22px -13px color-mix(in srgb, var(--card-accent-solid) 70%, black) !important;
+}
+
+.dashboard-uniform-cards .cursor-pointer button.w-full:hover,
+.dashboard-uniform-cards .cursor-pointer a.w-full:hover,
+.dashboard-uniform-cards .cursor-pointer [data-dashboard-card-action].w-full:hover {
+  background-color: var(--card-accent-hover) !important;
+  color: hsl(0 0% 100%) !important;
 }
 
 .dashboard-uniform-cards .cursor-pointer .text-lg {
   letter-spacing: -0.01em;
+  color: hsl(var(--card-foreground));
+}
+
+.dashboard-uniform-cards .cursor-pointer .text-sm.text-muted-foreground,
+.dashboard-uniform-cards .cursor-pointer [class*="text-muted-foreground"] {
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 .dashboard-uniform-cards .rounded-xl.bg-gradient-to-br {
   background-image: linear-gradient(to bottom right, var(--card-accent-from), var(--card-accent-to)) !important;
   box-shadow: 0 12px 24px -14px color-mix(in srgb, var(--card-accent-solid) 78%, black) !important;
+  color: hsl(0 0% 100%) !important;
 }
 
 .dashboard-uniform-cards .h-1.w-16.rounded-full {
   background-image: linear-gradient(to right, var(--card-accent-from), var(--card-accent-to)) !important;
 }
 
-.dashboard-uniform-cards .w-full:hover {
-  background-color: var(--card-accent-hover) !important;
+.dark .dashboard-uniform-cards .cursor-pointer {
+  --card-accent-from: hsl(175 55% 42%);
+  --card-accent-to: hsl(188 50% 44%);
+  --card-accent-solid: hsl(175 55% 38%);
+  --card-accent-hover: hsl(175 55% 46%);
+  border-color: hsl(var(--border)) !important;
+  background-color: hsl(var(--card)) !important;
+  box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.55) !important;
 }
 
-.dark .dashboard-section-title {
-  color: hsl(180 12% 70%);
+.dark .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 1) {
+  --card-accent-from: hsl(175 55% 42%);
+  --card-accent-to: hsl(188 50% 44%);
+  --card-accent-solid: hsl(175 55% 38%);
+  --card-accent-hover: hsl(175 55% 46%);
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 2) {
+  --card-accent-from: hsl(188 50% 44%);
+  --card-accent-to: hsl(200 45% 46%);
+  --card-accent-solid: hsl(188 48% 40%);
+  --card-accent-hover: hsl(188 48% 48%);
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 3) {
+  --card-accent-from: hsl(168 45% 40%);
+  --card-accent-to: hsl(175 50% 44%);
+  --card-accent-solid: hsl(168 45% 36%);
+  --card-accent-hover: hsl(168 45% 44%);
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 4) {
+  --card-accent-from: hsl(156 45% 42%);
+  --card-accent-to: hsl(168 42% 40%);
+  --card-accent-solid: hsl(160 42% 38%);
+  --card-accent-hover: hsl(160 42% 46%);
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 5) {
+  --card-accent-from: hsl(195 40% 44%);
+  --card-accent-to: hsl(188 45% 46%);
+  --card-accent-solid: hsl(195 38% 40%);
+  --card-accent-hover: hsl(195 38% 48%);
+}
+
+.dark .dashboard-uniform-cards .cursor-pointer:nth-child(6n + 6) {
+  --card-accent-from: hsl(175 42% 40%);
+  --card-accent-to: hsl(200 38% 44%);
+  --card-accent-solid: hsl(180 40% 38%);
+  --card-accent-hover: hsl(180 40% 46%);
+}
+
+/* Dashboard visual refresh */
+.dashboard-page main.container {
+  max-width: 1320px;
+}
+
+.dashboard-section-title {
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+}
+
+.dashboard-hero-card {
+  border: 1px solid hsl(175 55% 42% / 0.45);
+  box-shadow: 0 24px 48px -22px hsl(175 60% 28% / 0.55);
+}
+
+.dashboard-notice-card {
+  border-width: 1px;
+  border-radius: 1rem;
+  box-shadow: 0 14px 28px -18px hsl(200 35% 30% / 0.42);
+}
+
+.dashboard-notice-primary {
+  border-color: hsl(175 65% 38% / 0.7) !important;
+  background: linear-gradient(90deg, hsl(175 55% 94%), hsl(188 50% 93%)) !important;
+}
+
+.dashboard-notice-info {
+  border-color: hsl(188 55% 42% / 0.65) !important;
+  background: linear-gradient(90deg, hsl(180 45% 94%), hsl(188 50% 93%)) !important;
+}
+
+.dashboard-notice-warning {
+  border-color: hsl(35 95% 56% / 0.68) !important;
+  background: linear-gradient(90deg, hsl(44 100% 92%), hsl(31 100% 92%)) !important;
 }
 
 .dark .dashboard-hero-card {
@@ -359,11 +389,6 @@ All colors MUST be HSL.
 .dark .dashboard-notice-warning {
   border-color: hsl(34 72% 44% / 0.8) !important;
   background: linear-gradient(90deg, hsl(31 32% 21%), hsl(35 34% 23%)) !important;
-}
-
-.dark .dashboard-uniform-cards .cursor-pointer {
-  border-color: hsl(222 38% 36% / 0.72) !important;
-  box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.62) !important;
 }
 
 /* Responsive helpers — prevent overflow on phones/tablets */

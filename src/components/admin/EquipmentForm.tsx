@@ -1030,14 +1030,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         <div className="space-y-2">
           <Label>Status</Label>
           <Select
-            value={formData.status ?? "ACTIVE"}
+            value={formData.status === "MAINTENANCE" ? "REPAIR" : (formData.status ?? "ACTIVE")}
             onValueChange={(v) => setFormData((p) => ({ ...p, status: v }))}
           >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {choices.status_choices.map((c) => (
+              {choices.status_choices
+                .filter((c) => c.value !== "MAINTENANCE")
+                .map((c) => (
                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
             </SelectContent>
