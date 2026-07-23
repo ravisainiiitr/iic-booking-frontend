@@ -1,5 +1,6 @@
 /** Persisted line items when building a proforma via Book Equipment (?proforma=1). */
 import { mergePeriodicDisplaySymbols } from "@/data/periodicTableData";
+import { initialNumericFieldValue, resolveNumericFieldBounds, formatNumericBound } from "@/lib/numericFieldLimits";
 
 export const PROFORMA_LINE_ITEMS_STORAGE_KEY = "proforma_invoice_line_items_v1";
 
@@ -85,8 +86,7 @@ export function mergeProformaLineIntoInputFieldValues(
         base[key + "_elements"] = "";
       } else if (fieldType === "TABLE") base[key] = [[""]];
       else if (fieldType === "ICPMS_STANDARD_COVERAGE") base[key] = 0;
-      else if (fieldType === "NUMERIC" && (key === "A" || key === "B")) base[key] = "1";
-      else if (fieldType === "NUMERIC") base[key] = "0";
+      else if (fieldType === "NUMERIC") base[key] = initialNumericFieldValue(field);
       else base[key] = "";
     }
   }
@@ -112,9 +112,8 @@ export function mergeProformaLineIntoInputFieldValues(
     } else if (fieldType === "TABLE") {
       const cols = Array.isArray(field.options) ? field.options.length : 0;
       base[key] = cols ? [Array(cols).fill("")] : [];
-    } else if ((key === "A" || key === "B") && fieldType === "NUMERIC") {
-      const num = Number(field.default_value);
-      base[key] = String(Number.isNaN(num) || num < 1 ? 1 : num);
+    } else if (fieldType === "NUMERIC") {
+      base[key] = initialNumericFieldValue(field);
     } else {
       base[key] = field.default_value != null && field.default_value !== "" ? String(field.default_value) : "";
     }
@@ -144,10 +143,12 @@ export function mergeProformaLineIntoInputFieldValues(
       const v = stored[key];
       if (v === undefined) continue;
       const n = typeof v === "number" ? v : parseFloat(String(v));
-      if (key === "A" || key === "B") {
-        base[key] = String(Number.isNaN(n) || n < 1 ? 1 : n);
+      if (!Number.isFinite(n)) {
+        base[key] = initialNumericFieldValue(field);
       } else {
-        base[key] = String(Number.isNaN(n) ? "0" : n);
+        const { min, max } = resolveNumericFieldBounds(field);
+        const clamped = Math.min(max, Math.max(min, n));
+        base[key] = formatNumericBound(clamped);
       }
       continue;
     }

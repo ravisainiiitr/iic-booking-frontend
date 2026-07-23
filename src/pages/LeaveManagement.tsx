@@ -214,12 +214,17 @@ export default function LeaveManagement() {
           </div>
         </div>
 
-        <Alert className="mb-6 border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
-          <Info className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-          <AlertDescription>
-            This module is not a leave approval system. Official leave must continue to be applied through the
-            Institute&apos;s official leave portal. This section only informs the equipment booking system about
-            periods when you will be unavailable so bookings can be managed appropriately.
+        <Alert className="mb-6 border-sky-300 bg-sky-50 text-sky-950 dark:border-sky-700 dark:bg-sky-950/50 dark:text-sky-50">
+          <Info className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+          <AlertDescription className="text-base font-semibold leading-relaxed text-sky-950 dark:text-sky-50 sm:text-lg">
+            <span className="block text-lg font-bold sm:text-xl">
+              This module is not a leave approval system.
+            </span>
+            <span className="mt-2 block font-semibold">
+              Official leave must continue to be applied through the Institute&apos;s official leave portal.
+              This section only informs the equipment booking system about periods when you will be unavailable
+              so bookings can be managed appropriately.
+            </span>
           </AlertDescription>
         </Alert>
 

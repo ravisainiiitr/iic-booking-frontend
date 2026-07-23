@@ -2389,8 +2389,11 @@ export function BookingDetailCard({
                 (isOperatorOrManager ||
                   (isFinanceUser && isExternalBookingType && !traceHasReturned))
               }
-              onUpdated={async () => {
-                await refreshBookingDetail();
+              onTraceUpdated={(trace) => {
+                setBooking((prev) => ({ ...prev, sample_trace: trace }));
+              }}
+              onUpdated={() => {
+                void refreshBookingDetail({ silent: true });
                 onUpdated();
               }}
               bookingComplete={booking.status.toUpperCase() === "COMPLETED"}

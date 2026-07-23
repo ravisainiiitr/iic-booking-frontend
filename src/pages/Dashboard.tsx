@@ -327,7 +327,8 @@ const Dashboard = () => {
   const [labSlotsRefresh, setLabSlotsRefresh] = useState(0);
   const [labCalendarBookedOnly, setLabCalendarBookedOnly] = useState(false);
   /** Week slot grid: collapsed by default to reduce noise and avoid loading slots until needed. */
-  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(false);
+  /** Week slot grid: expanded by default so Lab In-charge sees the calendar first. */
+  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(true);
   const [labDashSelectedBookingId, setLabDashSelectedBookingId] = useState<number | null>(null);
   const [labDashDetailBooking, setLabDashDetailBooking] = useState<BookingDetailCardBooking | null>(null);
   const [labDashDetailLoading, setLabDashDetailLoading] = useState(false);
@@ -3509,6 +3510,156 @@ const Dashboard = () => {
                   </div>
 
                   <section className="space-y-4">
+                    {!labWeekCalendarExpanded ? (
+                      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                            <Calendar className="h-5 w-5" />
+                          </span>
+                          <div className="min-w-0 space-y-1">
+                            <h3 className="text-sm font-semibold tracking-tight text-foreground">Week calendar</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Slot grids load when expanded. Week shown:{" "}
+                              <span className="font-medium tabular-nums text-foreground">
+                                {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
+                                {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-10 shrink-0 gap-2 self-stretch sm:self-center border-dashed"
+                          onClick={() => setLabWeekCalendarExpanded(true)}
+                        >
+                          <ChevronDown className="h-4 w-4 opacity-80" />
+                          Expand week calendar
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                            </span>
+                            Week calendar
+                          </h3>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 shrink-0"
+                            onClick={() => setLabWeekCalendarExpanded(false)}
+                          >
+                            Collapse
+                          </Button>
+                        </div>
+                        <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5 space-y-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9"
+                                onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, -7))}
+                              >
+                                <ChevronLeft className="h-4 w-4 mr-1 opacity-80" />
+                                Previous week
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9"
+                                onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, 7))}
+                              >
+                                Next week
+                                <ChevronRight className="h-4 w-4 ml-1 opacity-80" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-9"
+                                onClick={() => setLabOperatorWeekStart(null)}
+                              >
+                                This week
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={labCalendarBookedOnly}
+                                  onCheckedChange={(v) => setLabCalendarBookedOnly(Boolean(v))}
+                                  id="lab-calendar-booked-only"
+                                />
+                                <Label htmlFor="lab-calendar-booked-only" className="text-xs">
+                                  Booked only
+                                </Label>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9"
+                                onClick={() => setLabSlotsRefresh((x) => x + 1)}
+                                disabled={labSlotsLoading}
+                              >
+                                {labSlotsLoading ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Refreshing…
+                                  </>
+                                ) : (
+                                  "Refresh"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{ backgroundColor: "#ef4444" }}
+                                aria-hidden
+                              />
+                              Internal booked
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{ backgroundColor: "#0284c7" }}
+                                aria-hidden
+                              />
+                              External booked
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-4">
+                            {labEquipmentSummariesForScope.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">No equipment in scope.</p>
+                            ) : (
+                              labEquipmentSummariesForScope.map((eq) => (
+                                <LabOperatorWeekCalendarGrid
+                                  key={eq.equipment_id}
+                                  weekStartIso={labOperatorDash.week_start}
+                                  equipmentTitle={`${eq.equipment_code} · ${eq.equipment_name}`}
+                                  slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
+                                  onBookedSlotClick={selectLabBookingForDetail}
+                                  bookedSlotsOnly={labCalendarBookedOnly}
+                                />
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </section>
+
+                  <section className="space-y-4">
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       Booking overview
                     </h3>
@@ -3864,137 +4015,7 @@ const Dashboard = () => {
                     </div>
                   )}
 
-                  <section className="space-y-4">
-                    {!labWeekCalendarExpanded ? (
-                      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                            <Calendar className="h-5 w-5" />
-                          </span>
-                          <div className="min-w-0 space-y-1">
-                            <h3 className="text-sm font-semibold tracking-tight text-foreground">Week calendar</h3>
-                            <p className="text-xs text-muted-foreground">
-                              Slot grids load when expanded. Week shown:{" "}
-                              <span className="font-medium tabular-nums text-foreground">
-                                {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
-                                {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-10 shrink-0 gap-2 self-stretch sm:self-center border-dashed"
-                          onClick={() => setLabWeekCalendarExpanded(true)}
-                        >
-                          <ChevronDown className="h-4 w-4 opacity-80" />
-                          Expand week calendar
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                              <Calendar className="h-4 w-4" />
-                            </span>
-                            Week calendar
-                          </h3>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9 shrink-0"
-                            onClick={() => setLabWeekCalendarExpanded(false)}
-                          >
-                            Collapse
-                          </Button>
-                        </div>
-                        <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5 space-y-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, -7))}
-                              >
-                                <ChevronLeft className="h-4 w-4 mr-1 opacity-80" />
-                                Previous week
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, 7))}
-                              >
-                                Next week
-                                <ChevronRight className="h-4 w-4 ml-1 opacity-80" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabOperatorWeekStart(null)}
-                              >
-                                This week
-                              </Button>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  checked={labCalendarBookedOnly}
-                                  onCheckedChange={(v) => setLabCalendarBookedOnly(Boolean(v))}
-                                  id="lab-calendar-booked-only"
-                                />
-                                <Label htmlFor="lab-calendar-booked-only" className="text-xs">
-                                  Booked only
-                                </Label>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabSlotsRefresh((x) => x + 1)}
-                                disabled={labSlotsLoading}
-                              >
-                                {labSlotsLoading ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Refreshing…
-                                  </>
-                                ) : (
-                                  "Refresh"
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-4">
-                            {labEquipmentSummariesForScope.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">No equipment in scope.</p>
-                            ) : (
-                              labEquipmentSummariesForScope.map((eq) => (
-                                <LabOperatorWeekCalendarGrid
-                                  key={eq.equipment_id}
-                                  weekStartIso={labOperatorDash.week_start}
-                                  equipmentTitle={`${eq.equipment_code} · ${eq.equipment_name}`}
-                                  slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
-                                  onBookedSlotClick={selectLabBookingForDetail}
-                                  bookedSlotsOnly={labCalendarBookedOnly}
-                                />
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </section>
+
 
                   {(isLabInchargeUser || isOicUser || isAdmin) && (
                     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">

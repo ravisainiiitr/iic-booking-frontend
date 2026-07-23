@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban, FolderOpen } from "lucide-react";
+import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
 import { createLocalResultsFolder, type ResultsFolderSpec } from "@/lib/localResultsFolder";
@@ -21,7 +21,6 @@ const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
   { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
   { key: "held_or_forwarded", label: "Held at Office / Forwarded to Lab", statuses: ["HELD_AT_OFFICE", "FORWARDED_TO_LAB"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
-  { key: "in_analysis", label: "In Analysis", statuses: ["PROCESSING"] },
   { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
   { key: "returned", label: "Sample Returned", statuses: ["RETURNED"] },
   { key: "archived", label: "Archived", statuses: ["ARCHIVED"] },
@@ -32,7 +31,6 @@ const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
 const STEPS_INTERNAL: { key: string; label: string; statuses: string[] }[] = [
   { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
-  { key: "in_analysis", label: "In Analysis", statuses: ["PROCESSING"] },
   { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
   { key: "returned", label: "Sample Returned", statuses: ["RETURNED"] },
   { key: "archived", label: "Archived", statuses: ["ARCHIVED"] },
@@ -98,6 +96,8 @@ interface SampleTraceTimelineProps {
   canSetSampleSent: boolean;
   canSetStaffStatus: boolean;
   onUpdated: () => void;
+  /** Apply API sample_trace immediately so the UI updates without waiting on a full booking reload. */
+  onTraceUpdated?: (sampleTrace: SampleTraceEvent[]) => void;
   /** When true (e.g. booking status COMPLETED or results from S3), all steps show complete and all action buttons are disabled. */
   bookingComplete?: boolean;
   /** When true (internal users: students/faculty), the Held at Office / Forwarded to Lab step is hidden from the timeline. */
@@ -137,6 +137,7 @@ export default function SampleTraceTimeline({
   canSetSampleSent,
   canSetStaffStatus,
   onUpdated,
+  onTraceUpdated,
   bookingComplete = false,
   hideHeldForwardedStep = false,
   canSetHeldForwardedActions = true,
@@ -242,7 +243,6 @@ export default function SampleTraceTimeline({
   const [heldReason, setHeldReason] = useState("");
   const [disposeDialogOpen, setDisposeDialogOpen] = useState(false);
   const [disposeReason, setDisposeReason] = useState("");
-  const [folderLoading, setFolderLoading] = useState(false);
   const [detailEvent, setDetailEvent] = useState<SampleTraceEvent | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
@@ -259,7 +259,6 @@ export default function SampleTraceTimeline({
   const sampleSentStep = baseLadder.find((s) => s.key === "sample_sent")!;
   const heldOrForwardedStep = baseLadder.find((s) => s.key === "held_or_forwarded");
   const acceptedRejectedStep = baseLadder.find((s) => s.key === "accepted_rejected")!;
-  const inAnalysisStep = baseLadder.find((s) => s.key === "in_analysis")!;
   const analyzedReadyStep = baseLadder.find((s) => s.key === "analyzed_ready")!;
   const returnedStep = baseLadder.find((s) => s.key === "returned")!;
   const archivedStep = baseLadder.find((s) => s.key === "archived")!;
@@ -271,8 +270,6 @@ export default function SampleTraceTimeline({
   const heldOrForwardedDone = !!heldOrForwardedEvent;
   const acceptedOrRejectedEvent = getEventForStep(sampleTrace, acceptedRejectedStep);
   const acceptedOrRejectedDone = !!acceptedOrRejectedEvent;
-  const inAnalysisEvent = getEventForStep(sampleTrace, inAnalysisStep);
-  const inAnalysisDone = !!inAnalysisEvent;
   const analyzedReadyEvent = getEventForStep(sampleTrace, analyzedReadyStep);
   const analyzedReadyDone = !!analyzedReadyEvent || bookingComplete;
   const returnedEvent = getEventForStep(sampleTrace, returnedStep);
@@ -346,7 +343,11 @@ export default function SampleTraceTimeline({
         toast.error(res.error);
         return;
       }
-      if (status === "PROCESSING" && res.data) {
+      const trace = (res.data as { sample_trace?: SampleTraceEvent[] } | undefined)?.sample_trace;
+      if (trace && onTraceUpdated) {
+        onTraceUpdated(trace);
+      }
+      if (status === "SAMPLE_ACCEPTED" && res.data) {
         try {
           const local = await createLocalResultsFolder({
             ...(res.data as ResultsFolderSpec),
@@ -354,8 +355,8 @@ export default function SampleTraceTimeline({
           });
           toast.success(
             local.method === "bat-download"
-              ? `Status updated. Run the downloaded .bat to create the folder on this PC:\n${local.path}`
-              : `Status updated. Results folder created on this PC:\n${local.path}${
+              ? `Sample accepted. Run the downloaded .bat to create the booking folder on this PC:\n${local.path}`
+              : `Sample accepted. Booking folder created on this PC:\n${local.path}${
                   local.reselectedBase
                     ? "\n(Choose the equipment Results base folder, e.g. D:\\Results, when prompted.)"
                     : ""
@@ -365,15 +366,13 @@ export default function SampleTraceTimeline({
           const aborted =
             err instanceof DOMException && (err.name === "AbortError" || err.name === "NotAllowedError");
           if (aborted) {
-            toast.success(
-              "Status updated. Folder creation was cancelled — use “Create results folder” when ready."
-            );
+            toast.success("Sample accepted. Folder creation was cancelled — you can create it later from the PC.");
           } else {
-            toast.success("Status updated.");
+            toast.success("Sample accepted.");
             toast.error(
               err instanceof Error
-                ? `Could not create local results folder: ${err.message}`
-                : "Could not create local results folder."
+                ? `Could not create local booking folder: ${err.message}`
+                : "Could not create local booking folder."
             );
           }
         }
@@ -393,47 +392,6 @@ export default function SampleTraceTimeline({
       setDisposeReason("");
     } finally {
       setLoading(null);
-    }
-  };
-
-  const ensureResultsFolder = async () => {
-    if (!bookingId) return;
-    setFolderLoading(true);
-    try {
-      const res = await apiClient.ensureBookingResultsFolder(bookingId);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      if (!res.data) {
-        toast.error("No folder path returned.");
-        return;
-      }
-      try {
-        const local = await createLocalResultsFolder({
-          ...(res.data as ResultsFolderSpec),
-          virtual_booking_id: res.data.virtual_booking_id,
-        });
-        toast.success(
-          local.method === "bat-download"
-            ? `Downloaded create script. Run it to make the folder on this PC:\n${local.path}`
-            : `Results folder ready on this PC:\n${local.path}`
-        );
-      } catch (err) {
-        const aborted =
-          err instanceof DOMException && (err.name === "AbortError" || err.name === "NotAllowedError");
-        if (aborted) {
-          toast.message("Folder creation cancelled.");
-        } else {
-          toast.error(
-            err instanceof Error ? err.message : "Could not create local results folder."
-          );
-        }
-        return;
-      }
-      onUpdated();
-    } finally {
-      setFolderLoading(false);
     }
   };
 
@@ -810,7 +768,6 @@ export default function SampleTraceTimeline({
               disabled={
                 heldOrForwardedDone ||
                 (!allowHoldForwardWithoutSampleSent && !sampleSentDone) ||
-                inAnalysisDone ||
                 analyzedReadyDone ||
                 !!loading
               }
@@ -852,7 +809,6 @@ export default function SampleTraceTimeline({
               disabled={
                 (heldOrForwardedDone && latestHeldOrForwarded?.status === "FORWARDED_TO_LAB") ||
                 (!allowHoldForwardWithoutSampleSent && !sampleSentDone) ||
-                inAnalysisDone ||
                 analyzedReadyDone ||
                 !!loading
               }
@@ -862,14 +818,14 @@ export default function SampleTraceTimeline({
             </Button>
           </>
         )}
-        {/* Sample Accepted, Sample Rejected, In Analysis, Analyzed, Returned, Archived, Disposed: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
+        {/* Sample Accepted, Sample Rejected, Analyzed, Returned, Archived, Disposed: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
         {canSetStaffStatus && !bookingComplete && !lifecycleTerminal && !hideSampleStatusActions && (
           <>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setStatus("SAMPLE_ACCEPTED")}
-              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || inAnalysisDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "SAMPLE_ACCEPTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsUp className="h-4 w-4 mr-2" />}
               Sample Accepted
@@ -878,7 +834,7 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setRejectDialogOpen(true)}
-              disabled={acceptedOrRejectedDone || inAnalysisDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={acceptedOrRejectedDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "SAMPLE_REJECTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsDown className="h-4 w-4 mr-2" />}
               Sample Rejected
@@ -910,25 +866,6 @@ export default function SampleTraceTimeline({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setStatus("PROCESSING")}
-              disabled={isNotUtilizedFlow || inAnalysisDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || isRejectedFlow || applyHeldAtOfficeFlowRules || !!loading}
-            >
-              {loading === "PROCESSING" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
-              In Analysis
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={ensureResultsFolder}
-              disabled={!!loading || folderLoading || isNotUtilizedFlow || isRejectedFlow || applyHeldAtOfficeFlowRules}
-              title="Create the results folder on this PC under the equipment Results base location (you’ll pick D:\\Results once)"
-            >
-              {folderLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
-              {inAnalysisDone ? "Open results folder" : "Create results folder"}
-            </Button>
             <Button
               size="sm"
               variant="outline"

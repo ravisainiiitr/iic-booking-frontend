@@ -16,13 +16,18 @@ import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/li
 import {
   formatNumericBound,
   formatStepAttr,
+  initialNumericFieldValue,
   isNumericInputDraft,
+  isNumericValueWithinBounds,
   nudgeNumericValue,
   numericFieldAllowsNegative,
   resolveNumericFieldBounds,
   roundToStepPrecision,
 } from "@/lib/numericFieldLimits";
 import { formatINR } from "@/lib/money";
+import {
+  slotsNeededForAnalysisTime,
+} from "@/lib/slotAllocation";
 import {
   CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
   getChargeEstimateUserTypeLabel,
@@ -129,11 +134,11 @@ interface DailySlot {
   blocked_label?: string | null;
   mode_overlay_color?: string | null;
   mode_overlay?: string | null;
-  /** When true, slot is shown as Available to external users; only these can be booked by external users. */
+  /** @deprecated Prefer available_for_external / status AVAILABLE; quota replaces reserved-for-external marking. */
   reserved_for_external?: boolean;
   /** True when only the equipment's home-department students/faculty may book (default false = any dept). */
   home_department_only?: boolean;
-  /** True when slot is bookable by external users (reserved_for_external and status AVAILABLE). */
+  /** True when slot is bookable by external users (AVAILABLE under external quota). */
   available_for_external?: boolean;
   /** Display booking id (may be virtual / CODE-pk). Prefer real_booking_id for API calls. */
   booking_id?: number | string | null;
@@ -164,6 +169,8 @@ interface EquipmentDetail {
   location: string;
   image_url: string;
   slot_duration_minutes?: number;
+  /** Minutes of allowed overrun before an extra slot is required (0 = legacy ceil). */
+  slot_tolerance_minutes?: number;
   /** User-defined slot window start (HH:mm or HH:mm:ss). Used for calendar time axis. */
   slot_start_time?: string | null;
   /** User-defined slot window end (HH:mm or HH:mm:ss). Used for calendar time axis. */
@@ -356,9 +363,8 @@ function getInitialDynamicInputValue(
     // Row count driven by another field — start empty; sync fills from source value
     return [];
   }
-  if ((field.field_key === "A" || field.field_key === "B") && fieldType === "NUMERIC") {
-    const num = Number(field.default_value);
-    return String(Number.isNaN(num) || num < 1 ? 1 : num);
+  if (fieldType === "NUMERIC") {
+    return initialNumericFieldValue(field);
   }
   if (fieldType === "RADIO" || fieldType === "COMBO") {
     if (field.default_value) return field.default_value;
@@ -461,12 +467,12 @@ function calendarDateStrFromSlot(slot: DailySlot): string {
   return "";
 }
 
-/** External users: bookable when API sets available_for_external or slot is reserved for external and AVAILABLE (e.g. admin view without external serialization). */
+/** External users: bookable when API sets available_for_external or status is AVAILABLE. */
 function slotBookableByExternalUser(slot: DailySlot | undefined | null): boolean {
   if (!slot) return false;
   return (
     slot.available_for_external === true ||
-    (slot.reserved_for_external === true && String(slot.status || "").toUpperCase() === "AVAILABLE")
+    String(slot.status || "").toUpperCase() === "AVAILABLE"
   );
 }
 
@@ -517,7 +523,6 @@ const DEFAULT_SLOT_STATUS_COLORS: Record<string, string> = {
   OPERATOR_ABSENT: "#fde68a",
   BOOKING_NOT_UTILIZED: "#e9d5ff",
   HOLD: "#fef3c7",
-  RESERVED_FOR_EXTERNAL: "#94a3b8",
   HOME_DEPARTMENT_ONLY: "#c4b5fd",
   NON_HOME_RESERVED: "#67e8f9",
 };
@@ -531,7 +536,6 @@ const SLOT_STATUS_LABELS: Record<string, string> = {
   OPERATOR_ABSENT: "Operator Absent",
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
   HOLD: "Hold",
-  RESERVED_FOR_EXTERNAL: "Reserved for External User",
   HOME_DEPARTMENT_ONLY: "Home department only",
   NON_HOME_RESERVED: "Reserved for other departments",
 };
@@ -636,8 +640,7 @@ function inputsReadyForChargeEstimate(
     const fieldType = String(field.field_type || "").toUpperCase().trim();
     if (fieldType !== "NUMERIC") continue;
     const raw = inputFieldValues[key];
-    const num = typeof raw === "number" ? raw : Number(raw);
-    if (raw === undefined || raw === null || raw === "" || Number.isNaN(num) || num < 1) {
+    if (!isNumericValueWithinBounds(raw, field)) {
       return false;
     }
   }
@@ -806,12 +809,10 @@ const BookEquipment = () => {
   const [blockedLabelForStatus, setBlockedLabelForStatus] = useState<string>('');
   const [sendEmailToWalletOwnerForNotUtilized, setSendEmailToWalletOwnerForNotUtilized] = useState(true);
   const BULK_EMAIL_OPERATION_VALUE = "__bulk_email__";
-  const RESERVED_FOR_EXTERNAL_VALUE = "RESERVED_FOR_EXTERNAL";
   const HOME_DEPARTMENT_ONLY_VALUE = "HOME_DEPARTMENT_ONLY";
   const CLEAR_HOME_DEPARTMENT_ONLY_VALUE = "CLEAR_HOME_DEPARTMENT_ONLY";
   const RESCHEDULE_OPERATION_VALUE = "RESCHEDULE";
   const [updatingSlotStatus, setUpdatingSlotStatus] = useState(false);
-  const [updatingReserveExternal, setUpdatingReserveExternal] = useState(false);
   const [updatingHomeDepartmentOnly, setUpdatingHomeDepartmentOnly] = useState(false);
   const [statusChangeRescheduleOpen, setStatusChangeRescheduleOpen] = useState(false);
   const [statusChangeRescheduleLoading, setStatusChangeRescheduleLoading] = useState(false);
@@ -824,7 +825,7 @@ const BookEquipment = () => {
     maintenance_reschedule_extra_week?: boolean;
     status?: string;
   } | null>(null);
-  /** True when current user is external (Educational Institute, RND, Industry, Other). Used to decide if reserved_for_external slots are selectable. */
+  /** True when current user is external (Educational Institute, RND, Industry, Other). */
   const isExternalUser = useMemo(() => {
     const ut = String(userType ?? "").toLowerCase();
     return isExternalBookingUserType(ut);
@@ -859,18 +860,18 @@ const BookEquipment = () => {
     // Admin and OIC may book any non-BOOKED slot (weekend / holiday / past / closed-day statuses).
     if (actor === "admin" || actor === "manager") {
       if (adminManageMode === "book" && adminBookForUserId && bookingAsExternalTarget) {
-        return slot.status === "AVAILABLE" && slot.reserved_for_external === true;
+        return slotBookableByExternalUser(slot);
       }
       if (adminManageMode === "book" && adminBookForUserId && !bookingAsExternalTarget) {
         // Internal on-behalf: allow non-BOOKED including NOT_AVAILABLE (weekend/holiday).
         const status = String(slot.status || "").toUpperCase();
-        return status !== "BOOKED" && status !== "BOOKING_NOT_UTILIZED" && slot.reserved_for_external !== true;
+        return status !== "BOOKED" && status !== "BOOKING_NOT_UTILIZED";
       }
       const status = String(slot.status || "").toUpperCase();
       return status !== "BOOKED" && status !== "BOOKING_NOT_UTILIZED";
     }
     if (isExternalUser) return slotBookableByExternalUser(slot);
-    if (slot.status !== "AVAILABLE" || slot.reserved_for_external === true) return false;
+    if (slot.status !== "AVAILABLE") return false;
 
     // Department reservation: marked = non-home; unmarked = home-only while policy active;
     // marked slots open to all within reschedule_hours_threshold before start.
@@ -1178,9 +1179,8 @@ const BookEquipment = () => {
           // Admin / OIC / Students / Faculty: Start with current week
           setCurrentWeekStart(currentWeek);
         } else {
-          // Other users: Start with week beginning 15 days from current date
-          const fifteenDaysFromNow = addDays(now, 15);
-          setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
+          // External (and similar): start with current week; API slot_window_* bounds drive navigation after slots load
+          setCurrentWeekStart(currentWeek);
         }
       } catch (e) {
         // If localStorage fails, check auth
@@ -2261,7 +2261,7 @@ const BookEquipment = () => {
           return;
         }
       }
-      // Parameters A and B (when present) must be at least 1 for NUMERIC fields; RADIO/COMBO must have a selection.
+      // Parameters A and B (when present): NUMERIC must be within configured min/max; RADIO/COMBO must have a selection.
       if (equipmentDetail.profile_type !== "PRINT_3D") {
         const abKeys = ['A', 'B'];
         for (const key of abKeys) {
@@ -2281,13 +2281,23 @@ const BookEquipment = () => {
             // Billable count may be 0 when only locked preselected elements (`/C`) are set.
             continue;
           }
-          const num = typeof raw === 'number' ? raw : Number(raw);
-          if (Number.isNaN(num) || num < 1) {
-            if (!isCalculateChargesFlow) toast.error(`"${label}" must be at least 1.`);
-            return;
+          if (fieldType === 'NUMERIC') {
+            const formulaMax =
+              key === "A" && !bookingAsExternalTarget
+                ? resolveDynamicMaxForFieldA(field, inputFieldValues, equipmentDetail, false)
+                : undefined;
+            const bounds = resolveNumericFieldBounds(field, formulaMax);
+            if (!isNumericValueWithinBounds(raw, field, formulaMax)) {
+              if (!isCalculateChargesFlow) {
+                toast.error(
+                  `"${label}" must be between ${formatNumericBound(bounds.min)} and ${formatNumericBound(bounds.max)}.`
+                );
+              }
+              return;
+            }
           }
         }
-      }
+        }
       }
     }
 
@@ -2718,6 +2728,9 @@ const BookEquipment = () => {
             ...(data.slot_start_time != null && { slot_start_time: data.slot_start_time }),
             ...(data.slot_end_time != null && { slot_end_time: data.slot_end_time }),
             ...(data.slot_duration_minutes != null && { slot_duration_minutes: data.slot_duration_minutes }),
+            ...(data.slot_tolerance_minutes != null && {
+              slot_tolerance_minutes: Math.max(0, Number(data.slot_tolerance_minutes) || 0),
+            }),
             ...(data.slot_master_times && Array.isArray(data.slot_master_times) && { slot_master_times: data.slot_master_times }),
             ...(data.weekly_view_time_from != null && { weekly_view_time_from: data.weekly_view_time_from }),
             ...(data.weekly_view_time_to != null && { weekly_view_time_to: data.weekly_view_time_to }),
@@ -3021,10 +3034,14 @@ const BookEquipment = () => {
     const requiredMinutes = calculatedCharge.total_time_minutes;
     const slotDuration = equipmentDetail.slot_duration_minutes || 60;
     const oneSlot = slotDuration;
+    const tolerance = Math.max(0, Number(equipmentDetail.slot_tolerance_minutes ?? 0) || 0);
     const tenPercentSlot = 0.1 * oneSlot;
+    // Configured tolerance replaces the legacy 10% soft slack when > 0 (0 keeps legacy behaviour).
+    const softSlackMinutes = tolerance > 0 ? tolerance : tenPercentSlot;
+    const minSlotsNeeded = slotsNeededForAnalysisTime(requiredMinutes, oneSlot, tolerance);
 
-    // If required time <= one slot, select only one slot
-    if (requiredMinutes <= oneSlot) {
+    // If only one slot is needed (including tolerance), select only one slot
+    if (minSlotsNeeded <= 1) {
       // Find the first available slot (admin: allow past and non-BOOKED)
       const availableSlot = equipmentDetail.daily_slots.find(slot => {
         const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
@@ -3056,9 +3073,7 @@ const BookEquipment = () => {
       return;
     }
 
-    // For required time > one slot, find consecutive slots
-    // Calculate minimum number of slots needed to cover required time
-    const minSlotsNeeded = Math.ceil(requiredMinutes / oneSlot);
+    // For required time needing more than one slot, find consecutive slots
     const minTimeNeeded = minSlotsNeeded * oneSlot;
 
     // Sort slots by start_datetime so we try earlier slots first and get consistent results
@@ -3104,7 +3119,7 @@ const BookEquipment = () => {
       // Continue until we can't find more consecutive slots OR we've covered the required time
       while (true) {
         // If we've covered the required time, we can stop
-        if (chainTotalMinutes >= requiredMinutes - tenPercentSlot && chain.length >= minSlotsNeeded) {
+        if (chainTotalMinutes >= requiredMinutes - softSlackMinutes && chain.length >= minSlotsNeeded) {
           break;
         }
         
@@ -3118,7 +3133,7 @@ const BookEquipment = () => {
       }
       
       // Check if this chain is better than what we have
-      const hasEnough = chain.length >= minSlotsNeeded || chainTotalMinutes >= requiredMinutes - tenPercentSlot;
+      const hasEnough = chain.length >= minSlotsNeeded || chainTotalMinutes >= requiredMinutes - softSlackMinutes;
       
       // Keep the best chain (prefer chains that have enough, but also keep the longest chain even if it doesn't have enough)
       if (hasEnough) {
@@ -3129,7 +3144,7 @@ const BookEquipment = () => {
           bestSlotChain = chain;
           bestTotalMinutes = chainTotalMinutes;
           // If we found a perfect match, use it immediately
-          if (chain.length >= minSlotsNeeded && chainTotalMinutes >= requiredMinutes - tenPercentSlot) {
+          if (chain.length >= minSlotsNeeded && chainTotalMinutes >= requiredMinutes - softSlackMinutes) {
             break;
           }
         }
@@ -3156,7 +3171,7 @@ const BookEquipment = () => {
       
       // No slots found - show message to user
       toast.warning(
-        `Unable to auto-select slots. Required time is ${requiredMinutes} minutes (${Math.ceil(requiredMinutes / oneSlot)} slots), but no consecutive slots are available. ` +
+        `Unable to auto-select slots. Required time is ${requiredMinutes} minutes (${slotsNeededForAnalysisTime(requiredMinutes, oneSlot, tolerance)} slots), but no consecutive slots are available. ` +
         `Please reduce the number of samples/inputs.`
       );
       return;
@@ -3170,7 +3185,7 @@ const BookEquipment = () => {
     // 1. We have at least minSlotsNeeded slots (which should cover required time), OR
     // 2. Total minutes covers required time (within 10% variance)
     const hasEnoughConsecutiveSlots = autoSelectedSlots.length >= minSlotsNeeded || 
-                                      totalMinutes >= requiredMinutes - tenPercentSlot;
+                                      totalMinutes >= requiredMinutes - softSlackMinutes;
 
     if (hasEnoughConsecutiveSlots && autoSelectedSlots.length > 0) {
       // We found enough consecutive slots, use them
@@ -3185,7 +3200,7 @@ const BookEquipment = () => {
       } else {
         // No random slots available either
         toast.warning(
-          `Unable to auto-select slots. Required time is ${requiredMinutes} minutes (${Math.ceil(requiredMinutes / oneSlot)} slots), but no available slots found. ` +
+          `Unable to auto-select slots. Required time is ${requiredMinutes} minutes (${slotsNeededForAnalysisTime(requiredMinutes, oneSlot, tolerance)} slots), but no available slots found. ` +
           `Please reduce the number of samples/inputs.`
         );
       }
@@ -3264,9 +3279,8 @@ const BookEquipment = () => {
       // Admin / OIC / Students / Faculty: Start with current week
       setCurrentWeekStart(currentWeek);
     } else {
-      // Other users: Start with week beginning 15 days from current date
-      const fifteenDaysFromNow = addDays(now, 15);
-      setCurrentWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
+      // External (and similar): start with current week; API slot_window_* bounds drive navigation after slots load
+      setCurrentWeekStart(currentWeek);
     }
   };
 
@@ -3276,7 +3290,7 @@ const BookEquipment = () => {
     if (!slotData) return false;
     const slotStatus = String(slotData.status || "").toUpperCase();
     const hasBookedStatus = slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED";
-    // Admin/OIC booking for external target: same bookability as external (reserved + available only)
+    // Admin/OIC booking for external target: same bookability as external (AVAILABLE / available_for_external)
     if (isAdminOrOIC()) {
       if (adminManageMode === "book" && adminBookForUserId && bookingAsExternalTarget) {
         return hasBookedStatus || !slotBookableByExternalUser(slotData);
@@ -3285,8 +3299,8 @@ const BookEquipment = () => {
       return hasBookedStatus;
     }
     if (isExternalUser) return !slotBookableByExternalUser(slotData);
-    // Internal users: AVAILABLE slots that are NOT reserved for external are selectable; reserved for external are not
-    return slotData.status !== "AVAILABLE" || slotData.reserved_for_external === true;
+    // Internal users: AVAILABLE slots are selectable
+    return slotData.status !== "AVAILABLE";
   };
 
   const isSlotSelected = (date: Date, time: string): boolean => {
@@ -3371,17 +3385,17 @@ const BookEquipment = () => {
     const required = calculatedCharge.total_time_minutes;
     const selected = getTotalSelectedMinutes();
     const oneSlot = getOneSlotDurationMinutes(selectedSlots[0]);
+    const tolerance = Math.max(0, Number(equipmentDetail?.slot_tolerance_minutes ?? 0) || 0);
     const tenPercentSlot = 0.1 * oneSlot;
-    if (required <= oneSlot) {
+    const softSlackMinutes = tolerance > 0 ? tolerance : tenPercentSlot;
+    const minSlotsNeeded = slotsNeededForAnalysisTime(required, oneSlot, tolerance);
+    if (minSlotsNeeded <= 1) {
       return selectedSlots.length === 1;
     }
-    // Check if selection is within 10% variance (ideal case)
-    if (selected >= required - tenPercentSlot && selected <= required + tenPercentSlot) {
+    // Check if selection covers required time within soft slack / tolerance
+    if (selected >= required - softSlackMinutes && selected <= required + tenPercentSlot) {
       return true;
     }
-    // If selection exceeds by more than 10%, check if it's the minimum needed to cover required time
-    // Calculate minimum number of slots needed to cover required time
-    const minSlotsNeeded = Math.ceil(required / oneSlot);
     const minTimeNeeded = minSlotsNeeded * oneSlot;
     // Allow if selected time is the minimum needed to cover required time
     if (selected >= minTimeNeeded && selectedSlots.length === minSlotsNeeded) {
@@ -3514,15 +3528,15 @@ const BookEquipment = () => {
     
     const slotDuration = getSlotDurationMinutes(firstSlot);
     const oneSlot = slotDuration;
+    const tolerance = Math.max(0, Number(equipmentDetail.slot_tolerance_minutes ?? 0) || 0);
     const tenPercentSlot = 0.1 * oneSlot;
+    const softSlackMinutes = tolerance > 0 ? tolerance : tenPercentSlot;
+    const minSlotsNeeded = slotsNeededForAnalysisTime(requiredMinutes, oneSlot, tolerance);
     
-    // If required time <= one slot, return only the first slot
-    if (requiredMinutes <= oneSlot) {
+    // If only one slot is needed (including tolerance), return only the first slot
+    if (minSlotsNeeded <= 1) {
       return [firstSlot];
     }
-    
-    // Calculate minimum number of slots needed
-    const minSlotsNeeded = Math.ceil(requiredMinutes / oneSlot);
     
     // Build consecutive slots starting from the first slot
     const allSlots: TimeSlot[] = [firstSlot];
@@ -3540,15 +3554,15 @@ const BookEquipment = () => {
       totalMinutes += getSlotDurationMinutes(nextSlot);
       currentSlot = nextSlot;
       
-      // If we've covered the required time (within 10% variance), we can stop
-      if (totalMinutes >= requiredMinutes - tenPercentSlot) {
+      // If we've covered the required time (within tolerance / soft slack), we can stop
+      if (totalMinutes >= requiredMinutes - softSlackMinutes) {
         break;
       }
     }
     
     // Check if we have enough consecutive slots
     const hasEnoughConsecutiveSlots = allSlots.length >= minSlotsNeeded && 
-                                      totalMinutes >= requiredMinutes - tenPercentSlot;
+                                      totalMinutes >= requiredMinutes - softSlackMinutes;
     
     if (hasEnoughConsecutiveSlots) {
       // We found enough consecutive slots, return them
@@ -3595,8 +3609,10 @@ const BookEquipment = () => {
     
     const slotDuration = equipmentDetail.slot_duration_minutes || 60;
     const oneSlot = slotDuration;
-    const minSlotsNeeded = Math.ceil(requiredMinutes / oneSlot);
+    const tolerance = Math.max(0, Number(equipmentDetail.slot_tolerance_minutes ?? 0) || 0);
+    const minSlotsNeeded = slotsNeededForAnalysisTime(requiredMinutes, oneSlot, tolerance);
     const tenPercentSlot = 0.1 * oneSlot;
+    const softSlackMinutes = tolerance > 0 ? tolerance : tenPercentSlot;
     
     // Get all available slots, excluding already selected ones
     const availableSlots: TimeSlot[] = [];
@@ -3642,13 +3658,13 @@ const BookEquipment = () => {
       totalMinutes += getSlotDurationMinutes(slot);
       
       // If we've covered the required time (within 10% variance), we can stop
-      if (totalMinutes >= requiredMinutes - tenPercentSlot) {
+      if (totalMinutes >= requiredMinutes - softSlackMinutes) {
         break;
       }
     }
     
     // Only return if we have enough slots to cover the required time
-    if (selectedSlots.length > 0 && totalMinutes >= requiredMinutes - tenPercentSlot) {
+    if (selectedSlots.length > 0 && totalMinutes >= requiredMinutes - softSlackMinutes) {
       return selectedSlots;
     }
     
@@ -3713,30 +3729,32 @@ const BookEquipment = () => {
           const currentSelectedMinutes = prev.reduce((total, s) => total + getSlotDurationMinutes(s), 0);
           const newTotalMinutes = currentSelectedMinutes + slotDuration;
           const oneSlotRef = prev.length > 0 ? getSlotDurationMinutes(prev[0]) : slotDuration;
+          const tolerance = Math.max(0, Number(equipmentDetail?.slot_tolerance_minutes ?? 0) || 0);
           const tenPercentSlot = 0.1 * oneSlotRef;
+          const softSlackMinutes = tolerance > 0 ? tolerance : tenPercentSlot;
+          const minSlotsForRequired = slotsNeededForAnalysisTime(required, oneSlotRef, tolerance);
 
-          // (a) If required time <= one slot duration: allow only a single slot
-          if (required <= oneSlotRef) {
+          // (a) If only one slot is needed (including tolerance): allow only a single slot
+          if (minSlotsForRequired <= 1) {
             if (prev.length >= 1) {
-              toast.error(`Only one slot is allowed when required time (${required} min) is within a single slot.`);
+              toast.error(`Only one slot is allowed when required time (${required} min) fits within a single slot (tolerance ${tolerance} min).`);
               return prev;
             }
             // For single slot requirement, just return the selected slot
             return [...prev, slot];
           }
 
-          // (b) Required > one slot: allow multiple slots until required is covered (with up to 10% tail)
+          // (b) Required needs multiple slots: allow until covered (with soft slack / tolerance)
           if (currentSelectedMinutes >= required) {
             toast.error(`You have already covered the required time (${required} minutes).`);
             return prev;
           }
           // Calculate remaining time
           const remaining = Math.max(0, required - currentSelectedMinutes);
-          // Allow selecting another slot if remaining time exceeds 10% of one slot
-          // If remaining time is within 10% variance, don't allow selecting another slot
-          if (remaining <= tenPercentSlot) {
+          // Allow selecting another slot if remaining time exceeds soft slack
+          if (remaining <= softSlackMinutes) {
             toast.error(
-              `Cannot add this slot. Required time is ${required} minutes; only ${remaining} minutes remaining (within 10% variance).`
+              `Cannot add this slot. Required time is ${required} minutes; only ${remaining} minutes remaining (within tolerance/slack).`
             );
             return prev;
           }
@@ -3744,9 +3762,9 @@ const BookEquipment = () => {
           // If this is the first slot selection, auto-select ALL required consecutive slots
           if (prev.length === 0) {
             const allRequiredSlots = findAllRequiredConsecutiveSlots(slot, required);
-            const minSlotsNeeded = Math.ceil(required / oneSlotRef);
+            const minSlotsNeeded = minSlotsForRequired;
             // When splitting not allowed, require full consecutive block; don't accept partial
-            if (!equipmentDetail?.split_booking_enabled && (required > oneSlotRef && allRequiredSlots.length < minSlotsNeeded)) {
+            if (!equipmentDetail?.split_booking_enabled && (minSlotsNeeded > 1 && allRequiredSlots.length < minSlotsNeeded)) {
               toast.error(
                 `Could not find enough consecutive slots from this slot. Need ${minSlotsNeeded} slot(s) (${required} min). ` +
                 `Try a different starting slot or reduce required time.`
@@ -3841,7 +3859,7 @@ const BookEquipment = () => {
   // Normalize user type to string for comparison
   const normalizeUserType = (type: string | number | null): string | null => normalizeUserTypeCode(type);
 
-  /** Normalized types that use the external booking window (reserved slots + today+15 rule). */
+  /** Normalized types that use the external booking window (API slot_window_min/max_date). */
   const isExternalUserTypeNormalized = (normalizedType: string | null): boolean =>
     normalizedType != null && isExternalBookingUserType(normalizedType);
 
@@ -3876,7 +3894,7 @@ const BookEquipment = () => {
 
   // Check if a week is allowed (must align with getAllowedWeeks() so slot fetch runs for every navigable week, including urgent extension)
   const isWeekAllowed = (weekStart: Date): boolean => {
-    // Admin and OIC may navigate any week when booking for users (no slot-window / +15-day restriction).
+    // Admin and OIC may navigate any week when booking for users (no slot-window restriction).
     if (isAdminOrOIC()) return true;
     if (!userType) return false;
 
@@ -3886,15 +3904,12 @@ const BookEquipment = () => {
     const now = new Date();
     const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
-    const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
 
     const weekStartNormalized = startOfWeek(weekStart, { weekStartsOn: 1 });
     const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 1 });
     const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 1 });
-    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 1 });
 
-    if (normalizedType === "student" || normalizedType === "faculty") {
+    if (normalizedType === "student" || normalizedType === "faculty" || isExternalUserTypeNormalized(normalizedType)) {
       const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
       const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
       if (!minDateStr || !maxDateStr) {
@@ -3917,23 +3932,15 @@ const BookEquipment = () => {
       return weekSunday >= minDate && weekStartNormalized <= maxDate;
     }
 
-    // External (and similar): can move backward from the bookable week down to the current week (Mon–Sun grid).
-    if (isExternalUserTypeNormalized(normalizedType)) {
-      const lastNavWeek = isUrgentHoldMode ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
-      const lastNorm = startOfWeek(lastNavWeek, { weekStartsOn: 1 }).getTime();
-      const firstNorm = currentWeekNormalized.getTime();
-      const t = weekStartNormalized.getTime();
-      return t >= firstNorm && t <= lastNorm;
-    }
-
     if (isUrgentHoldMode) {
-      const second = addWeeks(allowedWeekStart, 1);
+      const weekAfterNext = addWeeks(nextWeek, 1);
       return (
-        weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime() ||
-        weekStartNormalized.getTime() === startOfWeek(second, { weekStartsOn: 1 }).getTime()
+        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === nextWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === startOfWeek(weekAfterNext, { weekStartsOn: 1 }).getTime()
       );
     }
-    return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
+    return weekStartNormalized.getTime() === currentWeekNormalized.getTime();
   };
 
   // Get allowed weeks for navigation (admin/OIC or repeat-sample: any week; others restricted)
@@ -3962,9 +3969,7 @@ const BookEquipment = () => {
     const now = new Date();
     const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
-    const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
-    if (normalizedType === 'student' || normalizedType === 'faculty') {
+    if (normalizedType === 'student' || normalizedType === 'faculty' || isExternalUserTypeNormalized(normalizedType)) {
       const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
       const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
       if (!minDateStr || !maxDateStr) {
@@ -3989,21 +3994,10 @@ const BookEquipment = () => {
       }
       return getAllowedWeeksFromSlotWindowBounds(minDateStr, maxDateStr);
     }
-    if (isExternalUserTypeNormalized(normalizedType)) {
-      const lastNavWeek = isUrgentHoldMode ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
-      const weeks: Date[] = [];
-      let w = startOfWeek(currentWeek, { weekStartsOn: 1 });
-      const endW = startOfWeek(lastNavWeek, { weekStartsOn: 1 });
-      while (w.getTime() <= endW.getTime()) {
-        weeks.push(w);
-        w = startOfWeek(addWeeks(w, 1), { weekStartsOn: 1 });
-      }
-      return weeks;
-    }
     if (isUrgentHoldMode) {
-      return [allowedWeekStart, addWeeks(allowedWeekStart, 1)];
+      return [currentWeek, nextWeek, addWeeks(nextWeek, 1)];
     }
-    return [allowedWeekStart];
+    return [currentWeek];
   };
 
   const goToPreviousWeek = () => {
@@ -4046,10 +4040,10 @@ const BookEquipment = () => {
     return currentIndex < allowedWeeks.length - 1;
   };
 
-  // Internal users with slot window: default to current week when selected week is not allowed (snap to current week)
+  // Internal and external users with slot window: snap to an allowed week when selected week is outside bounds
   useEffect(() => {
     const nType = userType != null ? normalizeUserType(userType) : null;
-    if (nType !== 'student' && nType !== 'faculty') return;
+    if (nType !== 'student' && nType !== 'faculty' && !isExternalUserTypeNormalized(nType)) return;
     const allowed = getAllowedWeeks();
     if (allowed.length === 0) return;
     const selected = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -4059,26 +4053,11 @@ const BookEquipment = () => {
     }
   }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart, isUrgentHoldMode]);
 
-  // External users: keep the selected week inside [current week … bookable week] when rules change.
-  useEffect(() => {
-    const nType = userType != null ? normalizeUserType(userType) : null;
-    if (!isExternalUserTypeNormalized(nType)) return;
-    const allowed = getAllowedWeeks();
-    if (allowed.length === 0) return;
-    const selected = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-    const isAllowed = allowed.some(
-      (w) => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime()
-    );
-    if (!isAllowed) {
-      setCurrentWeekStart(startOfWeek(allowed[allowed.length - 1], { weekStartsOn: 1 }));
-    }
-  }, [userType, currentWeekStart, isUrgentHoldMode, selectedEquipment?.id]);
-
-  // Default to current week whenever an equipment is selected for booking (internal users)
+  // Default to current week whenever an equipment is selected for booking (internal / external users)
   useEffect(() => {
     if (!selectedEquipment) return;
     const nType = userType != null ? normalizeUserType(userType) : null;
-    if (nType === 'student' || nType === 'faculty') {
+    if (nType === 'student' || nType === 'faculty' || isExternalUserTypeNormalized(nType)) {
       setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
     }
   }, [selectedEquipment?.id, userType]);
@@ -5662,9 +5641,7 @@ const BookEquipment = () => {
                             isCalendarAccentDay &&
                             (!slot ||
                               slotStatusUpper === "NOT_AVAILABLE" ||
-                              (slotStatusUpper === "AVAILABLE" &&
-                                slot != null &&
-                                slot.reserved_for_external !== true));
+                              slotStatusUpper === "AVAILABLE");
                           const calendarDayLabel =
                             holidayName && holidayName !== ""
                               ? holidayName
@@ -5680,8 +5657,7 @@ const BookEquipment = () => {
                           const calendarSlotColors = equipmentDetail?.calendar_colors?.slot_colors;
                           let statusForColor = String(slot?.booking_status ?? slot?.status ?? "").toUpperCase();
                           if (slot?.status === "AVAILABLE") {
-                            if (slot.reserved_for_external) statusForColor = "RESERVED_FOR_EXTERNAL";
-                            else if (slot.status_display === "Reserved for other departments" || slot.home_department_only) {
+                            if (slot.status_display === "Reserved for other departments" || slot.home_department_only) {
                               statusForColor =
                                 slot.status_display === "Available (all departments)"
                                   ? "AVAILABLE"
@@ -5892,7 +5868,6 @@ const BookEquipment = () => {
                                     <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
                                     <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
                                     <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available (closed day)</SelectItem>
-                                    <SelectItem value={RESERVED_FOR_EXTERNAL_VALUE} className="text-base">Reserved for External</SelectItem>
                                     <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
                                       Reserve for non-home department
                                     </SelectItem>
@@ -5951,7 +5926,6 @@ const BookEquipment = () => {
                                   disabled={
                                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                                     updatingSlotStatus ||
-                                    updatingReserveExternal ||
                                     updatingHomeDepartmentOnly ||
                                     statusChangeRescheduleLoading ||
                                     (newSlotStatus === "BOOKING_NOT_UTILIZED" && selectedSlotIdsForStatus.length === 0) ||
@@ -6161,36 +6135,6 @@ const BookEquipment = () => {
                                       }
                                       return;
                                     }
-                                    if (newSlotStatus === RESERVED_FOR_EXTERNAL_VALUE) {
-                                      setUpdatingReserveExternal(true);
-                                      try {
-                                        const payload: { reserved_for_external: boolean; dates?: string[]; slot_ids?: number[] } = { reserved_for_external: true };
-                                        if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
-                                        else payload.dates = effectiveDates;
-                                        const res = await apiClient.adminEquipmentBulkReserveExternal(selectedEquipment.id, payload);
-                                        if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
-                                        const data = (res as { data?: { updated?: number; message?: string } }).data;
-                                        toast.success(data?.message ?? `Marked ${data?.updated ?? 0} slot(s) as Reserved for External.`);
-                                        setSelectedDatesForStatus([]);
-                                        setSelectedSlotIdsForStatus([]);
-                                        setStatusChangeSelectedMonths([]);
-                                        setLastFetchedWeek(null);
-                                        if (statusChangePopupWeekStart) {
-                                          await fetchSlotsForWeek(true, statusChangePopupWeekStart);
-                                        } else if (effectiveDates.length > 0) {
-                                          const earliest = [...effectiveDates].sort()[0];
-                                          await fetchSlotsForWeek(true, parseISO(earliest));
-                                        } else {
-                                          await fetchSlotsForWeek(true);
-                                        }
-                                        if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
-                                      } catch (e: unknown) {
-                                        toast.error(e instanceof Error ? e.message : "Failed to update slots");
-                                      } finally {
-                                        setUpdatingReserveExternal(false);
-                                      }
-                                      return;
-                                    }
                                     if (applyProgressIntervalRef.current) {
                                       clearInterval(applyProgressIntervalRef.current);
                                       applyProgressIntervalRef.current = null;
@@ -6244,9 +6188,9 @@ const BookEquipment = () => {
                                   }}
                                 >
                                   {statusChangeRescheduleLoading
-                                    ? "Opening rescheduleΓÇª"
-                                    : updatingSlotStatus || updatingReserveExternal || updatingHomeDepartmentOnly
-                                    ? "ApplyingΓÇª"
+                                    ? "Opening reschedule…"
+                                    : updatingSlotStatus || updatingHomeDepartmentOnly
+                                    ? "Applying…"
                                     : newSlotStatus === RESCHEDULE_OPERATION_VALUE
                                       ? selectedSlotIdsForStatus.length > 0
                                         ? `Reschedule ${selectedSlotIdsForStatus.length} slot(s)ΓÇª`
@@ -7803,11 +7747,26 @@ const BookEquipment = () => {
                         </p>
                       );
                     })()}
-                    {userType && !isAdminOrOIC() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Available: One week window starting 15 days from today
-                      </p>
-                    )}
+                    {userType && !isAdminOrOIC() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (() => {
+                      const minStr = equipmentDetail?.slot_window_min_date;
+                      const maxStr = equipmentDetail?.slot_window_max_date;
+                      if (minStr && maxStr) {
+                        try {
+                          return (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Available: {format(parseISO(minStr), "MMM d")} – {format(parseISO(maxStr), "MMM d, yyyy")}
+                            </p>
+                          );
+                        } catch {
+                          /* fall through */
+                        }
+                      }
+                      return (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Available: Dates within the equipment booking window from the server
+                        </p>
+                      );
+                    })()}
                   </div>
                   <Button 
                     variant="outline" 
@@ -8157,7 +8116,6 @@ const BookEquipment = () => {
                             OPERATOR_ABSENT: "#eab308",
                             BOOKING_NOT_UTILIZED: "#a855f7",
                             HOLD: "#f59e0b",
-                            RESERVED_FOR_EXTERNAL: "#94a3b8",
                             HOME_DEPARTMENT_ONLY: "#c4b5fd",
                             NON_HOME_RESERVED: "#06b6d4",
                             NOT_AVAILABLE: "#e2e8f0",
@@ -8194,10 +8152,9 @@ const BookEquipment = () => {
                               const bg = slotData.mode_overlay_color;
                               cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                             } else {
-                            // Use RESERVED_FOR_EXTERNAL / NOT_AVAILABLE from calendar-colors when applicable
+                            // Use calendar-colors by status_display / status when applicable
                             let statusForColor = slotStatus;
-                            if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
-                            else if (slotData?.status_display === "Reserved for other departments") {
+                            if (slotData?.status_display === "Reserved for other departments") {
                               statusForColor = "NON_HOME_RESERVED";
                             } else if (slotData?.status_display === "Home department only") {
                               statusForColor = "HOME_DEPARTMENT_ONLY";

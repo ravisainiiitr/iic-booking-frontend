@@ -232,9 +232,9 @@ const BookingManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBookingId, overrideBooking?.booking_id]);
 
-  const fetchBookings = async (pageOverride?: number) => {
+  const fetchBookings = async (pageOverride?: number, opts?: { silent?: boolean }) => {
     try {
-      setLoadingBookings(true);
+      if (!opts?.silent) setLoadingBookings(true);
       const currentPage = pageOverride ?? page;
       const params: any = {
         limit: PAGE_SIZE,
@@ -267,7 +267,7 @@ const BookingManagement = () => {
       console.error("Error fetching bookings:", error);
       toast.error("Failed to fetch bookings");
     } finally {
-      setLoadingBookings(false);
+      if (!opts?.silent) setLoadingBookings(false);
     }
   };
 
@@ -675,7 +675,9 @@ const BookingManagement = () => {
                 <BookingDetailCard
                   booking={booking as BookingDetailCardBooking}
                   onClose={closeDetail}
-                  onUpdated={fetchBookings}
+                  onUpdated={() => {
+                    void fetchBookings(undefined, { silent: true });
+                  }}
                   isOperator={isOperator}
                   isManagerOrAdmin={isManagerOrAdmin}
                   currentUserType={userTypeStr}

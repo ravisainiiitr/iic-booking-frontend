@@ -1,6 +1,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 function parseTimeToMinutes(timeStr: string): number {
@@ -108,13 +109,14 @@ const DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00"
 const DEFAULT_SLOT_COLORS: Record<string, string> = {
   AVAILABLE: "#22c55e",
   BOOKED: "#ef4444",
+  BOOKED_INTERNAL: "#ef4444",
+  BOOKED_EXTERNAL: "#0284c7",
   COMPLETED: "#059669",
   BLOCKED: "#64748b",
   UNDER_MAINTENANCE: "#f97316",
   OPERATOR_ABSENT: "#eab308",
   BOOKING_NOT_UTILIZED: "#a855f7",
   HOLD: "#f59e0b",
-  RESERVED_FOR_EXTERNAL: "#94a3b8",
   NOT_AVAILABLE: "#e2e8f0",
 };
 
@@ -409,13 +411,24 @@ export function LabOperatorWeekCalendarGrid({
                     cellStyle = { backgroundColor: holidayColor, color: getContrastTextColor(holidayColor) };
                   } else if (slotExists) {
                     let statusForColor = slotStatus;
-                    if (slotData?.status_display === "Reserved for External User")
-                      statusForColor = "RESERVED_FOR_EXTERNAL";
-                    else if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
+                    if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                     else if (slotStatus === "BOOKED" && slotData?.booking_status)
                       statusForColor = String(slotData.booking_status).toUpperCase();
+                    // Distinguish internal vs external bookers on booked cells.
+                    if (considerBooked && (statusForColor === "BOOKED" || slotStatusUpper === "BOOKED")) {
+                      const isExt =
+                        slotData?.booking_is_external === true ||
+                        isExternalBookingUserType(slotData?.booking_user_type);
+                      statusForColor = isExt ? "BOOKED_EXTERNAL" : "BOOKED_INTERNAL";
+                    }
                     const st = statusForColor || "AVAILABLE";
-                    const bg = slotColors[st] ?? (considerBooked ? slotColors.BOOKED : slotColors.AVAILABLE);
+                    const bg =
+                      slotColors[st] ??
+                      (st === "BOOKED_EXTERNAL"
+                        ? slotColors.BOOKED_EXTERNAL || DEFAULT_SLOT_COLORS.BOOKED_EXTERNAL
+                        : considerBooked
+                          ? slotColors.BOOKED
+                          : slotColors.AVAILABLE);
                     cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                   } else {
                     const bg =

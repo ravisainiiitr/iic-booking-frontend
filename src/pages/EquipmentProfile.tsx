@@ -682,7 +682,6 @@ const EquipmentProfile = () => {
                                 OPERATOR_ABSENT: "#eab308",
                                 BOOKING_NOT_UTILIZED: "#a855f7",
                                 HOLD: "#f59e0b",
-                                RESERVED_FOR_EXTERNAL: "#94a3b8",
                                 NOT_AVAILABLE: "#e2e8f0",
                               };
                               const holidayDefault = calendarColors?.holiday_default || "#f59e0b";
@@ -700,8 +699,7 @@ const EquipmentProfile = () => {
                                 let statusForColor = (slotData?.status === "BOOKED" && slotData?.booking_status)
                                   ? String(slotData.booking_status).toUpperCase()
                                   : (slotData?.status ?? "AVAILABLE");
-                                if (slotData?.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
-                                else if (slotData?.status === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
+                                if (slotData?.status === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                                 cellBg =
                                   slotColors[statusForColor] ??
                                   (slotData?.status === "BOOKED" ? slotColors.BOOKED : slotColors.AVAILABLE);

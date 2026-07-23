@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,21 +213,15 @@ const MyUrgentRequests = () => {
     apiClient
       .getEquipmentSlots(id, startStr, endStr)
       .then((res) => {
-        const data = (res as { data?: { slots?: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }>; slot_window_max_date?: string | null } })?.data;
+        const data = (res as { data?: { slots?: Array<{ status?: string; start_datetime?: string; available_for_external?: boolean }>; slot_window_max_date?: string | null } })?.data;
         const firstPassSlots = data?.slots ?? [];
         const maxDate = data?.slot_window_max_date;
         const currentWeekEndStr = endStr;
         const nowMs = Date.now();
-        const currentUserType = String(user?.user_type || "").toLowerCase();
-        const isExternalUser = isExternalBookingUserType(currentUserType);
-        const hasAvailableIn = (slots: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }>) =>
+        const hasAvailableIn = (slots: Array<{ status?: string; start_datetime?: string; available_for_external?: boolean }>) =>
           slots.some((s) => {
-            if ((s.status || "").toUpperCase() !== "AVAILABLE") return false;
-            if (isExternalUser) {
-              if (!(s.available_for_external === true || s.reserved_for_external === true)) return false;
-            } else {
-              if (s.reserved_for_external === true) return false;
-            }
+            // Externals and internals: AVAILABLE slots (available_for_external is also treated as bookable)
+            if (!((s.status || "").toUpperCase() === "AVAILABLE" || s.available_for_external === true)) return false;
             if (!s.start_datetime) return false;
             const slotStartMs = new Date(s.start_datetime).getTime();
             if (Number.isNaN(slotStartMs)) return false;
@@ -238,7 +231,7 @@ const MyUrgentRequests = () => {
         // If booking navigation allows a later end date, re-check availability until that end date.
         if (maxDate && maxDate > currentWeekEndStr) {
           return apiClient.getEquipmentSlots(id, startStr, maxDate).then((res2) => {
-            const secondSlots = (res2 as { data?: { slots?: Array<{ status?: string; start_datetime?: string; reserved_for_external?: boolean; available_for_external?: boolean }> } })?.data?.slots ?? [];
+            const secondSlots = (res2 as { data?: { slots?: Array<{ status?: string; start_datetime?: string; available_for_external?: boolean }> } })?.data?.slots ?? [];
             setSlotsAvailableThisWeek(hasAvailableIn(secondSlots));
           });
         }

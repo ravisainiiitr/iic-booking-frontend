@@ -126,7 +126,6 @@ const DEFAULT_SLOT_COLORS: Record<string, string> = {
   OPERATOR_ABSENT: "#eab308",
   BOOKING_NOT_UTILIZED: "#a855f7",
   HOLD: "#f59e0b",
-  RESERVED_FOR_EXTERNAL: "#94a3b8",
   NOT_AVAILABLE: "#e2e8f0",
 };
 
@@ -727,8 +726,7 @@ export default function TAAssignments() {
                                     }
 
                                     let statusForColor = slotStatus;
-                                    if (slotData.status_display === "Reserved for External User") statusForColor = "RESERVED_FOR_EXTERNAL";
-                                    else if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
+                                    if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                                     else if (slotStatus === "BOOKED" && slotData?.booking_status)
                                       statusForColor = String(slotData.booking_status).toUpperCase();
 

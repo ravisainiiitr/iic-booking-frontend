@@ -135,6 +135,47 @@ export function formatNumericBound(n: number): string {
   return String(Number(n.toFixed(10))).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
+/**
+ * Initial / default value for a NUMERIC dynamic field.
+ * Honours configured min/max (including negative lower limits and negative defaults).
+ * When default is blank: A/B prefer 1 if that lies in range (legacy sample/slot counts), else min.
+ */
+export function initialNumericFieldValue(field: {
+  field_key?: string;
+  default_value?: unknown;
+  options?: unknown;
+  help_text?: string | null;
+}): string {
+  const bounds = resolveNumericFieldBounds(field);
+  const { min, max } = bounds;
+  const raw = field.default_value;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+    const parsed = Number(String(raw).trim().replace(",", "."));
+    if (Number.isFinite(parsed)) {
+      const clamped = Math.min(max, Math.max(min, parsed));
+      return formatNumericBound(clamped);
+    }
+  }
+  const key = String(field.field_key || "").toUpperCase();
+  if ((key === "A" || key === "B") && 1 >= min && 1 <= max) {
+    return "1";
+  }
+  return formatNumericBound(min);
+}
+
+/** True when a numeric input is present and within resolved [min, max]. */
+export function isNumericValueWithinBounds(
+  raw: unknown,
+  field: { field_key?: string; options?: unknown; help_text?: string | null },
+  formulaMax?: number | null
+): boolean {
+  if (raw === undefined || raw === null || raw === "") return false;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim().replace(",", "."));
+  if (!Number.isFinite(n)) return false;
+  const { min, max } = resolveNumericFieldBounds(field, formulaMax);
+  return n >= min && n <= max;
+}
+
 /** HTML step attribute — keep decimal resolution (never coerce to int). */
 export function formatStepAttr(step: number): string {
   if (!Number.isFinite(step) || step <= 0) return "1";

@@ -120,8 +120,8 @@ export default function RescheduleSlotPicker({
           if (normalizedType === 'admin' || normalizedType === 'manager' || normalizedType === 'operator' || normalizedType === 'student' || normalizedType === 'faculty') {
             setWeekStart(currentWeek);
           } else {
-            const fifteenDaysFromNow = addDays(now, 15);
-            setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
+            // External: start current week; API slot_window_* bounds drive navigation after slots load
+            setWeekStart(currentWeek);
           }
         } else {
           const response = await apiClient.getCurrentUser();
@@ -139,8 +139,8 @@ export default function RescheduleSlotPicker({
             if (normalizedType === 'admin' || normalizedType === 'manager' || normalizedType === 'operator' || normalizedType === 'student' || normalizedType === 'faculty') {
               setWeekStart(currentWeek);
             } else {
-              const fifteenDaysFromNow = addDays(now, 15);
-              setWeekStart(startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 }));
+              // External: start current week; API slot_window_* bounds drive navigation after slots load
+              setWeekStart(currentWeek);
             }
           }
         }
@@ -181,14 +181,11 @@ export default function RescheduleSlotPicker({
     const now = new Date();
     const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
-    const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
     const weekStartNormalized = startOfWeek(weekStartDate, { weekStartsOn: 1 });
     const currentWeekNormalized = startOfWeek(currentWeek, { weekStartsOn: 1 });
     const nextWeekNormalized = startOfWeek(nextWeek, { weekStartsOn: 1 });
-    const allowedWeekStartNormalized = startOfWeek(allowedWeekStart, { weekStartsOn: 1 });
 
-    if (normalizedType === 'student' || normalizedType === 'faculty') {
+    if (normalizedType === 'student' || normalizedType === 'faculty' || isExternalBookingUserType(normalizedType)) {
       const minDateStr = slotWindowMinDate ?? null;
       const maxDateStr = slotWindowMaxDate ?? null;
       if (minDateStr && maxDateStr) {
@@ -211,22 +208,15 @@ export default function RescheduleSlotPicker({
       );
     }
 
-    if (isExternalBookingUserType(normalizedType)) {
-      const lastNavWeek = useExtendedDisruptionWeekNav ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
-      const lastNorm = startOfWeek(lastNavWeek, { weekStartsOn: 1 }).getTime();
-      const firstNorm = currentWeekNormalized.getTime();
-      const t = weekStartNormalized.getTime();
-      return t >= firstNorm && t <= lastNorm;
-    }
-
     if (useExtendedDisruptionWeekNav) {
-      const second = addWeeks(allowedWeekStart, 1);
+      const weekAfterNext = addWeeks(nextWeek, 1);
       return (
-        weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime() ||
-        weekStartNormalized.getTime() === startOfWeek(second, { weekStartsOn: 1 }).getTime()
+        weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === nextWeekNormalized.getTime() ||
+        weekStartNormalized.getTime() === startOfWeek(weekAfterNext, { weekStartsOn: 1 }).getTime()
       );
     }
-    return weekStartNormalized.getTime() === allowedWeekStartNormalized.getTime();
+    return weekStartNormalized.getTime() === currentWeekNormalized.getTime();
   };
 
   // Get allowed weeks for navigation (staff: not used; nav has no restriction)
@@ -238,9 +228,7 @@ export default function RescheduleSlotPicker({
     const now = new Date();
     const currentWeek = startOfWeek(now, { weekStartsOn: 1 });
     const nextWeek = addWeeks(currentWeek, 1);
-    const fifteenDaysFromNow = addDays(now, 15);
-    const allowedWeekStart = startOfWeek(fifteenDaysFromNow, { weekStartsOn: 1 });
-    if (normalizedType === 'student' || normalizedType === 'faculty') {
+    if (normalizedType === 'student' || normalizedType === 'faculty' || isExternalBookingUserType(normalizedType)) {
       const minDateStr = slotWindowMinDate;
       const maxDateStr = slotWindowMaxDate;
       if (!minDateStr || !maxDateStr) {
@@ -270,21 +258,10 @@ export default function RescheduleSlotPicker({
       }
       return getAllowedWeeksFromSlotWindowBounds(minDateStr, maxDateStr);
     }
-    if (isExternalBookingUserType(normalizedType)) {
-      const lastNavWeek = useExtendedDisruptionWeekNav ? addWeeks(allowedWeekStart, 1) : allowedWeekStart;
-      const weeks: Date[] = [];
-      let w = startOfWeek(currentWeek, { weekStartsOn: 1 });
-      const endW = startOfWeek(lastNavWeek, { weekStartsOn: 1 });
-      while (w.getTime() <= endW.getTime()) {
-        weeks.push(w);
-        w = startOfWeek(addWeeks(w, 1), { weekStartsOn: 1 });
-      }
-      return weeks;
-    }
     if (useExtendedDisruptionWeekNav) {
-      return [allowedWeekStart, addWeeks(allowedWeekStart, 1)];
+      return [currentWeek, nextWeek, addWeeks(nextWeek, 1)];
     }
-    return [allowedWeekStart];
+    return [currentWeek];
   };
 
   const fetchSlots = useCallback(async () => {
@@ -319,10 +296,10 @@ export default function RescheduleSlotPicker({
     fetchSlots();
   }, [fetchSlots]);
 
-  // Internal users: snap to an allowed week when the selected week is outside navigable weeks (matches BookEquipment)
+  // Internal and external users: snap to an allowed week when the selected week is outside navigable weeks (matches BookEquipment)
   useEffect(() => {
     const nType = userType != null ? normalizeUserType(userType) : null;
-    if (nType !== 'student' && nType !== 'faculty') return;
+    if (nType !== 'student' && nType !== 'faculty' && !isExternalBookingUserType(nType)) return;
     const allowed = getAllowedWeeks();
     if (allowed.length === 0) return;
     const selected = startOfWeek(weekStart, { weekStartsOn: 1 });
@@ -333,21 +310,6 @@ export default function RescheduleSlotPicker({
       setWeekStart(startOfWeek(allowed[0], { weekStartsOn: 1 }));
     }
   }, [slotWindowMinDate, slotWindowMaxDate, userType, weekStart, useExtendedDisruptionWeekNav, maintenanceExtraWeekBookingId]);
-
-  // External users: snap into [current week … bookable week] (align with BookEquipment).
-  useEffect(() => {
-    const nType = userType != null ? normalizeUserType(userType) : null;
-    if (!isExternalBookingUserType(nType)) return;
-    const allowed = getAllowedWeeks();
-    if (allowed.length === 0) return;
-    const selected = startOfWeek(weekStart, { weekStartsOn: 1 });
-    const isAllowed = allowed.some(
-      (w) => startOfWeek(w, { weekStartsOn: 1 }).getTime() === selected.getTime()
-    );
-    if (!isAllowed) {
-      setWeekStart(startOfWeek(allowed[allowed.length - 1], { weekStartsOn: 1 }));
-    }
-  }, [userType, weekStart, useExtendedDisruptionWeekNav, maintenanceExtraWeekBookingId]);
 
   const getUniqueTimes = (): string[] => {
     const set = new Set<string>();
@@ -372,14 +334,16 @@ export default function RescheduleSlotPicker({
     if (currentBookingSlotIds.has(slot.id)) return true;
     // Staff (Admin/OIC/Operator): can select any slot that is not booked by someone else
     if (isUnrestrictedStaff()) return slot.status !== "BOOKED";
-    // External users: only AVAILABLE (reserved for external) slots are selectable
+    // External users: AVAILABLE slots (or available_for_external) are selectable
     const ut = String(userType ?? "").toLowerCase();
     const isExternal = isExternalBookingUserType(ut);
-    if (isExternal) return slot.status === "AVAILABLE";
-    // Internal users: only AVAILABLE slots that are NOT reserved for external are selectable.
+    if (isExternal) {
+      return slot.available_for_external === true || slot.status === "AVAILABLE";
+    }
+    // Internal users: AVAILABLE slots are selectable.
     // Department reservation (home / non-home) is enforced by the API using
     // booker.department vs equipment.internal_department and reschedule_hours_threshold.
-    return slot.status === "AVAILABLE" && slot.reserved_for_external !== true;
+    return slot.status === "AVAILABLE";
   };
 
   const isSelected = (slot: RescheduleSlot): boolean =>
@@ -559,7 +523,14 @@ export default function RescheduleSlotPicker({
           )}
           {userType && !isUnrestrictedStaff() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
             <p className="text-xs text-muted-foreground mt-1">
-              Available: One week window starting 15 days from today
+              {slotWindowMinDate && slotWindowMaxDate ? (
+                <>
+                  Available: {format(parseISO(slotWindowMinDate), "MMM d")} –{" "}
+                  {format(parseISO(slotWindowMaxDate), "MMM d, yyyy")}
+                </>
+              ) : (
+                "Available: Dates within the equipment booking window from the server"
+              )}
             </p>
           )}
         </div>

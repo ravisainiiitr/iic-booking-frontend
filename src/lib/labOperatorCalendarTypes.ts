@@ -23,6 +23,10 @@ export interface LabCalendarSlot {
   /** Staff-only (Admin / OIC / Operator) contact fields. */
   booking_user_email?: string | null;
   booking_user_phone?: string | null;
+  /** Booker user type code (e.g. student, external). */
+  booking_user_type?: string | null;
+  /** True when the booker is an external user type. */
+  booking_is_external?: boolean | null;
   slot_open_time?: string | null;
   blocked_label?: string | null;
 }

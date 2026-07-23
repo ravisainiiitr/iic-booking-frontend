@@ -52,11 +52,11 @@ function leaveCoversDay(l: LeaveRow, dayIso: string): { kind: "none" | "full" | 
   if (l.start_date === l.end_date) {
     if (l.start_session === "FN" && l.end_session === "FN") return { kind: "half_fn", label: "FN" };
     if (l.start_session === "AN" && l.end_session === "AN") return { kind: "half_an", label: "AN" };
-    return { kind: "full", label: "Leave" };
+    return { kind: "full", label: "Availability" };
   }
-  if (dayIso === l.start_date) return l.start_session === "AN" ? { kind: "half_an", label: "AN" } : { kind: "full", label: "Leave" };
-  if (dayIso === l.end_date) return l.end_session === "FN" ? { kind: "half_fn", label: "FN" } : { kind: "full", label: "Leave" };
-  return { kind: "full", label: "Leave" };
+  if (dayIso === l.start_date) return l.start_session === "AN" ? { kind: "half_an", label: "AN" } : { kind: "full", label: "Availability" };
+  if (dayIso === l.end_date) return l.end_session === "FN" ? { kind: "half_fn", label: "FN" } : { kind: "full", label: "Availability" };
+  return { kind: "full", label: "Availability" };
 }
 
 function cellClass(status: string, kind: "full" | "half_fn" | "half_an") {
@@ -65,11 +65,9 @@ function cellClass(status: string, kind: "full" | "half_fn" | "half_an") {
   const palette =
     u === "APPROVED"
       ? "bg-emerald-600"
-      : u === "REJECTED"
-        ? "bg-rose-600"
-        : u === "CANCELLED"
-          ? "bg-slate-600"
-          : "bg-amber-600";
+      : u === "CANCELLED"
+        ? "bg-slate-600"
+        : "bg-amber-600";
   const half = kind === "full" ? "" : "opacity-90";
   return cn(base, palette, half);
 }
@@ -108,7 +106,9 @@ export default function TeamCalendar() {
         // Backend returns department "members" (non-student/faculty/admin) for the roster.
         const data = res.data as TeamCalendarPayload | undefined;
         setOperators(data?.members ?? []);
-        setLeaves((res.data?.leaves ?? []) as LeaveRow[]);
+        setLeaves(((res.data?.leaves ?? []) as LeaveRow[]).filter(
+          (l) => String(l.status || "").toUpperCase() !== "REJECTED"
+        ));
         setHolidays(data?.holidays ?? {});
       })
       .catch((e) => {
@@ -157,7 +157,7 @@ export default function TeamCalendar() {
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold tracking-tight">Team Calendar</h1>
                 <p className="text-sm text-white/85">
-                  Department-wide leave visibility for Lab Operators (Pending/Approved/Rejected).
+                  Department-wide availability visibility for Lab Operators (Pending/Approved).
                 </p>
               </div>
             </div>
@@ -198,15 +198,14 @@ export default function TeamCalendar() {
             <CardTitle className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-violet-600" />
-                Leave roster for {monthLabel}
+                Availability roster for {monthLabel}
               </span>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="bg-amber-600 hover:bg-amber-600 text-white">Pending</Badge>
                 <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Approved</Badge>
-                <Badge className="bg-rose-600 hover:bg-rose-600 text-white">Rejected</Badge>
               </div>
             </CardTitle>
-            <CardDescription>Each cell shows the leave status for that operator on that day (FN/AN for half-day).</CardDescription>
+            <CardDescription>Each cell shows the availability status for that operator on that day (FN/AN for half-day).</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -311,11 +310,7 @@ export default function TeamCalendar() {
                                     "w-full text-center",
                                   )}
                                 >
-                                  {String(match.status).toUpperCase() === "APPROVED"
-                                    ? "Approved"
-                                    : String(match.status).toUpperCase() === "REJECTED"
-                                      ? "Rejected"
-                                      : "Pending"}
+                                  {String(match.status).toUpperCase() === "APPROVED" ? "Approved" : "Pending"}
                                   {label ? ` · ${label}` : ""}
                                 </div>
                               </div>

@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
 /**
- * Create In Analysis results folders on the operator's local PC.
+ * Create Sample Accepted booking folders on the operator's local PC.
  * Uses the File System Access API (Chrome/Edge). Falls back to a downloadable .bat.
  */
 

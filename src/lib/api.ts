@@ -1763,6 +1763,8 @@ class ApiClient {
       location: string;
       image_url: string;
       slot_duration_minutes: number;
+      /** Minutes of allowed overrun before an extra slot is required (0 = legacy ceil). */
+      slot_tolerance_minutes?: number;
       slots_per_day: number;
       /** Nullable override; when null, UI should use user's preference. */
       auto_slot_selection_default?: boolean | null;
@@ -1771,6 +1773,8 @@ class ApiClient {
       external_weekly_quota: number;
       internal_monthly_quota: number;
       external_monthly_quota: number;
+      /** % of week's bookable slots external users may book (0–100). */
+      external_slot_quota_percent?: number;
       specifications: Array<{
         equipment_specification_id: number;
         spec_key: string;
@@ -2148,6 +2152,7 @@ class ApiClient {
       /** User-defined slot window end (HH:mm or HH:mm:ss). Used for calendar time axis. */
       slot_end_time?: string | null;
       slot_duration_minutes?: number;
+      slot_tolerance_minutes?: number;
       /** Actual Slot Master open_time values (HH:mm:ss) - use these for calendar time axis to match user-defined timings. */
       slot_master_times?: string[];
       /** Admin-configurable colors for weekly calendar: slot statuses + holiday default. */
@@ -3915,7 +3920,7 @@ class ApiClient {
     );
   }
 
-  /** Staff: resolve In Analysis results folder path for local (lab PC) creation. */
+  /** Staff: resolve Sample Accepted results folder path for local (lab PC) creation. */
   async ensureBookingResultsFolder(bookingId: number) {
     return this.request<{
       message: string;
@@ -7477,21 +7482,22 @@ class ApiClient {
     );
   }
 
-  /** Admin/OIC: bulk mark slots as Reserved for External Users (or unmark). Same slot selection as bulk-slot-status. */
+  /**
+   * @deprecated Reserved-for-external slot marking was replaced by equipment `external_slot_quota_percent`.
+   * Kept as a stub so accidental callers fail loudly instead of hitting a removed endpoint.
+   */
   async adminEquipmentBulkReserveExternal(
-    equipmentId: number | string,
-    payload: {
+    _equipmentId: number | string,
+    _payload?: {
       reserved_for_external: boolean;
       dates?: string[];
       start_date?: string;
       end_date?: string;
       slot_ids?: number[];
     }
-  ) {
-    const endpoint = this.getAdminEndpoint('equipment');
-    return this.request<{ updated: number; message: string }>(
-      `${endpoint}${equipmentId}/bulk-reserve-external/`,
-      { method: 'POST', body: JSON.stringify(payload) }
+  ): Promise<never> {
+    throw new Error(
+      "adminEquipmentBulkReserveExternal is removed. Configure external_slot_quota_percent on equipment instead."
     );
   }
 

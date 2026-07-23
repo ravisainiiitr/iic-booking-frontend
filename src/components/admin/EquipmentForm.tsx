@@ -111,6 +111,7 @@ export type EquipmentFormData = {
   internal_department?: number | null;
   visibility_group?: number | null;
   slot_duration_minutes?: number;
+  slot_tolerance_minutes?: number;
   slots_per_day?: number;
   reschedule_hours_threshold?: number;
   results_base_location?: string | null;
@@ -131,6 +132,8 @@ export type EquipmentFormData = {
   slot_window_reference_weekday?: number | null;
   /** Time (24h, HH:mm) on that weekday when the next week opens. */
   slot_window_reference_time?: string | null;
+  /** % of the week's bookable slots (snapshotted) that external users may book. 0 = externals cannot book. */
+  external_slot_quota_percent?: number;
   /** Max waitlist length for this equipment (0 = disabled). Set when creating/editing equipment. */
   waitlist_queue_depth?: number | null;
   /** Max PENDING urgent requests for this equipment at a time. Leave empty for no cap. Admin and OIC. */
@@ -271,6 +274,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     internal_department: null,
     visibility_group: null,
     slot_duration_minutes: 30,
+    slot_tolerance_minutes: 0,
     slots_per_day: 12,
     reschedule_hours_threshold: 48,
     results_base_location: "D:\\Results",
@@ -283,6 +287,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     weekly_view_default_days: 7,
     slot_window_reference_weekday: null,
     slot_window_reference_time: null,
+    external_slot_quota_percent: 0,
     waitlist_queue_depth: 0,
     max_urgent_requests: null,
     booking_not_utilize_window_hours: 24,
@@ -498,6 +503,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         internal_department: (d.internal_department as number | null) ?? null,
         visibility_group: (d.visibility_group as number | null) ?? null,
         slot_duration_minutes: (d.slot_duration_minutes as number) ?? 30,
+        slot_tolerance_minutes: Math.max(0, Number(d.slot_tolerance_minutes ?? 0) || 0),
         slots_per_day: (d.slots_per_day as number) ?? 12,
         reschedule_hours_threshold: (d.reschedule_hours_threshold as number) ?? 48,
         results_base_location: (d.results_base_location as string) ?? "D:\\Results",
@@ -511,6 +517,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         weekly_view_default_days: (d.weekly_view_default_days != null && d.weekly_view_default_days !== '') ? Number(d.weekly_view_default_days) : 7,
         slot_window_reference_weekday: (d.slot_window_reference_weekday != null && d.slot_window_reference_weekday !== '') ? Number(d.slot_window_reference_weekday) : null,
         slot_window_reference_time: (d.slot_window_reference_time != null && String(d.slot_window_reference_time).trim() !== '') ? String(d.slot_window_reference_time).slice(0, 5) : null,
+        external_slot_quota_percent:
+          d.external_slot_quota_percent != null && d.external_slot_quota_percent !== ''
+            ? Math.min(100, Math.max(0, Number(d.external_slot_quota_percent)))
+            : 0,
         waitlist_queue_depth: (d.waitlist_queue_depth as number | null) ?? 0,
         max_urgent_requests: (d.max_urgent_requests as number | null) ?? null,
         booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
@@ -626,6 +636,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       internal_department: formData.internal_department ?? null,
       visibility_group: formData.visibility_group ?? null,
       slot_duration_minutes: formData.slot_duration_minutes,
+      slot_tolerance_minutes: Math.max(0, Number(formData.slot_tolerance_minutes ?? 0) || 0),
       slots_per_day: formData.slots_per_day,
       reschedule_hours_threshold: formData.reschedule_hours_threshold,
       results_base_location:
@@ -642,6 +653,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       weekly_view_default_days: formData.weekly_view_default_days != null && formData.weekly_view_default_days !== '' ? formData.weekly_view_default_days : null,
       slot_window_reference_weekday: formData.slot_window_reference_weekday != null && formData.slot_window_reference_weekday !== '' ? formData.slot_window_reference_weekday : null,
       slot_window_reference_time: formData.slot_window_reference_time && formData.slot_window_reference_time.trim() !== '' ? formData.slot_window_reference_time.trim() : null,
+      external_slot_quota_percent:
+        formData.external_slot_quota_percent != null && formData.external_slot_quota_percent !== ''
+          ? Math.min(100, Math.max(0, Number(formData.external_slot_quota_percent)))
+          : 0,
       waitlist_queue_depth: formData.waitlist_queue_depth ?? 0,
       max_urgent_requests: formData.max_urgent_requests != null && formData.max_urgent_requests !== '' ? (typeof formData.max_urgent_requests === 'number' ? formData.max_urgent_requests : parseInt(String(formData.max_urgent_requests), 10)) : null,
       booking_not_utilize_window_hours:
@@ -1798,6 +1813,30 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="slot-tolerance">Slot Tolerance (Minutes)</Label>
+          <Input
+            id="slot-tolerance"
+            type="number"
+            min={0}
+            value={formData.slot_tolerance_minutes ?? 0}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "") {
+                setFormData((p) => ({ ...p, slot_tolerance_minutes: 0 }));
+                return;
+              }
+              const n = parseInt(v, 10);
+              if (Number.isNaN(n)) return;
+              setFormData((p) => ({ ...p, slot_tolerance_minutes: Math.max(0, n) }));
+            }}
+          />
+          <p className="text-muted-foreground text-xs">
+            Allow analysis time to overrun allocated slot capacity by up to this many minutes before
+            another slot is required. Example: 30-min slots, 35-min analysis, tolerance 5 → 1 slot.
+            0 keeps legacy strict rounding (ceil). Configurable by Main / Department Administrator.
+          </p>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="slots-per-day">Slots per day</Label>
           <Input
             id="slots-per-day"
@@ -1827,7 +1866,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             onChange={(e) => setFormData((p) => ({ ...p, results_base_location: e.target.value }))}
           />
           <p className="text-muted-foreground text-xs">
-            Used when Sample Lifecycle changes to In Analysis. Folder structure:
+            Used when Sample Lifecycle changes to Sample Accepted. Folder structure:
             Equipment Code → Internal/External → Year → Department → User → Booking ID.
           </p>
         </div>
@@ -2084,6 +2123,30 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               value={formData.slot_window_reference_time ?? ""}
               onChange={(e) => setFormData((p) => ({ ...p, slot_window_reference_time: e.target.value || null }))}
             />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="external-slot-quota-percent">External Slot Quota (%)</Label>
+            <Input
+              id="external-slot-quota-percent"
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={formData.external_slot_quota_percent ?? 0}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                if (v === "") {
+                  setFormData((p) => ({ ...p, external_slot_quota_percent: 0 }));
+                  return;
+                }
+                const n = parseInt(v, 10);
+                if (!Number.isFinite(n)) return;
+                setFormData((p) => ({ ...p, external_slot_quota_percent: Math.min(100, Math.max(0, n)) }));
+              }}
+            />
+            <p className="text-muted-foreground text-xs">
+              0 = external users cannot book. Limit is a % of the week&apos;s bookable slots (snapshotted), not reserved times. Configurable by Main/Department Administrator.
+            </p>
           </div>
         </div>
       </div>
@@ -2575,7 +2638,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         }
                       />
                       <Label htmlFor={`allow-neg-${idx}`} className="text-xs font-normal cursor-pointer">
-                        Allow negative values (signed). Still respects min/max from help text.
+                        Allow negative values when lower limit is blank (opens floor to −upper). Negative lower/upper
+                        limits in help text already permit signed values and defaults.
                       </Label>
                     </div>
                   )}
@@ -2592,7 +2656,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         return { ...p, input_fields: arr };
                       })
                     }
-                    placeholder="NUMERIC: line 1 = lower limit (can be negative), line 2 = upper limit, line 3 = step. PERIODIC_TABLE: one element per line to disable."
+                    placeholder="NUMERIC: line 1 = lower limit (e.g. -50), line 2 = upper limit, line 3 = step. Negative defaults are allowed when within these limits."
                   />
                 </div>
               </div>
