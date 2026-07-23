@@ -113,6 +113,59 @@ export function extractAdminListItems<T = Record<string, unknown>>(data: unknown
   return [];
 }
 
+/**
+ * Flatten DRF / nested API error payloads into a single string for toasts.
+ * Prevents React #31 when error is an object like `{ field_key: ["…"] }` inside a list.
+ */
+export function flattenApiErrorMessage(value: unknown, path = ""): string {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const msg = flattenApiErrorMessage(item, path);
+      if (msg) return msg;
+    }
+    return "";
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    // Prefer common top-level keys first
+    for (const key of ["detail", "error", "message", "non_field_errors"]) {
+      if (key in obj) {
+        const msg = flattenApiErrorMessage(obj[key], key);
+        if (msg) return msg;
+      }
+    }
+    for (const [key, nested] of Object.entries(obj)) {
+      const msg = flattenApiErrorMessage(nested, key);
+      if (msg) {
+        // Nested serializer field (e.g. input_fields → { field_key: ["…"] })
+        if (
+          typeof nested === "object" &&
+          nested !== null &&
+          !Array.isArray(nested) &&
+          Object.keys(nested as object).length > 0
+        ) {
+          return msg.includes(":") ? msg : `${key}: ${msg}`;
+        }
+        if (Array.isArray(nested) && nested.length > 0 && typeof nested[0] === "string") {
+          return path || key ? `${key}: ${msg}` : msg;
+        }
+        if (typeof nested === "string") {
+          return path || key ? `${key}: ${msg}` : msg;
+        }
+        return path || key ? `${key}: ${msg}` : msg;
+      }
+    }
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "Request failed.";
+  }
+}
+
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
 export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   // Equipment
@@ -787,10 +840,14 @@ class ApiClient {
               fieldErrors[field] = String(messages);
               hasFieldErrors = true;
             } else if (Array.isArray(messages) && messages.length > 0) {
-              fieldErrors[field] = messages;
+              fieldErrors[field] = messages as string[];
               hasFieldErrors = true;
             } else if (typeof messages === 'string') {
               fieldErrors[field] = messages;
+              hasFieldErrors = true;
+            } else if (messages && typeof messages === 'object') {
+              // Nested object errors (rare at top level)
+              fieldErrors[field] = [flattenApiErrorMessage(messages) || String(messages)];
               hasFieldErrors = true;
             }
           }
@@ -813,14 +870,14 @@ class ApiClient {
             };
           }
           
-          // Get the first error message from field errors
-          const firstFieldError = Object.values(fieldErrors)[0];
-          const firstErrorMessage = Array.isArray(firstFieldError) 
-            ? firstFieldError[0] 
-            : firstFieldError;
+          // Nested list serializers often return [{ field_key: ["…"] }] — never pass objects to UI
+          const firstErrorMessage =
+            flattenApiErrorMessage(fieldErrors) ||
+            flattenApiErrorMessage(data) ||
+            `HTTP error! status: ${response.status}`;
           
           return {
-            error: firstErrorMessage || `HTTP error! status: ${response.status}`,
+            error: firstErrorMessage,
             fieldErrors: fieldErrors,
           };
         }
@@ -830,13 +887,17 @@ class ApiClient {
         const errorData = data as any;
         if (errorData.error && (
           errorData.email_verified === false || 
-          errorData.error.includes("Email not verified") ||
-          errorData.error.includes("pending approval") ||
-          errorData.error.includes("Account pending approval") ||
+          (typeof errorData.error === "string" && (
+            errorData.error.includes("Email not verified") ||
+            errorData.error.includes("pending approval") ||
+            errorData.error.includes("Account pending approval")
+          )) ||
           (errorData.email_verified === true && errorData.admin_approved === false)
         )) {
           return {
-            error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`,
+            error: (typeof errorData.error === "string" ? errorData.error : flattenApiErrorMessage(errorData.error))
+              || errorData.message
+              || `HTTP error! status: ${response.status}`,
             fieldErrors: {
               ...fieldErrors,
               email_verified: String(errorData.email_verified ?? ''),
@@ -848,7 +909,12 @@ class ApiClient {
         
         const maybeWaitlist = (data as any) || {};
         return {
-          error: maybeWaitlist.detail || maybeWaitlist.message || maybeWaitlist.error || `HTTP error! status: ${response.status}`,
+          error:
+            flattenApiErrorMessage(maybeWaitlist.detail) ||
+            flattenApiErrorMessage(maybeWaitlist.message) ||
+            flattenApiErrorMessage(maybeWaitlist.error) ||
+            flattenApiErrorMessage(data) ||
+            `HTTP error! status: ${response.status}`,
           // Preserve waitlist info from backend error responses so UI can show WL number.
           waitlist_position: maybeWaitlist.waitlist_position,
           waitlist_code: maybeWaitlist.waitlist_code,

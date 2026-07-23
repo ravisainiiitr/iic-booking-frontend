@@ -612,6 +612,23 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name?.trim()) {
+      toast.error("Name is required.");
+      return;
+    }
+    const inputFields = formData.input_fields ?? [];
+    for (let i = 0; i < inputFields.length; i++) {
+      const key = String(inputFields[i].field_key || "").trim().toUpperCase();
+      const label = String(inputFields[i].field_label || "").trim();
+      if (!/^[A-Z]$/.test(key)) {
+        toast.error(`Dynamic input field #${i + 1}: Field key must be a single letter A–Z.`);
+        return;
+      }
+      if (!label) {
+        toast.error(`Dynamic input field ${key}: Field label is required.`);
+        return;
+      }
+    }
     const payload: EquipmentFormData = {
       name: formData.name || undefined,
       code: formData.code || undefined,
@@ -708,6 +725,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       charge_profiles: formData.charge_profiles ?? [],
       input_fields: (formData.input_fields ?? []).map((f) => {
         const fieldType = String(f.field_type || "").toUpperCase();
+        const field_key = String(f.field_key || "").trim().toUpperCase().slice(0, 1);
+        const field_label = String(f.field_label || "").trim();
+        const source_element_field_key = f.source_element_field_key
+          ? String(f.source_element_field_key).trim().toUpperCase().slice(0, 1) || null
+          : null;
         if (fieldType === "NUMERIC") {
           const base =
             f.options && typeof f.options === "object" && !Array.isArray(f.options)
@@ -717,11 +739,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           else delete base.allow_negative;
           return {
             ...f,
+            field_key,
+            field_label,
+            source_element_field_key,
             options: Object.keys(base).length > 0 ? base : [],
           };
         }
         return {
           ...f,
+          field_key,
+          field_label,
+          source_element_field_key,
           options: normalizeOptionsList(f.options),
         };
       }),

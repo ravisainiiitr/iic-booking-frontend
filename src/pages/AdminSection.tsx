@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { apiClient, ADMIN_SECTION_ENDPOINTS } from "@/lib/api";
+import { apiClient, ADMIN_SECTION_ENDPOINTS, flattenApiErrorMessage } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -955,7 +955,11 @@ export default function AdminSection() {
     } else if (editingId !== null) {
       const res = await apiClient.adminUpdate(sectionKey, editingId, data);
       if (res.error) {
-        toast({ title: "Error", description: res.error, variant: "destructive" });
+        toast({
+          title: "Error",
+          description: typeof res.error === "string" ? res.error : flattenApiErrorMessage(res.error),
+          variant: "destructive",
+        });
       } else {
         toast({ title: "Saved", description: "Record updated successfully." });
         setModalOpen(false);
@@ -965,7 +969,11 @@ export default function AdminSection() {
     } else {
       const res = await apiClient.adminCreate(sectionKey, data);
       if (res.error) {
-        toast({ title: "Error", description: res.error, variant: "destructive" });
+        toast({
+          title: "Error",
+          description: typeof res.error === "string" ? res.error : flattenApiErrorMessage(res.error),
+          variant: "destructive",
+        });
       } else {
         toast({ title: "Created", description: "Record created successfully." });
         setModalOpen(false);
