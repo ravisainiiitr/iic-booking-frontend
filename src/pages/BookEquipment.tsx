@@ -2329,16 +2329,14 @@ const BookEquipment = () => {
 
       if (response.error) {
         if (requestSeq !== chargeRequestSeqRef.current) return;
-        // Set failed state to show "coming soon" message
         setChargeCalculationFailed(true);
         setChargeCalculated(false);
         setCalculatedCharge(null);
         setShowSlots(false);
-        // Store the hash even on failure to prevent retrying with same values
         lastCalculatedValuesRef.current = currentValuesHash;
-        // Only show error toast if it's a critical error, not validation errors
-        if (!response.error.includes("required") && !response.error.includes("field")) {
-          // Don't show toast, just show "coming soon" message
+        // Always surface errors for staff (Coming Soon UI is hidden for admin).
+        if (isAdminOrOIC() || isCalculateChargesFlow) {
+          toast.error(response.error);
         }
         return;
       }
@@ -2349,7 +2347,12 @@ const BookEquipment = () => {
         const abFields = equipmentDetail.input_fields?.filter(
           (f: any) => f.field_key === 'A' || f.field_key === 'B'
         ) ?? [];
-        if (abFields.length > 0 && totalMinutes < 1) {
+        // PRINT_3D uses A=weight, B=material, C=time — do not treat low time as invalid A/B samples.
+        if (
+          equipmentDetail.profile_type !== "PRINT_3D" &&
+          abFields.length > 0 &&
+          totalMinutes < 1
+        ) {
           const labels = abFields.map((f: any) => f.field_label || f.field_key).join(' and ');
           toast.error(`"${labels}" must be at least 1. Please update Step 1 and recalculate charge.`);
           setChargeCalculationFailed(true);
@@ -7489,12 +7492,16 @@ const BookEquipment = () => {
                     </div>
                   )}
                   
-                  {/* Coming Soon message if charge calculation failed (hidden for admin) */}
-                  {chargeCalculationFailed && !loadingCharge && !isAdminUser() && (
+                  {/* Charge calculation failed — show for everyone (staff previously had silent failures) */}
+                  {chargeCalculationFailed && !loadingCharge && (
                     <div className="mt-6 p-6 bg-muted rounded-lg border-2 border-dashed text-center">
-                      <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
+                      <h3 className="text-lg font-semibold mb-2">
+                        {isAdminUser() ? "Charge calculation failed" : "Coming Soon"}
+                      </h3>
                       <p className="text-sm text-muted-foreground">
-                        Charge calculation is currently unavailable. Please check back later.
+                        {isAdminUser()
+                          ? "Could not calculate charges for this 3D print. Check that a user is selected and STL analysis completed, then try again."
+                          : "Charge calculation is currently unavailable. Please check back later."}
                       </p>
                     </div>
                   )}
