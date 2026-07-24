@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
@@ -107,17 +107,20 @@ function resolveSlotBookingPk(slot: LabCalendarSlot | undefined): number | null 
 const DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
 const DEFAULT_SLOT_COLORS: Record<string, string> = {
-  AVAILABLE: "#22c55e",
-  BOOKED: "#ef4444",
-  BOOKED_INTERNAL: "#ef4444",
-  BOOKED_EXTERNAL: "#0284c7",
-  COMPLETED: "#059669",
+  AVAILABLE: "#86efac",
+  BOOKED: "#60a5fa",
+  BOOKED_INTERNAL: "#3b82f6",
+  BOOKED_EXTERNAL: "#2dd4bf",
+  COMPLETED: "#6ee7b7",
   BLOCKED: "#64748b",
-  UNDER_MAINTENANCE: "#f97316",
-  OPERATOR_ABSENT: "#eab308",
-  BOOKING_NOT_UTILIZED: "#a855f7",
-  HOLD: "#f59e0b",
-  NOT_AVAILABLE: "#e2e8f0",
+  UNDER_MAINTENANCE: "#fbbf24",
+  OPERATOR_ABSENT: "#94a3b8",
+  BOOKING_NOT_UTILIZED: "#c4b5fd",
+  HOLD: "#fdba74",
+  NOT_AVAILABLE: "#e5e7eb",
+  CANCELLED: "#fca5a5",
+  REFUNDED: "#fca5a5",
+  ABSENT: "#94a3b8",
 };
 
 export interface LabOperatorWeekCalendarGridProps {
@@ -241,9 +244,9 @@ export function LabOperatorWeekCalendarGrid({
     }),
     [slotsPayload]
   );
-  const holidayDefault = slotsPayload?.calendar_colors?.holiday_default || "#f59e0b";
-  const saturdayColor = slotsPayload?.calendar_colors?.saturday_color || "#c7d2fe";
-  const sundayColor = slotsPayload?.calendar_colors?.sunday_color || "#fbcfe8";
+  const holidayDefault = slotsPayload?.calendar_colors?.holiday_default || "#e9d5ff";
+  const saturdayColor = slotsPayload?.calendar_colors?.saturday_color || "#e2e8f0";
+  const sundayColor = slotsPayload?.calendar_colors?.sunday_color || "#e9d5ff";
   const holidays = slotsPayload?.holidays || {};
 
   const gridColsStyle: CSSProperties = {
@@ -279,17 +282,17 @@ export function LabOperatorWeekCalendarGrid({
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-foreground">{equipmentTitle}</h4>
-      <div className="overflow-x-auto relative">
-        <div className={bookedSlotsOnly ? "min-w-[320px]" : "min-w-[800px]"}>
-          <div className="grid gap-2 mb-2" style={gridColsStyle}>
-            <div className="font-semibold text-sm p-2">Time</div>
+      <h4 className="text-sm font-semibold tracking-tight text-foreground">{equipmentTitle}</h4>
+      <div className="overflow-x-auto relative rounded-xl border border-border/70 bg-card/40 p-2 shadow-sm sm:p-3">
+        <div className={bookedSlotsOnly ? "min-w-[320px]" : "min-w-[720px] max-w-full"}>
+          <div className="grid gap-1.5 sm:gap-2 mb-2" style={gridColsStyle}>
+            <div className="font-semibold text-xs sm:text-sm p-2 text-muted-foreground">Time</div>
             {visibleDayOffsets.map((dayOffset) => {
               const day = addDays(currentWeekStart, dayOffset);
               return (
-                <div key={dayOffset} className="font-semibold text-sm p-2 text-center">
-                  <div>{format(day, "EEE")}</div>
-                  <div className="text-muted-foreground">{format(day, "MMM dd")}</div>
+                <div key={dayOffset} className="font-semibold text-xs sm:text-sm p-2 text-center">
+                  <div className="text-foreground">{format(day, "EEE")}</div>
+                  <div className="text-muted-foreground font-medium">{format(day, "MMM dd")}</div>
                 </div>
               );
             })}
@@ -299,8 +302,8 @@ export function LabOperatorWeekCalendarGrid({
             const rowKey = row.key;
             const rowLabel = row.label;
             return (
-              <div key={rowKey} className="grid gap-2 mb-2" style={gridColsStyle}>
-                <div className="text-sm p-2 font-medium flex items-center">{rowLabel}</div>
+              <div key={rowKey} className="grid gap-1.5 sm:gap-2 mb-1.5 sm:mb-2" style={gridColsStyle}>
+                <div className="text-xs sm:text-sm p-2 font-semibold tabular-nums text-muted-foreground flex items-center">{rowLabel}</div>
                 {visibleDayOffsets.map((dayOffset) => {
                   const day = addDays(currentWeekStart, dayOffset);
                   const slotData = getSlotData(day, rowKey);
@@ -353,6 +356,8 @@ export function LabOperatorWeekCalendarGrid({
                       OPERATOR_ABSENT: "Operator Absent",
                       BOOKING_NOT_UTILIZED: "Booking Not Utilized",
                       HOLD: "Hold",
+                      COMPLETED: "Completed",
+                      CANCELLED: "Cancelled",
                     };
                     rawSlotStatusLabel =
                       statusMap[slotStatus] ||
@@ -373,27 +378,56 @@ export function LabOperatorWeekCalendarGrid({
                   }
                   const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
 
-                  let displayStatus = holidayName || "—";
+                  const userName = String(slotData?.booking_user_name || "").trim();
+                  const deptName = String(
+                    slotData?.booking_user_department_name ||
+                      slotData?.booking_user_department_code ||
+                      ""
+                  ).trim();
+                  const bookingStatusText = String(
+                    slotData?.booking_status_display ||
+                      slotData?.booking_status ||
+                      slotDisplayLabel ||
+                      ""
+                  ).trim();
+                  const sampleStatusText = String(slotData?.booking_sample_status_display || "").trim();
+                  const slotTimeText = (() => {
+                    const start = slotData?.start_datetime
+                      ? parseIsoDateAndTime(slotData.start_datetime).timeStr
+                      : rowLabel;
+                    const end = slotData?.end_datetime
+                      ? parseIsoDateAndTime(slotData.end_datetime).timeStr
+                      : "";
+                    if (start && end) return `${start} – ${end}`;
+                    return start || rowLabel || "";
+                  })();
+
+                  let displayStatus: ReactNode = holidayName || "—";
                   const considerBooked = hasBookedStatus;
 
                   if (slotExists) {
-                    if (considerBooked) {
-                      // Dashboard requirement: BOOKED cells show the user's name (not booking ref/status).
-                      if (slotStatusUpper === "BOOKED" && slotData?.booking_user_name) {
-                        const deptCode = String(slotData?.booking_user_department_code || "").trim();
-                        displayStatus = deptCode
-                          ? (
-                              <span className="flex flex-col items-center justify-center leading-tight">
-                                <span>{slotData.booking_user_name}</span>
-                                <span className="text-[11px] opacity-90">{deptCode}</span>
-                              </span>
-                            )
-                          : slotData.booking_user_name;
-                      } else {
-                        displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
-                      }
+                    if (considerBooked && slotStatusUpper === "BOOKED" && (displayRef || userName)) {
+                      displayStatus = (
+                        <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
+                          {displayRef ? (
+                            <span className="w-full truncate text-[11px] font-bold tracking-tight sm:text-xs">
+                              {displayRef}
+                            </span>
+                          ) : null}
+                          {userName ? (
+                            <span className="w-full truncate text-[10px] font-medium opacity-95 sm:text-[11px]">
+                              {userName}
+                            </span>
+                          ) : null}
+                          {deptName ? (
+                            <span className="hidden w-full truncate text-[9px] opacity-80 sm:block">
+                              {deptName}
+                            </span>
+                          ) : null}
+                        </span>
+                      );
                     } else {
-                      displayStatus = slotDisplayLabel || slotStatusLabel || "—";
+                      displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                     }
                   } else {
                     displayStatus = holidayName || "—";
@@ -414,12 +448,18 @@ export function LabOperatorWeekCalendarGrid({
                     if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
                     else if (slotStatus === "BOOKED" && slotData?.booking_status)
                       statusForColor = String(slotData.booking_status).toUpperCase();
-                    // Distinguish internal vs external bookers on booked cells.
                     if (considerBooked && (statusForColor === "BOOKED" || slotStatusUpper === "BOOKED")) {
-                      const isExt =
-                        slotData?.booking_is_external === true ||
-                        isExternalBookingUserType(slotData?.booking_user_type);
-                      statusForColor = isExt ? "BOOKED_EXTERNAL" : "BOOKED_INTERNAL";
+                      const bookingSt = String(slotData?.booking_status || "").toUpperCase();
+                      if (bookingSt === "COMPLETED") {
+                        statusForColor = "COMPLETED";
+                      } else if (bookingSt === "CANCELLED" || bookingSt === "REFUNDED") {
+                        statusForColor = bookingSt;
+                      } else {
+                        const isExt =
+                          slotData?.booking_is_external === true ||
+                          isExternalBookingUserType(slotData?.booking_user_type);
+                        statusForColor = isExt ? "BOOKED_EXTERNAL" : "BOOKED_INTERNAL";
+                      }
                     }
                     const st = statusForColor || "AVAILABLE";
                     const bg =
@@ -441,34 +481,49 @@ export function LabOperatorWeekCalendarGrid({
                   }
 
                   const canOpenBooking = slotStatusUpper === "BOOKED" && bookingPk != null;
-                  const hoverBookingRef =
+                  const tooltipLines =
                     slotStatusUpper === "BOOKED"
-                      ? (slotData?.booking_id != null && String(slotData.booking_id).trim() !== ""
-                          ? String(slotData.booking_id).trim()
-                          : bookingPk != null
-                            ? String(bookingPk)
-                            : "")
-                      : "";
-                  const hoverTitle = hoverBookingRef ? `Booking: ${hoverBookingRef}` : undefined;
+                      ? [
+                          displayRef ? `Booking ID: ${displayRef}` : null,
+                          userName ? `User: ${userName}` : null,
+                          deptName ? `Department: ${deptName}` : null,
+                          bookingStatusText ? `Status: ${bookingStatusText}` : null,
+                          slotTimeText ? `Slot: ${slotTimeText}` : null,
+                          sampleStatusText ? `Sample: ${sampleStatusText}` : null,
+                          equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
+                        ].filter(Boolean)
+                      : [];
 
                   return (
                     <button
                       key={dayOffset}
                       type="button"
-                      title={hoverTitle}
+                      title={tooltipLines.length ? tooltipLines.join("\n") : undefined}
                       onClick={() => {
                         if (canOpenBooking) onBookedSlotClick(bookingPk);
                       }}
                       disabled={!canOpenBooking}
                       className={`
-                          p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
+                          group relative p-2 sm:p-2.5 rounded-lg text-sm transition-all min-h-[52px] sm:min-h-[58px] flex items-center justify-center border border-white/40 shadow-sm
                           ${!slotExists ? "cursor-default" : ""}
-                          ${canOpenBooking ? "cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-violet-400/60" : ""}
+                          ${canOpenBooking ? "cursor-pointer hover:shadow-md hover:ring-2 hover:ring-primary/35 hover:-translate-y-px" : ""}
                           ${!canOpenBooking && slotExists ? "cursor-default" : ""}
                         `}
                       style={cellStyle}
                     >
                       {displayStatus}
+                      {canOpenBooking && tooltipLines.length > 0 ? (
+                        <span
+                          className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-border/80 bg-card px-3 py-2 text-left text-[11px] font-normal leading-snug text-foreground shadow-lg group-hover:block group-focus-visible:block"
+                          role="tooltip"
+                        >
+                          {tooltipLines.map((line) => (
+                            <span key={String(line)} className="block whitespace-nowrap">
+                              {line}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}

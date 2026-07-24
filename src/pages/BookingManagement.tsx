@@ -253,7 +253,7 @@ const BookingManagement = () => {
       if (!isLabInchargeUser && userNameFilter.trim()) params.user_name = userNameFilter.trim();
       if (!isLabInchargeUser && supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
       if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
-      if (ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
+      if (!isLabInchargeUser && ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
       if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
       const response = await apiClient.getBookings(params);
       if (response.data && response.data.bookings) {
@@ -422,7 +422,13 @@ const BookingManagement = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+              <div
+                className={
+                  isLabInchargeUser
+                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end"
+                    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end"
+                }
+              >
                 {!isLabInchargeUser && (<div className="space-y-2">
                   <Label htmlFor="user_name">User name</Label>
                   <Input
@@ -456,6 +462,7 @@ const BookingManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>)}
+                {!isLabInchargeUser && (
                 <div className="space-y-2">
                   <Label>Rating</Label>
                   <Select value={ratingFilter} onValueChange={setRatingFilter}>
@@ -472,6 +479,7 @@ const BookingManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                )}
                 {isManagerOrAdmin && (
                   <div className="space-y-2">
                     <Label>I-STEM FBR</Label>

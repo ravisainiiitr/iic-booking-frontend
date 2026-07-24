@@ -12,9 +12,12 @@ import { toast } from "sonner";
 
 const SLOT_KEYS: { key: string; label: string }[] = [
   { key: "AVAILABLE", label: "Available" },
-  { key: "BOOKED", label: "Booked" },
+  { key: "BOOKED", label: "Booked (default)" },
+  { key: "BOOKED_INTERNAL", label: "Internal booked" },
+  { key: "BOOKED_EXTERNAL", label: "External booked" },
   { key: "COMPLETED", label: "Completed booking" },
-  { key: "HOLD", label: "Hold" },
+  { key: "CANCELLED", label: "Cancelled" },
+  { key: "HOLD", label: "Hold / in progress" },
   { key: "BLOCKED", label: "Blocked" },
   { key: "UNDER_MAINTENANCE", label: "Under Maintenance" },
   { key: "OPERATOR_ABSENT", label: "Operator Absent" },
@@ -25,20 +28,23 @@ const SLOT_KEYS: { key: string; label: string }[] = [
 ];
 
 const DEFAULT_COLORS: Record<string, string> = {
-  AVAILABLE: "#22c55e",
-  BOOKED: "#ef4444",
-  COMPLETED: "#059669",
-  HOLD: "#f59e0b",
+  AVAILABLE: "#86efac",
+  BOOKED: "#60a5fa",
+  BOOKED_INTERNAL: "#3b82f6",
+  BOOKED_EXTERNAL: "#2dd4bf",
+  COMPLETED: "#6ee7b7",
+  CANCELLED: "#fca5a5",
+  HOLD: "#fdba74",
   BLOCKED: "#64748b",
-  UNDER_MAINTENANCE: "#f97316",
-  OPERATOR_ABSENT: "#eab308",
-  BOOKING_NOT_UTILIZED: "#a855f7",
+  UNDER_MAINTENANCE: "#fbbf24",
+  OPERATOR_ABSENT: "#94a3b8",
+  BOOKING_NOT_UTILIZED: "#c4b5fd",
   HOME_DEPARTMENT_ONLY: "#c4b5fd",
-  NON_HOME_RESERVED: "#06b6d4",
-  NOT_AVAILABLE: "#e2e8f0",
-  HOLIDAY_DEFAULT: "#f59e0b",
-  SATURDAY: "#c7d2fe",
-  SUNDAY: "#fbcfe8",
+  NON_HOME_RESERVED: "#67e8f9",
+  NOT_AVAILABLE: "#e5e7eb",
+  HOLIDAY_DEFAULT: "#e9d5ff",
+  SATURDAY: "#e2e8f0",
+  SUNDAY: "#e9d5ff",
 };
 
 export default function CalendarColorSettings() {

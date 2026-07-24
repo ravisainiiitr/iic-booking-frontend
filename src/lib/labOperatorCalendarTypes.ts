@@ -27,6 +27,8 @@ export interface LabCalendarSlot {
   booking_user_type?: string | null;
   /** True when the booker is an external user type. */
   booking_is_external?: boolean | null;
+  /** When BOOKED: latest sample-trace status display (staff calendars). */
+  booking_sample_status_display?: string | null;
   slot_open_time?: string | null;
   blocked_label?: string | null;
 }

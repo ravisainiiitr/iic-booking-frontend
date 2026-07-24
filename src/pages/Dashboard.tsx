@@ -3559,11 +3559,11 @@ const Dashboard = () => {
                               </Button>
                             </div>
                           </div>
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#ef4444" }}
+                                style={{ backgroundColor: "#3b82f6" }}
                                 aria-hidden
                               />
                               Internal booked
@@ -3571,10 +3571,42 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#0284c7" }}
+                                style={{ backgroundColor: "#2dd4bf" }}
                                 aria-hidden
                               />
                               External booked
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{ backgroundColor: "#6ee7b7" }}
+                                aria-hidden
+                              />
+                              Completed
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{ backgroundColor: "#86efac" }}
+                                aria-hidden
+                              />
+                              Available
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{ backgroundColor: "#fbbf24" }}
+                                aria-hidden
+                              />
+                              Maintenance
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{ backgroundColor: "#64748b" }}
+                                aria-hidden
+                              />
+                              Blocked
                             </span>
                           </div>
                           <div className="grid grid-cols-1 gap-4">
