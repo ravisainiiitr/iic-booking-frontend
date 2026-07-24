@@ -3571,7 +3571,7 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#2dd4bf" }}
+                                style={{ backgroundColor: "#ea580c" }}
                                 aria-hidden
                               />
                               External booked
@@ -3579,7 +3579,7 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#6ee7b7" }}
+                                style={{ backgroundColor: "#34d399" }}
                                 aria-hidden
                               />
                               Completed
@@ -3595,18 +3595,10 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#fbbf24" }}
+                                style={{ backgroundColor: "#9ca3af" }}
                                 aria-hidden
                               />
-                              Maintenance
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#64748b" }}
-                                aria-hidden
-                              />
-                              Blocked
+                              Maintenance / Blocked
                             </span>
                           </div>
                           <div className="grid grid-cols-1 gap-4">

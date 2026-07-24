@@ -106,21 +106,33 @@ function resolveSlotBookingPk(slot: LabCalendarSlot | undefined): number | null 
 
 const DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
+/** Soft Navy Ocean defaults for lab/OIC weekly calendar (forced over legacy DB colours). */
 const DEFAULT_SLOT_COLORS: Record<string, string> = {
   AVAILABLE: "#86efac",
   BOOKED: "#60a5fa",
   BOOKED_INTERNAL: "#3b82f6",
-  BOOKED_EXTERNAL: "#2dd4bf",
-  COMPLETED: "#6ee7b7",
-  BLOCKED: "#64748b",
-  UNDER_MAINTENANCE: "#fbbf24",
-  OPERATOR_ABSENT: "#94a3b8",
+  BOOKED_EXTERNAL: "#ea580c", // Distinct orange — clearly separate from internal blue
+  COMPLETED: "#34d399", // Soft emerald green
+  BLOCKED: "#9ca3af", // Default grey
+  UNDER_MAINTENANCE: "#9ca3af", // Default grey (same as blocked)
+  OPERATOR_ABSENT: "#9ca3af",
   BOOKING_NOT_UTILIZED: "#c4b5fd",
   HOLD: "#fdba74",
   NOT_AVAILABLE: "#e5e7eb",
   CANCELLED: "#fca5a5",
   REFUNDED: "#fca5a5",
-  ABSENT: "#94a3b8",
+  ABSENT: "#9ca3af",
+};
+
+/** Status keys whose lab-dashboard colour must not be overridden by stale CalendarColorSetting rows. */
+const FORCED_LAB_CALENDAR_COLORS: Partial<Record<string, string>> = {
+  COMPLETED: DEFAULT_SLOT_COLORS.COMPLETED,
+  BOOKED_EXTERNAL: DEFAULT_SLOT_COLORS.BOOKED_EXTERNAL,
+  BOOKED_INTERNAL: DEFAULT_SLOT_COLORS.BOOKED_INTERNAL,
+  BOOKED: DEFAULT_SLOT_COLORS.BOOKED,
+  UNDER_MAINTENANCE: DEFAULT_SLOT_COLORS.UNDER_MAINTENANCE,
+  BLOCKED: DEFAULT_SLOT_COLORS.BLOCKED,
+  OPERATOR_ABSENT: DEFAULT_SLOT_COLORS.OPERATOR_ABSENT,
 };
 
 export interface LabOperatorWeekCalendarGridProps {
@@ -241,6 +253,7 @@ export function LabOperatorWeekCalendarGrid({
     () => ({
       ...DEFAULT_SLOT_COLORS,
       ...(slotsPayload?.calendar_colors?.slot_colors || {}),
+      ...FORCED_LAB_CALENDAR_COLORS,
     }),
     [slotsPayload]
   );
@@ -410,18 +423,13 @@ export function LabOperatorWeekCalendarGrid({
                       displayStatus = (
                         <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
                           {displayRef ? (
-                            <span className="w-full truncate text-[11px] font-bold tracking-tight sm:text-xs">
+                            <span className="w-full truncate text-[13px] font-extrabold tracking-tight sm:text-sm">
                               {displayRef}
                             </span>
                           ) : null}
                           {userName ? (
                             <span className="w-full truncate text-[10px] font-medium opacity-95 sm:text-[11px]">
                               {userName}
-                            </span>
-                          ) : null}
-                          {deptName ? (
-                            <span className="hidden w-full truncate text-[9px] opacity-80 sm:block">
-                              {deptName}
                             </span>
                           ) : null}
                         </span>
@@ -446,13 +454,19 @@ export function LabOperatorWeekCalendarGrid({
                   } else if (slotExists) {
                     let statusForColor = slotStatus;
                     if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
-                    else if (slotStatus === "BOOKED" && slotData?.booking_status)
-                      statusForColor = String(slotData.booking_status).toUpperCase();
-                    if (considerBooked && (statusForColor === "BOOKED" || slotStatusUpper === "BOOKED")) {
-                      const bookingSt = String(slotData?.booking_status || "").toUpperCase();
-                      if (bookingSt === "COMPLETED") {
-                        statusForColor = "COMPLETED";
-                      } else if (bookingSt === "CANCELLED" || bookingSt === "REFUNDED") {
+                    const bookingSt = String(slotData?.booking_status || "").toUpperCase();
+                    // Completed must win over internal/external and any legacy purple keys from colour settings.
+                    if (considerBooked && bookingSt === "COMPLETED") {
+                      statusForColor = "COMPLETED";
+                    } else if (slotStatus === "BOOKED" && bookingSt) {
+                      statusForColor = bookingSt;
+                    }
+                    if (
+                      considerBooked &&
+                      bookingSt !== "COMPLETED" &&
+                      (statusForColor === "BOOKED" || slotStatusUpper === "BOOKED")
+                    ) {
+                      if (bookingSt === "CANCELLED" || bookingSt === "REFUNDED") {
                         statusForColor = bookingSt;
                       } else {
                         const isExt =
@@ -463,9 +477,10 @@ export function LabOperatorWeekCalendarGrid({
                     }
                     const st = statusForColor || "AVAILABLE";
                     const bg =
-                      slotColors[st] ??
+                      (FORCED_LAB_CALENDAR_COLORS[st] as string | undefined) ||
+                      slotColors[st] ||
                       (st === "BOOKED_EXTERNAL"
-                        ? slotColors.BOOKED_EXTERNAL || DEFAULT_SLOT_COLORS.BOOKED_EXTERNAL
+                        ? DEFAULT_SLOT_COLORS.BOOKED_EXTERNAL
                         : considerBooked
                           ? slotColors.BOOKED
                           : slotColors.AVAILABLE);
