@@ -9,7 +9,7 @@ import { toast } from "sonner";
 export const LAB_BOOKING_COLOR_KEYS = [
   { key: "BOOKED_INTERNAL", label: "Internal booked" },
   { key: "BOOKED_EXTERNAL", label: "External booked" },
-  { key: "BOOKED", label: "Booked" },
+  { key: "AVAILABLE", label: "Available" },
   { key: "COMPLETED", label: "Completed" },
 ] as const;
 
@@ -18,7 +18,7 @@ export type LabBookingColorKey = (typeof LAB_BOOKING_COLOR_KEYS)[number]["key"];
 export const DEFAULT_LAB_BOOKING_COLORS: Record<LabBookingColorKey, string> = {
   BOOKED_INTERNAL: "#3b82f6",
   BOOKED_EXTERNAL: "#ea580c",
-  BOOKED: "#60a5fa",
+  AVAILABLE: "#86efac",
   COMPLETED: "#34d399",
 };
 
@@ -110,7 +110,7 @@ export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Calendar colours</p>
             <p className="text-xs text-muted-foreground">
-              Set colours for Internal, External, Booked, and Completed tiles on this dashboard.
+              Set colours for Internal, External, Available, and Completed tiles on this dashboard.
             </p>
           </div>
         </div>

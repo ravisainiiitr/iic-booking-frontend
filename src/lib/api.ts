@@ -4431,14 +4431,14 @@ class ApiClient {
     }>(`/bookings/lab-operator-dashboard/${q}`);
   }
 
-  /** Lab In-charge / OIC: get Internal, External, Booked, Completed calendar colours. */
+  /** Lab In-charge / OIC: get Internal, External, Available, Completed calendar colours. */
   async getLabDashboardCalendarColors() {
     return this.request<{
       slot_colors: Record<string, string>;
     }>('/bookings/lab-dashboard-calendar-colors/', { method: 'GET' });
   }
 
-  /** Lab In-charge / OIC: update Internal, External, Booked, Completed calendar colours. */
+  /** Lab In-charge / OIC: update Internal, External, Available, Completed calendar colours. */
   async updateLabDashboardCalendarColors(payload: { slot_colors: Record<string, string> }) {
     return this.request<{
       slot_colors: Record<string, string>;

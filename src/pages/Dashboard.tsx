@@ -3622,17 +3622,6 @@ const Dashboard = () => {
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
                                 style={{
                                   backgroundColor:
-                                    labBookingLegendColors.BOOKED || DEFAULT_LAB_BOOKING_COLORS.BOOKED,
-                                }}
-                                aria-hidden
-                              />
-                              Booked
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{
-                                  backgroundColor:
                                     labBookingLegendColors.COMPLETED || DEFAULT_LAB_BOOKING_COLORS.COMPLETED,
                                 }}
                                 aria-hidden
@@ -3642,7 +3631,10 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#86efac" }}
+                                style={{
+                                  backgroundColor:
+                                    labBookingLegendColors.AVAILABLE || DEFAULT_LAB_BOOKING_COLORS.AVAILABLE,
+                                }}
                                 aria-hidden
                               />
                               Available
