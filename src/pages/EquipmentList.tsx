@@ -98,6 +98,7 @@ const EquipmentList = () => {
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   // Admin / OIC only — Lab In-charge (operator) cannot change operational status.
   const canChangeEquipmentStatus = ["admin", "manager"].includes(userTypeStr);
+  const canBookForOtherUsers = ["admin", "manager", "dept_admin"].includes(userTypeStr);
   const isDeptAdmin = userTypeStr === "dept_admin";
   const daDepartmentId = (() => {
     const raw =
@@ -328,6 +329,7 @@ const EquipmentList = () => {
                 item={item}
                 accent={accentForEquipmentId(item.id)}
                 canChangeSlotStatus={canChangeEquipmentStatus}
+                canBookForOtherUsers={canBookForOtherUsers}
                 statusUpdatingId={statusUpdatingId}
                 onRequestStatusChange={(next) => setPendingStatusChange(next)}
               />

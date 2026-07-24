@@ -42,6 +42,8 @@ type Props = {
   item: EquipmentCatalogCardItem;
   accent: EquipmentCardAccent;
   canChangeSlotStatus: boolean;
+  /** Admin / OIC / Department Administrator: Book now opens book-for-user flow. */
+  canBookForOtherUsers?: boolean;
   statusUpdatingId?: number | null;
   onRequestStatusChange?: (next: { equipmentId: number; equipmentName: string; newStatus: "ACTIVE" | "REPAIR" }) => void;
 };
@@ -50,6 +52,7 @@ export default function EquipmentCatalogCard({
   item,
   accent,
   canChangeSlotStatus,
+  canBookForOtherUsers = false,
   statusUpdatingId,
   onRequestStatusChange,
 }: Props) {
@@ -235,8 +238,8 @@ export default function EquipmentCatalogCard({
                 toast.error("This equipment is not operational and cannot be booked.");
                 return;
               }
-              // Admin/OIC: jump into book-for-user flow with user type + user selectors.
-              if (canChangeSlotStatus) {
+              // Admin/OIC/Department Administrator: jump into book-for-user flow.
+              if (canBookForOtherUsers || canChangeSlotStatus) {
                 navigate(`/book-equipment?equipment_id=${item.id}&mode=book`);
                 return;
               }

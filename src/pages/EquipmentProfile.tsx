@@ -203,11 +203,11 @@ const EquipmentProfile = () => {
     return String(userType).toLowerCase() === 'admin';
   };
 
-  // Admin and OIC (manager, operator): can manage equipment – book for user, change slot status, and see "Manage another equipment"
+  // Admin, OIC, Lab In-charge, Department Administrator: manage / book-for-user on this equipment
   const canManageEquipment = (): boolean => {
     if (!userType) return false;
     const t = String(userType).toLowerCase();
-    return t === 'admin' || t === 'manager' || t === 'operator';
+    return t === 'admin' || t === 'manager' || t === 'operator' || t === 'dept_admin';
   };
 
   // Check if user type is allowed to book equipment
@@ -251,7 +251,11 @@ const EquipmentProfile = () => {
       toast.error("This equipment is not operational and cannot be booked.");
       return;
     }
-    const bookingUrl = `/book-equipment?equipment_id=${equipment.equipment_id}`;
+    const t = String(userType ?? "").toLowerCase();
+    const bookOnBehalf = t === "admin" || t === "manager" || t === "dept_admin";
+    const bookingUrl = bookOnBehalf
+      ? `/book-equipment?equipment_id=${equipment.equipment_id}&mode=book`
+      : `/book-equipment?equipment_id=${equipment.equipment_id}`;
     if (!canManageEquipment() && !isAuthenticated) {
       setPostLoginRedirect(bookingUrl);
       navigate("/auth");
@@ -355,11 +359,11 @@ const EquipmentProfile = () => {
     return `${start} – ${end}`;
   };
 
-  /** Admin and OIC always see time on the vertical axis; setting has no effect for them. */
+  /** Admin, OIC, and Department Administrator always see time on the vertical axis. */
   const isAdminOrOIC = (): boolean => {
     if (userType == null) return false;
     const t = String(userType).toLowerCase();
-    return t === "admin" || t === "manager";
+    return t === "admin" || t === "manager" || t === "dept_admin";
   };
 
   const getEffectiveWeeklyViewDisplay = (): "TIME" | "SLOT_ID" => {

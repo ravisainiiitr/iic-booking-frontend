@@ -26,6 +26,7 @@ export const deptAdminGuide: UserGuideContent = {
       bullets: [
         "Manage departmental staff roles (OIC, Lab Incharge, Accounts) via Department Administration",
         "Work with equipment scoped to your internal department",
+        "Book slots for other users on department equipment (same flow as Institute Admin, department-scoped)",
         "Track equipment addition requests (approval is typically Institute Admin)",
         "Book as an end user when needed, and use Reports / Support like other campus users",
       ],
@@ -85,6 +86,7 @@ export const deptAdminGuide: UserGuideContent = {
       ],
       bullets: [
         "Browse /equipments to see department instruments (not the full institute catalog of other units’ private assets).",
+        "Use Book now → Book slots for a user to book on behalf of another user; charges apply to the selected user. You can only do this for equipment in your assigned department.",
         "When adding equipment (if permitted), Internal Department is typically fixed to your department.",
         "Submit or track Equipment Addition Requests; Institute Admin approves/rejects proposals.",
         "Admin Settings / Equipment modules appear only when Admin Panel Access grants them to your role.",
@@ -110,6 +112,11 @@ export const deptAdminGuide: UserGuideContent = {
       ],
     }),
     faqSection([
+      {
+        question: "Can I book slots for someone else?",
+        answer:
+          "Yes. On department equipment, open Book now (or Manage → Book slots for a user), select the user, and book. Charging uses that user’s profile. You cannot book on behalf for equipment outside your assigned department.",
+      },
       {
         question: "Why can’t I see another department’s equipment?",
         answer:

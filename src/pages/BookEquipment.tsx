@@ -839,7 +839,7 @@ const BookEquipment = () => {
     if (isExternalUser) return true;
     const actor = String(userType ?? "").toLowerCase();
     if (
-      (actor === "admin" || actor === "manager") &&
+      (actor === "admin" || actor === "manager" || actor === "dept_admin") &&
       adminManageMode === "book" &&
       adminBookForUserId
     ) {
@@ -857,8 +857,8 @@ const BookEquipment = () => {
 
   const isDailySlotSelectableForUserBooking = useCallback((slot: DailySlot): boolean => {
     const actor = String(userType ?? "").toLowerCase();
-    // Admin and OIC may book any non-BOOKED slot (weekend / holiday / past / closed-day statuses).
-    if (actor === "admin" || actor === "manager") {
+    // Admin, OIC, and Department Administrator may book any non-BOOKED slot (weekend / holiday / past / closed-day statuses).
+    if (actor === "admin" || actor === "manager" || actor === "dept_admin") {
       if (adminManageMode === "book" && adminBookForUserId && bookingAsExternalTarget) {
         return slotBookableByExternalUser(slot);
       }
@@ -1192,10 +1192,15 @@ const BookEquipment = () => {
     }
   }, []);
 
-  // Admin/OIC: fetch users list when in "book for user" mode (server-side type filter)
+  // Admin/OIC/Department Administrator: fetch users list when in "book for user" mode
   useEffect(() => {
     const actor = String(userType ?? "").toLowerCase();
-    if ((actor !== "admin" && actor !== "manager") || adminManageMode !== "book") return;
+    if (
+      (actor !== "admin" && actor !== "manager" && actor !== "dept_admin") ||
+      adminManageMode !== "book"
+    ) {
+      return;
+    }
     let cancelled = false;
     (async () => {
       const params: Record<string, string> = { lite: "1" };
@@ -1233,10 +1238,13 @@ const BookEquipment = () => {
     setAdminBookForUserInfo(null);
   }, [adminUserTypeFilter]);
 
-  // Admin/OIC: fetch selected user's booking info (email, department, Supervisor, balance)
+  // Admin/OIC/Department Administrator: fetch selected user's booking info
   useEffect(() => {
     const actor = String(userType ?? "").toLowerCase();
-    if ((actor !== "admin" && actor !== "manager") || !adminBookForUserId) {
+    if (
+      (actor !== "admin" && actor !== "manager" && actor !== "dept_admin") ||
+      !adminBookForUserId
+    ) {
       setAdminBookForUserInfo(null);
       return;
     }
@@ -1258,7 +1266,7 @@ const BookEquipment = () => {
       return;
     }
     const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
-    const isAdmin = String(userType ?? "").toLowerCase() === "admin";
+    const actorType = String(userType ?? "").toLowerCase();
     if (!equipmentId) {
       setEquipmentDeptWalletBalance(null);
       return;
@@ -1267,7 +1275,11 @@ const BookEquipment = () => {
       setEquipmentDeptWalletBalance(null);
       return;
     }
-    if (isAdmin && adminManageMode === "book" && !adminBookForUserId) {
+    if (
+      (actorType === "admin" || actorType === "dept_admin") &&
+      adminManageMode === "book" &&
+      !adminBookForUserId
+    ) {
       setEquipmentDeptWalletBalance(null);
       return;
     }
@@ -1276,6 +1288,7 @@ const BookEquipment = () => {
     const staffType = String(userType ?? "").toLowerCase();
     if (
       staffType === "admin" ||
+      staffType === "dept_admin" ||
       staffType === "manager" ||
       staffType === "operator" ||
       staffType === "finance" ||
@@ -1288,7 +1301,9 @@ const BookEquipment = () => {
     let cancelled = false;
     (async () => {
       const userId =
-        isAdmin && adminManageMode === "book" && adminBookForUserId
+        (actorType === "admin" || actorType === "manager" || actorType === "dept_admin") &&
+        adminManageMode === "book" &&
+        adminBookForUserId
           ? adminBookForUserId
           : undefined;
       const res = await apiClient.getEquipmentDepartmentWalletBalance(equipmentId, userId);
@@ -1311,7 +1326,10 @@ const BookEquipment = () => {
 
   useEffect(() => {
     const actor = String(userType ?? "").toLowerCase();
-    if ((actor !== "admin" && actor !== "manager") || !adminBookForUserId) {
+    if (
+      (actor !== "admin" && actor !== "manager" && actor !== "dept_admin") ||
+      !adminBookForUserId
+    ) {
       setAdminTargetIstemAcknowledged(null);
       return;
     }
@@ -2179,8 +2197,8 @@ const BookEquipment = () => {
     const urlKey = `${selectedEquipment.id}:${mode}`;
     if (appliedModeUrlKeyRef.current === urlKey) return;
     appliedModeUrlKeyRef.current = urlKey;
-    if (mode === 'status') setAdminManageMode('status');
-    else if (mode === 'book') setAdminManageMode('book');
+    if (mode === 'status' && canChangeSlotStatus()) setAdminManageMode('status');
+    else if (mode === 'book' && canBookForOtherUsers()) setAdminManageMode('book');
   }, [searchParams, selectedEquipment]);
 
   // Optional ?month=YYYY-MM focuses Change slot status calendar on that month (e.g. from multi-mode schedules)
@@ -3874,7 +3892,18 @@ const BookEquipment = () => {
   const isAdminOrOIC = (): boolean => {
     if (!userType) return false;
     const t = String(userType).toLowerCase();
-    return t === 'admin' || t === 'manager';
+    // Department Administrator books on behalf like Admin/OIC (equipment scoped on API).
+    return t === 'admin' || t === 'manager' || t === 'dept_admin';
+  };
+
+  /** Admin / OIC / Department Administrator may book slots for another user. */
+  const canBookForOtherUsers = (): boolean => isAdminOrOIC();
+
+  /** Admin / OIC / Lab In-charge may change slot status (not Department Administrator). */
+  const canChangeSlotStatus = (): boolean => {
+    if (!userType) return false;
+    const t = String(userType).toLowerCase();
+    return t === 'admin' || t === 'manager' || t === 'operator';
   };
 
   /** For Admin and OIC the weekly view display setting has no effect: they always see time on the vertical axis. */
@@ -3884,9 +3913,14 @@ const BookEquipment = () => {
   };
 
   const canAccessManageEquipmentModes = (): boolean => {
+    return canBookForOtherUsers() || canChangeSlotStatus();
+  };
+
+  /** Institute Admin and Department Administrator must pick "Book slots for a user" before the booking form. */
+  const requiresBookModeBeforeForm = (): boolean => {
     if (!userType) return false;
     const t = String(userType).toLowerCase();
-    return t === 'admin' || t === 'manager' || t === 'operator';
+    return t === 'admin' || t === 'dept_admin';
   };
 
   const isInternalUser = (): boolean => {
@@ -5055,28 +5089,35 @@ const BookEquipment = () => {
         {/* Admin: mode selector (Manage this Equipment) */}
         {canAccessManageEquipmentModes() && adminManageMode === null && !isCalculateChargesFlow && (
           <div className="max-w-2xl mx-auto mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => setAdminManageMode('book')}
-            >
-              <CardHeader>
-                <CardTitle className="text-lg">Book slots for a user</CardTitle>
-                <CardDescription>
-                  Select a user and book slots on their behalf. Charge is calculated for the selected user.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => setAdminManageMode('status')}
-            >
-              <CardHeader>
-                <CardTitle className="text-lg">Change slot status</CardTitle>
-                <CardDescription>
-                  Mark slots as Other Reasons, Under Maintenance, or Operator Absent.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            {canBookForOtherUsers() && (
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => setAdminManageMode('book')}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">Book slots for a user</CardTitle>
+                  <CardDescription>
+                    Select a user and book slots on their behalf. Charge is calculated for the selected user.
+                    {String(userType ?? "").toLowerCase() === "dept_admin"
+                      ? " Limited to equipment in your assigned department."
+                      : ""}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
+            {canChangeSlotStatus() && (
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => setAdminManageMode('status')}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">Change slot status</CardTitle>
+                  <CardDescription>
+                    Mark slots as Other Reasons, Under Maintenance, or Operator Absent.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
           </div>
         )}
 
@@ -6353,8 +6394,8 @@ const BookEquipment = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Booking flow: hide when admin and mode not yet chosen or when in status mode */}
-        {((!isAdminUser() || adminManageMode === 'book') || isCalculateChargesFlow) && (
+        {/* Booking flow: hide when Admin/Dept Admin and mode not yet chosen or when in status mode */}
+        {((!requiresBookModeBeforeForm() || adminManageMode === 'book') || isCalculateChargesFlow) && (
         <div className="max-w-6xl mx-auto">
           <Card>
               <CardHeader>
@@ -6445,7 +6486,7 @@ const BookEquipment = () => {
                   )}
 
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
-                {canAccessManageEquipmentModes() && adminManageMode === 'book' && !isCalculateChargesFlow && (
+                {canBookForOtherUsers() && adminManageMode === 'book' && !isCalculateChargesFlow && (
                   <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -7496,10 +7537,10 @@ const BookEquipment = () => {
                   {chargeCalculationFailed && !loadingCharge && (
                     <div className="mt-6 p-6 bg-muted rounded-lg border-2 border-dashed text-center">
                       <h3 className="text-lg font-semibold mb-2">
-                        {isAdminUser() ? "Charge calculation failed" : "Coming Soon"}
+                        {isAdminOrOIC() ? "Charge calculation failed" : "Coming Soon"}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {isAdminUser()
+                        {isAdminOrOIC()
                           ? "Could not calculate charges for this 3D print. Check that a user is selected and STL analysis completed, then try again."
                           : "Charge calculation is currently unavailable. Please check back later."}
                       </p>
