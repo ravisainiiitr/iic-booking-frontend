@@ -20,7 +20,7 @@ export function PageShell({
   );
 }
 
-/** Teal gradient page intro banner used across wallet, catalog, admin hubs. */
+/** Navy Ocean page intro banner used across wallet, catalog, admin hubs. */
 export function PageHero({
   title,
   description,
@@ -35,7 +35,7 @@ export function PageHero({
   return (
     <div
       className={cn(
-        "mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl",
+        "mb-8 rounded-2xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 p-6 sm:p-8 text-white shadow-xl shadow-primary/25",
         className
       )}
     >

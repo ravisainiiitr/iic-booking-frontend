@@ -35,7 +35,9 @@ const DEFAULT_HOME = {
 
 const Hero = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const isLabIncharge =
+    user?.user_type != null && String(user.user_type).toLowerCase() === "operator";
   const [autoplay] = useState(() => Autoplay({ delay: 4500, stopOnInteraction: false }));
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
   const [fontSizes, setFontSizes] = useState<Record<string, string>>({});
@@ -224,15 +226,17 @@ const Hero = () => {
                   )}
                 </Button>
               )}
-              <Button
-                size="lg"
-                className="h-11 gap-2 bg-white px-5 text-primary hover:bg-primary/5 sm:h-12 sm:px-6"
-                style={fontSizes.cta_book_text ? { fontSize: fontSizes.cta_book_text } : undefined}
-                onClick={() => navigate(home.cta_book_route || "/equipments")}
-              >
-                <Calendar className="h-4 w-4" />
-                {home.cta_book_text || "Book Equipment"}
-              </Button>
+              {!isLabIncharge && (
+                <Button
+                  size="lg"
+                  className="h-11 gap-2 bg-white px-5 text-primary hover:bg-primary/5 sm:h-12 sm:px-6"
+                  style={fontSizes.cta_book_text ? { fontSize: fontSizes.cta_book_text } : undefined}
+                  onClick={() => navigate(home.cta_book_route || "/equipments")}
+                >
+                  <Calendar className="h-4 w-4" />
+                  {home.cta_book_text || "Book Equipment"}
+                </Button>
+              )}
               <Button
                 size="lg"
                 variant="outline"

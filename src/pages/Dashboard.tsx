@@ -140,6 +140,14 @@ function filterLabDashRowsByStatus(rows: LabOperatorDashBooking[] | undefined, s
   return (rows ?? []).filter((r) => String(r.status).toUpperCase() === u);
 }
 
+/** Distinct row styling so completed bookings stand out on OIC / Lab Incharge dashboards. */
+function labDashBookingRowClassName(status: string | undefined): string {
+  if (String(status || "").toUpperCase() === "COMPLETED") {
+    return "bg-emerald-50/95 hover:bg-emerald-100/95 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/55 border-l-4 border-l-emerald-500";
+  }
+  return "";
+}
+
 type LabDashRowsDash = {
   overall_booking_rows: LabOperatorDashBooking[];
   external_booking_rows: LabOperatorDashBooking[];
@@ -186,31 +194,31 @@ function labHeroInstrumentPanelClass(v: LabHeroEquipmentStatusVariant) {
     case "operational":
       return {
         shell:
-          "border-emerald-200/55 bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-950 shadow-xl shadow-emerald-950/45 ring-2 ring-emerald-300/35",
-        badge: "bg-white text-emerald-900 shadow-md",
+          "border-white/30 bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 shadow-xl shadow-black/35 ring-2 ring-white/20",
+        badge: "bg-white text-primary shadow-md",
       };
     case "under_maintenance":
       return {
         shell:
-          "border-red-200/55 bg-gradient-to-br from-red-600 via-red-700 to-red-950 shadow-xl shadow-red-950/45 ring-2 ring-red-300/35",
+          "border-red-200/40 bg-gradient-to-br from-red-700 via-red-900 to-slate-950 shadow-xl shadow-black/35 ring-2 ring-red-300/25",
         badge: "bg-white text-red-900 shadow-md",
       };
     case "scheduled":
       return {
         shell:
-          "border-amber-200/50 bg-gradient-to-br from-amber-600 via-amber-700 to-amber-950 shadow-xl shadow-amber-950/40 ring-2 ring-amber-300/35",
+          "border-amber-200/40 bg-gradient-to-br from-amber-700 via-amber-900 to-slate-950 shadow-xl shadow-black/30 ring-2 ring-amber-300/25",
         badge: "bg-white text-amber-950 shadow-md font-extrabold",
       };
     case "other":
       return {
         shell:
-          "border-primary/40 bg-gradient-to-br from-primary via-slate-900 to-slate-950 shadow-xl ring-2 ring-primary/25",
+          "border-white/25 bg-gradient-to-br from-primary/90 via-slate-900 to-slate-950 shadow-xl ring-2 ring-white/15",
         badge: "bg-white/95 text-primary shadow-md",
       };
     default:
       return {
         shell:
-          "border-white/35 bg-gradient-to-br from-slate-800/90 via-slate-900 to-slate-950 shadow-xl shadow-black/30 ring-2 ring-white/15 backdrop-blur-sm",
+          "border-white/30 bg-gradient-to-br from-primary/80 via-slate-900 to-slate-950 shadow-xl shadow-black/30 ring-2 ring-white/15 backdrop-blur-sm",
         badge: "bg-white/95 text-slate-900 shadow-md",
       };
   }
@@ -1929,14 +1937,17 @@ const Dashboard = () => {
                               </TableHeader>
                               <TableBody>
                                 {rows.map((row) => (
-                                  <TableRow key={`${labDashPanel.key}-${labDashPanel.segment}-${row.booking_id}`}>
+                                  <TableRow
+                                    key={`${labDashPanel.key}-${labDashPanel.segment}-${row.booking_id}`}
+                                    className={labDashBookingRowClassName(row.status)}
+                                  >
                                     <TableCell className="font-medium whitespace-nowrap">
                                       <button
                                         type="button"
                                         onClick={() => selectLabBookingForDetail(row.booking_id)}
                                         className={`inline-flex items-center gap-1.5 rounded font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
                                           String(row.status).toUpperCase() === "COMPLETED"
-                                            ? "text-green-600 hover:text-green-700 dark:text-green-500"
+                                            ? "text-emerald-800 hover:text-emerald-900 dark:text-emerald-300"
                                             : "text-primary hover:text-primary/80"
                                         }`}
                                       >
@@ -1947,8 +1958,14 @@ const Dashboard = () => {
                                       {row.equipment_name}
                                     </TableCell>
                                     <TableCell className="max-w-[160px] truncate">{row.user_name || "—"}</TableCell>
-                                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                                      {row.status_display || row.status}
+                                    <TableCell className="whitespace-nowrap">
+                                      {String(row.status).toUpperCase() === "COMPLETED" ? (
+                                        <span className="inline-flex items-center rounded-full bg-emerald-600/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200">
+                                          {row.status_display || row.status}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground">{row.status_display || row.status}</span>
+                                      )}
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                                       {row.start_time
@@ -3903,14 +3920,17 @@ const Dashboard = () => {
                               </TableHeader>
                               <TableBody>
                                 {rows.map((row) => (
-                                  <TableRow key={`${labDashPanel.key}-${labDashPanel.segment}-${row.booking_id}`}>
+                                  <TableRow
+                                    key={`${labDashPanel.key}-${labDashPanel.segment}-${row.booking_id}`}
+                                    className={labDashBookingRowClassName(row.status)}
+                                  >
                                     <TableCell className="font-medium whitespace-nowrap">
                                       <button
                                         type="button"
                                         onClick={() => selectLabBookingForDetail(row.booking_id)}
                                         className={`inline-flex items-center gap-1.5 rounded font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
                                           String(row.status).toUpperCase() === "COMPLETED"
-                                            ? "text-green-600 hover:text-green-700 dark:text-green-500"
+                                            ? "text-emerald-800 hover:text-emerald-900 dark:text-emerald-300"
                                             : "text-primary hover:text-primary/80"
                                         }`}
                                       >
@@ -3921,8 +3941,14 @@ const Dashboard = () => {
                                       {row.equipment_name}
                                     </TableCell>
                                     <TableCell className="max-w-[160px] truncate">{row.user_name || "—"}</TableCell>
-                                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                                      {row.status_display || row.status}
+                                    <TableCell className="whitespace-nowrap">
+                                      {String(row.status).toUpperCase() === "COMPLETED" ? (
+                                        <span className="inline-flex items-center rounded-full bg-emerald-600/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200">
+                                          {row.status_display || row.status}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground">{row.status_display || row.status}</span>
+                                      )}
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
                                       {row.start_time ? format(parseISO(row.start_time), "MMM d, yyyy h:mm a") : "—"}

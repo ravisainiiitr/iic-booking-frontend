@@ -285,19 +285,19 @@ const EquipmentCard = ({
 
   return (
     <Card
-      className="group cursor-pointer overflow-hidden rounded-2xl border border-border/80 shadow-md transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl dark:hover:border-primary/50"
+      className="group cursor-pointer overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/10"
       onClick={() => {
         if (id == null) return;
         navigate(`/equipment/${id}`);
       }}
     >
-      <div className="relative aspect-video overflow-hidden bg-muted">
+      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
         {video ? (
           <>
             <video 
               ref={videoRef}
               src={video}
-              className="w-full h-full object-cover"
+              className="h-full w-full object-cover"
               autoPlay
               muted
               loop
@@ -315,11 +315,11 @@ const EquipmentCard = ({
                   e.stopPropagation();
                   handlePlayVideo();
                 }}
-                className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors group/play z-10"
+                className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 transition-colors hover:bg-black/40 group/play"
                 aria-label="Play video"
               >
-                <div className="bg-primary/90 hover:bg-primary rounded-full p-4 transition-all group-hover/play:scale-110">
-                  <Play className="h-8 w-8 text-primary-foreground fill-current" />
+                <div className="rounded-full bg-primary p-3.5 text-primary-foreground shadow-lg transition-all group-hover/play:scale-110">
+                  <Play className="h-7 w-7 fill-current" />
                 </div>
               </button>
             )}
@@ -329,27 +329,28 @@ const EquipmentCard = ({
             equipmentId={equipmentIdForImage}
             enabled
             alt={name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
             fallback={image || "/placeholder.svg"}
           />
         ) : (
           <img 
             src={image} 
             alt={name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent" />
         {category ? (
-          <span className="absolute top-3 left-3 rounded-full bg-primary/90 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+          <span className="absolute left-3 top-3 z-[1] rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground shadow-sm">
             {category}
           </span>
         ) : null}
       </div>
       
-      <CardHeader className="pb-2">
+      <CardHeader className="space-y-2 px-5 pb-2 pt-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <CardTitle className="text-lg line-clamp-2">{name}</CardTitle>
+            <CardTitle className="line-clamp-2 text-[1.05rem] font-semibold leading-snug tracking-tight">{name}</CardTitle>
             {ratingSummaryCount > 0 && (
               <div className="mt-1">
                 <button
@@ -412,7 +413,7 @@ const EquipmentCard = ({
                 const isOperational = status === "ACTIVE";
                 const variant = isOperational ? "default" : "secondary";
                 const badgeClass = isOperational
-                  ? "shrink-0 bg-green-600 hover:bg-green-700"
+                  ? "shrink-0 border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
                   : "shrink-0";
 
                 return (
@@ -426,23 +427,21 @@ const EquipmentCard = ({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
-        <CardDescription className="text-sm line-clamp-2">{description}</CardDescription>
+      <CardContent className="space-y-3 border-t border-border/70 bg-slate-50/90 px-5 py-4 dark:bg-slate-950/40">
+        <CardDescription className="line-clamp-2 text-sm leading-snug">{description}</CardDescription>
         {typeof internalRate === "number" && internalRate > 0 ? (
-          <div className="text-base font-semibold text-foreground">₹{Number(internalRate).toFixed(2)}/hour</div>
+          <div className="text-base font-semibold tabular-nums text-primary">₹{Number(internalRate).toFixed(2)}/hour</div>
         ) : null}
-        <div className="pt-1">
-          <Button
-            size="sm"
-            className="bg-primary text-white hover:bg-primary/90"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDialogOpen(true);
-            }}
-          >
-            More info
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          className="bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary/90"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDialogOpen(true);
+          }}
+        >
+          More info
+        </Button>
       </CardContent>
 
       <Dialog
