@@ -225,6 +225,7 @@ const DEFAULT_TIME_SLOTS = [
 
 // User type filter options for admin/OIC "Book for user" (matches backend UserType codes)
 const USER_TYPE_FILTER_ALL = "__all__";
+/** User types offered when booking on behalf. Staff + Other are intentionally excluded. */
 const USER_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: USER_TYPE_FILTER_ALL, label: "All types" },
   { value: "student", label: "IIT Roorkee Students" },
@@ -235,11 +236,7 @@ const USER_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "Industry", label: "Industry" },
   { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
   { value: "external_startup_msme", label: "External Startup/MSME" },
-  { value: "admin", label: "Admin" },
-  { value: "manager", label: "Officer In Charge" },
-  { value: "operator", label: "Lab Incharge" },
   { value: "finance", label: "Accounts In Charge" },
-  { value: "other", label: "Other" },
 ];
 
 /** Parse "HH:mm" or "HH:mm:ss" to total minutes from midnight. */
@@ -1203,7 +1200,11 @@ const BookEquipment = () => {
     }
     let cancelled = false;
     (async () => {
-      const params: Record<string, string> = { lite: "1" };
+      const params: Record<string, string> = {
+        lite: "1",
+        for_booking: "1",
+        is_active: "1",
+      };
       if (adminUserTypeFilter !== USER_TYPE_FILTER_ALL) {
         // Backend expects exact UserType codes (e.g. RND / Industry keep original casing).
         params.user_type = adminUserTypeFilter;

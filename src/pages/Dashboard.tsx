@@ -334,10 +334,6 @@ const Dashboard = () => {
   const [labDashDetailLoading, setLabDashDetailLoading] = useState(false);
   /** Lab dashboard metrics scope: all assigned equipment or one instrument. */
   const [labDashEquipmentFilter, setLabDashEquipmentFilter] = useState<number | "all">("all");
-  const [daAdditionRequests, setDaAdditionRequests] = useState<
-    Array<{ id: number; code: string; name: string; status: string; status_display?: string }>
-  >([]);
-  const [daAdditionRequestsLoading, setDaAdditionRequestsLoading] = useState(false);
 
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
@@ -366,31 +362,6 @@ const Dashboard = () => {
   const isInternalFacultyUser =
     isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
   const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
-
-  useEffect(() => {
-    if (!isDeptAdmin || !isAuthenticated || authLoading) return;
-    let cancelled = false;
-    setDaAdditionRequestsLoading(true);
-    apiClient
-      .adminListEquipmentAdditionRequests("ALL")
-      .then((res) => {
-        if (cancelled) return;
-        const rows = (res.data?.results || []) as Array<{
-          id: number;
-          code: string;
-          name: string;
-          status: string;
-          status_display?: string;
-        }>;
-        setDaAdditionRequests(rows.slice(0, 8));
-      })
-      .finally(() => {
-        if (!cancelled) setDaAdditionRequestsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isDeptAdmin, isAuthenticated, authLoading, user?.id]);
 
   // OIC dashboard cards: Admin always; manager only when enabled in Django admin for that user.
   const canSeeOicTaNomination =
@@ -3249,55 +3220,6 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {isDeptAdmin && (
-            <Card className="overflow-hidden border-0 shadow-md col-span-full sm:col-span-2 lg:col-span-2">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
-                    <Package className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Equipment addition status</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Track Pending / Approved / Rejected requests for your department
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {daAdditionRequestsLoading ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : daAdditionRequests.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No addition requests yet.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {daAdditionRequests.map((r) => (
-                      <li
-                        key={r.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
-                      >
-                        <span className="font-medium truncate">
-                          {r.code} — {r.name}
-                        </span>
-                        <Badge variant="outline">{r.status_display || r.status}</Badge>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  onClick={() => navigate("/admin/equipment-addition-requests")}
-                >
-                  View all requests
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           {canSeeAdminSettingsCard && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-cyan-200 dark:hover:border-cyan-800"
@@ -4094,7 +4016,11 @@ const Dashboard = () => {
                       </div>
                       <div>
                         <CardTitle className="text-lg">Upcoming Bookings</CardTitle>
-                        <CardDescription className="text-sm">Your scheduled equipment sessions</CardDescription>
+                        <CardDescription className="text-sm">
+                          {isDeptAdmin
+                            ? "Upcoming sessions on your department’s equipment"
+                            : "Your scheduled equipment sessions"}
+                        </CardDescription>
                       </div>
                     </div>
                     <Button
@@ -4177,7 +4103,11 @@ const Dashboard = () => {
                       </div>
                       <div>
                         <CardTitle className="text-lg">Equipment Statistics</CardTitle>
-                        <CardDescription className="text-sm">Your usage and spending by equipment</CardDescription>
+                        <CardDescription className="text-sm">
+                          {isDeptAdmin
+                            ? "Usage and spending for your department’s equipment"
+                            : "Your usage and spending by equipment"}
+                        </CardDescription>
                       </div>
                     </div>
                     <Button

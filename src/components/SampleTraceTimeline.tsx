@@ -14,7 +14,6 @@ import {
 import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
-import { createLocalResultsFolder, type ResultsFolderSpec } from "@/lib/localResultsFolder";
 import { toast } from "sonner";
 
 const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
@@ -348,34 +347,8 @@ export default function SampleTraceTimeline({
         onTraceUpdated(trace);
       }
       if (status === "SAMPLE_ACCEPTED" && res.data) {
-        try {
-          const local = await createLocalResultsFolder({
-            ...(res.data as ResultsFolderSpec),
-            virtual_booking_id: (res.data as ResultsFolderSpec).virtual_booking_id,
-          });
-          toast.success(
-            local.method === "bat-download"
-              ? `Sample accepted. Run the downloaded .bat to create the booking folder on this PC:\n${local.path}`
-              : `Sample accepted. Booking folder created on this PC:\n${local.path}${
-                  local.reselectedBase
-                    ? "\n(Choose the equipment Results base folder, e.g. D:\\Results, when prompted.)"
-                    : ""
-                }`
-          );
-        } catch (err) {
-          const aborted =
-            err instanceof DOMException && (err.name === "AbortError" || err.name === "NotAllowedError");
-          if (aborted) {
-            toast.success("Sample accepted. Folder creation was cancelled — you can create it later from the PC.");
-          } else {
-            toast.success("Sample accepted.");
-            toast.error(
-              err instanceof Error
-                ? `Could not create local booking folder: ${err.message}`
-                : "Could not create local booking folder."
-            );
-          }
-        }
+        // Folder creation is handled by the department sync agent.
+        toast.success("Sample accepted.");
       } else {
         toast.success("Status updated.");
       }

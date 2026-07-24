@@ -3775,7 +3775,12 @@ class ApiClient {
 
   async extendBookingOperatorAbsentHold(
     bookingId: number,
-    data: { hold_until?: string; clear?: boolean }
+    data: {
+      hold_until?: string;
+      clear?: boolean;
+      reason_code?: string;
+      reason_detail?: string;
+    }
   ) {
     return this.request<{
       message: string;
@@ -7136,7 +7141,7 @@ class ApiClient {
       department_name: string;
       wallet_faculty_owner: { name: string; email: string } | null;
       wallet_balance: string;
-    }>(`${endpoint}${userId}/booking-info/`, { method: 'GET' });
+    }>(`${endpoint}${userId}/booking-info/?for_booking=1`, { method: 'GET' });
   }
 
   /** Admin/OIC: get transaction history for a user (e.g. to verify debit after booking for user). */

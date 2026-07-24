@@ -533,6 +533,8 @@ export function BookingDetailCard({
   const [repeatEligibility, setRepeatEligibility] = useState<{ can_create_repeat: boolean } | null>(null);
   const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
   const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
+  const [extendHoldReasonCode, setExtendHoldReasonCode] = useState<string>("");
+  const [extendHoldReasonDetail, setExtendHoldReasonDetail] = useState("");
   const [extendHoldLoading, setExtendHoldLoading] = useState(false);
   const [atmosphereSaving, setAtmosphereSaving] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
@@ -2107,7 +2109,7 @@ export function BookingDetailCard({
                     Extend operator-absent grace (no slot change)
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Delays automatic Operator Absent / Operator Unavailable until the chosen time. Booking slots stay unchanged.
+                    Delays automatic Operator Absent / Operator Unavailable until the chosen time. Booking slots stay unchanged. The booking user is notified with the reason.
                   </p>
                   {booking.operator_absent_hold_until && (
                     <p className="text-xs text-amber-800 dark:text-amber-200">
@@ -2126,17 +2128,57 @@ export function BookingDetailCard({
                         className="h-9 w-[220px]"
                       />
                     </div>
+                    <div className="space-y-1 min-w-[220px]">
+                      <Label className="text-xs">Reason</Label>
+                      <Select value={extendHoldReasonCode || undefined} onValueChange={setExtendHoldReasonCode}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select reason…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="operator_medical_emergency">Operator medical emergency</SelectItem>
+                          <SelectItem value="minor_equipment_issue">Minor Equipment Issue</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {extendHoldReasonCode === "other" && (
+                      <div className="space-y-1 w-full max-w-md">
+                        <Label htmlFor="extend-hold-reason-detail" className="text-xs">Specify reason</Label>
+                        <Textarea
+                          id="extend-hold-reason-detail"
+                          value={extendHoldReasonDetail}
+                          onChange={(e) => setExtendHoldReasonDetail(e.target.value)}
+                          placeholder="Describe the reason…"
+                          rows={2}
+                          className="resize-none"
+                        />
+                      </div>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={extendHoldLoading || !extendHoldUntilLocal}
+                      disabled={
+                        extendHoldLoading ||
+                        !extendHoldUntilLocal ||
+                        !extendHoldReasonCode ||
+                        (extendHoldReasonCode === "other" && !extendHoldReasonDetail.trim())
+                      }
                       onClick={async () => {
-                        if (!extendHoldUntilLocal) return;
+                        if (!extendHoldUntilLocal || !extendHoldReasonCode) return;
+                        if (extendHoldReasonCode === "other" && !extendHoldReasonDetail.trim()) {
+                          toast.error("Please specify the reason.");
+                          return;
+                        }
                         setExtendHoldLoading(true);
                         try {
                           const iso = new Date(extendHoldUntilLocal).toISOString();
                           const res = await apiClient.extendBookingOperatorAbsentHold(bookingPk, {
                             hold_until: iso,
+                            reason_code: extendHoldReasonCode,
+                            reason_detail:
+                              extendHoldReasonCode === "other"
+                                ? extendHoldReasonDetail.trim()
+                                : undefined,
                           });
                           if (res.error) {
                             toast.error(typeof res.error === "string" ? res.error : "Failed to extend hold");
@@ -2145,6 +2187,8 @@ export function BookingDetailCard({
                             onUpdated();
                             toast.success(res.data.message || "Hold extended");
                             setExtendHoldUntilLocal("");
+                            setExtendHoldReasonCode("");
+                            setExtendHoldReasonDetail("");
                           }
                         } catch (e: unknown) {
                           toast.error(e instanceof Error ? e.message : "Failed to extend hold");

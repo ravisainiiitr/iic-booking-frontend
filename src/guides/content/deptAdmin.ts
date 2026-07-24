@@ -17,7 +17,7 @@ export const deptAdminGuide: UserGuideContent = {
   title: "Department Administrator User Guide",
   subtitle: `${PRODUCT_NAME} — department-scoped staff, equipment, and access`,
   welcomeHeadline: "Welcome, Department Administrator",
-  welcomeBody: `You administer booking-related staff and equipment for your department on the ${PRODUCT_NAME}. This guide covers department administration hubs, equipment scoping, addition requests, and how your powers differ from Institute Admin.`,
+  welcomeBody: `You administer booking-related staff and equipment for your department on the ${PRODUCT_NAME}. This guide covers department administration hubs, equipment scoping, and how your powers differ from Institute Admin.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -27,7 +27,7 @@ export const deptAdminGuide: UserGuideContent = {
         "Manage departmental staff roles (OIC, Lab Incharge, Accounts) via Department Administration",
         "Work with equipment scoped to your internal department",
         "Book slots for other users on department equipment (same flow as Institute Admin, department-scoped)",
-        "Track equipment addition requests (approval is typically Institute Admin)",
+        "Dashboard Upcoming Bookings and Equipment Statistics cover only your department’s equipment",
         "Book as an end user when needed, and use Reports / Support like other campus users",
       ],
     }),
@@ -37,7 +37,7 @@ export const deptAdminGuide: UserGuideContent = {
       ],
       bullets: [
         "Confirm your Profile department matches the unit you administer.",
-        "Open Dashboard — look for department tools such as Equipment Addition Status and Admin Settings (if enabled).",
+        "Open Dashboard — look for department tools and Admin Settings (if enabled).",
         "Navigate to Manage → Department Administration for staff role pages.",
       ],
       callouts: [
@@ -87,13 +87,13 @@ export const deptAdminGuide: UserGuideContent = {
       bullets: [
         "Browse /equipments to see department instruments (not the full institute catalog of other units’ private assets).",
         "Use Book now → Book slots for a user to book on behalf of another user; charges apply to the selected user. You can only do this for equipment in your assigned department.",
+        "When booking for a user, filter by type (e.g. IIT Roorkee Students) to see all currently active users of that type across departments. Staff types (Admin, OIC, Lab Incharge) and Other are not listed.",
         "When adding equipment (if permitted), Internal Department is typically fixed to your department.",
-        "Submit or track Equipment Addition Requests; Institute Admin approves/rejects proposals.",
         "Admin Settings / Equipment modules appear only when Admin Panel Access grants them to your role.",
       ],
     },
     notificationsSection([
-      "Equipment addition status updates when administrators review requests.",
+      "Staff assignment and equipment updates for your department appear in the usual portal channels.",
     ]),
     bestPracticesSection([
       "Keep OIC assignments current when faculty rotate equipment responsibility.",
