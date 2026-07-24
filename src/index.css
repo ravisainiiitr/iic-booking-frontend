@@ -318,9 +318,10 @@
   box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.55) !important;
 }
 
-/* Dashboard visual refresh */
-.dashboard-page main.container {
-  max-width: 1320px;
+/* Dashboard visual refresh — use full viewport width once logged in */
+.dashboard-page main.dashboard-main-wide {
+  width: 100%;
+  max-width: none;
 }
 
 .dashboard-section-title {

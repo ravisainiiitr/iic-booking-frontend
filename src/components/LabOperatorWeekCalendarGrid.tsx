@@ -124,12 +124,8 @@ const DEFAULT_SLOT_COLORS: Record<string, string> = {
   ABSENT: "#9ca3af",
 };
 
-/** Status keys whose lab-dashboard colour must not be overridden by stale CalendarColorSetting rows. */
+/** Maintenance / blocked stay grey; booking colours come from CalendarColorSetting (lab/OIC configurable). */
 const FORCED_LAB_CALENDAR_COLORS: Partial<Record<string, string>> = {
-  COMPLETED: DEFAULT_SLOT_COLORS.COMPLETED,
-  BOOKED_EXTERNAL: DEFAULT_SLOT_COLORS.BOOKED_EXTERNAL,
-  BOOKED_INTERNAL: DEFAULT_SLOT_COLORS.BOOKED_INTERNAL,
-  BOOKED: DEFAULT_SLOT_COLORS.BOOKED,
   UNDER_MAINTENANCE: DEFAULT_SLOT_COLORS.UNDER_MAINTENANCE,
   BLOCKED: DEFAULT_SLOT_COLORS.BLOCKED,
   OPERATOR_ABSENT: DEFAULT_SLOT_COLORS.OPERATOR_ABSENT,
@@ -423,7 +419,7 @@ export function LabOperatorWeekCalendarGrid({
                       displayStatus = (
                         <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
                           {displayRef ? (
-                            <span className="w-full truncate text-[13px] font-extrabold tracking-tight sm:text-sm">
+                            <span className="w-full truncate text-[11px] font-extrabold tracking-tight sm:text-xs">
                               {displayRef}
                             </span>
                           ) : null}

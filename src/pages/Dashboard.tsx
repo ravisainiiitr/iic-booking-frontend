@@ -26,6 +26,10 @@ import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import { formatUserDisplayName } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
+import {
+  LabCalendarColorConfig,
+  DEFAULT_LAB_BOOKING_COLORS,
+} from "@/components/LabCalendarColorConfig";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -334,6 +338,9 @@ const Dashboard = () => {
   const [labSlotsLoading, setLabSlotsLoading] = useState(false);
   const [labSlotsRefresh, setLabSlotsRefresh] = useState(0);
   const [labCalendarBookedOnly, setLabCalendarBookedOnly] = useState(false);
+  const [labBookingLegendColors, setLabBookingLegendColors] = useState<Record<string, string>>({
+    ...DEFAULT_LAB_BOOKING_COLORS,
+  });
   /** Week slot grid: collapsed by default to reduce noise and avoid loading slots until needed. */
   /** Week slot grid: expanded by default so Lab In-charge sees the calendar first. */
   const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(true);
@@ -876,6 +883,34 @@ const Dashboard = () => {
     labDashEquipmentFilter,
   ]);
 
+  const applyLabBookingColors = useCallback((slotColors: Record<string, string>) => {
+    setLabBookingLegendColors((prev) => ({ ...prev, ...slotColors }));
+    setLabSlotByEquipment((prev) => {
+      const next: Record<number, LabWeekCalendarSlotsPayload> = {};
+      for (const [idStr, payload] of Object.entries(prev)) {
+        const id = Number(idStr);
+        if (!payload) {
+          continue;
+        }
+        next[id] = {
+          ...payload,
+          calendar_colors: {
+            ...(payload.calendar_colors || {}),
+            slot_colors: {
+              ...(payload.calendar_colors?.slot_colors || {}),
+              ...slotColors,
+            },
+            holiday_default: payload.calendar_colors?.holiday_default || "#e9d5ff",
+            saturday_color: payload.calendar_colors?.saturday_color,
+            sunday_color: payload.calendar_colors?.sunday_color,
+          },
+        };
+      }
+      return next;
+    });
+    setLabSlotsRefresh((x) => x + 1);
+  }, []);
+
   useEffect(() => {
     if (!showsLabStyleDashboard || labDashSelectedBookingId == null) {
       setLabDashDetailBooking(null);
@@ -1172,7 +1207,7 @@ const Dashboard = () => {
     <div className="dashboard-page page-shell">
       <DashboardHeader />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-8 sm:px-6 lg:px-8">
         {externalProfileNeedsAddress && (
           <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-primary/70 bg-primary/5 dark:bg-primary/10">
             <CardHeader className="pb-3">
@@ -3563,7 +3598,10 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#3b82f6" }}
+                                style={{
+                                  backgroundColor:
+                                    labBookingLegendColors.BOOKED_INTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_INTERNAL,
+                                }}
                                 aria-hidden
                               />
                               Internal booked
@@ -3571,7 +3609,10 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#ea580c" }}
+                                style={{
+                                  backgroundColor:
+                                    labBookingLegendColors.BOOKED_EXTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_EXTERNAL,
+                                }}
                                 aria-hidden
                               />
                               External booked
@@ -3579,7 +3620,21 @@ const Dashboard = () => {
                             <span className="inline-flex items-center gap-1.5">
                               <span
                                 className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#34d399" }}
+                                style={{
+                                  backgroundColor:
+                                    labBookingLegendColors.BOOKED || DEFAULT_LAB_BOOKING_COLORS.BOOKED,
+                                }}
+                                aria-hidden
+                              />
+                              Booked
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
+                                style={{
+                                  backgroundColor:
+                                    labBookingLegendColors.COMPLETED || DEFAULT_LAB_BOOKING_COLORS.COMPLETED,
+                                }}
                                 aria-hidden
                               />
                               Completed
@@ -3601,6 +3656,10 @@ const Dashboard = () => {
                               Maintenance / Blocked
                             </span>
                           </div>
+                          <LabCalendarColorConfig
+                            onColorsChange={(c) => setLabBookingLegendColors((prev) => ({ ...prev, ...c }))}
+                            onSaved={applyLabBookingColors}
+                          />
                           <div className="grid grid-cols-1 gap-4">
                             {labEquipmentSummariesForScope.length === 0 ? (
                               <p className="text-sm text-muted-foreground">No equipment in scope.</p>
