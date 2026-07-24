@@ -543,32 +543,23 @@ const MyBookings = () => {
   // When opening from email link (e.g. ?booking=123), fetch that booking and show detail
   const bookingIdParam = searchParams.get("booking");
   const editInputsParam = searchParams.get("edit_inputs");
-  useEffect(() => {
-    if (editInputsParam === "1" || editInputsParam === "true") {
-      setAutoOpenEditInputs(true);
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.delete("edit_inputs");
-          return next;
-        },
-        { replace: true }
-      );
-    }
-  }, [editInputsParam, setSearchParams]);
-
+  // When inList path clears overrideBooking while refetching, keep edit intent until dialog opens.
   useEffect(() => {
     if (!bookingIdParam) return;
+    if (editInputsParam === "1" || editInputsParam === "true") {
+      setAutoOpenEditInputs(true);
+    }
     const inList = bookings.some((b) => getBookingKey(b) === bookingIdParam);
     if (inList) {
       const row = bookings.find((b) => getBookingKey(b) === bookingIdParam);
       setSelectedBookingId(bookingIdParam);
-      setOverrideBooking(null);
       const backendId = row ? getRealBookingId(row) : null;
       if (backendId != null) {
         apiClient.getBookings({ booking_id: backendId, limit: 1 }).then((res) => {
           if (res.data?.bookings?.[0]) setOverrideBooking(res.data.bookings[0]);
         });
+      } else if (row) {
+        setOverrideBooking(row);
       }
       setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
       return;
@@ -584,7 +575,21 @@ const MyBookings = () => {
       }
     });
     return () => { cancelled = true; };
-  }, [bookingIdParam, bookings]);
+  }, [bookingIdParam, bookings, editInputsParam]);
+
+  useEffect(() => {
+    if (editInputsParam === "1" || editInputsParam === "true") {
+      setAutoOpenEditInputs(true);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("edit_inputs");
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  }, [editInputsParam, setSearchParams]);
 
   const checkAuthAndFetchBookings = async (onlyShowPendingRating?: boolean) => {
     const token = apiClient.getToken();

@@ -1050,7 +1050,7 @@ const BookEquipment = () => {
     bookingViewQuery?: string;
     /** Human-facing booking reference shown on the link. */
     bookingDisplayId?: string;
-    /** When true, show CTA to complete remaining optional (editable) parameters. */
+    /** When true, show stronger copy to complete remaining optional (editable) parameters. */
     promptCompleteOptionalParams?: boolean;
   }>({ open: false, success: false, variant: "failure", message: "" });
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
@@ -8978,15 +8978,20 @@ const BookEquipment = () => {
                       Confirmation email and notifications are being sent in the background — your booking is already saved.
                     </p>
                   )}
-                  {bookingResultDialog.success && bookingResultDialog.promptCompleteOptionalParams ? (
+                  {bookingResultDialog.success && bookingResultDialog.variant === "success" ? (
                     <div className="rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-3 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-50">
                       <div className="flex gap-2.5">
                         <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-300" aria-hidden />
                         <div className="min-w-0 space-y-1.5">
-                          <p className="text-sm font-semibold leading-snug">Complete remaining booking parameters</p>
+                          <p className="text-sm font-semibold leading-snug">
+                            {bookingResultDialog.promptCompleteOptionalParams
+                              ? "Complete remaining booking parameters"
+                              : "Edit or complete booking parameters"}
+                          </p>
                           <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-100/90">
-                            To help the laboratory prepare for your sample and avoid delays, please complete all remaining
-                            booking parameters as soon as possible.
+                            {bookingResultDialog.promptCompleteOptionalParams
+                              ? "To help the laboratory prepare for your sample and avoid delays, please complete all remaining booking parameters as soon as possible."
+                              : "Use Complete Booking Details to open Edit User Inputs for this booking and update sample or parameter information."}
                           </p>
                         </div>
                       </div>
@@ -8998,7 +9003,7 @@ const BookEquipment = () => {
             </DialogHeader>
             <DialogFooter className="flex !flex-col gap-2 pt-4 sm:!flex-col sm:space-x-0 sm:justify-stretch">
               {bookingResultDialog.success &&
-                bookingResultDialog.promptCompleteOptionalParams &&
+                bookingResultDialog.variant === "success" &&
                 bookingResultDialog.bookingViewQuery && (
                   <Button
                     className="w-full gap-2 bg-primary text-white hover:bg-primary/90"
@@ -9061,6 +9066,7 @@ const BookEquipment = () => {
                 Continue booking current equipment
               </Button>
               <Button
+                variant="outline"
                 className="w-full"
                 onClick={() => {
                   setBookingResultDialog((p) => ({ ...p, open: false }));

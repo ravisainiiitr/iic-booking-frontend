@@ -333,11 +333,16 @@ export function BookingUserInputs({
   };
 
   useEffect(() => {
-    if (!autoOpenEdit || !hasEditableFields || autoOpenHandledRef.current) return;
+    if (!autoOpenEdit || autoOpenHandledRef.current) return;
+    if (!hasEditableFields) return;
     autoOpenHandledRef.current = true;
     incompleteScrollDoneRef.current = false;
-    openEditDialog();
-    onAutoOpenEditConsumed?.();
+    // Defer so the booking detail section is mounted before the dialog opens.
+    const t = window.setTimeout(() => {
+      openEditDialog();
+      onAutoOpenEditConsumed?.();
+    }, 250);
+    return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once when detail is ready
   }, [autoOpenEdit, hasEditableFields]);
 
