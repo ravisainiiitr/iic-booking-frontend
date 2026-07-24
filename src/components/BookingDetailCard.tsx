@@ -74,6 +74,7 @@ export interface BookingDetailCardBooking extends BookingRef {
     field_key: string;
     field_label: string;
     field_type: string;
+    is_required?: boolean;
     editing_required?: boolean;
     options?: (string | { value?: string; label?: string })[];
   }>;
@@ -81,6 +82,7 @@ export interface BookingDetailCardBooking extends BookingRef {
     field_key: string;
     field_label: string;
     field_type: string;
+    is_required?: boolean;
     editing_required?: boolean;
     options?: (string | { value?: string; label?: string })[];
   }>;
@@ -249,6 +251,9 @@ interface BookingDetailCardProps {
   showPrintButton?: boolean;
   /** When provided and user is not operator, show Cancel booking button; called with current booking to open cancel flow in parent */
   onUserCancelClick?: (booking: BookingDetailCardBooking) => void;
+  /** Open the Edit User Inputs dialog once when the card mounts/loads (post-booking CTA). */
+  autoOpenEditInputs?: boolean;
+  onAutoOpenEditInputsConsumed?: () => void;
 }
 
 function formatCountdownParts(totalSeconds: number): { label: string; parts: { d: number; h: number; m: number; s: number } } {
@@ -476,6 +481,8 @@ export function BookingDetailCard({
   backLabel = "Back to list",
   showPrintButton = false,
   onUserCancelClick,
+  autoOpenEditInputs = false,
+  onAutoOpenEditInputsConsumed,
 }: BookingDetailCardProps) {
   const [booking, setBooking] = useState<BookingDetailCardBooking>(initialBooking);
   const isWaitlistedEntry =
@@ -2686,6 +2693,8 @@ export function BookingDetailCard({
               isAdminUser={true}
               disabled={!!booking.source_booking_id}
               atmosphereSensitiveSample={!!booking.atmosphere_sensitive_sample}
+              autoOpenEdit={autoOpenEditInputs}
+              onAutoOpenEditConsumed={onAutoOpenEditInputsConsumed}
               onUpdate={async (newInputValues) => {
                 if (bookingPk == null) {
                   toast.error("This booking cannot be updated right now.");

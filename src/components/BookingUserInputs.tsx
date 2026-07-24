@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Pencil, Check, Plus, Trash2, FileText } from "lucide-react";
+import { Pencil, Check, Plus, Trash2, FileText, Info } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
@@ -34,11 +34,16 @@ import {
   applyTableRowSyncToValues,
   getFieldValueCI,
 } from "@/lib/dynamicTableField";
+import {
+  isBookingInputValueEmpty,
+  isCommentsInputFieldKey,
+} from "@/lib/bookingInputValues";
 
 export interface InputFieldDef {
   field_key: string;
   field_label: string;
   field_type: string;
+  is_required?: boolean;
   editing_required?: boolean;
   options?: (string | { value?: string; label?: string })[];
   help_text?: string;
@@ -60,6 +65,9 @@ interface BookingUserInputsProps {
   isAdminUser?: boolean;
   /** Booking-level flag (not an equipment input field); shown as Yes/No in this card. */
   atmosphereSensitiveSample?: boolean;
+  /** Open Edit User Inputs once when editable fields are available (post-booking CTA). */
+  autoOpenEdit?: boolean;
+  onAutoOpenEditConsumed?: () => void;
 }
 
 function formatVal(v: unknown): string {
@@ -131,6 +139,8 @@ export function BookingUserInputs({
   sampleTrace,
   isAdminUser = false,
   atmosphereSensitiveSample,
+  autoOpenEdit = false,
+  onAutoOpenEditConsumed,
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -143,6 +153,8 @@ export function BookingUserInputs({
       } | null
     >
   >({});
+  const autoOpenHandledRef = useRef(false);
+  const incompleteScrollDoneRef = useRef(false);
 
   const iv = inputValues || {};
   const keysToShow = Object.keys(iv).filter((k) => !k.endsWith("_elements"));
@@ -188,6 +200,19 @@ export function BookingUserInputs({
   const hasTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "TABLE"
   );
+
+  const incompleteOptionalEditableKeys = useMemo(() => {
+    const sourceValues = editDialogOpen ? editFormValues : iv;
+    return editableFields
+      .filter((f) => {
+        const key = String(f.field_key || "").trim();
+        if (!key || isCommentsInputFieldKey(key)) return false;
+        // Prefer optional (non-essential) empties; if is_required unknown, still flag empty editable fields.
+        if (f.is_required === true) return false;
+        return isBookingInputValueEmpty(sourceValues[key], f, sourceValues as Record<string, unknown>);
+      })
+      .map((f) => f.field_key);
+  }, [editableFields, editDialogOpen, editFormValues, iv]);
 
   // Compute "Standards covering selected elements" for ICPMS on view mode.
   // This mirrors the logic used in `BookEquipment.tsx` but runs for booking details.
@@ -307,6 +332,33 @@ export function BookingUserInputs({
     setEditDialogOpen(true);
   };
 
+  useEffect(() => {
+    if (!autoOpenEdit || !hasEditableFields || autoOpenHandledRef.current) return;
+    autoOpenHandledRef.current = true;
+    incompleteScrollDoneRef.current = false;
+    openEditDialog();
+    onAutoOpenEditConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once when detail is ready
+  }, [autoOpenEdit, hasEditableFields]);
+
+  useEffect(() => {
+    if (!editDialogOpen) {
+      incompleteScrollDoneRef.current = false;
+      return;
+    }
+    if (incompleteScrollDoneRef.current) return;
+    const firstKey = incompleteOptionalEditableKeys[0];
+    if (!firstKey) return;
+    incompleteScrollDoneRef.current = true;
+    const t = window.setTimeout(() => {
+      document.getElementById(`edit-field-wrap-${firstKey}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [editDialogOpen, incompleteOptionalEditableKeys]);
+
   const handleSaveEdit = async () => {
     if (!onUpdate) return;
     setSaving(true);
@@ -414,7 +466,7 @@ export function BookingUserInputs({
       );
 
       await onUpdate(payload);
-      toast.success("User inputs updated");
+      toast.success("Booking information has been updated.");
       setEditDialogOpen(false);
     } catch (e) {
       toast.error("Failed to update");
@@ -645,14 +697,36 @@ export function BookingUserInputs({
               Update the values below. Only fields marked as editable can be changed and only until the booking is completed or sample slot status is Processing or Completed.
             </DialogDescription>
           </DialogHeader>
+          {incompleteOptionalEditableKeys.length > 0 ? (
+            <div className="mb-1 flex gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-50">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" aria-hidden />
+              <p className="text-sm leading-relaxed">
+                Please complete the remaining booking information to assist the laboratory in processing your sample efficiently.
+              </p>
+            </div>
+          ) : null}
           <div className="space-y-5 py-4">
             {editableFields.map((f) => {
               const val = editFormValues[f.field_key];
               const type = String(f.field_type || "").toUpperCase();
+              const isIncompleteOptional = incompleteOptionalEditableKeys.includes(f.field_key);
               return (
-                <div key={f.field_key} className="space-y-2.5">
+                <div
+                  key={f.field_key}
+                  id={`edit-field-wrap-${f.field_key}`}
+                  className={cn(
+                    "space-y-2.5 rounded-lg transition-colors",
+                    isIncompleteOptional &&
+                      "border border-amber-300/90 bg-amber-50/80 p-3 ring-1 ring-amber-200/80 dark:border-amber-700/60 dark:bg-amber-950/30 dark:ring-amber-800/40"
+                  )}
+                >
                   <Label htmlFor={`edit-${f.field_key}`} className="text-sm font-semibold text-foreground">
                     {f.field_label}
+                    {isIncompleteOptional ? (
+                      <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                        Incomplete
+                      </span>
+                    ) : null}
                   </Label>
                   {type === "NUMERIC" && (() => {
                     const bounds = resolveNumericFieldBounds(f);

@@ -268,6 +268,8 @@ const MyBookings = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
+  /** When landing from post-booking CTA (?edit_inputs=1), open Edit User Inputs once details load. */
+  const [autoOpenEditInputs, setAutoOpenEditInputs] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -540,6 +542,21 @@ const MyBookings = () => {
 
   // When opening from email link (e.g. ?booking=123), fetch that booking and show detail
   const bookingIdParam = searchParams.get("booking");
+  const editInputsParam = searchParams.get("edit_inputs");
+  useEffect(() => {
+    if (editInputsParam === "1" || editInputsParam === "true") {
+      setAutoOpenEditInputs(true);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("edit_inputs");
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  }, [editInputsParam, setSearchParams]);
+
   useEffect(() => {
     if (!bookingIdParam) return;
     const inList = bookings.some((b) => getBookingKey(b) === bookingIdParam);
@@ -1558,6 +1575,8 @@ const MyBookings = () => {
                     currentUserId={user?.id}
                     backLabel="Back to list"
                     showPrintButton
+                    autoOpenEditInputs={autoOpenEditInputs}
+                    onAutoOpenEditInputsConsumed={() => setAutoOpenEditInputs(false)}
                     onUserCancelClick={
                       isLabOperatorUser || isAccountsFinanceUser
                         ? undefined
@@ -1577,6 +1596,8 @@ const MyBookings = () => {
                   currentUserId={user?.id}
                   backLabel="Back to list"
                   showPrintButton
+                  autoOpenEditInputs={autoOpenEditInputs}
+                  onAutoOpenEditInputsConsumed={() => setAutoOpenEditInputs(false)}
                   onUserCancelClick={
                     isLabOperatorUser || isAccountsFinanceUser
                       ? undefined

@@ -1871,6 +1871,7 @@ class ApiClient {
         field_label: string;
         field_type: string;
         is_required: boolean;
+        editing_required?: boolean;
         default_value: string;
         options: Array<any>;
         help_text: string;

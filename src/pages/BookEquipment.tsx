@@ -56,7 +56,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
@@ -100,6 +100,7 @@ import {
 } from "@/lib/dynamicTableField";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
+import { hasIncompleteOptionalEditableParams } from "@/lib/bookingInputValues";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
@@ -650,6 +651,25 @@ function inputsReadyForChargeEstimate(
   return true;
 }
 
+function shouldPromptCompleteOptionalParams(
+  equipmentDetail: {
+    input_fields?: Array<{
+      field_key?: string;
+      field_type?: string;
+      is_required?: boolean;
+      editing_required?: boolean;
+    }>;
+  } | null,
+  inputFieldValues: Record<string, unknown>,
+  serverInputValues?: Record<string, unknown> | null
+): boolean {
+  const merged = {
+    ...inputFieldValues,
+    ...(serverInputValues && typeof serverInputValues === "object" ? serverInputValues : {}),
+  };
+  return hasIncompleteOptionalEditableParams(equipmentDetail?.input_fields, merged);
+}
+
 const BookEquipment = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1030,6 +1050,8 @@ const BookEquipment = () => {
     bookingViewQuery?: string;
     /** Human-facing booking reference shown on the link. */
     bookingDisplayId?: string;
+    /** When true, show CTA to complete remaining optional (editable) parameters. */
+    promptCompleteOptionalParams?: boolean;
   }>({ open: false, success: false, variant: "failure", message: "" });
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
   const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
@@ -4879,6 +4901,11 @@ const BookEquipment = () => {
           variant: "success",
           bookingViewQuery,
           bookingDisplayId: bookingViewQuery,
+          promptCompleteOptionalParams: shouldPromptCompleteOptionalParams(
+            equipmentDetail,
+            inputFieldValues,
+            resData?.input_values ?? null
+          ),
           message: (() => {
             const baseMsg = resData?.input_values_adjusted
               ? "Booking created successfully with reduced parameters (1 slot) as requested."
@@ -5012,6 +5039,10 @@ const BookEquipment = () => {
         message: `${bookings.length} booking(s) created successfully!`,
         bookingViewQuery: multiViewQuery,
         bookingDisplayId: multiViewQuery,
+        promptCompleteOptionalParams: shouldPromptCompleteOptionalParams(
+          equipmentDetail,
+          inputFieldValues
+        ),
       });
     } catch (error: any) {
       const errMsg = error.message || "Failed to create booking";
@@ -8934,7 +8965,7 @@ const BookEquipment = () => {
                 }
               >
                 {bookingResultDialog.variant === "success"
-                  ? "Booking confirmed"
+                  ? "Booking Confirmed Successfully"
                   : bookingResultDialog.variant === "waitlist"
                     ? "Booking Waitlisted"
                     : "Booking unsuccessful"}
@@ -8947,11 +8978,41 @@ const BookEquipment = () => {
                       Confirmation email and notifications are being sent in the background — your booking is already saved.
                     </p>
                   )}
+                  {bookingResultDialog.success && bookingResultDialog.promptCompleteOptionalParams ? (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-3 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-50">
+                      <div className="flex gap-2.5">
+                        <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-300" aria-hidden />
+                        <div className="min-w-0 space-y-1.5">
+                          <p className="text-sm font-semibold leading-snug">Complete remaining booking parameters</p>
+                          <p className="text-sm leading-relaxed text-sky-900/90 dark:text-sky-100/90">
+                            To help the laboratory prepare for your sample and avoid delays, please complete all remaining
+                            booking parameters as soon as possible.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="text-foreground font-medium">Do you want to book another equipment or continue booking current equipment?</p>
                 </div>
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex !flex-col gap-2 pt-4 sm:!flex-col sm:space-x-0 sm:justify-stretch">
+              {bookingResultDialog.success &&
+                bookingResultDialog.promptCompleteOptionalParams &&
+                bookingResultDialog.bookingViewQuery && (
+                  <Button
+                    className="w-full gap-2 bg-primary text-white hover:bg-primary/90"
+                    onClick={() => {
+                      const q = bookingResultDialog.bookingViewQuery!;
+                      setBookingResultDialog((p) => ({ ...p, open: false }));
+                      navigate(
+                        `/my-bookings?booking=${encodeURIComponent(q)}&edit_inputs=1`
+                      );
+                    }}
+                  >
+                    Complete Booking Details
+                  </Button>
+                )}
               {bookingResultDialog.success && bookingResultDialog.bookingViewQuery && (
                 <Button
                   variant="secondary"
