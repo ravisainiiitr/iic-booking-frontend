@@ -366,7 +366,7 @@ export default function UserGuideDialog({
           {/* Title bar — drag handle */}
           <div
             className={cn(
-              "relative shrink-0 select-none overflow-hidden bg-gradient-to-br from-teal-800 via-teal-700 to-cyan-800 text-white",
+              "relative shrink-0 select-none overflow-hidden bg-gradient-to-br from-primary via-primary to-accent text-white",
               mode === "minimized" ? "px-3 py-2 cursor-grab active:cursor-grabbing" : "px-4 pt-3 pb-3 sm:px-5",
               mode !== "maximized" && "cursor-grab active:cursor-grabbing"
             )}
@@ -394,7 +394,7 @@ export default function UserGuideDialog({
                     {titleText}
                   </DialogPrimitive.Title>
                   {mode !== "minimized" && guide ? (
-                    <DialogPrimitive.Description className="mt-0.5 truncate text-xs text-teal-50/90">
+                    <DialogPrimitive.Description className="mt-0.5 truncate text-xs text-primary-foreground/90">
                       {isWelcome
                         ? guide.subtitle
                         : `Section ${step} of ${sections.length} · ${guide.title}`}
@@ -417,7 +417,7 @@ export default function UserGuideDialog({
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                <p className="mt-1 text-[11px] text-teal-100/80">
+                <p className="mt-1 text-[11px] text-primary-foreground/80">
                   {isWelcome ? "Introduction" : `${progress}% complete`}
                 </p>
               </div>
@@ -471,7 +471,7 @@ export default function UserGuideDialog({
                       className={cn(
                         "rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors",
                         step === 0
-                          ? "bg-teal-700 text-white"
+                          ? "bg-primary text-white"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
                     >
@@ -487,7 +487,7 @@ export default function UserGuideDialog({
                           className={cn(
                             "rounded-md px-2 py-1.5 text-left text-xs transition-colors",
                             step === i + 1
-                              ? "bg-teal-700 text-white font-medium"
+                              ? "bg-primary text-white font-medium"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                         >
@@ -512,8 +512,8 @@ export default function UserGuideDialog({
                   <div className="space-y-4 px-5 py-5 sm:px-6">
                     {isWelcome ? (
                       <>
-                        <div className="flex items-start gap-3 rounded-xl border border-teal-200/80 bg-gradient-to-br from-teal-50 to-cyan-50/80 p-4 dark:from-teal-950/40 dark:to-cyan-950/20 dark:border-teal-900">
-                          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" />
+                        <div className="flex items-start gap-3 rounded-xl border border-primary/25 bg-gradient-to-br from-primary/5 to-accent/80 p-4 dark:from-primary/10 dark:to-accent/10 dark:border-primary/40">
+                          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                           <p className="text-sm leading-relaxed text-foreground/90">
                             {guide.welcomeBody}
                           </p>
@@ -550,7 +550,7 @@ export default function UserGuideDialog({
                                 className="rounded-lg border bg-muted/30 px-3 py-3 text-sm space-y-1.5"
                               >
                                 <p className="font-medium text-foreground">
-                                  <span className="text-teal-700 mr-1.5">{i + 1}.</span>
+                                  <span className="text-primary mr-1.5">{i + 1}.</span>
                                   {st.title}
                                 </p>
                                 <p className="text-foreground/90 leading-relaxed pl-5">{st.body}</p>
@@ -570,7 +570,7 @@ export default function UserGuideDialog({
                                 key={i}
                                 className="flex gap-2 text-sm leading-relaxed text-foreground/90"
                               >
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-600" />
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                                 <span>{b}</span>
                               </li>
                             ))}
@@ -638,7 +638,7 @@ export default function UserGuideDialog({
                       <Button
                         type="button"
                         size="sm"
-                        className="bg-teal-700 hover:bg-teal-800"
+                        className="bg-primary hover:bg-primary/90"
                         onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
                       >
                         Next
@@ -648,7 +648,7 @@ export default function UserGuideDialog({
                       <Button
                         type="button"
                         size="sm"
-                        className="bg-teal-700 hover:bg-teal-800"
+                        className="bg-primary hover:bg-primary/90"
                         onClick={finishAndClose}
                       >
                         Finish guide

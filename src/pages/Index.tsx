@@ -20,7 +20,7 @@ const Index = () => {
       <section className="container mx-auto px-4 py-14 sm:py-16 max-w-7xl">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-400 mb-1">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary dark:text-sky-300 mb-1">
               Facilities
             </p>
             <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">Explore instruments</h2>

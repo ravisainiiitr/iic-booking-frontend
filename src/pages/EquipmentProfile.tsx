@@ -531,7 +531,7 @@ const EquipmentProfile = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Equipment Header */}
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
-              <div className="h-1.5 w-full bg-gradient-to-r from-teal-600 via-cyan-500 to-teal-500" />
+              <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -565,7 +565,7 @@ const EquipmentProfile = () => {
               <CardContent className="space-y-5">
                 {equipment.location ? (
                   <div className="flex items-start gap-2.5 rounded-xl bg-muted/50 border px-3.5 py-2.5">
-                    <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-teal-700" />
+                    <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
                     <span className="text-base font-medium whitespace-pre-line leading-snug">
                       {equipment.location}
                     </span>
@@ -791,10 +791,10 @@ const EquipmentProfile = () => {
             <div className="sticky top-6 space-y-5">
               {(shouldShowBookingCard()) && (
                 <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
-                  <div className="h-1 w-full bg-gradient-to-r from-teal-600 to-cyan-500" />
+                  <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
                   <CardHeader className="pb-2 pt-4">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-teal-700" />
+                      <Calendar className="h-4 w-4 text-primary" />
                       Booking & charges
                     </CardTitle>
                     <CardDescription>
@@ -803,7 +803,7 @@ const EquipmentProfile = () => {
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
                     <Button
-                      className="w-full bg-teal-700 hover:bg-teal-800"
+                      className="w-full bg-primary hover:bg-primary/90"
                       size="lg"
                       disabled={!canManageEquipment() && !isEquipmentOperational()}
                       onClick={handleBookOrManageClick}
@@ -838,11 +838,11 @@ const EquipmentProfile = () => {
                 </Card>
               )}
 
-              <Card className="overflow-hidden border-teal-200/80 shadow-md ring-1 ring-teal-500/10 dark:border-teal-900">
-                <div className="h-1 w-full bg-gradient-to-r from-teal-500 to-cyan-500" />
+              <Card className="overflow-hidden border-primary/25 shadow-md ring-1 ring-primary/10 dark:border-primary/40">
+                <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <LifeBuoy className="h-5 w-5 text-teal-700" />
+                    <LifeBuoy className="h-5 w-5 text-primary" />
                     Need help with this equipment?
                   </CardTitle>
                   <CardDescription>
@@ -852,7 +852,7 @@ const EquipmentProfile = () => {
                 <CardContent>
                   <Button
                     type="button"
-                    className="w-full bg-teal-700 hover:bg-teal-800"
+                    className="w-full bg-primary hover:bg-primary/90"
                     size="lg"
                     onClick={() => setSupportOpen(true)}
                   >
@@ -895,7 +895,7 @@ const EquipmentProfile = () => {
 
               <div className="rounded-xl ring-1 ring-border/60 bg-card shadow-sm overflow-hidden">
                 <div className="px-4 pt-4 pb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Wrench className="h-4 w-4 text-teal-700" />
+                  <Wrench className="h-4 w-4 text-primary" />
                   Accessories
                 </div>
                 <div className="px-2 pb-2">
@@ -923,7 +923,7 @@ const EquipmentProfile = () => {
                 <Card className="border-0 shadow-sm ring-1 ring-border/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <Users className="h-4 w-4 text-teal-700" />
+                      <Users className="h-4 w-4 text-primary" />
                       Lab operators
                     </CardTitle>
                     <CardDescription>Contact for day-to-day instrument operation</CardDescription>
@@ -950,7 +950,7 @@ const EquipmentProfile = () => {
                 <Card className="border-0 shadow-sm ring-1 ring-border/60">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <UserCog className="h-4 w-4 text-teal-700" />
+                      <UserCog className="h-4 w-4 text-primary" />
                       Officer in-charge
                     </CardTitle>
                     <CardDescription>Scientific / administrative ownership</CardDescription>
@@ -982,7 +982,7 @@ const EquipmentProfile = () => {
                     <Card key={spec.equipment_specification_id} className="border-0 shadow-sm ring-1 ring-border/60">
                       <CardHeader className="pb-2 pt-4">
                         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5 text-teal-700" />
+                          <FileText className="h-3.5 w-3.5 text-primary" />
                           {spec.spec_key}
                         </CardTitle>
                       </CardHeader>

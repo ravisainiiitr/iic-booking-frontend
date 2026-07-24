@@ -42,7 +42,7 @@ export function BackToDashboardButton({
       onClick={go}
       className={cn(
         variant === "header" &&
-          "gap-2 font-semibold shadow-sm shadow-teal-900/10 transition-all duration-200 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "gap-2 font-semibold shadow-sm shadow-primary/10 transition-all duration-200 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className
       )}
       aria-label="Back to Dashboard"

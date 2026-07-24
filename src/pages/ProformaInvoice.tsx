@@ -146,7 +146,7 @@ export default function ProformaInvoice() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"
@@ -165,7 +165,7 @@ export default function ProformaInvoice() {
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white">
                 <FileText className="h-6 w-6" />
               </div>
               <div>

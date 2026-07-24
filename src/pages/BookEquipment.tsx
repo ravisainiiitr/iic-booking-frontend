@@ -5047,13 +5047,13 @@ const BookEquipment = () => {
             <CardContent className="py-12 text-center">
               {isLoadingFromUrl ? (
                 <>
-                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-teal-700 border-t-transparent mx-auto mb-4" />
+                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4" />
                   <p className="text-muted-foreground mb-4">Loading equipment…</p>
                 </>
               ) : (
                 <>
                   <p className="text-muted-foreground mb-4">No equipment selected for booking</p>
-                  <Button className="bg-teal-700 hover:bg-teal-800" onClick={() => navigate("/equipments")}>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={() => navigate("/equipments")}>
                     Browse Equipment
                   </Button>
                 </>
@@ -5070,7 +5070,7 @@ const BookEquipment = () => {
       {(loadingEquipmentDetail || repeatSourceLoading) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-2xl flex flex-col items-center gap-4 shadow-xl border">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-700"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             <p className="text-sm text-muted-foreground">{repeatSourceLoading ? "Loading repeat booking..." : "Loading equipment details..."}</p>
           </div>
         </div>
@@ -5166,7 +5166,7 @@ const BookEquipment = () => {
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
           <Card className="w-full max-w-none mx-auto mb-8 overflow-hidden border-2 border-primary/20 shadow-xl bg-gradient-to-b from-card to-card/95">
-            <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-6 py-5 text-white">
+            <div className="bg-gradient-to-r from-primary via-primary to-accent px-6 py-5 text-white">
               <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                   <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Change slot status</h2>
@@ -5396,7 +5396,7 @@ const BookEquipment = () => {
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
           <div className="w-full max-w-none mx-auto mb-6 rounded-xl overflow-hidden border border-border/60 shadow-md">
             {/* Compact week header */}
-            <div className="sticky top-0 z-20 bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 px-3 py-2 text-white">
+            <div className="sticky top-0 z-20 bg-gradient-to-r from-primary via-primary to-accent px-3 py-2 text-white">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
@@ -5581,7 +5581,7 @@ const BookEquipment = () => {
               </div>
             </div>
 
-            <div className="overflow-auto max-h-[min(70vh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-teal-50/20 dark:to-teal-950/10">
+            <div className="overflow-auto max-h-[min(70vh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-primary/5 dark:to-primary/10">
               {loadingStatusSlots ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
                   <span className="animate-pulse">Loading slots…</span>
@@ -5652,10 +5652,10 @@ const BookEquipment = () => {
                             selectDayColumnForWeek(dayOffset);
                           }}
                           className={cn(
-                            "px-1 py-1.5 text-center border-r border-border/50 last:border-r-0 bg-background/95 backdrop-blur-sm hover:bg-teal-50/80 dark:hover:bg-teal-950/30 transition-colors cursor-pointer",
+                            "px-1 py-1.5 text-center border-r border-border/50 last:border-r-0 bg-background/95 backdrop-blur-sm hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer",
                             isSatHeader && "bg-indigo-50/80 dark:bg-indigo-950/25",
                             isSunHeader && "bg-rose-50/80 dark:bg-rose-950/25",
-                            isDayFocused && "ring-2 ring-inset ring-teal-500",
+                            isDayFocused && "ring-2 ring-inset ring-primary",
                           )}
                         >
                           <div className="text-[11px] font-bold text-foreground leading-none">{format(day, "EEE")}</div>
@@ -5702,8 +5702,8 @@ const BookEquipment = () => {
                             selectTimeRowForWeek(time);
                           }}
                           className={cn(
-                            "flex items-center justify-center px-1 py-0.5 border-r border-border/50 bg-muted/20 sticky left-0 z-10 hover:bg-teal-50/80 dark:hover:bg-teal-950/30 transition-colors cursor-pointer",
-                            statusBulkFocusTime === time && "ring-2 ring-inset ring-teal-500 bg-teal-50/60 dark:bg-teal-950/40",
+                            "flex items-center justify-center px-1 py-0.5 border-r border-border/50 bg-muted/20 sticky left-0 z-10 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer",
+                            statusBulkFocusTime === time && "ring-2 ring-inset ring-primary bg-primary/5 dark:bg-primary/15",
                           )}
                         >
                           <span className="font-semibold text-[11px] tabular-nums leading-none">{time}</span>
@@ -5786,7 +5786,7 @@ const BookEquipment = () => {
                                           "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
                                           !slotSelectable && "cursor-not-allowed opacity-70",
                                           slotSelectable && !isSelected && "hover:brightness-[0.97]",
-                                          isSelected && "ring-2 ring-teal-600 ring-offset-1 bg-teal-700 text-white hover:bg-teal-800"
+                                          isSelected && "ring-2 ring-primary ring-offset-1 bg-primary text-white hover:bg-primary/90"
                                         )}
                                         style={
                                           !isSelected && slot
@@ -5904,14 +5904,14 @@ const BookEquipment = () => {
         )}
 
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <div className="sticky bottom-4 z-30 w-full max-w-none mx-auto mb-10 rounded-2xl border border-teal-200/80 bg-card/95 shadow-xl backdrop-blur-sm">
-            <div className="border-b border-teal-100/80 bg-gradient-to-r from-teal-50/90 to-cyan-50/50 px-5 py-4 dark:border-teal-900/50 dark:from-teal-950/40 dark:to-cyan-950/20">
+          <div className="sticky bottom-4 z-30 w-full max-w-none mx-auto mb-10 rounded-2xl border border-primary/25 bg-card/95 shadow-xl backdrop-blur-sm">
+            <div className="border-b border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 px-5 py-4 dark:border-primary/40 dark:from-primary/10 dark:to-accent/10">
               <h3 className="text-lg font-semibold text-foreground">Apply changes</h3>
               <p className="text-sm text-muted-foreground mt-1">Select slots or dates above, choose an operation, then apply.</p>
             </div>
             <div className="p-5 md:p-6 space-y-4">
               {(selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
-                <div className="rounded-xl border border-teal-200/70 bg-teal-50/50 px-4 py-3 dark:border-teal-800/50 dark:bg-teal-950/20">
+                <div className="rounded-xl border border-primary/70 bg-primary/5 px-4 py-3 dark:border-primary/50 dark:bg-primary/10">
                   <p className="text-sm font-semibold text-foreground">Selected slots summary</p>
                   <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
                     {selectedSlotIdsForStatus.length > 0 && (
@@ -6008,7 +6008,7 @@ const BookEquipment = () => {
                                 {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
                                 <Button
                                   size="default"
-                                  className="h-12 px-6 text-base font-semibold bg-teal-700 hover:bg-teal-800 text-white shadow-md"
+                                  className="h-12 px-6 text-base font-semibold bg-primary hover:bg-primary/90 text-white shadow-md"
                                   disabled={
                                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                                     updatingSlotStatus ||
@@ -8943,7 +8943,7 @@ const BookEquipment = () => {
                 <div className="space-y-3">
                   <p className="text-base text-foreground">{bookingResultDialog.message}</p>
                   {bookingResultDialog.variant === "success" && (
-                    <p className="text-sm text-muted-foreground rounded-lg border bg-teal-50/80 dark:bg-teal-950/30 border-teal-200/60 dark:border-teal-900 px-3 py-2">
+                    <p className="text-sm text-muted-foreground rounded-lg border bg-primary/5 dark:bg-primary/10 border-primary/25 dark:border-primary/40 px-3 py-2">
                       Confirmation email and notifications are being sent in the background — your booking is already saved.
                     </p>
                   )}

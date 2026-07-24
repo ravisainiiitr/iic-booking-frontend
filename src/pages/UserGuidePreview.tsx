@@ -32,7 +32,7 @@ const UserGuidePreview = () => {
   const guide = useMemo(() => getGuideContent(audience), [audience]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50/80 via-background to-background">
+    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
       <div className="container mx-auto max-w-3xl px-4 py-10 space-y-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
@@ -43,10 +43,10 @@ const UserGuidePreview = () => {
           </Button>
         </div>
 
-        <Card className="border-teal-200/70 shadow-md">
+        <Card className="border-primary/70 shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <BookOpen className="h-5 w-5 text-teal-700" />
+              <BookOpen className="h-5 w-5 text-primary" />
               User Guide Preview
             </CardTitle>
             <CardDescription>
@@ -67,8 +67,8 @@ const UserGuidePreview = () => {
                   className={cn(
                     "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
                     audience === id
-                      ? "border-teal-700 bg-teal-700 text-white"
-                      : "bg-background text-muted-foreground hover:border-teal-300 hover:text-foreground"
+                      ? "border-primary bg-primary text-white"
+                      : "bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground"
                   )}
                 >
                   {GUIDE_AUDIENCE_LABELS[id]}
@@ -88,7 +88,7 @@ const UserGuidePreview = () => {
             </div>
 
             <Button
-              className="bg-teal-700 hover:bg-teal-800"
+              className="bg-primary hover:bg-primary/90"
               onClick={() => setOpen(true)}
             >
               Open guide dialog

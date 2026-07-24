@@ -1588,7 +1588,7 @@ const Wallet = () => {
         modal: {
           ondismiss: () => setRecharging(false),
         },
-        theme: { color: "#0f766e" },
+        theme: { color: "#1e4d8c" },
       };
       const rzp = new RazorpayCtor(options);
       rzp.open();
@@ -1858,7 +1858,7 @@ const Wallet = () => {
   if (loading) {
     return (
       <div className="page-shell flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-700"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -1869,7 +1869,7 @@ const Wallet = () => {
       <div className="page-shell">
         <DashboardHeader />
         <main className="container mx-auto px-4 py-8 max-w-2xl">
-          <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Request Wallet Access</h1>
             <p className="mt-2 text-white/85 text-sm">
               Link to a faculty wallet to fund equipment bookings.
@@ -2176,7 +2176,7 @@ const Wallet = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 sm:p-8 text-white shadow-xl">
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Wallet</h1>
           <p className="mt-2 text-white/85 text-sm sm:text-base max-w-2xl">
             View balance, recharge, manage join requests, and review transactions.

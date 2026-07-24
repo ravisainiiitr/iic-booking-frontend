@@ -106,7 +106,7 @@ const Header = () => {
   };
   
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur-md shadow-sm shadow-teal-950/5">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur-md shadow-sm shadow-primary/5">
       <div className="container mx-auto px-4 sm:px-6 py-3.5 sm:py-4">
         <div className="flex items-center justify-between gap-4 sm:gap-6">
           <div
@@ -203,7 +203,7 @@ const Header = () => {
               <Button
                 onClick={() => navigate("/auth")}
                 size="lg"
-                className="h-10 sm:h-11 px-5 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-teal-900/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-teal-900/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+                className="h-10 sm:h-11 px-5 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-primary/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
               >
                 Sign In
               </Button>

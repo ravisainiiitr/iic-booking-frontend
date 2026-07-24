@@ -372,7 +372,7 @@ export default function OICMultiMode() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"
@@ -433,9 +433,9 @@ export default function OICMultiMode() {
                 </div>
 
                 {selectedParentId && (
-                  <div className="rounded-md border border-teal-200 bg-teal-50/50 dark:border-teal-900 dark:bg-teal-950/20 p-4 space-y-3">
+                  <div className="rounded-md border border-primary/25 bg-primary/5 dark:border-primary/40 dark:bg-primary/10 p-4 space-y-3">
                     <div className="flex items-start gap-2">
-                      <CalendarClock className="h-5 w-5 text-teal-700 dark:text-teal-400 shrink-0 mt-0.5" />
+                      <CalendarClock className="h-5 w-5 text-primary dark:text-sky-300 shrink-0 mt-0.5" />
                       <div>
                         <p className="font-medium text-sm">Operate days / slots (Change slot status)</p>
                         <p className="text-xs text-muted-foreground mt-1">

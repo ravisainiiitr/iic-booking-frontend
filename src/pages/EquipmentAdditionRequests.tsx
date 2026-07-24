@@ -231,7 +231,7 @@ const EquipmentAdditionRequests = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-800 p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
               <Button
@@ -244,14 +244,14 @@ const EquipmentAdditionRequests = () => {
                 Equipment settings
               </Button>
               <h1 className="text-2xl font-semibold tracking-tight text-white">Equipment addition requests</h1>
-              <p className="mt-2 text-sm text-teal-50/95 max-w-2xl">
+              <p className="mt-2 text-sm text-primary-foreground/95 max-w-2xl">
                 {isAdmin
                   ? "Review public proposals from /propose-equipment. Approve creates equipment under maintenance."
                   : "Track your department's equipment addition requests submitted for Main Admin approval."}
               </p>
             </div>
             <div className="w-[220px] space-y-1">
-              <Label className="text-teal-50 text-xs">Filter by status</Label>
+              <Label className="text-primary-foreground text-xs">Filter by status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="bg-white text-slate-900 border-0 shadow-md">
                   <SelectValue />
@@ -275,7 +275,7 @@ const EquipmentAdditionRequests = () => {
           <CardContent className="p-0">
             {loading ? (
               <div className="flex justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : rows.length === 0 ? (
               <p className="text-sm text-muted-foreground py-10 text-center">No requests in this filter.</p>
@@ -294,7 +294,7 @@ const EquipmentAdditionRequests = () => {
                   </TableHeader>
                   <TableBody>
                     {rows.map((r) => (
-                      <TableRow key={r.id} className="hover:bg-teal-50/40 dark:hover:bg-teal-950/20">
+                      <TableRow key={r.id} className="hover:bg-primary/5 dark:hover:bg-primary/10">
                         <TableCell className="font-semibold text-foreground">{r.code}</TableCell>
                         <TableCell className="text-foreground">{r.name}</TableCell>
                         <TableCell>
@@ -313,7 +313,7 @@ const EquipmentAdditionRequests = () => {
                         <TableCell className="text-right">
                           <Button
                             size="sm"
-                            className="bg-teal-700 hover:bg-teal-800 text-white"
+                            className="bg-primary hover:bg-primary/90 text-white"
                             onClick={() => {
                               setSelected(r);
                               setReviewNotes(r.review_notes || "");
@@ -483,7 +483,7 @@ const EquipmentAdditionRequests = () => {
                   <Button variant="destructive" onClick={handleReject} disabled={actionLoading}>
                     Reject
                   </Button>
-                  <Button className="bg-teal-700 hover:bg-teal-800 text-white" onClick={handleApprove} disabled={actionLoading}>
+                  <Button className="bg-primary hover:bg-primary/90 text-white" onClick={handleApprove} disabled={actionLoading}>
                     {actionLoading ? "Working…" : "Approve & create"}
                   </Button>
                 </>

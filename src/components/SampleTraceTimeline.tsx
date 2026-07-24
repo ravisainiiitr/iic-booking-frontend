@@ -445,7 +445,7 @@ export default function SampleTraceTimeline({
             if (k === "accepted_rejected") return { tint: "violet", strong: "from-violet-500 to-violet-700", soft: "from-violet-100 to-violet-200", textSoft: "text-violet-900 dark:text-violet-200" };
             if (k === "in_analysis") return { tint: "amber", strong: "from-amber-500 to-amber-700", soft: "from-amber-100 to-amber-200", textSoft: "text-amber-900 dark:text-amber-200" };
             if (k === "analyzed_ready") return { tint: "emerald", strong: "from-emerald-500 to-emerald-700", soft: "from-emerald-100 to-emerald-200", textSoft: "text-emerald-900 dark:text-emerald-200" };
-            if (k === "returned") return { tint: "teal", strong: "from-teal-500 to-teal-700", soft: "from-teal-100 to-teal-200", textSoft: "text-teal-900 dark:text-teal-200" };
+            if (k === "returned") return { tint: "navy", strong: "from-primary/50 to-primary", soft: "from-primary/10 to-primary/20", textSoft: "text-primary dark:text-sky-100" };
             if (k === "archived") return { tint: "slate", strong: "from-slate-600 to-slate-800", soft: "from-slate-100 to-slate-200", textSoft: "text-slate-900 dark:text-slate-200" };
             if (k === "disposed") return { tint: "rose", strong: "from-rose-600 to-rose-800", soft: "from-rose-100 to-rose-200", textSoft: "text-rose-900 dark:text-rose-200" };
             if (k === "not_utilized") return { tint: "rose", strong: "from-rose-600 to-rose-800", soft: "from-rose-100 to-rose-200", textSoft: "text-rose-900 dark:text-rose-200" };

@@ -523,7 +523,7 @@ const Profile = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-6 max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-5 text-white shadow-lg">
+        <div className="mb-6 max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">My Profile</h1>
           <p className="mt-1 text-white/85 text-sm">Update your personal information and preferences</p>
         </div>
@@ -534,9 +534,9 @@ const Profile = () => {
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             <div className="flex flex-col items-center gap-4">
-              <Avatar className="h-24 w-24 ring-4 ring-teal-700/15">
+              <Avatar className="h-24 w-24 ring-4 ring-primary/15">
                 <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })} />
-                <AvatarFallback className="text-3xl bg-teal-700/10 text-teal-900 dark:text-teal-200">
+                <AvatarFallback className="text-3xl bg-primary/10 text-primary dark:text-sky-100">
                   {formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>

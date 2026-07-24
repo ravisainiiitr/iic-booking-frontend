@@ -196,7 +196,7 @@ const StudentManagement = () => {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-6">
-          <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
             <Button
               variant="ghost"
               size="sm"
@@ -214,10 +214,10 @@ const StudentManagement = () => {
 
           {/* TA operating nominations – only when there are open calls */}
           {!loadingOpenCalls && hasOpenCalls && (
-            <Card className="overflow-hidden rounded-2xl border-teal-200/80 shadow-[var(--shadow-card)] dark:border-teal-800">
-              <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20">
+            <Card className="overflow-hidden rounded-2xl border-primary/25 shadow-[var(--shadow-card)] dark:border-primary/40">
+              <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                     <Send className="h-6 w-6" />
                   </div>
                   <div>
@@ -274,9 +274,9 @@ const StudentManagement = () => {
 
           {/* Nominations log – always visible for faculty who have nominations */}
           <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                   <ClipboardList className="h-6 w-6" />
                 </div>
                 <div>
@@ -363,10 +363,10 @@ const StudentManagement = () => {
 
           {/* Students table – with program details */}
           <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 dark:from-teal-500/20 dark:to-cyan-500/20">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                     <Users className="h-6 w-6" />
                   </div>
                   <div>
@@ -378,7 +378,7 @@ const StudentManagement = () => {
                 </div>
                 <Button
                   variant="outline"
-                  className="gap-2 border-teal-200 dark:border-teal-800"
+                  className="gap-2 border-primary/25 dark:border-primary/40"
                   onClick={() => navigate("/wallet")}
                 >
                   <Wallet className="h-4 w-4" />
@@ -429,7 +429,7 @@ const StudentManagement = () => {
                                 alt={row.student_name}
                                 className="object-cover"
                               />
-                              <AvatarFallback className="rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 text-sm">
+                              <AvatarFallback className="rounded-lg bg-primary/10 dark:bg-primary/20 text-primary dark:text-sky-200 text-sm">
                                 {(row.student_name || row.student_email || "?").charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>

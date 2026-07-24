@@ -152,7 +152,7 @@ export default function TANominationsLog() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-6">
-          <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
             <Button
               variant="ghost"
               size="sm"
@@ -169,10 +169,10 @@ export default function TANominationsLog() {
           </div>
 
           <Card className="overflow-hidden rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
-            <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                     <ClipboardList className="h-6 w-6" />
                   </div>
                   <div>

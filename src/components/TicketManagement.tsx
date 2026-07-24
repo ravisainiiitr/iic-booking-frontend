@@ -171,7 +171,7 @@ const TicketManagement = () => {
                   {tickets.map((ticket) => (
                     <TableRow
                       key={ticket.ticket_id}
-                      className="cursor-pointer hover:bg-teal-50/40 dark:hover:bg-teal-950/20"
+                      className="cursor-pointer hover:bg-primary/5 dark:hover:bg-primary/10"
                       onClick={() => handleViewTicket(ticket)}
                     >
                       <TableCell className="font-mono text-muted-foreground">
@@ -200,7 +200,7 @@ const TicketManagement = () => {
                       </TableCell>
                       <TableCell>
                         {ticket.attachment_url ? (
-                          <Paperclip className="h-4 w-4 text-teal-700" aria-label="Has attachment" />
+                          <Paperclip className="h-4 w-4 text-primary" aria-label="Has attachment" />
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

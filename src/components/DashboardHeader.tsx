@@ -278,7 +278,7 @@ const DashboardHeader = () => {
   };
 
   return (
-    <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-teal-900/5">
+    <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-primary/5">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"

@@ -167,8 +167,8 @@ const Hero = () => {
             ))}
           </CarouselContent>
         </Carousel>
-        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(200_45%_8%/0.92)] via-[hsl(175_40%_12%/0.55)] to-[hsl(200_40%_10%/0.35)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(175_60%_40%/0.25),transparent_50%)]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.92)] via-[hsl(215_50%_14%/0.55)] to-[hsl(210_45%_12%/0.35)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(215_65%_40%/0.28),transparent_50%)]" />
       </div>
 
       {/* Locked to one viewport: hero copy + full stats banner */}
@@ -189,7 +189,7 @@ const Hero = () => {
                   {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
                 </span>
                 <span
-                  className="mt-2 block text-xl font-normal leading-snug text-teal-100/95 sm:mt-3 sm:text-3xl md:text-4xl"
+                  className="mt-2 block text-xl font-normal leading-snug text-primary-foreground/95 sm:mt-3 sm:text-3xl md:text-4xl"
                   style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
                 >
                   {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
@@ -207,7 +207,7 @@ const Hero = () => {
               {!isAuthenticated && (
                 <Button
                   size="lg"
-                  className="h-11 gap-2 bg-teal-600 px-5 text-white shadow-lg shadow-teal-900/30 hover:bg-teal-500 sm:h-12 sm:px-6"
+                  className="h-11 gap-2 bg-primary px-5 text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-12 sm:px-6"
                   onClick={handleChanneliLogin}
                   disabled={channeliLoading}
                 >
@@ -226,7 +226,7 @@ const Hero = () => {
               )}
               <Button
                 size="lg"
-                className="h-11 gap-2 bg-white px-5 text-teal-900 hover:bg-teal-50 sm:h-12 sm:px-6"
+                className="h-11 gap-2 bg-white px-5 text-primary hover:bg-primary/5 sm:h-12 sm:px-6"
                 style={fontSizes.cta_book_text ? { fontSize: fontSizes.cta_book_text } : undefined}
                 onClick={() => navigate(home.cta_book_route || "/equipments")}
               >
@@ -260,7 +260,7 @@ const Hero = () => {
             ].map((s) => (
               <div key={s.label} className="px-2 py-1.5 text-center sm:py-2">
                 <div
-                  className="text-xl font-semibold tabular-nums text-teal-800 dark:text-teal-300 sm:text-3xl"
+                  className="text-xl font-semibold tabular-nums text-primary dark:text-sky-200 sm:text-3xl"
                   style={s.fsV ? { fontSize: s.fsV } : undefined}
                 >
                   {s.value}

@@ -113,13 +113,13 @@ function ReportBanner({ header }: { header: NonNullable<EquipmentReportData>["re
   const durationHuman = header.period_display ?? "";
   const durationSuffix = header.report_duration_suffix ?? "";
   return (
-    <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 p-6 text-white shadow-lg">
-      <p className="text-sm font-medium uppercase tracking-wider text-teal-200/90">{header.institute_name}</p>
+    <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-primary p-6 text-white shadow-lg">
+      <p className="text-sm font-medium uppercase tracking-wider text-sky-100/90">{header.institute_name}</p>
       <p className="text-lg text-slate-200">{header.organization}</p>
       <h3 className="mt-3 text-left text-2xl font-bold tracking-tight break-words">
         <span>{titleMain}</span>
         {titleEquipment ? (
-          <span className="font-extrabold text-teal-100">
+          <span className="font-extrabold text-primary-foreground">
             {forMarker}
             {titleEquipment}
           </span>
@@ -397,7 +397,7 @@ const Reports = () => {
       <div className="page-shell flex flex-col items-center justify-center">
         <DashboardHeader />
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-12 w-12 animate-spin text-teal-700" />
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
       </div>
     );
@@ -411,7 +411,7 @@ const Reports = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 sm:p-8 text-white shadow-xl">
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
           </h1>
@@ -425,19 +425,19 @@ const Reports = () => {
         </div>
 
         {isFacultyUser && !isLabInchargeUser && (
-          <Card className="mb-10 overflow-hidden border-teal-200/60 shadow-md dark:border-teal-900/50 rounded-2xl">
-            <div className="border-b bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-900 px-6 py-5 text-white">
+          <Card className="mb-10 overflow-hidden border-primary/25 shadow-md dark:border-primary/40 rounded-2xl">
+            <div className="border-b bg-gradient-to-r from-primary via-primary to-accent px-6 py-5 text-white">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-teal-50">
+                  <h2 className="text-lg font-semibold tracking-tight text-primary-foreground">
                     Research group wallet & booking spend
                   </h2>
-                  <p className="mt-1 max-w-3xl text-sm text-teal-100/80">
+                  <p className="mt-1 max-w-3xl text-sm text-primary-foreground/80">
                     Consolidated view for your supervisor wallet and approved linked members: period spend vs current
                     balance, recharges credited in the same window, and per-member / per-equipment splits.
                   </p>
                 </div>
-                <Wallet className="h-10 w-10 shrink-0 text-teal-100/90 opacity-90" aria-hidden />
+                <Wallet className="h-10 w-10 shrink-0 text-primary-foreground/90 opacity-90" aria-hidden />
               </div>
             </div>
             <CardContent className="space-y-6 pt-6">
@@ -540,7 +540,7 @@ const Reports = () => {
                             <XAxis type="number" tickFormatter={(v) => `₹${v}`} />
                             <YAxis type="category" dataKey="label" width={168} tick={{ fontSize: 11 }} />
                             <Tooltip formatter={(v: number) => [`₹${Number(v).toFixed(2)}`, "Spend"]} />
-                            <Bar dataKey="spend" name="Spend" fill="#0f766e" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="spend" name="Spend" fill="#1e4d8c" radius={[0, 4, 4, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       )}
@@ -1132,16 +1132,16 @@ const Reports = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="border-teal-200/60 bg-gradient-to-br from-teal-50/80 to-background dark:from-teal-950/30">
+                  <Card className="border-primary/25 bg-gradient-to-br from-primary/5 to-background dark:from-primary/15">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-teal-600" />
+                        <Clock className="h-4 w-4 text-primary" />
                         Working-window availability
                       </CardTitle>
                       <CardDescription>Mon–Fri, excl. holidays · slot time window</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-1">
-                      <div className="text-2xl font-semibold text-teal-800 dark:text-teal-200">
+                      <div className="text-2xl font-semibold text-primary dark:text-sky-100">
                         {Number(equipmentReportData.summary.available_hours_working_window || 0).toFixed(2)}h
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -1150,16 +1150,16 @@ const Reports = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="border-teal-200/60 bg-gradient-to-br from-teal-50/80 to-background dark:from-teal-950/30">
+                  <Card className="border-primary/25 bg-gradient-to-br from-primary/5 to-background dark:from-primary/15">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Package className="h-4 w-4 text-teal-700" />
+                        <Package className="h-4 w-4 text-primary" />
                         Utilization vs capacity
                       </CardTitle>
                       <CardDescription>Completed hours / available working-window hours</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-semibold text-teal-800 dark:text-teal-200">
+                      <div className="text-2xl font-semibold text-primary dark:text-sky-100">
                         {((Number(equipmentReportData.summary.utilization_vs_working_capacity || 0) || 0) * 100).toFixed(2)}%
                       </div>
                     </CardContent>
@@ -1356,7 +1356,7 @@ const Reports = () => {
                 <div className="space-y-8 mb-10">
                   {equipmentReportData.equipment.map((eq) => {
                     const capBar = [
-                      { label: "Available (work window)", h: Number(eq.available_hours_working_window ?? 0), fill: "#0d9488" },
+                      { label: "Available (work window)", h: Number(eq.available_hours_working_window ?? 0), fill: "#1e4d8c" },
                       { label: "Completed (work window)", h: Number(eq.completed_slot_hours_working_window ?? 0), fill: "#7c3aed" },
                     ];
                     const userBar = [
@@ -1374,13 +1374,13 @@ const Reports = () => {
                     return (
                       <Card
                         key={eq.equipment_id}
-                        className="overflow-hidden border-l-4 border-l-teal-600 shadow-md"
+                        className="overflow-hidden border-l-4 border-l-primary shadow-md"
                       >
-                        <CardHeader className="bg-gradient-to-r from-slate-50 to-teal-50/50 dark:from-slate-900 dark:to-teal-950/40">
+                        <CardHeader className="bg-gradient-to-r from-slate-50 to-primary/5 dark:from-slate-900 dark:to-primary/15">
                           <div className="flex flex-wrap items-start justify-between gap-4">
                             <div>
                               <CardTitle className="text-xl flex items-center gap-2">
-                                <FlaskConical className="h-5 w-5 text-teal-600" />
+                                <FlaskConical className="h-5 w-5 text-primary" />
                                 {eq.name}
                               </CardTitle>
                               <CardDescription className="mt-1 font-mono text-base text-foreground/80">

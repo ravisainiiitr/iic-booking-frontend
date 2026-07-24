@@ -142,7 +142,7 @@ export default function TeamCalendar() {
     <div className="page-shell">
       <DashboardHeader />
       <div className="mx-auto max-w-[min(1600px,98vw)] px-4 py-8 sm:px-6">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-5 sm:p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 sm:p-6 text-white shadow-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3 min-w-0">
               <Button

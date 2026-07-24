@@ -50,7 +50,7 @@ const ExternalUserManagement = () => {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"
@@ -71,7 +71,7 @@ const ExternalUserManagement = () => {
           <Card
             role="button"
             tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800 h-full"
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
             onClick={() => navigate("/manage/external-user-management/departments")}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -82,7 +82,7 @@ const ExternalUserManagement = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                   <Building2 className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -92,10 +92,10 @@ const ExternalUserManagement = () => {
                   </CardDescription>
                 </div>
               </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 mt-3" />
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open departments</Button>
+              <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open departments</Button>
             </CardContent>
           </Card>
 
@@ -114,7 +114,7 @@ const ExternalUserManagement = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
                   <UserCheck className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -122,7 +122,7 @@ const ExternalUserManagement = () => {
                   <CardDescription className="text-sm mt-0.5">Review external users and their verification/approval status.</CardDescription>
                 </div>
               </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
             </CardHeader>
             <CardContent>
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Open verification</Button>

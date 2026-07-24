@@ -274,7 +274,7 @@ export default function TicketDetailsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-teal-50/80 to-background dark:from-teal-950/30">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-primary/5 to-background dark:from-primary/15">
           <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
             <div className="min-w-0 space-y-1">
               <DialogTitle className="text-xl font-semibold tracking-tight">
@@ -337,10 +337,10 @@ export default function TicketDetailsDialog({
               </div>
 
               {/* Original request */}
-              <section className="rounded-xl border-2 border-teal-200/80 bg-teal-50/40 dark:border-teal-900 dark:bg-teal-950/20 p-4 space-y-3">
+              <section className="rounded-xl border-2 border-primary/25 bg-primary/5 dark:border-primary/40 dark:bg-primary/10 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-teal-700" />
+                    <MessageSquare className="h-4 w-4 text-primary" />
                     Original request
                   </h3>
                   <span className="text-xs text-muted-foreground">
@@ -355,7 +355,7 @@ export default function TicketDetailsDialog({
                     href={withAuthToken(detail.attachment_url)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-teal-800 dark:text-teal-200 underline-offset-2 hover:underline"
+                    className="inline-flex items-center gap-2 text-sm text-primary dark:text-sky-100 underline-offset-2 hover:underline"
                   >
                     <Paperclip className="h-4 w-4" />
                     {detail.attachment_name || "Download attachment"}
@@ -439,7 +439,7 @@ export default function TicketDetailsDialog({
                   type="button"
                   onClick={() => void handleAddComment()}
                   disabled={commentSubmitting || !commentText.trim()}
-                  className="bg-teal-700 hover:bg-teal-800"
+                  className="bg-primary hover:bg-primary/90"
                 >
                   {commentSubmitting ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -602,7 +602,7 @@ export default function TicketDetailsDialog({
               <ol className="relative space-y-4 border-l border-border/80 ml-2 pl-4">
                 {[...events].reverse().map((ev) => (
                   <li key={ev.event_id} className="relative">
-                    <span className="absolute -left-[1.3rem] top-1 h-2.5 w-2.5 rounded-full bg-teal-600 ring-2 ring-background" />
+                    <span className="absolute -left-[1.3rem] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
                     <p className="text-xs font-semibold capitalize">
                       {(ev.event_type_display || ev.event_type).replace(/_/g, " ")}
                     </p>

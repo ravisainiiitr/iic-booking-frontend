@@ -23,8 +23,8 @@ const MODULES = [
     description: "Create, map, edit, and activate/deactivate Lab Incharge (operator) users in your department.",
     path: "/manage/department-administration/lab",
     icon: FlaskConical,
-    gradient: "from-teal-500 to-cyan-700",
-    button: "bg-teal-700 hover:bg-teal-800",
+    gradient: "from-primary/50 to-accent",
+    button: "bg-primary hover:bg-primary/90",
   },
   {
     key: "accounts",

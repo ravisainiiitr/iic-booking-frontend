@@ -333,7 +333,7 @@ export default function OICPrintMaterials() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-5xl space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             type="button"
             variant="ghost"
@@ -509,7 +509,7 @@ export default function OICPrintMaterials() {
                             </td>
                             <td className="p-3">
                               {m.is_active ? (
-                                <Badge className="bg-teal-700 text-white hover:bg-teal-700">Active</Badge>
+                                <Badge className="bg-primary text-white hover:bg-primary/90">Active</Badge>
                               ) : (
                                 <Badge variant="secondary">Inactive</Badge>
                               )}
@@ -723,7 +723,7 @@ export default function OICPrintMaterials() {
                 </div>
                 <Button
                   type="button"
-                  className="bg-teal-700 hover:bg-teal-800 text-white"
+                  className="bg-primary hover:bg-primary/90 text-white"
                   disabled={adding}
                   onClick={() => void onAddMaterial()}
                 >

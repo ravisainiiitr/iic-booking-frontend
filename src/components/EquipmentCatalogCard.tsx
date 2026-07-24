@@ -114,7 +114,7 @@ export default function EquipmentCatalogCard({
         )}
         <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${accent.bar}`} />
         {item.category ? (
-          <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-teal-700/90 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white backdrop-blur-sm">
+          <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-primary/90 px-2.5 py-1 text-[11px] font-medium tracking-wide text-white backdrop-blur-sm">
             {item.category}
           </span>
         ) : null}
@@ -180,11 +180,11 @@ export default function EquipmentCatalogCard({
         })()}
       </CardHeader>
 
-      <CardContent className="mt-auto flex-shrink-0 border-t border-teal-100/80 bg-gradient-to-b from-teal-50/30 to-background pt-4 dark:border-teal-900/40 dark:from-teal-950/20">
+      <CardContent className="mt-auto flex-shrink-0 border-t border-primary/20 bg-gradient-to-b from-primary/30 to-background pt-4 dark:border-primary/40 dark:from-primary/20">
         <div className="flex flex-col gap-3">
           {canChangeSlotStatus && onRequestStatusChange ? (
             <div
-              className="flex flex-col gap-2 rounded-lg border border-teal-200/70 bg-teal-50/50 p-3 dark:border-teal-800/50 dark:bg-teal-950/25"
+              className="flex flex-col gap-2 rounded-lg border border-primary/70 bg-primary/5 p-3 dark:border-primary/50 dark:bg-primary/25"
               onClick={(e) => e.stopPropagation()}
             >
               <Label className="text-sm font-medium leading-none">Status</Label>
@@ -219,10 +219,10 @@ export default function EquipmentCatalogCard({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-teal-200/70 bg-teal-50/40 px-3 py-2.5 dark:border-teal-800/50 dark:bg-teal-950/20">
-            <span className="shrink-0 text-sm font-medium text-teal-800/80 dark:text-teal-200/80">Current status</span>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/70 bg-primary/5 px-3 py-2.5 dark:border-primary/50 dark:bg-primary/10">
+            <span className="shrink-0 text-sm font-medium text-primary/80 dark:text-sky-100/80">Current status</span>
             <span
-              className={`min-w-0 text-right text-sm font-semibold ${isOperational ? "text-teal-700 dark:text-teal-300" : "text-amber-600 dark:text-amber-400"}`}
+              className={`min-w-0 text-right text-sm font-semibold ${isOperational ? "text-primary dark:text-sky-200" : "text-amber-600 dark:text-amber-400"}`}
             >
               {item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
             </span>
@@ -253,7 +253,7 @@ export default function EquipmentCatalogCard({
           {canChangeSlotStatus && !isAccountsInCharge ? (
             <Button
               variant="outline"
-              className="w-full border-teal-300/80 text-teal-800 hover:bg-teal-50 dark:border-teal-700 dark:text-teal-200 dark:hover:bg-teal-950/40"
+              className="w-full border-primary/30 text-primary hover:bg-primary/5 dark:border-primary dark:text-sky-100 dark:hover:bg-primary/15"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(`/book-equipment?equipment_id=${item.id}&mode=status`);
@@ -266,7 +266,7 @@ export default function EquipmentCatalogCard({
 
           <Button
             variant="outline"
-            className="w-full border-teal-200/90 bg-teal-50/60 text-teal-900 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/30 dark:text-teal-100 dark:hover:bg-teal-950/50"
+            className="w-full border-primary/25 bg-primary/5 text-primary hover:bg-primary/10 dark:border-primary/40 dark:bg-primary/10 dark:text-primary-foreground dark:hover:bg-primary/20"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/equipment/${item.id}`);

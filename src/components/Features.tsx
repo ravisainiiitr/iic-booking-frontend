@@ -42,10 +42,10 @@ const features = [
 const Features = () => {
   return (
     <section id="features" className="py-20 sm:py-28 relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(175_40%_90%/0.5),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom,hsl(175_30%_20%/0.25),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(215_40%_90%/0.5),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom,hsl(215_30%_20%/0.25),transparent_55%)]" />
       <div className="container relative mx-auto px-4">
         <div className="text-center mb-14 max-w-2xl mx-auto space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-400">
+          <p className="text-sm font-semibold uppercase tracking-wider text-primary dark:text-sky-300">
             Why book here
           </p>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-foreground">
@@ -62,9 +62,9 @@ const Features = () => {
             return (
               <div
                 key={feature.title}
-                className="group p-6 rounded-2xl bg-card/90 border border-border/80 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] hover:border-teal-300/50 dark:hover:border-teal-700/50 transition-all duration-300"
+                className="group p-6 rounded-2xl bg-card/90 border border-border/80 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] hover:border-primary/50 dark:hover:border-primary/50 transition-all duration-300"
               >
-                <div className="mb-4 inline-flex items-center justify-center w-11 h-11 rounded-xl bg-teal-700/10 text-teal-800 dark:text-teal-300 group-hover:bg-teal-700 group-hover:text-white transition-colors">
+                <div className="mb-4 inline-flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 text-primary dark:text-sky-200 group-hover:bg-primary/90 group-hover:text-white transition-colors">
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2 tracking-tight">{feature.title}</h3>

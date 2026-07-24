@@ -276,7 +276,7 @@ export default function TANominationCall() {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"
@@ -295,7 +295,7 @@ export default function TANominationCall() {
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                 <Send className="h-6 w-6" />
               </div>
               <div>
@@ -448,9 +448,9 @@ export default function TANominationCall() {
         </Card>
 
         <Card className="mt-8 border-0 shadow-lg overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                 <ClipboardList className="h-6 w-6" />
               </div>
               <div className="flex-1 min-w-0">

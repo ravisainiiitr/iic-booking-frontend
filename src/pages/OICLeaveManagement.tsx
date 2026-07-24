@@ -677,7 +677,7 @@ export default function OICLeaveManagement() {
           </DialogContent>
         </Dialog>
 
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <Button
@@ -710,7 +710,7 @@ export default function OICLeaveManagement() {
           <Card className="border-0 shadow-md">
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                   <Calendar className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -825,7 +825,7 @@ export default function OICLeaveManagement() {
           <Card className="border-0 shadow-md">
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
                   <Calendar className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -886,10 +886,10 @@ export default function OICLeaveManagement() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
-            <CardHeader className="border-b border-border/60 bg-gradient-to-br from-teal-700/[0.10] via-background to-background">
+          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-primary/10">
+            <CardHeader className="border-b border-border/60 bg-gradient-to-br from-primary/[0.10] via-background to-background">
               <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-teal-700" />
+                <CalendarDays className="h-5 w-5 text-primary" />
                 Apply for leave
               </CardTitle>
               <CardDescription>
@@ -1039,7 +1039,7 @@ export default function OICLeaveManagement() {
               </div>
 
               <Button
-                className="h-11 w-full bg-teal-700 text-white hover:bg-teal-800"
+                className="h-11 w-full bg-primary text-white hover:bg-primary/90"
                 disabled={!canSubmit || submitting}
                 onClick={async () => {
                   if (startDate === endDate && startSession === "AN" && endSession === "FN") {
@@ -1085,7 +1085,7 @@ export default function OICLeaveManagement() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
+          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-primary/10">
             <CardHeader className="border-b border-border/60 bg-muted/10">
               <CardTitle className="flex items-center justify-between gap-3">
                 <span>Leave requests ({year})</span>

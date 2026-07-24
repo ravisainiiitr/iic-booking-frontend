@@ -311,12 +311,12 @@ function BookingLifecycleCountdown({
   const tone = overdue
     ? "from-rose-600/90 to-rose-700/90 border-rose-500/40 text-white"
     : phase === "submit_sample"
-      ? "from-teal-500/10 to-cyan-500/10 border-teal-500/30 text-teal-950 dark:text-teal-50"
+      ? "from-primary/10 to-accent/10 border-primary/30 text-primary dark:text-primary-foreground"
       : phase === "collect_sample"
-        ? "from-cyan-500/10 to-teal-500/10 border-cyan-500/30 text-cyan-950 dark:text-cyan-50"
+        ? "from-accent/10 to-primary/10 border-accent/30 text-accent dark:text-sky-50"
         : ringProgress > 0.85
           ? "from-amber-500/15 to-orange-500/10 border-amber-500/35 text-amber-950 dark:text-amber-50"
-          : "from-emerald-500/10 to-teal-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-50";
+          : "from-emerald-500/10 to-primary/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-50";
 
   return (
     <div className={`mb-4 overflow-hidden rounded-2xl border bg-gradient-to-br ${tone} shadow-sm`}>
@@ -328,7 +328,7 @@ function BookingLifecycleCountdown({
             {countdown.atmosphere_sensitive && phase === "submit_sample" && (
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                  overdue ? "bg-white/20 text-white" : "bg-teal-700/15 text-teal-800 dark:text-teal-200"
+                  overdue ? "bg-white/20 text-white" : "bg-primary/15 text-primary dark:text-sky-100"
                 }`}
               >
                 Atmosphere-sensitive

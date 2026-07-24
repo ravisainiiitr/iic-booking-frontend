@@ -91,7 +91,7 @@ export default function BookingNextSteps() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container max-w-2xl py-8 space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"

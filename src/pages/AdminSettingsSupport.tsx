@@ -143,7 +143,7 @@ const AdminSettingsSupport = () => {
           </Button>
         </div>
 
-        <Card className="shadow-[var(--shadow-card)] border-teal-100/80 dark:border-teal-900/40 rounded-2xl overflow-hidden">
+        <Card className="shadow-[var(--shadow-card)] border-primary/20 dark:border-primary/40 rounded-2xl overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -154,7 +154,7 @@ const AdminSettingsSupport = () => {
               </div>
               <TicketForm
                 trigger={
-                  <Button className="bg-teal-700 hover:bg-teal-800">
+                  <Button className="bg-primary hover:bg-primary/90">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Ticket
                   </Button>
@@ -318,7 +318,7 @@ const AdminSettingsSupport = () => {
                       {tickets.map((row) => (
                         <TableRow
                           key={row.ticket_id}
-                          className="cursor-pointer hover:bg-teal-50/40 dark:hover:bg-teal-950/20"
+                          className="cursor-pointer hover:bg-primary/5 dark:hover:bg-primary/10"
                           onClick={() => openTicket(row)}
                         >
                           <TableCell className="font-mono text-muted-foreground">
@@ -347,7 +347,7 @@ const AdminSettingsSupport = () => {
                           <TableCell className="max-w-[120px] truncate text-sm">
                             {row.related_equipment_code || row.related_equipment_name || "—"}
                             {row.attachment_url ? (
-                              <Paperclip className="inline h-3.5 w-3.5 ml-1 text-teal-700" />
+                              <Paperclip className="inline h-3.5 w-3.5 ml-1 text-primary" />
                             ) : null}
                           </TableCell>
                           <TableCell className="text-muted-foreground whitespace-nowrap text-sm">

@@ -50,10 +50,9 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const TEAL = "#0f766e";
-const CYAN = "#0e7490";
-
-const DONUT_COLORS = ["#0f766e", "#0e7490", "#334155", "#0d9488", "#64748b", "#155e75", "#0f172a"];
+const NAVY = "#1e4d8c";
+const OCEAN = "#1d6fa3";
+const DONUT_COLORS = ["#1e4d8c", "#1d6fa3", "#334155", "#2563eb", "#64748b", "#0ea5e9", "#0f172a"];
 
 const PRESETS: Array<{ value: string; label: string }> = [
   { value: "today", label: "Today" },
@@ -365,7 +364,7 @@ const FinanceReports = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 sm:p-8 text-white shadow-xl">
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Finance Reports</h1>
           <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
             Departmental revenue, wallet recharges, and payment analytics for{" "}
@@ -377,7 +376,7 @@ const FinanceReports = () => {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-teal-700" />
+              <BarChart3 className="h-5 w-5 text-primary" />
               Report period
             </CardTitle>
             <CardDescription>Pick a preset range or set a custom date range, then export the report.</CardDescription>
@@ -390,7 +389,7 @@ const FinanceReports = () => {
                   type="button"
                   size="sm"
                   variant={preset === p.value ? "default" : "outline"}
-                  className={preset === p.value ? "bg-teal-700 hover:bg-teal-800 text-white" : ""}
+                  className={preset === p.value ? "bg-primary hover:bg-primary/90 text-white" : ""}
                   onClick={() => handlePresetClick(p.value)}
                   disabled={loading}
                 >
@@ -415,7 +414,7 @@ const FinanceReports = () => {
               <Button
                 type="button"
                 variant={preset === "custom" ? "default" : "outline"}
-                className={preset === "custom" ? "bg-teal-700 hover:bg-teal-800 text-white" : ""}
+                className={preset === "custom" ? "bg-primary hover:bg-primary/90 text-white" : ""}
                 onClick={handleApplyCustomRange}
                 disabled={loading}
               >
@@ -450,7 +449,7 @@ const FinanceReports = () => {
 
         {loading && !data ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-10 w-10 animate-spin text-teal-700" />
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
           </div>
         ) : !data ? (
           <Card>
@@ -462,7 +461,7 @@ const FinanceReports = () => {
           <div className={loading ? "relative opacity-60 pointer-events-none" : undefined}>
             {loading && (
               <div className="absolute inset-0 z-10 flex items-start justify-center pt-24 bg-background/30">
-                <Loader2 className="h-10 w-10 animate-spin text-teal-700" />
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
               </div>
             )}
 
@@ -474,8 +473,8 @@ const FinanceReports = () => {
               </Alert>
             ) : null}
 
-            <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 p-6 text-white shadow-lg">
-              <p className="text-sm font-medium uppercase tracking-wider text-teal-200/90">{data.meta.institute_name}</p>
+            <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-primary p-6 text-white shadow-lg">
+              <p className="text-sm font-medium uppercase tracking-wider text-sky-100/90">{data.meta.institute_name}</p>
               <h3 className="mt-2 text-2xl font-bold tracking-tight">{data.meta.report_title}</h3>
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-300">
                 <span>
@@ -499,8 +498,8 @@ const FinanceReports = () => {
                 label="Total revenue"
                 value={fmtMoney(data.summary.total_revenue)}
                 hint={`${data.summary.booking_count} booking(s) · avg ₹${fmtMoney(data.summary.avg_booking_value)}`}
-                icon={<IndianRupee className="h-4 w-4 text-teal-600" />}
-                accent="text-teal-700 dark:text-teal-300"
+                icon={<IndianRupee className="h-4 w-4 text-primary" />}
+                accent="text-primary dark:text-sky-200"
               />
               <KpiCard
                 label="Internal revenue"
@@ -512,7 +511,7 @@ const FinanceReports = () => {
                 label="External revenue"
                 value={fmtMoney(data.summary.external_revenue)}
                 hint="RND / Industry / Educational / Other"
-                icon={<FlaskConical className="h-4 w-4 text-cyan-600" />}
+                icon={<FlaskConical className="h-4 w-4 text-accent" />}
               />
               <KpiCard
                 label="Wallet recharges"
@@ -567,7 +566,7 @@ const FinanceReports = () => {
                         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v}`} />
                         <Tooltip formatter={(v: number) => [`₹${fmtMoney(v)}`, "Revenue"]} />
-                        <Line type="monotone" dataKey="revenue" stroke={TEAL} strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="revenue" stroke={NAVY} strokeWidth={2} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -597,7 +596,7 @@ const FinanceReports = () => {
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                         >
                           {internalVsExternalData.map((_, i) => (
-                            <Cell key={i} fill={i === 0 ? TEAL : CYAN} />
+                            <Cell key={i} fill={i === 0 ? NAVY : OCEAN} />
                           ))}
                         </Pie>
                         <Tooltip formatter={(v: number) => [`₹${fmtMoney(v)}`, "Revenue"]} />
@@ -628,7 +627,7 @@ const FinanceReports = () => {
                         <XAxis type="number" tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 11 }} />
                         <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
                         <Tooltip formatter={(v: number) => [`₹${fmtMoney(v)}`, "Revenue"]} />
-                        <Bar dataKey="revenue" name="Revenue" fill={TEAL} radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="revenue" name="Revenue" fill={NAVY} radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -711,7 +710,7 @@ const FinanceReports = () => {
                         formatter={(v: number) => [`₹${fmtMoney(v)}`, "Revenue"]}
                         labelFormatter={(_label, payload) => (payload?.[0]?.payload as { name?: string })?.name ?? ""}
                       />
-                      <Bar dataKey="revenue" name="Revenue" fill={CYAN} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="revenue" name="Revenue" fill={OCEAN} radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -907,7 +906,7 @@ const FinanceReports = () => {
                   </div>
                   <div className="rounded-lg border bg-card p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Project grant</p>
-                    <p className="mt-1 text-xl font-bold text-teal-700 dark:text-teal-300">
+                    <p className="mt-1 text-xl font-bold text-primary dark:text-sky-200">
                       ₹{fmtMoney(data.tables.payment_analytics.project_grant)}
                     </p>
                   </div>
@@ -915,7 +914,7 @@ const FinanceReports = () => {
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Direct cash deposit
                     </p>
-                    <p className="mt-1 text-xl font-bold text-cyan-700 dark:text-cyan-300">
+                    <p className="mt-1 text-xl font-bold text-accent dark:text-sky-300">
                       ₹{fmtMoney(data.tables.payment_analytics.direct_cash_deposit)}
                     </p>
                   </div>

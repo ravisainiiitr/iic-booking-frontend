@@ -200,7 +200,7 @@ export default function PortalFeedbackDialog({ open, onOpenChange }: PortalFeedb
               </Button>
               <Button
                 type="button"
-                className="bg-teal-700 hover:bg-teal-800"
+                className="bg-primary hover:bg-primary/90"
                 disabled={saving}
                 onClick={() => void handleSave()}
               >

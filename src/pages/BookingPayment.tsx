@@ -157,7 +157,7 @@ export default function BookingPayment() {
         modal: {
           ondismiss: () => setPaying(false),
         },
-        theme: { color: "#0f766e" },
+        theme: { color: "#1e4d8c" },
       };
       const rzp = new window.Razorpay(options);
       rzp.open();

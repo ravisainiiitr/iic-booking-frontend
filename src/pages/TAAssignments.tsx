@@ -130,7 +130,7 @@ const DEFAULT_SLOT_COLORS: Record<string, string> = {
 };
 
 /** TA duty overlay (not from equipment calendar_colors). */
-const TA_ALLOCATED_SLOT_BG = "#0d9488";
+const TA_ALLOCATED_SLOT_BG = "#1e4d8c";
 const TA_ACCEPTED_SLOT_BG = "#166534";
 
 export default function TAAssignments() {
@@ -529,7 +529,7 @@ export default function TAAssignments() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <h1 className="text-2xl font-semibold tracking-tight">TA duty assignments</h1>
           <p className="mt-2 text-sm text-white/85">
             Allocate duty, respond as TA, and submit/verify duty logs linked to reward points.

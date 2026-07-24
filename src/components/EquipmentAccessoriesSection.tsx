@@ -190,9 +190,9 @@ export function EquipmentAccessoriesSection({
           <span>{HELPER}</span>
         </p>
         {hasAccessories && (
-          <div className="rounded-xl border border-cyan-200/80 bg-gradient-to-br from-cyan-50/80 via-background to-background p-4 dark:border-cyan-900 dark:from-cyan-950/30">
+          <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 via-background to-background p-4 dark:border-accent/40 dark:from-accent/15">
             <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-600 text-white shadow-sm">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white shadow-sm">
                 <Wrench className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
@@ -207,7 +207,7 @@ export function EquipmentAccessoriesSection({
           </div>
         )}
         {hasAdditional && (
-          <div className="rounded-xl border border-teal-200/80 bg-gradient-to-br from-teal-50/80 via-background to-background p-4 dark:border-teal-900 dark:from-teal-950/30">
+          <div className="rounded-xl border border-primary/25 bg-gradient-to-br from-primary/5 via-background to-background p-4 dark:border-primary/40 dark:from-primary/15">
             <div className="mb-3 flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
                 <Briefcase className="h-4 w-4" />
@@ -230,11 +230,11 @@ export function EquipmentAccessoriesSection({
   return (
     <div className={cn("space-y-4", className)}>
       {hasAccessories && (
-        <Card className="overflow-hidden border-cyan-200/90 shadow-md ring-1 ring-cyan-500/15 dark:border-cyan-900 dark:ring-cyan-400/10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500" />
+        <Card className="overflow-hidden border-accent/35 shadow-md ring-1 ring-accent/15 dark:border-accent/40 dark:ring-accent/10">
+          <div className="h-1.5 w-full bg-gradient-to-r from-accent via-primary to-emerald-500" />
           <CardHeader className="pb-2">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-md">
                 <Wrench className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -255,11 +255,11 @@ export function EquipmentAccessoriesSection({
       )}
 
       {hasAdditional && (
-        <Card className="overflow-hidden border-teal-200/90 shadow-md ring-1 ring-teal-500/15 dark:border-teal-900 dark:ring-teal-400/10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-800" />
+        <Card className="overflow-hidden border-primary/25 shadow-md ring-1 ring-primary/15 dark:border-primary/40 dark:ring-primary/10">
+          <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary" />
           <CardHeader className="pb-2">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white shadow-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-md">
                 <Briefcase className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">

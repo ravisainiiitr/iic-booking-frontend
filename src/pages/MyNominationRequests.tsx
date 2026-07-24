@@ -108,9 +108,9 @@ export default function MyNominationRequests() {
           </div>
 
           <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
                   <ClipboardList className="h-6 w-6" />
                 </div>
                 <div>

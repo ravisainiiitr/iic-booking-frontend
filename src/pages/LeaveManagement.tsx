@@ -181,7 +181,7 @@ export default function LeaveManagement() {
     <div className="page-shell">
       <DashboardHeader />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Button
@@ -229,10 +229,10 @@ export default function LeaveManagement() {
         </Alert>
 
         <div className="space-y-6">
-          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
-            <CardHeader className="border-b border-border/60 bg-gradient-to-br from-teal-700/[0.10] via-background to-background">
+          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-primary/10">
+            <CardHeader className="border-b border-border/60 bg-gradient-to-br from-primary/[0.10] via-background to-background">
               <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-teal-700" />
+                <CalendarDays className="h-5 w-5 text-primary" />
                 Intimate Unavailability
               </CardTitle>
               <CardDescription>
@@ -379,7 +379,7 @@ export default function LeaveManagement() {
               </div>
 
               <Button
-                className="h-11 w-full bg-teal-700 text-white hover:bg-teal-800"
+                className="h-11 w-full bg-primary text-white hover:bg-primary/90"
                 disabled={!canSubmit || submitting}
                 onClick={async () => {
                   if (startDate === endDate && startSession === "AN" && endSession === "FN") {
@@ -421,7 +421,7 @@ export default function LeaveManagement() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-teal-950/[0.06]">
+          <Card className="overflow-hidden rounded-3xl border-border/60 shadow-lg shadow-primary/10">
             <CardHeader className="border-b border-border/60 bg-muted/10">
               <CardTitle className="flex items-center justify-between gap-3">
                 <span>History</span>

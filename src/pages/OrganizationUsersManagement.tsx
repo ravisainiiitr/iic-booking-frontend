@@ -157,7 +157,7 @@ export default function OrganizationUsersManagement() {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8 space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-700 to-teal-800 p-6 text-white shadow-xl">
+        <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-700 to-primary p-6 text-white shadow-xl">
           <Button
             variant="ghost"
             size="sm"
@@ -215,7 +215,7 @@ export default function OrganizationUsersManagement() {
               />
             </div>
             <div className="md:col-span-2">
-              <Button onClick={createUser} disabled={saving} className="bg-teal-700 hover:bg-teal-800">
+              <Button onClick={createUser} disabled={saving} className="bg-primary hover:bg-primary/90">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Create user
               </Button>

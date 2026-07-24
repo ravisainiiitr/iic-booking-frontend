@@ -35,7 +35,7 @@ export function PageHero({
   return (
     <div
       className={cn(
-        "mb-8 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 sm:p-8 text-white shadow-xl",
+        "mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl",
         className
       )}
     >
@@ -62,9 +62,9 @@ export function SettingsTile({
     <button
       type="button"
       onClick={onClick}
-      className="group text-left rounded-2xl border border-border/80 bg-card p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:shadow-[var(--shadow-elegant)] hover:border-teal-300/60 dark:hover:border-teal-700/50 hover:-translate-y-0.5"
+      className="group text-left rounded-2xl border border-border/80 bg-card p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:shadow-[var(--shadow-elegant)] hover:border-primary/30 dark:hover:border-primary/50 hover:-translate-y-0.5"
     >
-      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-teal-700/10 text-teal-800 dark:text-teal-300 group-hover:bg-teal-700 group-hover:text-white transition-colors">
+      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary dark:text-sky-200 group-hover:bg-primary/90 group-hover:text-white transition-colors">
         {icon}
       </div>
       <h3 className="font-semibold tracking-tight text-foreground">{title}</h3>

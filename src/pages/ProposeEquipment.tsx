@@ -183,7 +183,7 @@ const ProposeEquipment = () => {
         <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-foreground">
-              <PackagePlus className="h-6 w-6 text-teal-700" />
+              <PackagePlus className="h-6 w-6 text-primary" />
               <span className="font-semibold tracking-tight">Propose new equipment</span>
             </div>
             <Button variant="ghost" size="sm" asChild>
@@ -197,7 +197,7 @@ const ProposeEquipment = () => {
       )}
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-teal-800 via-teal-700 to-cyan-700 p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <h1 className="text-2xl font-semibold tracking-tight">Equipment addition request</h1>
           <p className="mt-2 text-sm text-white/85">
             Submit a proposal for a new instrument. An administrator will review before slots and charges are configured.
@@ -206,7 +206,7 @@ const ProposeEquipment = () => {
         {submitted ? (
           <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-teal-800 dark:text-teal-300">
+              <CardTitle className="flex items-center gap-2 text-primary dark:text-sky-200">
                 <CheckCircle2 className="h-6 w-6" />
                 Request submitted
               </CardTitle>
@@ -216,7 +216,7 @@ const ProposeEquipment = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="bg-teal-700 hover:bg-teal-800" onClick={resetAll}>Submit another</Button>
+              <Button className="bg-primary hover:bg-primary/90" onClick={resetAll}>Submit another</Button>
             </CardContent>
           </Card>
         ) : (
