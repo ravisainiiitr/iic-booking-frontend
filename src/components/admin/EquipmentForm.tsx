@@ -152,6 +152,8 @@ export type EquipmentFormData = {
   show_lifecycle_countdowns?: boolean;
   /** Hours before slot start by which the sample should be submitted (0 = slot start). */
   sample_submission_lead_hours?: number | null;
+  /** When true, bookers may mark atmosphere-sensitive (submit at slot start). */
+  atmosphere_sensitive_sample_enabled?: boolean;
   /** Hours after booking completion to collect sample before discard (0 = hide). */
   sample_collect_deadline_hours?: number | null;
   repeat_sample_request_days?: number | null;
@@ -294,6 +296,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     operator_unavailable_after_booking_end_hours: 24,
     show_lifecycle_countdowns: true,
     sample_submission_lead_hours: 24,
+    atmosphere_sensitive_sample_enabled: false,
     sample_collect_deadline_hours: 72,
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
@@ -534,6 +537,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           (d.operator_absent_disruption_after_booking_end_hours as number | null) ?? null,
         show_lifecycle_countdowns: d.show_lifecycle_countdowns !== false,
         sample_submission_lead_hours: (d.sample_submission_lead_hours as number | null) ?? 24,
+        atmosphere_sensitive_sample_enabled: d.atmosphere_sensitive_sample_enabled === true,
         sample_collect_deadline_hours: (d.sample_collect_deadline_hours as number | null) ?? 72,
         repeat_sample_request_days: (d.repeat_sample_request_days as number | null) ?? null,
         repeat_sample_disclaimer: (d.repeat_sample_disclaimer as string) ?? "",
@@ -708,6 +712,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               ? formData.sample_submission_lead_hours
               : parseInt(String(formData.sample_submission_lead_hours), 10))
           : 24,
+      atmosphere_sensitive_sample_enabled: formData.atmosphere_sensitive_sample_enabled === true,
       sample_collect_deadline_hours:
         formData.sample_collect_deadline_hours != null && formData.sample_collect_deadline_hours !== ''
           ? (typeof formData.sample_collect_deadline_hours === 'number'
@@ -2008,7 +2013,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   }}
                 />
                 <p className="text-muted-foreground text-xs">
-                  Users should submit samples this many hours before the slot starts. Atmosphere-sensitive bookings may submit at slot start. 0 = deadline is slot start.
+                  Users should submit samples this many hours before the slot starts. Atmosphere-sensitive bookings may submit at slot start (when that option is enabled below). 0 = deadline is slot start.
                 </p>
               </div>
               <div className="space-y-2">
@@ -2033,6 +2038,24 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               </div>
             </div>
           )}
+          <div className="flex items-start space-x-2 pt-1">
+            <Checkbox
+              id="atmosphere-sensitive-sample-enabled"
+              checked={formData.atmosphere_sensitive_sample_enabled === true}
+              onCheckedChange={(checked) =>
+                setFormData((p) => ({ ...p, atmosphere_sensitive_sample_enabled: !!checked }))
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="atmosphere-sensitive-sample-enabled" className="font-medium cursor-pointer">
+                Allow atmosphere-sensitive sample option
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                When enabled, bookers and staff can mark a booking as atmosphere-sensitive (sample may be submitted at slot start instead of the normal submission lead time). When disabled, that option is hidden on booking screens.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

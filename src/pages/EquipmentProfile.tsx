@@ -3,6 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
+import {
+  classifyEquipmentAccessFailure,
+  notifyEquipmentAccessFailure,
+} from "@/lib/equipmentAccess";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, LifeBuoy, MapPin, Info, Calendar, Wrench, Users, UserCog, FileText, IndianRupee } from "lucide-react";
@@ -141,9 +145,11 @@ const EquipmentProfile = () => {
   const [supportOpen, setSupportOpen] = useState(false);
   const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
   const fetchingSlotsRef = useRef(false);
+  const equipmentAccessBlockedRef = useRef(false);
+  const authUserKey = isAuthenticated ? String(user?.id ?? "auth") : "anon";
 
   const fetchSlotsForWeek = useCallback(async (forceRefetch?: boolean) => {
-    if (!equipment || !id) return;
+    if (!equipment || !id || equipmentAccessBlockedRef.current) return;
 
     const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -151,13 +157,29 @@ const EquipmentProfile = () => {
     const endDateStr = format(weekEnd, "yyyy-MM-dd");
     const weekKey = `${startDateStr}_${endDateStr}`;
 
-    if (!forceRefetch && (fetchingSlotsRef.current || loadingSlots)) return;
+    if (!forceRefetch && fetchingSlotsRef.current) return;
     if (!forceRefetch && lastFetchedWeek === weekKey) return;
 
     try {
       fetchingSlotsRef.current = true;
       setLoadingSlots(true);
       const slotsResponse = await apiClient.getEquipmentSlots(id, startDateStr, endDateStr);
+      if (slotsResponse.error) {
+        const kind = classifyEquipmentAccessFailure(slotsResponse);
+        if (kind === "forbidden" || kind === "not_found") {
+          equipmentAccessBlockedRef.current = true;
+          notifyEquipmentAccessFailure(kind, slotsResponse.error);
+          setEquipment(null);
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+        // Avoid infinite refetch: mark week as attempted even on soft failure.
+        setLastFetchedWeek(weekKey);
+        toast.error(slotsResponse.error || "Failed to load available slots", {
+          id: "equipment-slots-error",
+        });
+        return;
+      }
       if (slotsResponse.data) {
         setApiSlots(slotsResponse.data.slots || []);
         setWeeklyHolidays(slotsResponse.data.holidays ?? {});
@@ -181,21 +203,27 @@ const EquipmentProfile = () => {
           });
         }
         setLastFetchedWeek(weekKey);
+      } else {
+        setLastFetchedWeek(weekKey);
       }
     } catch (error: any) {
       console.error("Error calling slots API:", error);
-      toast.error("Failed to load available slots");
+      setLastFetchedWeek(weekKey);
+      toast.error("Failed to load available slots", { id: "equipment-slots-error" });
     } finally {
       setLoadingSlots(false);
       fetchingSlotsRef.current = false;
     }
-  }, [equipment, id, currentWeekStart, loadingSlots, lastFetchedWeek]);
+  }, [equipment, id, currentWeekStart, lastFetchedWeek, navigate]);
 
   useEffect(() => {
-    if (id) {
-      fetchEquipmentProfile();
-    }
-  }, [id]);
+    if (!id) return;
+    // Re-validate access when auth identity changes (e.g. login as OIC after anonymous browse).
+    equipmentAccessBlockedRef.current = false;
+    setEquipment(null);
+    setLastFetchedWeek(null);
+    fetchEquipmentProfile();
+  }, [id, authUserKey]);
 
   // Admin-only: true when user_type is admin (for "Manage this Equipment" label and visibility)
   const isAdminUser = (): boolean => {
@@ -270,28 +298,43 @@ const EquipmentProfile = () => {
   };
 
   const fetchEquipmentProfile = async () => {
-    if (!id) return;
+    if (!id || equipmentAccessBlockedRef.current) return;
 
     try {
       setLoading(true);
       const response = await apiClient.getEquipmentDetailById(id);
 
       if (response.error) {
-        toast.error(response.error || "Failed to load equipment profile");
-        navigate("/equipments");
+        const kind = classifyEquipmentAccessFailure(response);
+        if (kind === "forbidden" || kind === "not_found") {
+          equipmentAccessBlockedRef.current = true;
+          notifyEquipmentAccessFailure(kind, response.error);
+          setEquipment(null);
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+        toast.error(response.error || "Failed to load equipment profile", {
+          id: "equipment-profile-error",
+        });
+        navigate("/dashboard", { replace: true });
         return;
       }
 
       if (!response.data) {
-        toast.error("Equipment not found");
-        navigate("/equipments");
+        equipmentAccessBlockedRef.current = true;
+        notifyEquipmentAccessFailure("not_found");
+        setEquipment(null);
+        navigate("/dashboard", { replace: true });
         return;
       }
 
       setEquipment(response.data);
+      setLastFetchedWeek(null);
     } catch (error: any) {
-      toast.error(error.message || "Failed to load equipment profile");
-      navigate("/book-equipment");
+      toast.error(error.message || "Failed to load equipment profile", {
+        id: "equipment-profile-error",
+      });
+      navigate("/dashboard", { replace: true });
     } finally {
       setLoading(false);
     }
@@ -452,7 +495,7 @@ const EquipmentProfile = () => {
 
   // Fetch slots when equipment is set or week changes (mirrors Step 3 booking flow)
   useEffect(() => {
-    if (!equipment || !id) return;
+    if (!equipment || !id || equipmentAccessBlockedRef.current) return;
     fetchSlotsForWeek();
   }, [equipment, id, currentWeekStart, fetchSlotsForWeek]);
 
@@ -468,7 +511,11 @@ const EquipmentProfile = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Equipment not found</h2>
+          <h2 className="text-2xl font-bold mb-4">Loading equipment…</h2>
+          <p className="text-sm text-muted-foreground">If this persists, return to the dashboard.</p>
+          <Button className="mt-4" variant="outline" onClick={() => navigate("/dashboard")}>
+            Go to Dashboard
+          </Button>
         </div>
       </div>
     );

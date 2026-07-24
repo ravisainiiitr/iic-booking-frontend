@@ -5,6 +5,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, type PrintMaterial } from "@/lib/api";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
+  classifyEquipmentAccessFailure,
+  notifyEquipmentAccessFailure,
+} from "@/lib/equipmentAccess";
+import {
   readProformaLineItemsFromStorage,
   writeProformaLineItemsToStorage,
   inputValuesForProformaStorage,
@@ -205,6 +209,8 @@ interface EquipmentDetail {
   waitlist_queue_depth?: number;
   waitlist_current_count?: number;
   waitlist_has_room?: boolean;
+  /** When true, booking UI may offer atmosphere-sensitive sample (submit at slot start). */
+  atmosphere_sensitive_sample_enabled?: boolean;
   input_fields?: Array<any>;
   charge_profiles?: Array<any>;
   [key: string]: any;
@@ -851,6 +857,15 @@ const BookEquipment = () => {
   const [sampleReturnAfterAnalysis, setSampleReturnAfterAnalysis] = useState<boolean>(false);
   /** Atmosphere-sensitive: sample may be submitted at slot start instead of the lead-time deadline. */
   const [atmosphereSensitiveSample, setAtmosphereSensitiveSample] = useState<boolean>(false);
+  const atmosphereSensitiveAllowed = equipmentDetail?.atmosphere_sensitive_sample_enabled === true;
+  const atmosphereSensitiveForBooking = atmosphereSensitiveAllowed && atmosphereSensitiveSample;
+  // Reset when equipment does not allow the option.
+  useEffect(() => {
+    if (!atmosphereSensitiveAllowed) {
+      setAtmosphereSensitiveSample(false);
+    }
+  }, [equipmentDetail?.equipment_id, atmosphereSensitiveAllowed]);
+
 
   const isDailySlotSelectableForUserBooking = useCallback((slot: DailySlot): boolean => {
     const actor = String(userType ?? "").toLowerCase();
@@ -1072,6 +1087,8 @@ const BookEquipment = () => {
   const statusWeekSlotsFetchGenRef = useRef(0);
   const fetchStatusChangeSlotsForWeekRef = useRef<(weekStart: Date) => Promise<void>>(async () => {});
   const fetchingSlotsRef = useRef<boolean>(false);
+  /** Stop equipment_id URL fetch retries after access denied / not found. */
+  const equipmentAccessBlockedRef = useRef(false);
   const hasCheckedEmptyCurrentWeekRef = useRef<boolean>(false);
   const lastEquipmentIdRef = useRef<number | null>(null);
   const prevShowSlotsRef = useRef<boolean>(false);
@@ -1978,19 +1995,32 @@ const BookEquipment = () => {
   };
 
   const fetchEquipmentDetail = useCallback(async (equipmentId: number | string) => {
+    if (equipmentAccessBlockedRef.current) return;
     try {
       setLoadingEquipmentDetail(true);
       const response = await apiClient.getEquipmentDetailById(equipmentId);
       
       if (response.error) {
-        toast.error(response.error || "Failed to load equipment details");
+        const kind = classifyEquipmentAccessFailure(response);
+        if (kind === "forbidden" || kind === "not_found") {
+          equipmentAccessBlockedRef.current = true;
+          notifyEquipmentAccessFailure(kind, response.error);
+          setLoadingEquipmentDetail(false);
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+        toast.error(response.error || "Failed to load equipment details", {
+          id: "equipment-load-error",
+        });
         setLoadingEquipmentDetail(false);
         return;
       }
 
       if (!response.data) {
-        toast.error("Equipment details not found");
+        equipmentAccessBlockedRef.current = true;
+        notifyEquipmentAccessFailure("not_found");
         setLoadingEquipmentDetail(false);
+        navigate("/dashboard", { replace: true });
         return;
       }
 
@@ -2083,11 +2113,13 @@ const BookEquipment = () => {
 
       setSelectedEquipment(transformedEquipment);
     } catch (error: any) {
-      toast.error(error.message || "Failed to load equipment details");
+      toast.error(error.message || "Failed to load equipment details", {
+        id: "equipment-load-error",
+      });
     } finally {
       setLoadingEquipmentDetail(false);
     }
-  }, []);
+  }, [navigate]);
 
   const handleEquipmentSelect = useCallback((equipmentId: number | string) => {
     fetchEquipmentDetail(equipmentId);
@@ -2100,6 +2132,15 @@ const BookEquipment = () => {
     // If no equipment_id, redirect to equipment listing
     if (!equipmentId && !selectedEquipment) {
       navigate('/equipments');
+      return;
+    }
+
+    // New equipment deep-link: allow a fresh fetch attempt.
+    if (equipmentId && selectedEquipment && String(selectedEquipment.id) !== String(equipmentId)) {
+      equipmentAccessBlockedRef.current = false;
+    }
+
+    if (equipmentAccessBlockedRef.current) {
       return;
     }
 
@@ -4639,7 +4680,7 @@ const BookEquipment = () => {
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
-          atmosphere_sensitive_sample: atmosphereSensitiveSample,
+          atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           status: "pending",
           waitlist_on_failure: waitlistIntentEffective,
           request_waitlist_without_slot_selection: true,
@@ -4688,7 +4729,7 @@ const BookEquipment = () => {
               status: "pending",
               input_values: inputFieldValues,
               ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
-          atmosphere_sensitive_sample: atmosphereSensitiveSample,
+          atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
               ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
               create_as_hold: true,
               waitlist_on_failure: waitlistIntentEffective,
@@ -4746,7 +4787,7 @@ const BookEquipment = () => {
           status: "pending",
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
-          atmosphere_sensitive_sample: atmosphereSensitiveSample,
+          atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           waitlist_on_failure: waitlistIntentEffective,
           book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
@@ -4930,7 +4971,7 @@ const BookEquipment = () => {
           status: "pending",
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
-          atmosphere_sensitive_sample: atmosphereSensitiveSample,
+          atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
@@ -7373,7 +7414,9 @@ const BookEquipment = () => {
                     <p className="text-sm text-muted-foreground mb-4">No additional information required for this equipment.</p>
                   )}
 
-                  {!repeatSourceBooking && !isCalculateChargesFlow && (
+                  {!repeatSourceBooking &&
+                    !isCalculateChargesFlow &&
+                    atmosphereSensitiveAllowed && (
                     <div className="mt-4 p-4 rounded-lg border bg-muted/20 space-y-2">
                       <div className="flex items-start gap-3">
                         <Checkbox
@@ -8746,7 +8789,7 @@ const BookEquipment = () => {
                         status: "pending",
                         input_values: pendingHoldSelection.inputValues as Record<string, string | boolean | string[]>,
                         create_as_hold: true,
-                        atmosphere_sensitive_sample: atmosphereSensitiveSample,
+                        atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
                         ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
                       });
                       if (res.error) {

@@ -92,6 +92,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   /** Admin/OIC grace deadline for auto Operator Absent jobs (does not change slots). */
   operator_absent_hold_until?: string | null;
   atmosphere_sensitive_sample?: boolean;
+  /** When false, atmosphere-sensitive option is not offered for this equipment. */
+  equipment_atmosphere_sensitive_sample_enabled?: boolean;
   lifecycle_countdown?: {
     enabled: boolean;
     phase?: "submit_sample" | "booking" | "collect_sample" | string;
@@ -1215,6 +1217,7 @@ export function BookingDetailCard({
     (e) => String(e.status || "").toUpperCase() === "SAMPLE_ACCEPTED"
   );
   const canEditAtmosphereSensitive =
+    booking.equipment_atmosphere_sensitive_sample_enabled === true &&
     !isWaitlistedEntry &&
     booking.status.toUpperCase() === "BOOKED" &&
     !traceHasSampleAccepted &&

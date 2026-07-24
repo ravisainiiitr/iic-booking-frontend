@@ -334,6 +334,8 @@ interface ApiResponse<T> {
   bookingPerf?: string;
   /** Machine-readable error code from JSON body (e.g. istem_fbr_not_executed). */
   errorCode?: string;
+  /** HTTP status when the request failed. */
+  status?: number;
   istem_portal_url?: string;
 }
 
@@ -831,7 +833,12 @@ class ApiClient {
         if (typeof data === 'object' && data !== null) {
           for (const [field, messages] of Object.entries(data)) {
             // Skip common error fields that are not field-specific, but include email_verified and admin_approved
-            if (field === 'detail' || (field === 'message' && !data.email_verified)) {
+            if (
+              field === 'detail' ||
+              field === 'code' ||
+              field === 'error' ||
+              (field === 'message' && !data.email_verified)
+            ) {
               continue;
             }
             
@@ -861,6 +868,7 @@ class ApiClient {
             // For email verification/pending approval errors, use the error or message field
             return {
               error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`,
+              status: response.status,
               fieldErrors: {
                 ...fieldErrors,
                 email_verified: String(errorData.email_verified ?? ''),
@@ -878,6 +886,8 @@ class ApiClient {
           
           return {
             error: firstErrorMessage,
+            status: response.status,
+            errorCode: typeof errorData.code === "string" ? errorData.code : undefined,
             fieldErrors: fieldErrors,
           };
         }
@@ -915,6 +925,7 @@ class ApiClient {
             flattenApiErrorMessage(maybeWaitlist.error) ||
             flattenApiErrorMessage(data) ||
             `HTTP error! status: ${response.status}`,
+          status: response.status,
           // Preserve waitlist info from backend error responses so UI can show WL number.
           waitlist_position: maybeWaitlist.waitlist_position,
           waitlist_code: maybeWaitlist.waitlist_code,
