@@ -46,9 +46,8 @@ const TicketManagement = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
-  const isTicketStaff =
-    String(user?.user_type ?? "").toLowerCase() === "admin" ||
-    ["manager", "operator", "finance"].includes(String(user?.user_type ?? "").toLowerCase());
+  const userTypeLower = String(user?.user_type ?? "").toLowerCase();
+  const isTicketStaff = userTypeLower === "admin" || userTypeLower === "dept_admin";
 
   const loadTickets = async () => {
     setLoading(true);

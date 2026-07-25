@@ -1831,7 +1831,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-primary/35" : ""}`}
+                        className={`hidden ${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-primary/35" : ""}`}
                       >
                         <ChevronDown
                           className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "sample_return" ? "rotate-180" : ""}`}
@@ -3856,7 +3856,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-primary/35" : ""}`}
+                        className={`hidden ${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-primary/35" : ""}`}
                       >
                         <ChevronDown
                           className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "sample_return" ? "rotate-180" : ""}`}

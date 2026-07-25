@@ -231,11 +231,12 @@ const EquipmentProfile = () => {
     return String(userType).toLowerCase() === 'admin';
   };
 
-  // Admin, OIC, Lab In-charge, Department Administrator: manage / book-for-user on this equipment
+  // Admin, OIC, Department Administrator: manage / book-for-user on this equipment.
+  // Lab In-charge (operator) uses Booking Management / Lab dashboard — not this CTA.
   const canManageEquipment = (): boolean => {
     if (!userType) return false;
     const t = String(userType).toLowerCase();
-    return t === 'admin' || t === 'manager' || t === 'operator' || t === 'dept_admin';
+    return t === 'admin' || t === 'manager' || t === 'dept_admin';
   };
 
   // Check if user type is allowed to book equipment

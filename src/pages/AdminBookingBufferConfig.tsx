@@ -103,7 +103,7 @@ export default function AdminBookingBufferConfig() {
             Booking Buffer Configuration
           </h1>
           <p className="text-muted-foreground mt-1">
-            Controls the daily "Booking Not Utilized" check and sample auto-archive after analysis.
+            Controls the daily "Booking Not Utilized" check and automatic sample disposal after analysis.
           </p>
         </div>
 
@@ -144,8 +144,10 @@ export default function AdminBookingBufferConfig() {
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <Label className="text-base">Enable sample auto-archive</Label>
-                  <p className="text-sm text-muted-foreground">When off, the daily auto-archive task is skipped.</p>
+                  <Label className="text-base">Enable sample auto-dispose</Label>
+                  <p className="text-sm text-muted-foreground">
+                    When on, samples are marked Disposed automatically after the retention period.
+                  </p>
                 </div>
                 <Switch checked={autoArchiveEnabled} onCheckedChange={setAutoArchiveEnabled} />
               </div>
@@ -160,8 +162,8 @@ export default function AdminBookingBufferConfig() {
                   className="w-40"
                 />
                 <p className="text-sm text-muted-foreground">
-                  After a sample is marked "Analyzed", wait this many days before auto-archiving it. Set to 0 to
-                  disable.
+                  After a sample is marked &quot;Analyzed&quot;, wait this many days before auto-marking it Disposed.
+                  Set to 0 to disable.
                 </p>
               </div>
               <div className="flex gap-3 pt-2">

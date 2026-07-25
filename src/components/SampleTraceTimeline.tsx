@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Package, FlaskConical, XCircle, Info, Handshake, Archive, Trash2, Ban } from "lucide-react";
+import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Package, FlaskConical, XCircle, Info, Trash2, Ban } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -21,8 +21,6 @@ const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
   { key: "held_or_forwarded", label: "Held at Office / Forwarded to Lab", statuses: ["HELD_AT_OFFICE", "FORWARDED_TO_LAB"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
   { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
-  { key: "returned", label: "Sample Returned", statuses: ["RETURNED"] },
-  { key: "archived", label: "Archived", statuses: ["ARCHIVED"] },
   { key: "disposed", label: "Disposed", statuses: ["DISPOSED"] },
 ];
 
@@ -31,8 +29,6 @@ const STEPS_INTERNAL: { key: string; label: string; statuses: string[] }[] = [
   { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
   { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
-  { key: "returned", label: "Sample Returned", statuses: ["RETURNED"] },
-  { key: "archived", label: "Archived", statuses: ["ARCHIVED"] },
   { key: "disposed", label: "Disposed", statuses: ["DISPOSED"] },
 ];
 
@@ -82,8 +78,6 @@ function computeFurthestIntermediateIndex(
 const STATUS_LABEL_OVERRIDES: Record<string, string> = {
   PROCESSING: "In Analysis",
   COMPLETED: "Analyzed",
-  RETURNED: "Sample Returned",
-  ARCHIVED: "Archived",
   DISPOSED: "Disposed",
   NOT_UTILIZED: "Booking Not Utilized",
   OP_UNAVAILABLE: "Operator Unavailable",
@@ -162,14 +156,6 @@ export default function SampleTraceTimeline({
     () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "DISPOSED"),
     [sampleTrace]
   );
-  const hasReturnedInTrace = useMemo(
-    () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "RETURNED"),
-    [sampleTrace]
-  );
-  const hasArchivedInTrace = useMemo(
-    () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "ARCHIVED"),
-    [sampleTrace]
-  );
 
   const steps = useMemo(() => {
     if (bookingRefunded) {
@@ -185,22 +171,10 @@ export default function SampleTraceTimeline({
       return [...baseLadder.slice(0, furthestIntermediateIndex + 1), NOT_UTILIZED_TERMINAL_STEP];
     }
 
-    const ladderNoReturned = baseLadder.filter((s) => s.key !== "returned");
-
     if (hasDisposedInTrace) {
-      const f = computeFurthestIntermediateIndex(sampleTrace, ladderNoReturned);
-      if (f < 0) return ladderNoReturned;
-      return ladderNoReturned.slice(0, f + 1);
-    }
-    if (hasReturnedInTrace) {
-      const ri = baseLadder.findIndex((s) => s.key === "returned");
-      if (ri < 0) return baseLadder;
-      return baseLadder.slice(0, ri + 1);
-    }
-    if (hasArchivedInTrace) {
-      const f = computeFurthestIntermediateIndex(sampleTrace, ladderNoReturned);
-      if (f < 0) return ladderNoReturned;
-      return ladderNoReturned.slice(0, f + 1);
+      const f = computeFurthestIntermediateIndex(sampleTrace, baseLadder);
+      if (f < 0) return baseLadder;
+      return baseLadder.slice(0, f + 1);
     }
 
     return baseLadder;
@@ -211,8 +185,6 @@ export default function SampleTraceTimeline({
     bookingNotUtilized,
     furthestIntermediateIndex,
     hasDisposedInTrace,
-    hasReturnedInTrace,
-    hasArchivedInTrace,
     sampleTrace,
   ]);
 
@@ -221,12 +193,12 @@ export default function SampleTraceTimeline({
     [sampleTrace, steps]
   );
 
-  /** Lifecycle visually closed at Returned or Disposed (no further steps shown). */
+  /** Lifecycle visually closed at Disposed (no further steps shown). */
   const postAnalyzedLifecycleClosed =
     !bookingRefunded &&
     !bookingOperatorUnavailable &&
     !bookingNotUtilized &&
-    ((hasReturnedInTrace && !hasDisposedInTrace) || hasDisposedInTrace);
+    hasDisposedInTrace;
 
   /** Booking closed for lifecycle: no sample-status actions (user or staff). */
   const lifecycleTerminal =
@@ -259,8 +231,6 @@ export default function SampleTraceTimeline({
   const heldOrForwardedStep = baseLadder.find((s) => s.key === "held_or_forwarded");
   const acceptedRejectedStep = baseLadder.find((s) => s.key === "accepted_rejected")!;
   const analyzedReadyStep = baseLadder.find((s) => s.key === "analyzed_ready")!;
-  const returnedStep = baseLadder.find((s) => s.key === "returned")!;
-  const archivedStep = baseLadder.find((s) => s.key === "archived")!;
   const disposedStep = baseLadder.find((s) => s.key === "disposed")!;
 
   const sampleSentEvent = getEventForStep(sampleTrace, sampleSentStep);
@@ -271,10 +241,6 @@ export default function SampleTraceTimeline({
   const acceptedOrRejectedDone = !!acceptedOrRejectedEvent;
   const analyzedReadyEvent = getEventForStep(sampleTrace, analyzedReadyStep);
   const analyzedReadyDone = !!analyzedReadyEvent || bookingComplete;
-  const returnedEvent = getEventForStep(sampleTrace, returnedStep);
-  const returnedDone = !!returnedEvent;
-  const archivedEvent = getEventForStep(sampleTrace, archivedStep);
-  const archivedDone = !!archivedEvent;
   const disposedEvent = getEventForStep(sampleTrace, disposedStep);
   const disposedDone = !!disposedEvent;
   const acceptedRejectedEvents = sampleTrace.filter((e) => e.status === "SAMPLE_ACCEPTED" || e.status === "SAMPLE_REJECTED");
@@ -382,10 +348,6 @@ export default function SampleTraceTimeline({
             step.key === "refunded" ||
             step.key === "operator_unavailable" ||
             step.key === "not_utilized" ||
-            (step.key === "returned" &&
-              hasReturnedInTrace &&
-              !hasDisposedInTrace &&
-              lastStepKey === "returned") ||
             (step.key === "disposed" && hasDisposedInTrace && lastStepKey === "disposed");
           const isAfterRejected =
             !bookingRefunded &&
@@ -421,7 +383,7 @@ export default function SampleTraceTimeline({
             step.key === "accepted_rejected" &&
             done &&
             !event &&
-            (sampleTrace.some((e) => ["PROCESSING", "COMPLETED", "RETURNED", "ARCHIVED", "DISPOSED"].includes(String(e.status).toUpperCase())) ||
+            (sampleTrace.some((e) => ["PROCESSING", "COMPLETED", "DISPOSED"].includes(String(e.status).toUpperCase())) ||
               bookingComplete ||
               (terminalBookingOutcome &&
                 acceptedRejectedIdxInBase >= 0 &&
@@ -791,14 +753,14 @@ export default function SampleTraceTimeline({
             </Button>
           </>
         )}
-        {/* Sample Accepted, Sample Rejected, Analyzed, Returned, Archived, Disposed: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
+        {/* Sample Accepted, Sample Rejected, Analyzed, Disposed: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
         {canSetStaffStatus && !bookingComplete && !lifecycleTerminal && !hideSampleStatusActions && (
           <>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setStatus("SAMPLE_ACCEPTED")}
-              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || analyzedReadyDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "SAMPLE_ACCEPTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsUp className="h-4 w-4 mr-2" />}
               Sample Accepted
@@ -807,7 +769,7 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setRejectDialogOpen(true)}
-              disabled={acceptedOrRejectedDone || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={acceptedOrRejectedDone || analyzedReadyDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "SAMPLE_REJECTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsDown className="h-4 w-4 mr-2" />}
               Sample Rejected
@@ -843,34 +805,17 @@ export default function SampleTraceTimeline({
               size="sm"
               variant="outline"
               onClick={() => setStatus("COMPLETED")}
-              disabled={!acceptedOrRejectedDone || isRejectedFlow || analyzedReadyDone || returnedDone || archivedDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
+              disabled={!acceptedOrRejectedDone || isRejectedFlow || analyzedReadyDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
             >
               {loading === "COMPLETED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
               Analyzed
             </Button>
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => setStatus("RETURNED")}
-              disabled={!analyzedReadyDone || returnedDone || archivedDone || disposedDone || !!loading}
-            >
-              {loading === "RETURNED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Handshake className="h-4 w-4 mr-2" />}
-              Sample Returned
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setStatus("ARCHIVED")}
-              disabled={!analyzedReadyDone || archivedDone || disposedDone || !!loading}
-            >
-              {loading === "ARCHIVED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
-              Archived
-            </Button>
-            <Button
-              size="sm"
               variant="destructive"
               onClick={() => setDisposeDialogOpen(true)}
-              disabled={!archivedDone || disposedDone || !!loading}
+              disabled={!analyzedReadyDone || disposedDone || !!loading}
+              title="Also runs automatically after the sample retention period"
             >
               {loading === "DISPOSED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
               Disposed
@@ -880,7 +825,8 @@ export default function SampleTraceTimeline({
                 <DialogHeader>
                   <DialogTitle>Mark as Disposed</DialogTitle>
                   <DialogDescription>
-                    This will mark the sample as disposed and send an email notification to the user.
+                    Optional early dispose. Otherwise Disposed is applied automatically after the configured sample
+                    retention period. Confirming will notify the user by email.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2">

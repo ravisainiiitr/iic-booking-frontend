@@ -578,7 +578,7 @@ export function BookingDetailCard({
   const [returnShipOther, setReturnShipOther] = useState("");
   const [returnShipTracking, setReturnShipTracking] = useState("");
   const [returnShipSaving, setReturnShipSaving] = useState(false);
-  const [postAnalyzedActionLoading, setPostAnalyzedActionLoading] = useState<null | "RETURNED" | "DISPOSED">(null);
+  const [postAnalyzedActionLoading, setPostAnalyzedActionLoading] = useState<null | "DISPOSED">(null);
 
   const navigate = useNavigate();
 
@@ -624,23 +624,6 @@ export function BookingDetailCard({
       onUpdated();
     } finally {
       setAtmosphereSaving(false);
-    }
-  };
-
-  const handleSampleReturnedAction = async () => {
-    if (bookingPk == null) return;
-    setPostAnalyzedActionLoading("RETURNED");
-    try {
-      const res = await apiClient.setBookingSampleStatus(bookingPk, "RETURNED");
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("Sample marked as returned.");
-      await refreshBookingDetail();
-      onUpdated();
-    } finally {
-      setPostAnalyzedActionLoading(null);
     }
   };
 
@@ -1231,14 +1214,15 @@ export function BookingDetailCard({
     bookingPk != null &&
     (isOperatorOrManager || (currentUserId != null && booking.user === currentUserId));
   const traceHasAnalyzed = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "COMPLETED");
-  const traceHasReturned = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "RETURNED");
-  const traceHasArchived = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "ARCHIVED");
   const traceHasDisposed = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "DISPOSED");
-  const returnShippingAccountsLocked = traceHasReturned;
+  const returnShippingAccountsLocked = sampleTraceList.some(
+    (e) => String(e.status || "").toUpperCase() === "RETURNED"
+  );
+  const traceHasReturned = returnShippingAccountsLocked;
 
   /** Match Sample Lifecycle: Analyzed shows Done when trace has COMPLETED or booking is Completed. */
   const analyzedDoneForStaffActions = traceHasAnalyzed || isCompleted;
-  /** Staff can record return / dispose while booking is still Booked (trace ahead of formal Complete) or Completed. */
+  /** Staff can record dispose while booking is still Booked (trace ahead of formal Complete) or Completed. */
   const bookingAllowsPostAnalyzedLifecycleActions =
     (booking.status.toUpperCase() === "BOOKED" || isCompleted) &&
     !isHold &&
@@ -1246,21 +1230,11 @@ export function BookingDetailCard({
     !isOperatorUnavailable &&
     !isBookingNotUtilized;
 
-  /** After Analyzed: physical return path only (not archive/dispose track). */
-  const showSampleReturnedAction =
-    isOperatorOrManager &&
-    bookingAllowsPostAnalyzedLifecycleActions &&
-    analyzedDoneForStaffActions &&
-    !traceHasReturned &&
-    !traceHasArchived &&
-    !traceHasDisposed;
-
-  /** After Archived (e.g. retention) without a prior return — dispose only. */
+  /** After Analyzed: dispose (also auto-runs after retention). Sample Returned / Archived removed. */
   const showSampleDisposedAction =
     isOperatorOrManager &&
     bookingAllowsPostAnalyzedLifecycleActions &&
-    traceHasArchived &&
-    !traceHasReturned &&
+    analyzedDoneForStaffActions &&
     !traceHasDisposed;
 
   const hasDownloadableResults = !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0);
@@ -2251,21 +2225,6 @@ export function BookingDetailCard({
                   <BadgeCheck className="h-4 w-4" />
                   Repeat sample used
                 </span>
-              )}
-              {showSampleReturnedAction && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={postAnalyzedActionLoading !== null}
-                  onClick={handleSampleReturnedAction}
-                >
-                  {postAnalyzedActionLoading === "RETURNED" ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Handshake className="h-4 w-4 mr-2" />
-                  )}
-                  Sample Returned
-                </Button>
               )}
               {showSampleDisposedAction && (
                 <Button
