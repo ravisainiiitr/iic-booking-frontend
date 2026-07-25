@@ -23,23 +23,36 @@ export const DEFAULT_LAB_BOOKING_COLORS: Record<LabBookingColorKey, string> = {
 };
 
 type Props = {
+  /** Required: colours are personal and scoped to this equipment only. */
+  equipmentId: number | null;
+  equipmentLabel?: string;
   /** Called after a successful save so the week calendar can reload colours. */
-  onSaved?: (slotColors: Record<string, string>) => void;
+  onSaved?: (equipmentId: number, slotColors: Record<string, string>) => void;
   /** Optional: sync legend when colours change locally before save. */
   onColorsChange?: (slotColors: Record<string, string>) => void;
 };
 
-export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
+export function LabCalendarColorConfig({
+  equipmentId,
+  equipmentLabel,
+  onSaved,
+  onColorsChange,
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [colors, setColors] = useState<Record<string, string>>({ ...DEFAULT_LAB_BOOKING_COLORS });
 
   useEffect(() => {
     let cancelled = false;
+    if (equipmentId == null) {
+      setLoading(false);
+      setColors({ ...DEFAULT_LAB_BOOKING_COLORS });
+      return;
+    }
     (async () => {
       setLoading(true);
       try {
-        const res = await apiClient.getLabDashboardCalendarColors();
+        const res = await apiClient.getLabDashboardCalendarColors(equipmentId);
         if (cancelled) return;
         const next = {
           ...DEFAULT_LAB_BOOKING_COLORS,
@@ -57,8 +70,8 @@ export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when equipment changes
+  }, [equipmentId]);
 
   const setColor = (key: string, value: string) => {
     setColors((prev) => {
@@ -69,6 +82,10 @@ export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
   };
 
   const handleSave = async () => {
+    if (equipmentId == null) {
+      toast.error("Select an instrument to save colours for that equipment.");
+      return;
+    }
     setSaving(true);
     try {
       const slot_colors: Record<string, string> = {};
@@ -76,15 +93,18 @@ export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
         const v = colors[key]?.trim();
         if (v && v.startsWith("#")) slot_colors[key] = v;
       }
-      const res = await apiClient.updateLabDashboardCalendarColors({ slot_colors });
+      const res = await apiClient.updateLabDashboardCalendarColors({
+        equipment_id: equipmentId,
+        slot_colors,
+      });
       const saved = {
         ...DEFAULT_LAB_BOOKING_COLORS,
         ...(res.data?.slot_colors || slot_colors),
       };
       setColors(saved);
       onColorsChange?.(saved);
-      onSaved?.(saved);
-      toast.success("Calendar colours saved");
+      onSaved?.(equipmentId, saved);
+      toast.success("Colours saved for your view of this equipment only");
     } catch (e) {
       console.error("Failed to save lab calendar colours:", e);
       toast.error("Failed to save calendar colours");
@@ -92,6 +112,23 @@ export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
       setSaving(false);
     }
   };
+
+  if (equipmentId == null) {
+    return (
+      <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-3 sm:p-4">
+        <div className="flex items-start gap-2 min-w-0">
+          <Palette className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Calendar colours</p>
+            <p className="text-xs text-muted-foreground">
+              Select a single instrument above to customize colours for your view of that equipment. Other users
+              (students, faculty, external) keep the main administrator colours.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -110,7 +147,9 @@ export function LabCalendarColorConfig({ onSaved, onColorsChange }: Props) {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Calendar colours</p>
             <p className="text-xs text-muted-foreground">
-              Set colours for Internal, External, Available, and Completed tiles on this dashboard.
+              Personal view for{" "}
+              <span className="font-medium text-foreground">{equipmentLabel || `equipment #${equipmentId}`}</span>
+              . Does not change colours for other users.
             </p>
           </div>
         </div>

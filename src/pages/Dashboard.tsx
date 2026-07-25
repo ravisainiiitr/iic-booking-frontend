@@ -848,21 +848,50 @@ const Dashboard = () => {
     }
     let cancelled = false;
     setLabSlotsLoading(true);
-    Promise.all(
-      summaries.map((eq) =>
-        apiClient.getEquipmentSlots(eq.equipment_id, labOperatorDash.week_start, labOperatorDash.week_end, {
-          applyWeeklyViewTimeFilter: true,
-        })
-      )
-    )
-      .then((results) => {
+    Promise.all([
+      Promise.all(
+        summaries.map((eq) =>
+          apiClient.getEquipmentSlots(eq.equipment_id, labOperatorDash.week_start, labOperatorDash.week_end, {
+            applyWeeklyViewTimeFilter: true,
+          })
+        )
+      ),
+      apiClient.getLabDashboardCalendarColors(),
+    ])
+      .then(([results, prefsRes]) => {
         if (cancelled) return;
+        const byEquipment = prefsRes.data?.by_equipment || {};
         const next: Record<number, LabWeekCalendarSlotsPayload> = {};
         summaries.forEach((eq, i) => {
           const res = results[i];
-          if (res.data) next[eq.equipment_id] = res.data as LabWeekCalendarSlotsPayload;
+          if (!res.data) return;
+          const payload = res.data as LabWeekCalendarSlotsPayload;
+          const overrides = byEquipment[String(eq.equipment_id)];
+          if (overrides && Object.keys(overrides).length > 0) {
+            next[eq.equipment_id] = {
+              ...payload,
+              calendar_colors: {
+                ...(payload.calendar_colors || {}),
+                slot_colors: {
+                  ...(payload.calendar_colors?.slot_colors || {}),
+                  ...overrides,
+                },
+                holiday_default: payload.calendar_colors?.holiday_default || "#e9d5ff",
+                saturday_color: payload.calendar_colors?.saturday_color,
+                sunday_color: payload.calendar_colors?.sunday_color,
+              },
+            };
+          } else {
+            next[eq.equipment_id] = payload;
+          }
         });
         setLabSlotByEquipment(next);
+        if (typeof labDashEquipmentFilter === "number") {
+          const overrides = byEquipment[String(labDashEquipmentFilter)];
+          if (overrides) {
+            setLabBookingLegendColors((prev) => ({ ...prev, ...overrides }));
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) setLabSlotByEquipment({});
@@ -883,16 +912,14 @@ const Dashboard = () => {
     labDashEquipmentFilter,
   ]);
 
-  const applyLabBookingColors = useCallback((slotColors: Record<string, string>) => {
+  const applyLabBookingColors = useCallback((equipmentId: number, slotColors: Record<string, string>) => {
     setLabBookingLegendColors((prev) => ({ ...prev, ...slotColors }));
     setLabSlotByEquipment((prev) => {
-      const next: Record<number, LabWeekCalendarSlotsPayload> = {};
-      for (const [idStr, payload] of Object.entries(prev)) {
-        const id = Number(idStr);
-        if (!payload) {
-          continue;
-        }
-        next[id] = {
+      const payload = prev[equipmentId];
+      if (!payload) return prev;
+      return {
+        ...prev,
+        [equipmentId]: {
           ...payload,
           calendar_colors: {
             ...(payload.calendar_colors || {}),
@@ -904,12 +931,25 @@ const Dashboard = () => {
             saturday_color: payload.calendar_colors?.saturday_color,
             sunday_color: payload.calendar_colors?.sunday_color,
           },
-        };
-      }
-      return next;
+        },
+      };
     });
-    setLabSlotsRefresh((x) => x + 1);
   }, []);
+
+  const labColorConfigEquipmentId = useMemo(() => {
+    if (typeof labDashEquipmentFilter === "number") return labDashEquipmentFilter;
+    if (labEquipmentSummariesForScope.length === 1) return labEquipmentSummariesForScope[0].equipment_id;
+    return null;
+  }, [labDashEquipmentFilter, labEquipmentSummariesForScope]);
+
+  const labColorConfigEquipmentLabel = useMemo(() => {
+    if (labColorConfigEquipmentId == null) return undefined;
+    const eq =
+      labEquipmentSummariesForScope.find((e) => e.equipment_id === labColorConfigEquipmentId) ||
+      (labOperatorDash?.equipment_summaries ?? []).find((e) => e.equipment_id === labColorConfigEquipmentId);
+    if (!eq) return undefined;
+    return eq.equipment_code ? `${eq.equipment_code} · ${eq.equipment_name}` : eq.equipment_name;
+  }, [labColorConfigEquipmentId, labEquipmentSummariesForScope, labOperatorDash?.equipment_summaries]);
 
   useEffect(() => {
     if (!showsLabStyleDashboard || labDashSelectedBookingId == null) {
@@ -3649,6 +3689,8 @@ const Dashboard = () => {
                             </span>
                           </div>
                           <LabCalendarColorConfig
+                            equipmentId={labColorConfigEquipmentId}
+                            equipmentLabel={labColorConfigEquipmentLabel}
                             onColorsChange={(c) => setLabBookingLegendColors((prev) => ({ ...prev, ...c }))}
                             onSaved={applyLabBookingColors}
                           />

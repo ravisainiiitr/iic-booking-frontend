@@ -4431,20 +4431,32 @@ class ApiClient {
     }>(`/bookings/lab-operator-dashboard/${q}`);
   }
 
-  /** Lab In-charge / OIC: get Internal, External, Available, Completed calendar colours. */
-  async getLabDashboardCalendarColors() {
+  /** Lab In-charge / OIC: personal calendar colours (optional equipment scope). */
+  async getLabDashboardCalendarColors(equipmentId?: number) {
+    const q =
+      equipmentId != null && Number.isFinite(equipmentId)
+        ? `?equipment_id=${encodeURIComponent(String(equipmentId))}`
+        : "";
     return this.request<{
-      slot_colors: Record<string, string>;
-    }>('/bookings/lab-dashboard-calendar-colors/', { method: 'GET' });
+      equipment_id?: number;
+      slot_colors?: Record<string, string>;
+      has_overrides?: boolean;
+      defaults?: Record<string, string>;
+      by_equipment?: Record<string, Record<string, string>>;
+    }>(`/bookings/lab-dashboard-calendar-colors/${q}`, { method: "GET" });
   }
 
-  /** Lab In-charge / OIC: update Internal, External, Available, Completed calendar colours. */
-  async updateLabDashboardCalendarColors(payload: { slot_colors: Record<string, string> }) {
+  /** Lab In-charge / OIC: save personal colours for one equipment (does not change admin colours). */
+  async updateLabDashboardCalendarColors(payload: {
+    equipment_id: number;
+    slot_colors: Record<string, string>;
+  }) {
     return this.request<{
+      equipment_id: number;
       slot_colors: Record<string, string>;
       updated?: string[];
-    }>('/bookings/lab-dashboard-calendar-colors/', {
-      method: 'PATCH',
+    }>("/bookings/lab-dashboard-calendar-colors/", {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   }
