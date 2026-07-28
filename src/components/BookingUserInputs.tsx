@@ -59,7 +59,7 @@ interface BookingUserInputsProps {
   disabled?: boolean;
   /** Legacy flag; editing is still restricted by editable fields. */
   enableChargeRecalculation?: boolean;
-  /** Sample/slot trace events (ordered by created_at). Editing is disabled when latest status is PROCESSING or COMPLETED. */
+  /** Sample/slot trace events (ordered by created_at). Editing is disabled when latest status is COMPLETED. */
   sampleTrace?: Array<{ status: string }>;
   /** When true, editing is not restricted to BOOKED + not processed (admin/operator can edit in other cases). */
   isAdminUser?: boolean;
@@ -171,14 +171,15 @@ export function BookingUserInputs({
   const latestSampleStatus = sampleTrace?.length
     ? String(sampleTrace[sampleTrace.length - 1]?.status ?? "").toUpperCase()
     : "";
-  const sampleSlotBlocksEdit = latestSampleStatus === "PROCESSING" || latestSampleStatus === "COMPLETED";
-  // Internal/external: only when BOOKED and not processed. Admin: no status/processed restriction.
+  const sampleSlotBlocksEdit = latestSampleStatus === "COMPLETED";
+  // Internal/external: only when BOOKED and not analyzed. Staff: still blocked after booking completion/analyzed.
   const canEdit =
     !!onUpdate &&
     !disabled &&
     !noUserInputEdits &&
     !isCompleted &&
-    (isAdminUser || (isBooked && !sampleSlotBlocksEdit));
+    !sampleSlotBlocksEdit &&
+    (isAdminUser || isBooked);
   void enableChargeRecalculation; // kept for backward compatibility, but does not override editable field restrictions.
 
   const fields =

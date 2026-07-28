@@ -414,8 +414,11 @@ export function LabOperatorWeekCalendarGrid({
                   let displayStatus: ReactNode = holidayName || "—";
                   const considerBooked = hasBookedStatus;
 
+                  const bookingCompleted = bookingStatusText.toUpperCase() === "COMPLETED";
                   if (slotExists) {
-                    if (considerBooked && slotStatusUpper === "BOOKED" && (displayRef || userName)) {
+                    if (bookingCompleted) {
+                      displayStatus = "Completed";
+                    } else if (considerBooked && slotStatusUpper === "BOOKED" && (displayRef || userName)) {
                       displayStatus = (
                         <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
                           {displayRef ? (

@@ -4119,6 +4119,45 @@ class ApiClient {
     return { data: list[0] };
   }
 
+  /** Booking ↔ Remote Analysis integration */
+  async getBookingAnalysis(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/`, { method: 'GET' });
+  }
+
+  async createBookingAnalysisReservation(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/create/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async launchBookingAnalysisDesktop(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/launch/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getBookingAnalysisFiles(bookingId: number) {
+    return this.request<Array<Record<string, unknown>>>(`/v1/bookings/${bookingId}/analysis/files/`, {
+      method: 'GET',
+    });
+  }
+
+  async archiveBookingAnalysisWorkspace(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/archive/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getBookingAnalysisDashboard(scope: 'user' | 'faculty' | 'lab' = 'user') {
+    return this.request<Record<string, unknown>>(
+      `/v1/bookings/analysis/dashboard/?scope=${encodeURIComponent(scope)}`,
+      { method: 'GET' },
+    );
+  }
+
   /** BOOKED bookings whose sample submission deadline is within the 12h advance window. */
   async getApproachingSampleSubmissionDeadlines() {
     return this.request<{
@@ -7921,6 +7960,421 @@ class ApiClient {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
     return { data: data as { url: string } };
+  }
+
+  // --- Remote Analysis (Milestone 2) ---
+  async getRemoteAnalysisDashboard() {
+    return this.request<Record<string, unknown>>('/v1/analysis/dashboard/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisWorkstations(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/workstations/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisWorkstation(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workstations/${id}/`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisSoftware(workstationId?: string) {
+    const qs = workstationId ? `?workstation=${encodeURIComponent(workstationId)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/software/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisCommands(workstationId?: string) {
+    const qs = workstationId ? `?workstation=${encodeURIComponent(workstationId)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/commands/history/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisEvents(workstationId?: string) {
+    const qs = workstationId ? `?workstation=${encodeURIComponent(workstationId)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/events/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisHeartbeats(workstationId: string) {
+    return this.request<unknown[]>(
+      `/v1/analysis/heartbeats/?workstation=${encodeURIComponent(workstationId)}`,
+      { method: 'GET' }
+    );
+  }
+
+  async postRemoteAnalysisWorkstationAction(
+    id: string,
+    action: 'enable' | 'disable' | 'maintenance',
+    body?: Record<string, unknown>
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workstations/${id}/${action}/`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  async createRemoteAnalysisCommand(id: string, commandType: string, payload?: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workstations/${id}/commands/`, {
+      method: 'POST',
+      body: JSON.stringify({ command_type: commandType, payload: payload || {} }),
+    });
+  }
+
+  // --- Remote Analysis Scheduler (Milestone 3) ---
+  async getRemoteAnalysisSchedulerDashboard() {
+    return this.request<Record<string, unknown>>('/v1/analysis/scheduler/dashboard/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisSchedulerStatus() {
+    return this.request<Record<string, unknown>>('/v1/analysis/scheduler/status/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisReservations(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/reservations/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisQueue() {
+    return this.request<unknown[]>('/v1/analysis/queue/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisAvailability(start?: string, end?: string) {
+    const params = new URLSearchParams();
+    if (start) params.set('start', start);
+    if (end) params.set('end', end);
+    const qs = params.toString() ? `?${params}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/availability/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisCandidates(start?: string, end?: string) {
+    const params = new URLSearchParams();
+    if (start) params.set('start', start);
+    if (end) params.set('end', end);
+    const qs = params.toString() ? `?${params}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/candidates/${qs}`, { method: 'GET' });
+  }
+
+  async createRemoteAnalysisReservation(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/reservations/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async cancelRemoteAnalysisReservation(id: string, reason?: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/reservations/${id}/cancel/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || 'Cancelled from portal' }),
+    });
+  }
+
+  async extendRemoteAnalysisReservation(id: string, newEnd: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/reservations/${id}/extend/`, {
+      method: 'POST',
+      body: JSON.stringify({ new_end: newEnd }),
+    });
+  }
+
+  // --- Remote Analysis Browser Sessions (Milestone 4) ---
+  async getRemoteAnalysisSessionDashboard() {
+    return this.request<Record<string, unknown>>('/v1/analysis/session/dashboard/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisSessions(status?: string, mine?: boolean) {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (mine) params.set('mine', 'true');
+    const qs = params.toString() ? `?${params}` : '';
+    return this.request<unknown[]>(`/v1/analysis/sessions/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisSessionHistory() {
+    return this.request<unknown[]>('/v1/analysis/session/history/', { method: 'GET' });
+  }
+
+  async createRemoteAnalysisSession(reservationId: string) {
+    return this.request<Record<string, unknown>>('/v1/analysis/session/create/', {
+      method: 'POST',
+      body: JSON.stringify({ reservation_id: reservationId }),
+    });
+  }
+
+  async launchRemoteAnalysisSession(sessionId: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/session/${sessionId}/launch/`, {
+      method: 'GET',
+    });
+  }
+
+  async getRemoteAnalysisSessionStatus(sessionId: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/session/${sessionId}/status/`, {
+      method: 'GET',
+    });
+  }
+
+  async terminateRemoteAnalysisSession(sessionId: string, reason?: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/session/${sessionId}/terminate/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || 'Terminated from portal' }),
+    });
+  }
+
+  async connectRemoteAnalysisSession(sessionId: string, token: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/analysis/session/${sessionId}/connect/?t=${encodeURIComponent(token)}`,
+      { method: 'GET' }
+    );
+  }
+
+  // --- Remote Analysis Workspace (Milestone 5) ---
+  async getRemoteAnalysisWorkspaceDashboard() {
+    return this.request<Record<string, unknown>>('/v1/analysis/workspaces/dashboard/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisWorkspaces(status?: string, archived?: boolean) {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (archived) params.set('archived', '1');
+    const qs = params.toString() ? `?${params}` : '';
+    return this.request<unknown[]>(`/v1/analysis/workspaces/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisWorkspace(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workspaces/${id}/`, { method: 'GET' });
+  }
+
+  async createRemoteAnalysisWorkspace(reservationId: string) {
+    return this.request<Record<string, unknown>>('/v1/analysis/workspaces/', {
+      method: 'POST',
+      body: JSON.stringify({ reservation_id: reservationId }),
+    });
+  }
+
+  async getRemoteAnalysisWorkspaceFiles(id: string, folder?: string) {
+    const qs = folder ? `?folder=${encodeURIComponent(folder)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/workspaces/${id}/files/${qs}`, { method: 'GET' });
+  }
+
+  async uploadRemoteAnalysisWorkspaceFile(id: string, file: File, folder = 'RawData') {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('folder', folder);
+    return this.request<Record<string, unknown>>(`/v1/analysis/workspaces/${id}/upload/`, {
+      method: 'POST',
+      body: form,
+    });
+  }
+
+  async downloadRemoteAnalysisWorkspaceFile(id: string, fileId: string) {
+    const url = `${this.baseURL}/v1/analysis/workspaces/${id}/download/?file_id=${encodeURIComponent(fileId)}`;
+    const headers: HeadersInit = {};
+    if (this.token) headers['Authorization'] = `Token ${this.token}`;
+    const response = await fetch(url, { method: 'GET', headers });
+    if (!response.ok) return { error: `Download failed (${response.status})`, status: response.status };
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = /filename="?([^"]+)"?/i.exec(disposition);
+    return { data: { blob, filename: match?.[1] || 'download.bin' }, status: response.status };
+  }
+
+  async downloadRemoteAnalysisWorkspaceZip(id: string) {
+    const url = `${this.baseURL}/v1/analysis/workspaces/${id}/download/?zip=1`;
+    const headers: HeadersInit = {};
+    if (this.token) headers['Authorization'] = `Token ${this.token}`;
+    const response = await fetch(url, { method: 'GET', headers });
+    if (!response.ok) return { error: `Download failed (${response.status})`, status: response.status };
+    const blob = await response.blob();
+    return { data: { blob, filename: `workspace-${id}.zip` }, status: response.status };
+  }
+
+  async archiveRemoteAnalysisWorkspace(id: string, note?: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workspaces/${id}/archive/`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || '' }),
+    });
+  }
+
+  async restoreRemoteAnalysisWorkspace(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workspaces/${id}/restore/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async syncRemoteAnalysisWorkspace(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workspaces/${id}/sync/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getRemoteAnalysisWorkspaceFileVersions(workspaceId: string, fileId: string) {
+    return this.request<unknown[]>(
+      `/v1/analysis/workspaces/${workspaceId}/files/${fileId}/versions/`,
+      { method: 'GET' }
+    );
+  }
+
+  // --- Remote Analysis Operations Center (Milestone 6) ---
+  async getRemoteAnalysisOperationsDashboard(refresh?: boolean) {
+    const qs = refresh ? '?refresh=1' : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/operations/dashboard/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisAnalytics(period?: string) {
+    const qs = period ? `?period=${encodeURIComponent(period)}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/analytics/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisUtilization(period?: string) {
+    const qs = period ? `?period=${encodeURIComponent(period)}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/utilization/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisPerformance(period?: string) {
+    const qs = period ? `?period=${encodeURIComponent(period)}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/performance/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisCapacity(period?: string) {
+    const qs = period ? `?period=${encodeURIComponent(period)}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/capacity/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisAlerts(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<unknown[]>(`/v1/analysis/alerts/${qs}`, { method: 'GET' });
+  }
+
+  async acknowledgeRemoteAnalysisAlert(id: string, resolve?: boolean) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/alerts/${id}/acknowledge/`, {
+      method: 'POST',
+      body: JSON.stringify({ resolve: !!resolve }),
+    });
+  }
+
+  async getRemoteAnalysisReports() {
+    return this.request<unknown[]>('/v1/analysis/reports/', { method: 'GET' });
+  }
+
+  async generateRemoteAnalysisReport(reportType: string, format = 'JSON') {
+    return this.request<Record<string, unknown>>('/v1/analysis/reports/generate/', {
+      method: 'POST',
+      body: JSON.stringify({ report_type: reportType, format }),
+    });
+  }
+
+  // Milestone 7 — Collaboration Center
+  async getRemoteAnalysisCollaborationDashboard() {
+    return this.request<Record<string, unknown>>('/v1/analysis/collaboration/dashboard/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisActivity(verb?: string) {
+    const qs = verb ? `?verb=${encodeURIComponent(verb)}` : '';
+    return this.request<Array<Record<string, unknown>>>(`/v1/analysis/activity/${qs}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisNotifications(unreadOnly?: boolean) {
+    const qs = unreadOnly ? '?unread=1' : '';
+    return this.request<Array<Record<string, unknown>>>(`/v1/analysis/notifications/${qs}`, { method: 'GET' });
+  }
+
+  async markRemoteAnalysisNotificationsRead(ids?: string[], all = false) {
+    return this.request<{ marked: number }>('/v1/analysis/notifications/read/', {
+      method: 'POST',
+      body: JSON.stringify({ ids: ids || [], all }),
+    });
+  }
+
+  async getRemoteAnalysisComments(params: { session_id?: string; workspace_id?: string }) {
+    const q = new URLSearchParams();
+    if (params.session_id) q.set('session_id', params.session_id);
+    if (params.workspace_id) q.set('workspace_id', params.workspace_id);
+    return this.request<Array<Record<string, unknown>>>(`/v1/analysis/comments/?${q.toString()}`, { method: 'GET' });
+  }
+
+  async postRemoteAnalysisComment(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/comments/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getRemoteAnalysisNotes(params?: { session_id?: string; workspace_id?: string }) {
+    const q = new URLSearchParams();
+    if (params?.session_id) q.set('session_id', params.session_id);
+    if (params?.workspace_id) q.set('workspace_id', params.workspace_id);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<Array<Record<string, unknown>>>(`/v1/analysis/notes/${qs}`, { method: 'GET' });
+  }
+
+  async postRemoteAnalysisNote(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/notes/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getRemoteAnalysisShares() {
+    return this.request<Array<Record<string, unknown>>>('/v1/analysis/share/', { method: 'GET' });
+  }
+
+  async postRemoteAnalysisShare(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/share/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getRemoteAnalysisInvites() {
+    return this.request<Array<Record<string, unknown>>>('/v1/analysis/invite/', { method: 'GET' });
+  }
+
+  async postRemoteAnalysisInvite(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/invite/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getRemoteAnalysisAssistance(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<Array<Record<string, unknown>>>(`/v1/analysis/assistance/${qs}`, { method: 'GET' });
+  }
+
+  async postRemoteAnalysisAssistance(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/assistance/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getRemoteAnalysisTimeline(params: { session_id?: string; reservation_id?: string }) {
+    const q = new URLSearchParams();
+    if (params.session_id) q.set('session_id', params.session_id);
+    if (params.reservation_id) q.set('reservation_id', params.reservation_id);
+    return this.request<Record<string, unknown>>(`/v1/analysis/timeline/?${q.toString()}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisAnnouncements() {
+    return this.request<Array<Record<string, unknown>>>('/v1/analysis/announcements/', { method: 'GET' });
+  }
+
+  async getRemoteAnalysisBookmarks() {
+    return this.request<Array<Record<string, unknown>>>('/v1/analysis/bookmarks/', { method: 'GET' });
+  }
+
+  async postRemoteAnalysisBookmark(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/bookmarks/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getRemoteAnalysisFavorites() {
+    return this.request<Array<Record<string, unknown>>>('/v1/analysis/favorites/', { method: 'GET' });
+  }
+
+  async postRemoteAnalysisFavorite(workstationId: string) {
+    return this.request<Record<string, unknown>>('/v1/analysis/favorites/', {
+      method: 'POST',
+      body: JSON.stringify({ workstation_id: workstationId }),
+    });
   }
 }
 

@@ -9,7 +9,7 @@ import {
 } from "@/lib/equipmentAccess";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, LifeBuoy, MapPin, Info, Calendar, Wrench, Users, UserCog, FileText, IndianRupee } from "lucide-react";
+import { ChevronLeft, ChevronRight, LifeBuoy, MapPin, Info, Calendar, Wrench, Users, UserCog, FileText, IndianRupee, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
@@ -43,6 +43,7 @@ interface EquipmentProfile {
   status: string;
   status_display: string;
   location: string;
+  google_maps_url?: string | null;
   internal_department_name?: string | null;
   internal_department_code?: string | null;
   important_instruction?: string | null;
@@ -229,6 +230,11 @@ const EquipmentProfile = () => {
   const isAdminUser = (): boolean => {
     if (!userType) return false;
     return String(userType).toLowerCase() === 'admin';
+  };
+
+  const isLabInchargeUser = (): boolean => {
+    if (!userType) return false;
+    return String(userType).toLowerCase() === "operator";
   };
 
   // Admin, OIC, Department Administrator: manage / book-for-user on this equipment.
@@ -567,9 +573,23 @@ const EquipmentProfile = () => {
                 {equipment.location ? (
                   <div className="flex items-start gap-2.5 rounded-xl bg-muted/50 border px-3.5 py-2.5">
                     <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
-                    <span className="text-base font-medium whitespace-pre-line leading-snug">
-                      {equipment.location}
-                    </span>
+                    <div className="min-w-0">
+                      {equipment.google_maps_url ? (
+                        <a
+                          href={equipment.google_maps_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-start gap-2 text-base font-medium leading-snug text-foreground hover:text-primary"
+                        >
+                          <span className="whitespace-pre-line">{equipment.location}</span>
+                          <ExternalLink className="mt-0.5 h-4 w-4 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-base font-medium whitespace-pre-line leading-snug">
+                          {equipment.location}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ) : null}
                 <div className="relative aspect-video rounded-xl overflow-hidden bg-muted ring-1 ring-border/50">
@@ -803,14 +823,16 @@ const EquipmentProfile = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
-                    <Button
-                      className="w-full bg-primary hover:bg-primary/90"
-                      size="lg"
-                      disabled={!canManageEquipment() && !isEquipmentOperational()}
-                      onClick={handleBookOrManageClick}
-                    >
-                      {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
-                    </Button>
+                    {!isLabInchargeUser() && (
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90"
+                        size="lg"
+                        disabled={!canManageEquipment() && !isEquipmentOperational()}
+                        onClick={handleBookOrManageClick}
+                      >
+                        {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       className="w-full"
@@ -820,7 +842,7 @@ const EquipmentProfile = () => {
                       <IndianRupee className="h-4 w-4 mr-1.5" />
                       View and Calculate Charges
                     </Button>
-                    {!canManageEquipment() && !isEquipmentOperational() && (
+                    {!isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
                       <p className="text-sm text-amber-600 font-medium">
                         Booking is disabled while equipment is {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
                       </p>

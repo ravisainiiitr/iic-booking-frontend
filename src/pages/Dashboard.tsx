@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -1622,7 +1622,7 @@ const Dashboard = () => {
                 </div>
               ) : labOperatorDash ? (
                 <>
-                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="hidden">
                     <div className="min-w-0 flex-1 space-y-2">
                       <Label
                         htmlFor="lab-dash-period"
@@ -1706,13 +1706,13 @@ const Dashboard = () => {
                         />
                         <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-primary-foreground0/[0.12] transition-opacity group-hover:text-primary-foreground0/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
-                          Overall Booking Pending
+                          Internal Pending Bookings
                         </p>
                         <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
-                          {labOperatorDash.overall_booking_booked_total}/{labOperatorDash.overall_booking_total}
+                          {labOperatorDash.overall_booking_booked_total - labOperatorDash.external_booking_booked_total}/{labOperatorDash.overall_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Booked / total
+                          Pending Bookings / Total
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button
@@ -1766,7 +1766,7 @@ const Dashboard = () => {
                           {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Booked / total
+                          Pending Bookings / Total
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button
@@ -1808,6 +1808,138 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </section>
+
+                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label
+                        htmlFor="lab-dash-period"
+                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Booking overview and follow-up range
+                      </Label>
+                      <Select
+                        value={labDashPeriod}
+                        onValueChange={(v) => {
+                          const p = v as LabDashPeriod;
+                          setLabDashPeriod(p);
+                          if (p === "custom") {
+                            const d = format(new Date(), "yyyy-MM-dd");
+                            setLabDashCustomFrom((f) => f || d);
+                            setLabDashCustomTo((t) => t || d);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
+                          <SelectValue placeholder="Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
+                          <SelectItem value="month">Monthly</SelectItem>
+                          <SelectItem value="year">Yearly</SelectItem>
+                          <SelectItem value="custom">Custom dates</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {labDashPeriod === "custom" && (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-from" className="text-xs">
+                            From
+                          </Label>
+                          <Input
+                            id="lab-dash-from"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomFrom}
+                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-to" className="text-xs">
+                            To
+                          </Label>
+                          <Input
+                            id="lab-dash-to"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomTo}
+                            onChange={(e) => setLabDashCustomTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
+                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
+                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
+                    </p>
+                  </div>
+
+                  <div className="hidden">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label
+                        htmlFor="lab-dash-period"
+                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Booking overview and follow-up range
+                      </Label>
+                      <Select
+                        value={labDashPeriod}
+                        onValueChange={(v) => {
+                          const p = v as LabDashPeriod;
+                          setLabDashPeriod(p);
+                          if (p === "custom") {
+                            const d = format(new Date(), "yyyy-MM-dd");
+                            setLabDashCustomFrom((f) => f || d);
+                            setLabDashCustomTo((t) => t || d);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
+                          <SelectValue placeholder="Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
+                          <SelectItem value="month">Monthly</SelectItem>
+                          <SelectItem value="year">Yearly</SelectItem>
+                          <SelectItem value="custom">Custom dates</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {labDashPeriod === "custom" && (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-from" className="text-xs">
+                            From
+                          </Label>
+                          <Input
+                            id="lab-dash-from"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomFrom}
+                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-to" className="text-xs">
+                            To
+                          </Label>
+                          <Input
+                            id="lab-dash-to"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomTo}
+                            onChange={(e) => setLabDashCustomTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
+                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
+                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
+                    </p>
+                  </div>
 
                   <section className="space-y-4">
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -2195,6 +2327,72 @@ const Dashboard = () => {
                       </>
                     )}
                   </section>
+
+                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label
+                        htmlFor="lab-dash-period"
+                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Booking overview and follow-up range
+                      </Label>
+                      <Select
+                        value={labDashPeriod}
+                        onValueChange={(v) => {
+                          const p = v as LabDashPeriod;
+                          setLabDashPeriod(p);
+                          if (p === "custom") {
+                            const d = format(new Date(), "yyyy-MM-dd");
+                            setLabDashCustomFrom((f) => f || d);
+                            setLabDashCustomTo((t) => t || d);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
+                          <SelectValue placeholder="Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
+                          <SelectItem value="month">Monthly</SelectItem>
+                          <SelectItem value="year">Yearly</SelectItem>
+                          <SelectItem value="custom">Custom dates</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {labDashPeriod === "custom" && (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-from" className="text-xs">
+                            From
+                          </Label>
+                          <Input
+                            id="lab-dash-from"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomFrom}
+                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-to" className="text-xs">
+                            To
+                          </Label>
+                          <Input
+                            id="lab-dash-to"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomTo}
+                            onChange={(e) => setLabDashCustomTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
+                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
+                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
+                    </p>
+                  </div>
 
                   {(isLabInchargeUser || isOicUser || isAdmin) && (
                     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">
@@ -3262,6 +3460,31 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => navigate("/remote-analysis")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Monitor className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Remote Analysis</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Workstation registry, heartbeats, inventory, health, and remote commands
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open remote analysis</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {isAdmin && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
@@ -3457,7 +3680,7 @@ const Dashboard = () => {
                 </div>
               ) : labOperatorDash ? (
                 <>
-                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="hidden">
                     <div className="min-w-0 flex-1 space-y-2">
                       <Label
                         htmlFor="lab-dash-period"
@@ -3715,6 +3938,72 @@ const Dashboard = () => {
                     )}
                   </section>
 
+                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Label
+                        htmlFor="lab-dash-period"
+                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Booking overview and follow-up range
+                      </Label>
+                      <Select
+                        value={labDashPeriod}
+                        onValueChange={(v) => {
+                          const p = v as LabDashPeriod;
+                          setLabDashPeriod(p);
+                          if (p === "custom") {
+                            const d = format(new Date(), "yyyy-MM-dd");
+                            setLabDashCustomFrom((f) => f || d);
+                            setLabDashCustomTo((t) => t || d);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
+                          <SelectValue placeholder="Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">Today</SelectItem>
+                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
+                          <SelectItem value="month">Monthly</SelectItem>
+                          <SelectItem value="year">Yearly</SelectItem>
+                          <SelectItem value="custom">Custom dates</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {labDashPeriod === "custom" && (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-from" className="text-xs">
+                            From
+                          </Label>
+                          <Input
+                            id="lab-dash-from"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomFrom}
+                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="lab-dash-to" className="text-xs">
+                            To
+                          </Label>
+                          <Input
+                            id="lab-dash-to"
+                            type="date"
+                            className="w-[11rem]"
+                            value={labDashCustomTo}
+                            onChange={(e) => setLabDashCustomTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
+                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
+                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
+                    </p>
+                  </div>
+
                   <section className="space-y-4">
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       Booking overview
@@ -3733,13 +4022,13 @@ const Dashboard = () => {
                         />
                         <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-primary-foreground0/[0.12] transition-opacity group-hover:text-primary-foreground0/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
-                          Overall Booking Pending
+                          Internal Pending Bookings
                         </p>
                         <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
-                          {labOperatorDash.overall_booking_booked_total}/{labOperatorDash.overall_booking_total}
+                          {labOperatorDash.overall_booking_booked_total - labOperatorDash.external_booking_booked_total}/{labOperatorDash.overall_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Booked / total
+                          Pending Bookings / Total
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button
@@ -3793,7 +4082,7 @@ const Dashboard = () => {
                           {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Booked / total
+                          Pending Bookings / Total
                         </p>
                         <div className="mt-4 grid grid-cols-2 gap-2">
                           <button

@@ -77,6 +77,7 @@ import OICQuotaConfigurations from "./pages/OICQuotaConfigurations";
 import OICMultiMode from "./pages/OICMultiMode";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
 import InventoryManagement from "./pages/InventoryManagement";
+import RemoteAnalysis from "./pages/RemoteAnalysis";
 import ProcurementWorkflow from "./pages/ProcurementWorkflow";
 import EquipmentLifecycleHub from "./pages/EquipmentLifecycleHub";
 import UserManagement from "./pages/UserManagement";
@@ -195,6 +196,7 @@ const App = () => (
                 <Route path="/admin-settings/legacy-wallet-import" element={<LegacyWalletImportTest />} />
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
                 <Route path="/inventory-management" element={<InventoryManagement />} />
+                <Route path="/remote-analysis" element={<RemoteAnalysis />} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
                 <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
                 <Route path="/propose-equipment" element={<ProposeEquipment />} />

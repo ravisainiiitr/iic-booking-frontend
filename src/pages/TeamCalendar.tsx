@@ -59,15 +59,9 @@ function leaveCoversDay(l: LeaveRow, dayIso: string): { kind: "none" | "full" | 
   return { kind: "full", label: "Availability" };
 }
 
-function cellClass(status: string, kind: "full" | "half_fn" | "half_an") {
-  const u = String(status || "").toUpperCase();
+function cellClass(status: "AVAILABLE" | "UNAVAILABLE", kind: "full" | "half_fn" | "half_an") {
   const base = "rounded-md px-2 py-1 text-[11px] font-semibold text-white shadow-sm";
-  const palette =
-    u === "APPROVED"
-      ? "bg-emerald-600"
-      : u === "CANCELLED"
-        ? "bg-slate-600"
-        : "bg-amber-600";
+  const palette = status === "UNAVAILABLE" ? "bg-rose-600" : "bg-emerald-600";
   const half = kind === "full" ? "" : "opacity-90";
   return cn(base, palette, half);
 }
@@ -156,9 +150,7 @@ export default function TeamCalendar() {
               </Button>
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold tracking-tight">Team Calendar</h1>
-                <p className="text-sm text-white/85">
-                  Department-wide availability visibility for Lab Operators (Pending/Approved).
-                </p>
+                <p className="text-sm text-white/85">Department-wide availability visibility for department team members.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -201,11 +193,11 @@ export default function TeamCalendar() {
                 Availability roster for {monthLabel}
               </span>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="bg-amber-600 hover:bg-amber-600 text-white">Pending</Badge>
-                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Approved</Badge>
+                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Available</Badge>
+                <Badge className="bg-rose-600 hover:bg-rose-600 text-white">Unavailable</Badge>
               </div>
             </CardTitle>
-            <CardDescription>Each cell shows the availability status for that operator on that day (FN/AN for half-day).</CardDescription>
+            <CardDescription>Each cell shows whether that team member is available on that day based on effective leave.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -267,51 +259,27 @@ export default function TeamCalendar() {
                             </div>
                           </div>
                           {days.map((day) => {
-                            const match = opLeaves.find((l) => day >= l.start_date && day <= l.end_date);
-                            if (!match) {
-                              const h = holidayMetaForDay(day);
-                              return (
-                                <div
-                                  key={`${op.id}-${day}`}
-                                  className={cn(
-                                    "border-b border-r border-border/60 px-1 py-2",
-                                  )}
-                                  style={h ? { backgroundColor: h.color } : undefined}
-                                  title={h ? h.reason : undefined}
-                                />
-                              );
-                            }
-                            const coverage = leaveCoversDay(match, day);
-                            if (coverage.kind === "none") {
-                              const h = holidayMetaForDay(day);
-                              return (
-                                <div
-                                  key={`${op.id}-${day}`}
-                                  className={cn(
-                                    "border-b border-r border-border/60 px-1 py-2",
-                                  )}
-                                  style={h ? { backgroundColor: h.color } : undefined}
-                                  title={h ? h.reason : undefined}
-                                />
-                              );
-                            }
-                            const label = coverage.kind === "full" ? "" : coverage.label;
+                            const match = opLeaves.find((l) => {
+                              const coverage = leaveCoversDay(l, day);
+                              return coverage.kind !== "none";
+                            });
+                            const coverage = match ? leaveCoversDay(match, day) : { kind: "full" as const, label: "" };
                             const h = holidayMetaForDay(day);
+                            const availability = match ? "UNAVAILABLE" : "AVAILABLE";
                             return (
                               <div
                                 key={`${op.id}-${day}`}
                                 className={cn("border-b border-r border-border/60 px-1 py-2")}
                                 style={h ? { backgroundColor: h.color } : undefined}
-                                title={`${op.name || op.email}\n${day}\n${match.status}\n${match.reason}${h?.reason ? `\n${h.reason}` : ""}`}
+                                title={`${op.name || op.email}\n${day}\n${availability}${match?.reason ? `\n${match.reason}` : ""}${h?.reason ? `\n${h.reason}` : ""}`}
                               >
                                 <div
                                   className={cn(
-                                    cellClass(match.status, coverage.kind === "full" ? "full" : coverage.kind),
+                                    cellClass(availability, coverage.kind === "full" ? "full" : coverage.kind),
                                     "w-full text-center",
                                   )}
                                 >
-                                  {String(match.status).toUpperCase() === "APPROVED" ? "Approved" : "Pending"}
-                                  {label ? ` · ${label}` : ""}
+                                  {availability === "UNAVAILABLE" ? "Unavailable" : "Available"}
                                 </div>
                               </div>
                             );

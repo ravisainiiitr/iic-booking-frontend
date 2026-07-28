@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   TicketPriorityBadge,
   TicketStatusBadge,
@@ -144,6 +145,7 @@ export default function TicketDetailsDialog({
   isStaff = false,
   onUpdated,
 }: TicketDetailsDialogProps) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [detail, setDetail] = useState<TicketDetailsData | null>(ticket);
   const [comments, setComments] = useState<TicketComment[]>([]);
@@ -207,6 +209,13 @@ export default function TicketDetailsDialog({
     // Keep human conversation; system lifecycle lines still show but styled quieter
     return comments;
   }, [comments]);
+
+  const canRequesterResolve = useMemo(() => {
+    if (!detail || !user?.id) return false;
+    return Boolean((detail as TicketDetailsData & { user?: number | null }).user === user.id);
+  }, [detail, user?.id]);
+
+  const canResolve = isStaff || canRequesterResolve;
 
   const patchTicket = async (data: {
     status?: string;
@@ -450,121 +459,125 @@ export default function TicketDetailsDialog({
                 </Button>
               </section>
 
-              {isStaff && (
+              {canResolve && (
                 <section className="space-y-3 rounded-xl border border-emerald-200/70 bg-emerald-50/30 dark:border-emerald-900 dark:bg-emerald-950/20 p-4">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                    Staff actions
+                    {isStaff ? "Staff actions" : "Resolution"}
                   </h3>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label>Status</Label>
-                      <Select
-                        value={detail.status}
-                        onValueChange={(v) => void patchTicket({ status: v })}
-                        disabled={statusSaving}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TICKET_STATUS_OPTIONS.map((s) => (
-                            <SelectItem key={s.value} value={s.value}>
-                              {s.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Priority</Label>
-                      <Select
-                        value={detail.priority}
-                        onValueChange={(v) => void patchTicket({ priority: v })}
-                        disabled={statusSaving}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TICKET_PRIORITY_OPTIONS.map((p) => (
-                            <SelectItem key={p.value} value={p.value}>
-                              {p.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label>Reassign to</Label>
-                    <Popover open={assigneeOpen} onOpenChange={setAssigneeOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className="w-full justify-between font-normal"
-                          disabled={reassigning}
+                  {isStaff && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Status</Label>
+                        <Select
+                          value={detail.status}
+                          onValueChange={(v) => void patchTicket({ status: v })}
+                          disabled={statusSaving}
                         >
-                          {detail.assigned_to_name ||
-                            detail.assigned_to_email ||
-                            "Search Admin / OIC / Operator / Finance…"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                        <Command shouldFilter={false}>
-                          <CommandInput
-                            placeholder="Search by name or email…"
-                            value={assigneeQuery}
-                            onValueChange={setAssigneeQuery}
-                          />
-                          <CommandList>
-                            <CommandEmpty>
-                              {assigneeLoading ? "Searching…" : "No staff found."}
-                            </CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value="unassign"
-                                onSelect={() => void handleReassign(null)}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    !detail.assigned_to ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                Unassigned
-                              </CommandItem>
-                              {assignees.map((a) => (
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TICKET_STATUS_OPTIONS.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Priority</Label>
+                        <Select
+                          value={detail.priority}
+                          onValueChange={(v) => void patchTicket({ priority: v })}
+                          disabled={statusSaving}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TICKET_PRIORITY_OPTIONS.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {isStaff && (
+                    <div className="space-y-1.5">
+                      <Label>Reassign to</Label>
+                      <Popover open={assigneeOpen} onOpenChange={setAssigneeOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between font-normal"
+                            disabled={reassigning}
+                          >
+                            {detail.assigned_to_name ||
+                              detail.assigned_to_email ||
+                              "Search Admin / OIC / Operator / Finance…"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <CommandInput
+                              placeholder="Search by name or email…"
+                              value={assigneeQuery}
+                              onValueChange={setAssigneeQuery}
+                            />
+                            <CommandList>
+                              <CommandEmpty>
+                                {assigneeLoading ? "Searching…" : "No staff found."}
+                              </CommandEmpty>
+                              <CommandGroup>
                                 <CommandItem
-                                  key={a.id}
-                                  value={`${a.id}-${a.email}`}
-                                  onSelect={() => void handleReassign(a.id)}
+                                  value="unassign"
+                                  onSelect={() => void handleReassign(null)}
                                 >
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      detail.assigned_to === a.id ? "opacity-100" : "opacity-0"
+                                      !detail.assigned_to ? "opacity-100" : "opacity-0"
                                     )}
                                   />
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium">
-                                      {a.name || a.email}
-                                    </p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                      {a.email} · {a.user_type_display}
-                                    </p>
-                                  </div>
+                                  Unassigned
                                 </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                                {assignees.map((a) => (
+                                  <CommandItem
+                                    key={a.id}
+                                    value={`${a.id}-${a.email}`}
+                                    onSelect={() => void handleReassign(a.id)}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        detail.assigned_to === a.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium">
+                                        {a.name || a.email}
+                                      </p>
+                                      <p className="truncate text-xs text-muted-foreground">
+                                        {a.email} · {a.user_type_display}
+                                      </p>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <Label htmlFor="resolution-notes">Resolution comments</Label>

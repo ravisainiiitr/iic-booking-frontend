@@ -394,7 +394,9 @@ const BookingManagement = () => {
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="BOOKED">Booked</SelectItem>
-                      <SelectItem value="DISRUPTION_PENDING">Awaiting your choice (disruption)</SelectItem>
+                      {!isLabInchargeUser && (
+                        <SelectItem value="DISRUPTION_PENDING">Awaiting your choice (disruption)</SelectItem>
+                      )}
                       <SelectItem value="COMPLETED">Completed</SelectItem>
                       <SelectItem value="CANCELLED">Cancelled</SelectItem>
                       <SelectItem value="ABSENT">Operator Unavailable</SelectItem>

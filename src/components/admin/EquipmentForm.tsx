@@ -22,6 +22,8 @@ import {
 import { Loader2, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { linesToOptions, normalizeOptionsList, optionsToLines } from "@/lib/dynamicFieldOptions";
+import { formatCoordinate } from "@/lib/equipmentGps";
+import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFields";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +79,7 @@ const EQUIPMENT_SECTION_NAV: Array<{ id: string; label: string }> = [
   { id: "eq-sec-emails", label: "Emails" },
   { id: "eq-sec-media", label: "Image/Video" },
   { id: "eq-sec-slots", label: "Slot config" },
+  { id: "eq-sec-remote-analysis", label: "Remote Analysis" },
   { id: "eq-sec-managers", label: "OIC" },
   { id: "eq-sec-operators", label: "Operators" },
   { id: "eq-sec-specs", label: "Specs" },
@@ -102,6 +105,9 @@ export type EquipmentFormData = {
   istem_fbr_status_url?: string | null;
   status?: string | null;
   location?: string | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  google_maps_url?: string | null;
   profile_type?: string | null;
   category?: number | null;
   equipment_group?: number | null;
@@ -158,6 +164,16 @@ export type EquipmentFormData = {
   sample_collect_deadline_hours?: number | null;
   repeat_sample_request_days?: number | null;
   repeat_sample_disclaimer?: string | null;
+  enable_remote_analysis?: boolean;
+  remote_analysis_enabled_from_status?: string | null;
+  analysis_workspace_retention_days?: number | null;
+  analysis_session_limit?: number | null;
+  analysis_access_duration?: number | null;
+  analysis_auto_archive?: boolean;
+  analysis_profile?: string | null;
+  analysis_requires_sample_acceptance?: boolean;
+  analysis_requires_experiment_completion?: boolean;
+  analysis_notes?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   image_url?: string | null;
@@ -243,6 +259,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const { user } = useAuth();
   const userTypeStr = String(user?.user_type ?? "").toLowerCase();
   const isDeptAdmin = userTypeStr === "dept_admin";
+  const isMainAdmin = userTypeStr === "admin";
+  const allowGpsCapture = isMainAdmin || isDeptAdmin;
   const lockDepartmentId =
     isDeptAdmin && equipmentId == null && user?.department != null
       ? Number(user.department)
@@ -268,6 +286,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     istem_fbr_status_url: "",
     status: "ACTIVE",
     location: "",
+    latitude: "",
+    longitude: "",
+    google_maps_url: "",
     profile_type: null,
     category: null,
     equipment_group: null,
@@ -300,6 +321,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     sample_collect_deadline_hours: 72,
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
+    enable_remote_analysis: false,
+    remote_analysis_enabled_from_status: "COMPLETED",
+    analysis_workspace_retention_days: 90,
+    analysis_session_limit: 5,
+    analysis_access_duration: 72,
+    analysis_auto_archive: true,
+    analysis_profile: "",
+    analysis_requires_sample_acceptance: false,
+    analysis_requires_experiment_completion: true,
+    analysis_notes: "",
     equipment_managers: [],
     equipment_operators: [],
     equipment_specifications: [],
@@ -498,6 +529,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         istem_fbr_status_url: (d.istem_fbr_status_url as string) ?? "",
         status: (d.status as string) ?? "ACTIVE",
         location: (d.location as string) ?? "",
+        latitude: formatCoordinate(d.latitude as string | number | null | undefined),
+        longitude: formatCoordinate(d.longitude as string | number | null | undefined),
+        google_maps_url: (d.google_maps_url as string) ?? "",
         profile_type: (d.profile_type as string | null) ?? null,
         category: (d.category as number | null) ?? null,
         equipment_group: (d.equipment_group as number | null) ?? (d.equipment_group_id as number | null) ?? null,
@@ -541,6 +575,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         sample_collect_deadline_hours: (d.sample_collect_deadline_hours as number | null) ?? 72,
         repeat_sample_request_days: (d.repeat_sample_request_days as number | null) ?? null,
         repeat_sample_disclaimer: (d.repeat_sample_disclaimer as string) ?? "",
+        enable_remote_analysis: d.enable_remote_analysis === true,
+        remote_analysis_enabled_from_status: (d.remote_analysis_enabled_from_status as string) || "COMPLETED",
+        analysis_workspace_retention_days: (d.analysis_workspace_retention_days as number | null) ?? 90,
+        analysis_session_limit: (d.analysis_session_limit as number | null) ?? 5,
+        analysis_access_duration: (d.analysis_access_duration as number | null) ?? 72,
+        analysis_auto_archive: d.analysis_auto_archive !== false,
+        analysis_profile: (d.analysis_profile as string) ?? "",
+        analysis_requires_sample_acceptance: d.analysis_requires_sample_acceptance === true,
+        analysis_requires_experiment_completion: d.analysis_requires_experiment_completion !== false,
+        analysis_notes: (d.analysis_notes as string) ?? "",
         created_at: (d.created_at as string) ?? null,
         updated_at: (d.updated_at as string) ?? null,
         image_url: (d.image_url as string) ?? null,
@@ -649,6 +693,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       istem_fbr_status_url: formData.istem_fbr_status_url?.trim() || "",
       status: formData.status || null,
       location: formData.location || null,
+      latitude: (() => {
+        const raw = String(formData.latitude ?? "").trim();
+        if (!raw) return null;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+      })(),
+      longitude: (() => {
+        const raw = String(formData.longitude ?? "").trim();
+        if (!raw) return null;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+      })(),
+      google_maps_url: formData.google_maps_url?.trim() || null,
       profile_type: formData.profile_type || null,
       category: formData.category ?? null,
       equipment_group: formData.equipment_group ?? null,
@@ -721,6 +778,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : 72,
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
+      enable_remote_analysis: formData.enable_remote_analysis === true,
+      remote_analysis_enabled_from_status: formData.remote_analysis_enabled_from_status || "COMPLETED",
+      analysis_workspace_retention_days: formData.analysis_workspace_retention_days ?? 90,
+      analysis_session_limit: formData.analysis_session_limit ?? 5,
+      analysis_access_duration: formData.analysis_access_duration ?? 72,
+      analysis_auto_archive: formData.analysis_auto_archive !== false,
+      analysis_profile: formData.analysis_profile?.trim() || "",
+      analysis_requires_sample_acceptance: formData.analysis_requires_sample_acceptance === true,
+      analysis_requires_experiment_completion: formData.analysis_requires_experiment_completion !== false,
+      analysis_notes: formData.analysis_notes != null ? String(formData.analysis_notes) : "",
       equipment_managers: formData.equipment_managers ?? [],
       equipment_operators: formData.equipment_operators ?? [],
       equipment_specifications: formData.equipment_specifications ?? [],
@@ -841,7 +908,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
       {/* Scrollable body — min-h-0 is required for flex children to scroll inside dialog */}
       <div id="equipment-form-scroll" className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-2 space-y-4 py-2 text-base">
-        <FormSection id="eq-sec-basic" title="Basic information" description="Name, code, category, visibility and status." defaultOpen>
+        <FormSection id="eq-sec-basic" title="Basic information" description="Name, code, category, visibility, status, and laboratory location." defaultOpen>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="equipment-name">Name *</Label>
@@ -1398,14 +1465,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="equipment-location">Location</Label>
-        <Input
-          id="equipment-location"
-          value={formData.location ?? ""}
-          onChange={(e) => setFormData((p) => ({ ...p, location: e.target.value }))}
-        />
-      </div>
+      <EquipmentLocationFields
+        allowGpsCapture={allowGpsCapture}
+        value={{
+          location: formData.location ?? "",
+          latitude: String(formData.latitude ?? ""),
+          longitude: String(formData.longitude ?? ""),
+          google_maps_url: formData.google_maps_url ?? "",
+        }}
+        onChange={(next) => setFormData((p) => ({ ...p, ...next }))}
+      />
         </FormSection>
 
       <FormSection id="eq-sec-instruction" title="Important Instruction" description="Optional instructions shown prominently on the equipment page (above specifications)." defaultOpen>
@@ -1527,6 +1596,126 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           />
         </div>
       </div>
+      </FormSection>
+
+      <FormSection
+        id="eq-sec-remote-analysis"
+        title="Remote Analysis"
+        description="Enable browser remote desktop analysis after booking completion. Shows only when Remote Analysis is enabled."
+        defaultOpen={false}
+      >
+        <div className="space-y-4 max-w-2xl">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={formData.enable_remote_analysis === true}
+              onChange={(e) => setFormData((p) => ({ ...p, enable_remote_analysis: e.target.checked }))}
+            />
+            Enable Remote Analysis
+          </label>
+          {formData.enable_remote_analysis && (
+            <>
+              <div className="space-y-2">
+                <Label>Eligibility rule (booking status)</Label>
+                <Input
+                  value={formData.remote_analysis_enabled_from_status || "COMPLETED"}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, remote_analysis_enabled_from_status: e.target.value }))
+                  }
+                  placeholder="COMPLETED"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Retention days</Label>
+                  <Input
+                    type="number"
+                    value={formData.analysis_workspace_retention_days ?? 90}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        analysis_workspace_retention_days: Number(e.target.value) || 90,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Maximum sessions</Label>
+                  <Input
+                    type="number"
+                    value={formData.analysis_session_limit ?? 5}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        analysis_session_limit: Number(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Access duration (hours)</Label>
+                  <Input
+                    type="number"
+                    value={formData.analysis_access_duration ?? 72}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        analysis_access_duration: Number(e.target.value) || 72,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Analysis profile</Label>
+                  <Input
+                    value={formData.analysis_profile || ""}
+                    onChange={(e) => setFormData((p) => ({ ...p, analysis_profile: e.target.value }))}
+                    placeholder="Optional software profile"
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={formData.analysis_auto_archive !== false}
+                  onChange={(e) => setFormData((p) => ({ ...p, analysis_auto_archive: e.target.checked }))}
+                />
+                Workspace auto archive
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={formData.analysis_requires_sample_acceptance === true}
+                  onChange={(e) =>
+                    setFormData((p) => ({ ...p, analysis_requires_sample_acceptance: e.target.checked }))
+                  }
+                />
+                Requires sample acceptance
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={formData.analysis_requires_experiment_completion !== false}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      analysis_requires_experiment_completion: e.target.checked,
+                    }))
+                  }
+                />
+                Requires experiment completion
+              </label>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={formData.analysis_notes || ""}
+                  onChange={(e) => setFormData((p) => ({ ...p, analysis_notes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+            </>
+          )}
+        </div>
       </FormSection>
 
       <FormSection id="eq-sec-emails" title="Booking & completion emails" description="Optional extra text per equipment. Completion email text is appended when a booking is marked complete; paste URLs for clickable links in HTML mail." defaultOpen>

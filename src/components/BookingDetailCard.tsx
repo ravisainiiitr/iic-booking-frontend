@@ -579,6 +579,9 @@ export function BookingDetailCard({
   const [returnShipTracking, setReturnShipTracking] = useState("");
   const [returnShipSaving, setReturnShipSaving] = useState(false);
   const [postAnalyzedActionLoading, setPostAnalyzedActionLoading] = useState<null | "DISPOSED">(null);
+  const [analysisSummary, setAnalysisSummary] = useState<Record<string, unknown> | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
 
   const navigate = useNavigate();
 
@@ -657,6 +660,27 @@ export function BookingDetailCard({
     setBooking(initialBooking);
     setFbrInput((initialBooking.istem_fbr_number || "").trim());
   }, [initialBooking]);
+
+  useEffect(() => {
+    const enabled =
+      Boolean((booking as any).equipment_enable_remote_analysis) ||
+      Boolean((booking as any).analysis_available);
+    if (!bookingPk || !enabled) {
+      setAnalysisSummary(null);
+      return;
+    }
+    let cancelled = false;
+    setAnalysisLoading(true);
+    apiClient.getBookingAnalysis(Number(bookingPk)).then((res) => {
+      if (cancelled) return;
+      if (res.error) setAnalysisSummary(null);
+      else setAnalysisSummary((res.data as Record<string, unknown>) || null);
+      setAnalysisLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingPk, (booking as any).equipment_enable_remote_analysis, (booking as any).analysis_available, booking.status]);
   
   useEffect(() => {
     setRatingCriteriaDraft({
@@ -2378,6 +2402,141 @@ export function BookingDetailCard({
                 </div>
               )}
           </div>
+
+          {!isWaitlistedEntry &&
+            (Boolean((booking as any).equipment_enable_remote_analysis) ||
+              Boolean((booking as any).analysis_available) ||
+              analysisSummary) && (
+              <div className="mt-4 pt-4 border-t no-print space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold">Remote Analysis</h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate("/remote-analysis")}
+                  >
+                    Open Collaboration Center
+                  </Button>
+                </div>
+                {analysisLoading && (
+                  <p className="text-sm text-muted-foreground">Loading analysis status…</p>
+                )}
+                {analysisSummary && (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Eligibility: </span>
+                        {String(
+                          ((analysisSummary.eligibility as Record<string, unknown>) || {}).eligible
+                            ? "Eligible"
+                            : ((analysisSummary.eligibility as Record<string, unknown>) || {}).reason ||
+                                "Not eligible"
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Reservation: </span>
+                        {String(
+                          ((analysisSummary.reservation as Record<string, unknown>) || {}).status || "—"
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Workstation: </span>
+                        {String(
+                          ((analysisSummary.reservation as Record<string, unknown>) || {}).workstation ||
+                            "—"
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Session: </span>
+                        {String(
+                          ((analysisSummary.session as Record<string, unknown>) || {}).status || "—"
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        disabled={analysisBusy}
+                        onClick={async () => {
+                          setAnalysisBusy(true);
+                          try {
+                            const res = await apiClient.createBookingAnalysisReservation(Number(bookingPk));
+                            if (res.error) toast.error(res.error);
+                            else {
+                              toast.success("Analysis reservation ready");
+                              const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
+                              if (!refreshed.error) setAnalysisSummary(refreshed.data as Record<string, unknown>);
+                            }
+                          } finally {
+                            setAnalysisBusy(false);
+                          }
+                        }}
+                      >
+                        Create / refresh reservation
+                      </Button>
+                      {currentUserId != null && booking.user === currentUserId && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={analysisBusy}
+                          onClick={async () => {
+                            setAnalysisBusy(true);
+                            try {
+                              const res = await apiClient.launchBookingAnalysisDesktop(Number(bookingPk));
+                              if (res.error) toast.error(res.error);
+                              else {
+                                toast.success("Desktop session created");
+                                navigate("/remote-analysis");
+                              }
+                            } finally {
+                              setAnalysisBusy(false);
+                            }
+                          }}
+                        >
+                          Launch Desktop
+                        </Button>
+                      )}
+                      {(isManagerOrAdmin || isOperator) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={analysisBusy}
+                          onClick={async () => {
+                            setAnalysisBusy(true);
+                            try {
+                              const res = await apiClient.archiveBookingAnalysisWorkspace(Number(bookingPk));
+                              if (res.error) toast.error(res.error);
+                              else toast.success("Workspace archived");
+                            } finally {
+                              setAnalysisBusy(false);
+                            }
+                          }}
+                        >
+                          Archive workspace
+                        </Button>
+                      )}
+                    </div>
+                    {Array.isArray(analysisSummary.timeline) &&
+                      (analysisSummary.timeline as Array<Record<string, unknown>>).length > 0 && (
+                        <div className="max-h-40 overflow-y-auto text-xs space-y-1 border rounded-md p-2">
+                          {(analysisSummary.timeline as Array<Record<string, unknown>>)
+                            .slice(-12)
+                            .map((ev, idx) => (
+                              <div key={`${ev.timestamp}-${idx}`}>
+                                <span className="font-medium">{String(ev.stage)}</span>
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  · {ev.timestamp ? new Date(String(ev.timestamp)).toLocaleString() : ""}
+                                  {ev.detail ? ` · ${String(ev.detail)}` : ""}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                  </>
+                )}
+              </div>
+            )}
 
           {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
             <div className="mt-4 pt-4 border-t no-print">

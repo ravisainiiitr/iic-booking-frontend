@@ -5196,44 +5196,44 @@ const BookEquipment = () => {
 
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <Card className="w-full max-w-none mx-auto mb-8 overflow-hidden border-2 border-primary/20 shadow-xl bg-gradient-to-b from-card to-card/95">
-            <div className="bg-gradient-to-r from-primary via-primary to-accent px-6 py-5 text-white">
-              <div className="flex justify-between items-center flex-wrap gap-4">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Change slot status</h2>
-                  <p className="text-white/90 mt-1 text-base md:text-lg max-w-3xl">
+          <Card className="w-full max-w-none mx-auto mb-8 overflow-hidden border border-primary/20 shadow-lg bg-gradient-to-b from-card to-card/95">
+            <div className="bg-gradient-to-r from-primary via-primary to-accent px-5 py-4 text-white">
+              <div className="flex justify-between items-start flex-wrap gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xl md:text-2xl font-bold tracking-tight">Change slot status</h2>
+                  <p className="text-white/90 mt-1 text-sm md:text-base leading-6 max-w-none">
                     Select one or more dates in the month calendar (click individual days, or use &quot;Select week&quot; / &quot;Select entire month&quot;), then choose the desired status and click Apply. For &quot;Booking Not Utilized&quot; use Week view to select only booked slots; no refund is issued and emails are sent to the user and Supervisor. Other Reasons, Under Maintenance, or Operator Absent will cancel any bookings on those slots and refund users.
                   </p>
                 </div>
-                <Button variant="secondary" size="default" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate('/equipments')}>
-                  <ArrowLeft className="h-5 w-5 mr-2" />
+                <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate('/equipments')}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
               </div>
             </div>
-            <CardContent className="space-y-6 p-6 md:p-8">
+            <CardContent className="space-y-5 p-4 md:p-6">
               {/* Year calendar */}
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))}>
-                      <ChevronLeft className="h-5 w-5" />
+                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))}>
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="font-bold text-xl md:text-2xl min-w-[120px] text-center text-foreground">
+                    <span className="font-bold text-lg md:text-xl min-w-[96px] text-center text-foreground">
                       {statusChangeMonthStart.getFullYear()}
                     </span>
-                    <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))}>
-                      <ChevronRight className="h-5 w-5" />
+                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))}>
+                      <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <Button variant="outline" size="default" className="h-11 px-4 text-base font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
+                    <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
                       Select entire year
                     </Button>
-                    <div className="text-sm md:text-base text-muted-foreground font-medium px-2">
+                    <div className="text-xs md:text-sm text-muted-foreground font-medium px-1">
                       Double-click a month to open Month view below
                     </div>
-                    <Button variant="outline" size="default" className="h-11 px-4 text-base font-medium" onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
+                    <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium" onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
                       Clear selection
                     </Button>
                   </div>
@@ -5254,7 +5254,7 @@ const BookEquipment = () => {
                           setStatusChangeMonthStart(startOfMonth(d));
                         }}
                         className={cn(
-                          "min-h-[52px] md:min-h-[60px] p-2 md:p-3 text-base md:text-lg font-semibold rounded-xl border-2 transition-all duration-200",
+                          "min-h-[40px] md:min-h-[46px] px-2 py-1.5 text-sm md:text-base font-semibold rounded-lg border transition-all duration-200",
                           "bg-background hover:bg-primary/10 hover:border-primary/30 border-muted/50",
                           isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary ring-offset-2 shadow-lg border-primary",
                           isCurrentMonth && !isSelected && "border-primary/50 bg-primary/5"
@@ -5270,21 +5270,21 @@ const BookEquipment = () => {
               {/* Month navigation */}
               <div className="flex flex-wrap items-center justify-between gap-6">
                 <div className="flex items-center gap-3">
-                  <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))}>
-                    <ChevronLeft className="h-5 w-5" />
+                  <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))}>
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="font-bold text-xl md:text-2xl min-w-[200px] text-center text-foreground">
+                  <span className="font-bold text-lg md:text-xl min-w-[168px] text-center text-foreground">
                     {format(statusChangeMonthStart, "MMMM yyyy")}
                   </span>
-                  <Button variant="outline" size="default" className="h-11 px-4 text-base" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))}>
-                    <ChevronRight className="h-5 w-5" />
+                  <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))}>
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     variant="outline"
-                    size="default"
-                    className="h-11 px-4 text-base font-medium"
+                    size="sm"
+                    className="h-9 px-3 text-sm font-medium"
                     disabled={selectedDatesForStatus.length === 0}
                     onClick={() => {
                       if (selectedDatesForStatus.length > 0) {
@@ -5295,16 +5295,16 @@ const BookEquipment = () => {
                   >
                     Select selected week
                   </Button>
-                  <Button variant="outline" size="default" className="h-11 px-4 text-base font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectMonthForStatus}>
+                  <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectMonthForStatus}>
                     Select entire month
                   </Button>
-                  <div className="text-sm md:text-base text-muted-foreground font-medium px-2">
+                  <div className="text-xs md:text-sm text-muted-foreground font-medium px-1">
                     Tip: double-click a date to open Week view
                   </div>
                   <Button
                     variant="outline"
-                    size="default"
-                    className="h-11 px-4 text-base font-medium"
+                    size="sm"
+                    className="h-9 px-3 text-sm font-medium"
                     onClick={() => { setSelectedDatesForStatus([]); setStatusChangePopupWeekStart(null); setStatusChangeSelectedMonths([]); }}
                     disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                   >
@@ -5314,10 +5314,10 @@ const BookEquipment = () => {
               </div>
 
               {/* Month calendar grid: Mon–Sun, 6 rows */}
-              <div className="rounded-xl border-2 border-primary/10 overflow-hidden shadow-inner bg-muted/20">
+              <div className="rounded-xl border border-primary/10 overflow-hidden shadow-inner bg-muted/20">
                 <div className="grid grid-cols-7 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700">
                   {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                    <div key={d} className="p-3 text-center text-base md:text-lg font-bold text-slate-700 dark:text-slate-200">
+                    <div key={d} className="px-2 py-2 text-center text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200">
                       {d}
                     </div>
                   ))}
@@ -5367,7 +5367,7 @@ const BookEquipment = () => {
                             openWeekSlotPopup(day);
                           }}
                           className={cn(
-                            "min-h-[52px] md:min-h-[60px] p-2 md:p-3 text-base md:text-lg font-semibold border-b border-r border-muted/50 transition-all duration-200",
+                            "min-h-[40px] md:min-h-[46px] px-2 py-1.5 text-sm md:text-base font-semibold border-b border-r border-muted/50 transition-all duration-200",
                             inMonth ? "bg-background hover:bg-primary/10 hover:border-primary/30" : "bg-muted/30 text-muted-foreground",
                             isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary ring-offset-2 shadow-lg"
                           )}
