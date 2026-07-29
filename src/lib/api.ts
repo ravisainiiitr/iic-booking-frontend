@@ -1012,7 +1012,17 @@ class ApiClient {
       month: string;
       date_start: string;
       date_end: string;
-      members: Array<{ id: number; name: string; email: string; user_type: string }>;
+      department_id?: number | null;
+      department_name?: string | null;
+      all_departments?: boolean;
+      members: Array<{
+        id: number;
+        name: string;
+        email: string;
+        user_type: string;
+        department_id?: number | null;
+        department_name?: string;
+      }>;
       leaves: Array<{
         id: number;
         operator_id: number;
@@ -1024,8 +1034,10 @@ class ApiClient {
         status: string;
         reason: string;
         rejection_reason?: string | null;
+        reviewed_by_name?: string;
+        reviewed_by_role?: string;
       }>;
-      holidays?: Record<string, { reason: string; color: string }>;
+      holidays?: Record<string, { reason: string; color: string; kind?: string }>;
     }>(`/team-calendar/department/?${p.toString()}`);
   }
 

@@ -2394,13 +2394,13 @@ const Dashboard = () => {
                     </p>
                   </div>
 
-                  {(isLabInchargeUser || isOicUser || isAdmin) && (
+                  {(isLabInchargeUser || isOicUser || isAdmin || isDeptAdmin) && (
                     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground">Team calendar</p>
                           <p className="text-xs text-muted-foreground">
-                            View department-wide operator leave schedule for planning and reassignment.
+                            Spot department absences quickly for planning and reassignment.
                           </p>
                         </div>
                         <Button
@@ -2635,7 +2635,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           )}
-          {isAdmin && (
+          {(isAdmin || isDeptAdmin) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
               onClick={() => navigate("/team-calendar")}
@@ -2648,7 +2648,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Team Calendar</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Department operator leave schedule
+                      Spot department absences at a glance
                     </CardDescription>
                   </div>
                 </div>
@@ -4371,13 +4371,13 @@ const Dashboard = () => {
 
 
 
-                  {(isLabInchargeUser || isOicUser || isAdmin) && (
+                  {(isLabInchargeUser || isOicUser || isAdmin || isDeptAdmin) && (
                     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground">Team calendar</p>
                           <p className="text-xs text-muted-foreground">
-                            View department-wide operator leave schedule for planning and reassignment.
+                            Spot department absences quickly for planning and reassignment.
                           </p>
                         </div>
                         <Button
