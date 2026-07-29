@@ -73,10 +73,7 @@ type TeamCalendarPayload = {
 type DeptOption = { id: number; name: string; code?: string };
 
 const EMPTY_FILTERS: Record<AbsenceCategory, boolean> = {
-  leave: true,
-  training: true,
-  official_duty: true,
-  conference: true,
+  unavailable: true,
   holiday: true,
 };
 
@@ -311,58 +308,42 @@ export default function TeamCalendar() {
 
   const summary = useMemo(() => {
     let unavailableToday = 0;
-    let onLeave = 0;
-    let training = 0;
-    let conference = 0;
-    const countsInRange = (days: string[]) => {
-      const seenLeave = new Set<number>();
-      const seenTraining = new Set<number>();
-      const seenConf = new Set<number>();
-      for (const m of filteredMembers) {
-        for (const d of days) {
-          const a = resolveCellAbsence(
-            d,
-            leavesByMember.get(m.id) ?? [],
-            holidays[d],
-            filters.holiday,
-          );
-          if (!a || !filters[a.category]) continue;
-          if (a.category === "leave") seenLeave.add(m.id);
-          if (a.category === "training") seenTraining.add(m.id);
-          if (a.category === "conference") seenConf.add(m.id);
-        }
-      }
-      return {
-        onLeave: seenLeave.size,
-        training: seenTraining.size,
-        conference: seenConf.size,
-      };
-    };
-    for (const m of filteredMembers) {
-      const a = resolveCellAbsence(
-        todayIso,
-        leavesByMember.get(m.id) ?? [],
-        holidays[todayIso],
-        filters.holiday,
-      );
-      if (a && filters[a.category]) unavailableToday += 1;
-    }
+    let unavailableInRange = 0;
+    const seenUnavailable = new Set<number>();
     const range =
       viewMode === "week"
         ? weekDays
         : viewMode === "day"
           ? [focusDay]
           : monthDays;
-    const counts = countsInRange(range);
-    onLeave = counts.onLeave;
-    training = counts.training;
-    conference = counts.conference;
+    for (const m of filteredMembers) {
+      const todayAbs = resolveCellAbsence(
+        todayIso,
+        leavesByMember.get(m.id) ?? [],
+        holidays[todayIso],
+        filters.holiday,
+      );
+      if (todayAbs && filters[todayAbs.category] && todayAbs.category === "unavailable") {
+        unavailableToday += 1;
+      }
+      for (const d of range) {
+        const a = resolveCellAbsence(
+          d,
+          leavesByMember.get(m.id) ?? [],
+          holidays[d],
+          filters.holiday,
+        );
+        if (a && filters[a.category] && a.category === "unavailable") {
+          seenUnavailable.add(m.id);
+          break;
+        }
+      }
+    }
+    unavailableInRange = seenUnavailable.size;
     return {
       members: filteredMembers.length,
       unavailableToday,
-      onLeave,
-      training,
-      conference,
+      unavailableInRange,
     };
   }, [
     filteredMembers,
@@ -652,13 +633,11 @@ export default function TeamCalendar() {
           </div>
 
           {/* Summary */}
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
             {[
               { label: "Department Members", value: summary.members, icon: Users },
               { label: "Unavailable Today", value: summary.unavailableToday, icon: CalendarDays },
-              { label: "On Leave", value: summary.onLeave },
-              { label: "Training", value: summary.training },
-              { label: "Conference", value: summary.conference },
+              { label: "Unavailable (period)", value: summary.unavailableInRange },
             ].map((s) => (
               <Card key={s.label} className="rounded-2xl border-border/60 shadow-sm">
                 <CardContent className="p-3 sm:p-4">

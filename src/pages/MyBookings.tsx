@@ -626,7 +626,14 @@ const MyBookings = () => {
         if (!isAccountsFinanceUser && (status === "all" || status === "WAITLISTED")) {
           const waitlistRes = await apiClient.getMyWaitlistEntries();
           if (!waitlistRes.error && Array.isArray(waitlistRes.data?.entries)) {
-            list = [...list, ...(waitlistRes.data?.entries as unknown as Booking[])];
+            const activeOnly = (waitlistRes.data.entries as Array<Record<string, unknown>>).filter(
+              (e) => {
+                const st = String(e.waitlist_status || e.status || "ACTIVE").toUpperCase();
+                // Active queue only — OPT_OUT / CANNOT_FULFILL kept server-side for audit.
+                return st === "ACTIVE" || st === "WAITLISTED";
+              }
+            );
+            list = [...list, ...(activeOnly as unknown as Booking[])];
           }
         }
         if (status === "WAITLISTED") {
@@ -1001,7 +1008,10 @@ const MyBookings = () => {
           setActionLoading(false);
           return;
         }
-        toast.success(response.data?.message || "Waitlisted booking cancelled successfully.");
+        toast.success(
+          response.data?.message ||
+            "You have successfully withdrawn from the waitlist. You will no longer be considered for automatic confirmation."
+        );
         setCancelDialogOpen(false);
         setSelectedBooking(null);
         setCancelNotes("");

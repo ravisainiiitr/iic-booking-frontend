@@ -33,12 +33,8 @@ export type HolidayMeta = {
   kind?: "holiday" | "weekend" | string;
 };
 
-export type AbsenceCategory =
-  | "leave"
-  | "training"
-  | "conference"
-  | "official_duty"
-  | "holiday";
+/** Presentation categories — Unavailable covers all approved non-availability. */
+export type AbsenceCategory = "unavailable" | "holiday";
 
 export type CoverageKind = "none" | "full" | "half_fn" | "half_an";
 
@@ -50,41 +46,17 @@ export type CellAbsence = {
   holidayReason?: string;
 };
 
-export const ABSENCE_FILTER_KEYS: AbsenceCategory[] = [
-  "leave",
-  "training",
-  "official_duty",
-  "conference",
-  "holiday",
-];
+export const ABSENCE_FILTER_KEYS: AbsenceCategory[] = ["unavailable", "holiday"];
 
 export const ABSENCE_META: Record<
   AbsenceCategory,
   { label: string; short: string; chipClass: string; swatchClass: string }
 > = {
-  leave: {
-    label: "Leave",
-    short: "Leave",
+  unavailable: {
+    label: "Unavailable",
+    short: "Unavailable",
     chipClass: "bg-rose-100 text-rose-800 border-rose-200/80",
     swatchClass: "bg-rose-300",
-  },
-  training: {
-    label: "Training",
-    short: "Training",
-    chipClass: "bg-amber-100 text-amber-900 border-amber-200/80",
-    swatchClass: "bg-amber-300",
-  },
-  conference: {
-    label: "Conference",
-    short: "Conference",
-    chipClass: "bg-violet-100 text-violet-900 border-violet-200/80",
-    swatchClass: "bg-violet-300",
-  },
-  official_duty: {
-    label: "Official Duty",
-    short: "Duty",
-    chipClass: "bg-sky-100 text-sky-900 border-sky-200/80",
-    swatchClass: "bg-sky-300",
   },
   holiday: {
     label: "Holiday",
@@ -143,28 +115,20 @@ export function reviewerRoleLabel(role?: string): string {
   return USER_TYPE_DISPLAY_NAMES[code] || "Approver";
 }
 
-/** Classify free-text leave reason into a presentation category (no DB change). */
-export function classifyLeaveReason(reason: string): AbsenceCategory {
-  const r = (reason || "").toLowerCase();
-  if (/\b(train|workshop|course|induction|skilling)\b/.test(r)) return "training";
-  if (/\b(conferen|seminar|symposium|congress)\b/.test(r)) return "conference";
-  if (/\b(official\s*duty|\bod\b|tour|deputation|field\s*visit)\b/.test(r)) return "official_duty";
-  if (/\b(holiday|festival)\b/.test(r)) return "holiday";
-  return "leave";
+/**
+ * All approved leave / absence reasons map to Unavailable.
+ * The calendar intentionally does not categorize Training / Conference / Official Duty.
+ */
+export function classifyLeaveReason(_reason: string): AbsenceCategory {
+  return "unavailable";
 }
 
-export function leaveCategoryLabel(category: AbsenceCategory, reason: string): string {
+export function leaveCategoryLabel(_category: AbsenceCategory, reason: string): string {
   const r = (reason || "").trim();
-  if (!r) return ABSENCE_META[category].label;
-  if (category === "leave") {
-    if (/\bmedical\b|\bml\b|\bsick\b/.test(r.toLowerCase())) return "Medical Leave";
-    if (/\bcasual\b|\bcl\b/.test(r.toLowerCase())) return "Casual Leave";
-    if (/\bearned\b|\bel\b/.test(r.toLowerCase())) return "Earned Leave";
-    if (/\bhalf[-\s]?day\b/.test(r.toLowerCase())) return "Half-Day Leave";
-    if (r.length <= 28) return r;
-    return "Leave";
-  }
-  return ABSENCE_META[category].label;
+  if (!r) return "Unavailable";
+  // Keep short free-text reason in tooltips / chips when concise; otherwise unified label.
+  if (r.length <= 28) return r;
+  return "Unavailable";
 }
 
 export function leaveCoversDay(

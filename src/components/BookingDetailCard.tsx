@@ -201,6 +201,14 @@ export interface BookingDetailCardBooking extends BookingRef {
   waitlist_code?: string;
   waitlist_position?: number;
   waitlist_entry_id?: number;
+  waitlist_status?: string;
+  waitlist_opted_out?: boolean;
+  waitlist_opted_out_at?: string | null;
+  waitlist_sample_submitted?: boolean;
+  waitlist_sample_identifiers?: string;
+  waitlist_sample_tracking_id?: string;
+  waitlist_sample_submitted_at?: string | null;
+  awaiting_confirmation?: boolean;
   /** From last booking attempt log (waitlist / My Bookings). */
   booking_attempt_duration_minutes?: number | null;
   booking_attempt_slots_requested?: number | null;
@@ -468,6 +476,74 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
     default:
       return false;
   }
+}
+
+function WaitlistSampleSubmitForm({
+  entryId,
+  onDone,
+}: {
+  entryId: number;
+  onDone: () => void;
+}) {
+  const [identifiers, setIdentifiers] = useState("");
+  const [trackingId, setTrackingId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (!entryId || Number.isNaN(entryId)) {
+    return (
+      <p className="text-xs text-destructive">Waitlist entry id missing; cannot submit sample.</p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1">
+        <Label htmlFor="wl-sample-ids" className="text-xs">
+          Sample identifiers (optional)
+        </Label>
+        <Input
+          id="wl-sample-ids"
+          value={identifiers}
+          onChange={(e) => setIdentifiers(e.target.value)}
+          placeholder="e.g. vial / tube IDs"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="wl-tracking" className="text-xs">
+          Tracking ID (optional)
+        </Label>
+        <Input
+          id="wl-tracking"
+          value={trackingId}
+          onChange={(e) => setTrackingId(e.target.value)}
+          placeholder="Courier / tracking reference"
+        />
+      </div>
+      <Button
+        size="sm"
+        disabled={saving}
+        onClick={async () => {
+          setSaving(true);
+          try {
+            const res = await apiClient.submitWaitlistSample(entryId, {
+              sample_identifiers: identifiers.trim() || undefined,
+              tracking_id: trackingId.trim() || undefined,
+            });
+            if (res.error) {
+              toast.error(typeof res.error === "string" ? res.error : "Failed to submit sample.");
+              return;
+            }
+            toast.success(res.data?.message || "Sample submitted. Waiting for confirmation.");
+            onDone();
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        {saving ? "Submitting…" : "Submit Sample"}
+      </Button>
+    </div>
+  );
 }
 
 export function BookingDetailCard({
@@ -1360,9 +1436,10 @@ export function BookingDetailCard({
                 </p>
               </div>
               <div>
-                <p className="text-base text-muted-foreground">Queue position</p>
+                <p className="text-base text-muted-foreground">Waitlist Position</p>
                 <p className="font-medium text-base">
-                  {booking.waitlist_code || `WL${booking.waitlist_position ?? "—"}`}
+                  {booking.waitlist_code ||
+                    (booking.waitlist_position != null ? `WL${booking.waitlist_position}` : "—")}
                 </p>
               </div>
               <div>
@@ -1375,10 +1452,64 @@ export function BookingDetailCard({
               </div>
               <div>
                 <p className="text-base text-muted-foreground">Status</p>
-                <p className="font-medium text-base">{booking.status_display}</p>
+                <p className="font-medium text-base">
+                  {booking.waitlist_opted_out
+                    ? "Opted Out"
+                    : booking.awaiting_confirmation === false
+                      ? booking.status_display
+                      : "Waiting List"}
+                  {!booking.waitlist_opted_out && booking.waitlist_code
+                    ? ` · ${booking.waitlist_code}`
+                    : null}
+                </p>
               </div>
             </div>
           )}
+
+          {isWaitlistedEntry && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              <div className="font-semibold">
+                Waiting List
+                {booking.waitlist_code ? ` — ${booking.waitlist_code}` : ""}
+              </div>
+              <p className="mt-0.5 text-amber-900/90">
+                This request is awaiting automatic confirmation. Do not mark it as Not Utilized.
+                {booking.waitlist_sample_submitted
+                  ? " Sample has already been submitted — waiting for confirmation."
+                  : " You may submit your sample now so the lab has it ready if you are promoted."}
+              </p>
+            </div>
+          )}
+
+          {isWaitlistedEntry &&
+            !booking.waitlist_opted_out &&
+            booking.awaiting_confirmation !== false &&
+            currentUserId != null &&
+            booking.user === currentUserId && (
+              <div className="mb-4 rounded-lg border border-border/70 bg-card px-3 py-3 space-y-2 no-print">
+                <div className="text-sm font-semibold">
+                  {booking.waitlist_sample_submitted
+                    ? "Sample Submitted — Waiting for Confirmation"
+                    : "Submit sample while waitlisted"}
+                </div>
+                {booking.waitlist_sample_submitted ? (
+                  <p className="text-xs text-muted-foreground">
+                    Submitted
+                    {booking.waitlist_sample_submitted_at
+                      ? ` on ${new Date(booking.waitlist_sample_submitted_at).toLocaleString()}`
+                      : ""}
+                    . Laboratory staff can see that your sample is already with them.
+                  </p>
+                ) : (
+                  <WaitlistSampleSubmitForm
+                    entryId={Number(booking.waitlist_entry_id)}
+                    onDone={() => {
+                      void refreshBookingDetail();
+                    }}
+                  />
+                )}
+              </div>
+            )}
 
           {(booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
             (booking.lifecycle_countdown?.deadline_at || booking.completion_countdown?.deadline_at) && (
@@ -2039,7 +2170,7 @@ export function BookingDetailCard({
                 (currentUserId != null && booking.user === currentUserId && !isExternalBookingUserType(booking.user_type_snapshot) || (!isOperator && !isExternalSelfView)) && (
                   <Button size="sm" variant="destructive" onClick={() => onUserCancelClick(booking)}>
                     <XCircle className="h-4 w-4 mr-2" />
-                    {isWaitlistedEntry ? "Cancel waitlist" : "Cancel booking"}
+                    {isWaitlistedEntry ? "Leave Waitlist" : "Cancel booking"}
                   </Button>
                 )}
               {!isHold && isOperatorOrManager && canPerformAction(booking, "complete", isOperator) && !isExternalSelfView && (
@@ -2090,15 +2221,27 @@ export function BookingDetailCard({
                 </Button>
               )}
               {!isHold && isOperatorOrManager && booking.status.toUpperCase() === "BOOKED" && !isExternalSelfView && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!canMarkBookingNotUtilized(booking)}
-                  onClick={() => canMarkBookingNotUtilized(booking) && openActionDialog("not_utilized", booking)}
-                >
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Booking Not Utilized
-                </Button>
+                <div className="space-y-1">
+                  {(booking.sample_trace ?? []).some(
+                    (t) =>
+                      String(t.status || "").toUpperCase() === "SAMPLE_SENT" &&
+                      /waitlisted/i.test(String((t as { reason?: string }).reason || "")),
+                  ) ? (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                      Sample was submitted while this booking was waitlisted. Do not mark Not Utilized
+                      solely because confirmation was delayed.
+                    </p>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canMarkBookingNotUtilized(booking)}
+                    onClick={() => canMarkBookingNotUtilized(booking) && openActionDialog("not_utilized", booking)}
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Booking Not Utilized
+                  </Button>
+                </div>
               )}
               {isManagerOrAdmin &&
                 booking.status.toUpperCase() === "COMPLETED" &&

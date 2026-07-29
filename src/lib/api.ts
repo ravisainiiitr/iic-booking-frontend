@@ -5001,10 +5001,34 @@ class ApiClient {
     }>("/waitlist/my/", { method: "GET" });
   }
 
-  /** Cancel current user's waitlist entry by id. */
+  /** Opt out of waitlist (soft). Entry is kept for audit; user is excluded from auto-confirmation. */
   async cancelMyWaitlistEntry(entryId: number) {
-    return this.request<{ message: string }>(`/waitlist/${entryId}/cancel/`, {
+    return this.request<{
+      message: string;
+      waitlist_entry_id?: number;
+      status?: string;
+      opted_out?: boolean;
+    }>(`/waitlist/${entryId}/cancel/`, {
       method: "POST",
+    });
+  }
+
+  /** Submit sample while still waitlisted (before confirmation). */
+  async submitWaitlistSample(
+    entryId: number,
+    data?: { sample_identifiers?: string; tracking_id?: string }
+  ) {
+    return this.request<{
+      message: string;
+      waitlist_entry_id: number;
+      sample_submitted: boolean;
+      sample_identifiers?: string;
+      sample_tracking_id?: string;
+      sample_submitted_at?: string | null;
+      awaiting_confirmation?: boolean;
+    }>(`/waitlist/${entryId}/submit-sample/`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
     });
   }
 

@@ -27,7 +27,8 @@ import DashboardHeader from "@/components/DashboardHeader";
 type EquipmentOption = { equipment_id: number; name: string; code: string };
 type WaitlistEntry = {
   id: number;
-  position: number;
+  position: number | null;
+  waitlist_code?: string | null;
   user_id: number;
   user_email: string;
   user_name: string;
@@ -35,6 +36,13 @@ type WaitlistEntry = {
   status?: string | null;
   cannot_fulfill_remark?: string | null;
   marked_cannot_fulfill_at?: string | null;
+  opted_out?: boolean;
+  opted_out_at?: string | null;
+  sample_submitted?: boolean;
+  sample_identifiers?: string;
+  sample_tracking_id?: string;
+  sample_submitted_at?: string | null;
+  awaiting_confirmation?: boolean;
   booking_attempt_requested_at?: string | null;
   booking_attempt_failure_reason?: string | null;
   booking_attempt_number_of_samples?: number | null;
@@ -51,6 +59,7 @@ type WaitlistData = {
   count: number;
   active_count?: number;
   cannot_fulfill_count?: number;
+  opted_out_count?: number;
 };
 
 export default function EquipmentWaitlist() {
@@ -215,6 +224,8 @@ export default function EquipmentWaitlist() {
                     Active: <strong>{waitlist.active_count ?? waitlist.entries.filter((e) => String(e.status || "ACTIVE").toUpperCase() === "ACTIVE").length}</strong>
                     {" • "}
                     Cannot fulfill: <strong>{waitlist.cannot_fulfill_count ?? waitlist.entries.filter((e) => String(e.status || "").toUpperCase() === "CANNOT_FULFILL").length}</strong>
+                    {" • "}
+                    Opted out: <strong>{waitlist.opted_out_count ?? waitlist.entries.filter((e) => String(e.status || "").toUpperCase() === "OPT_OUT").length}</strong>
                   </p>
                   <Button
                     variant="destructive"
@@ -232,18 +243,29 @@ export default function EquipmentWaitlist() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>#</TableHead>
+                        <TableHead>Position</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Joined</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Sample</TableHead>
                         <TableHead>Last Attempt</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {waitlist.entries.map((e) => (
+                      {waitlist.entries.map((e) => {
+                        const st = (e.status || "ACTIVE").toUpperCase();
+                        const statusLabel =
+                          st === "OPT_OUT"
+                            ? "Opted out"
+                            : st === "CANNOT_FULFILL"
+                              ? "Cannot fulfill"
+                              : "Waiting (ACTIVE)";
+                        return (
                         <TableRow key={e.id}>
-                          <TableCell className="font-medium">{e.position}</TableCell>
+                          <TableCell className="font-medium">
+                            {e.waitlist_code || (e.position != null ? `WL${e.position}` : "—")}
+                          </TableCell>
                           <TableCell>{e.user_name || "—"}</TableCell>
                           <TableCell>{e.user_email}</TableCell>
                           <TableCell>
@@ -251,10 +273,8 @@ export default function EquipmentWaitlist() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              <div className="text-sm font-medium">
-                                {(e.status || "ACTIVE").toUpperCase() === "CANNOT_FULFILL" ? "Cannot fulfill" : "Active"}
-                              </div>
-                              {(e.status || "").toUpperCase() === "CANNOT_FULFILL" && (
+                              <div className="text-sm font-medium">{statusLabel}</div>
+                              {st === "CANNOT_FULFILL" && (
                                 <>
                                   <div className="text-xs text-muted-foreground">
                                     {e.cannot_fulfill_remark || "—"}
@@ -266,7 +286,34 @@ export default function EquipmentWaitlist() {
                                   ) : null}
                                 </>
                               )}
+                              {st === "OPT_OUT" && e.opted_out_at ? (
+                                <div className="text-xs text-muted-foreground">
+                                  Opted out: {format(new Date(e.opted_out_at), "PPp")}
+                                </div>
+                              ) : null}
+                              {st === "ACTIVE" ? (
+                                <div className="text-xs text-amber-700">Awaiting confirmation</div>
+                              ) : null}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {e.sample_submitted ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-sm font-medium text-emerald-700">
+                                  Sample Submitted
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Waiting for Confirmation
+                                </span>
+                                {e.sample_submitted_at ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(e.sample_submitted_at), "PPp")}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">Not submitted</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
@@ -299,7 +346,8 @@ export default function EquipmentWaitlist() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
