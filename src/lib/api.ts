@@ -8388,6 +8388,120 @@ class ApiClient {
       body: JSON.stringify({ workstation_id: workstationId }),
     });
   }
+
+  // --- Department Sync Agent (Main Admin hub) ---
+  async getDepartmentSyncConsole() {
+    return this.request<Record<string, unknown>>('/v1/sync/admin/console/', { method: 'GET' });
+  }
+
+  async getDepartmentSyncAgents(params?: { department?: string; online?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.department) q.set('department', params.department);
+    if (params?.online != null) q.set('online', params.online ? '1' : '0');
+    const qs = q.toString() ? `?${q}` : '';
+    return this.request<{
+      count: number;
+      online_count: number;
+      offline_count: number;
+      heartbeat_timeout_seconds: number;
+      server_time: string;
+      results: Array<Record<string, unknown>>;
+    }>(`/v1/sync/admin/agents/${qs}`, { method: 'GET' });
+  }
+
+  async getDepartmentSyncAgent(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/sync/admin/agents/${id}/`, { method: 'GET' });
+  }
+
+  async createDepartmentSyncCommand(
+    agentId: string,
+    commandType: string,
+    payload?: Record<string, unknown>,
+    priority?: string,
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/sync/admin/agents/${agentId}/commands/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        command_type: commandType,
+        payload: payload || {},
+        ...(priority ? { priority } : {}),
+      }),
+    });
+  }
+
+  async getDepartmentSyncProfiles() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      '/v1/sync/admin/profiles/',
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncAssignments(active = true) {
+    const qs = active ? '?active=1' : '?active=0';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/sync/admin/assignments/${qs}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncHeartbeats(agentId?: string) {
+    const qs = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/sync/admin/heartbeats/${qs}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncCommands(params?: { agent_id?: string; status?: string }) {
+    const q = new URLSearchParams();
+    if (params?.agent_id) q.set('agent_id', params.agent_id);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString() ? `?${q}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/sync/admin/commands/${qs}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncWorkspaces() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      '/v1/sync/admin/workspaces/',
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncLogs(params?: { severity?: string; agent_id?: string }) {
+    const q = new URLSearchParams();
+    if (params?.severity) q.set('severity', params.severity);
+    if (params?.agent_id) q.set('agent_id', params.agent_id);
+    const qs = q.toString() ? `?${q}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/sync/admin/logs/${qs}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncMonitoringOverview() {
+    return this.request<Record<string, unknown>>('/v1/sync/monitoring/overview/', { method: 'GET' });
+  }
+
+  async getDepartmentSyncEnterpriseDashboard(departmentId?: number) {
+    const qs = departmentId != null ? `?department_id=${departmentId}` : '';
+    return this.request<Record<string, unknown>>(`/v1/sync/enterprise/dashboard/${qs}`, {
+      method: 'GET',
+    });
+  }
+
+  async getDepartmentSyncDjangoLinks() {
+    return this.request<{ links: Array<{ key: string; label: string; path: string }> }>(
+      '/v1/sync/admin/django-links/',
+      { method: 'GET' },
+    );
+  }
+
+  async getDepartmentSyncOperationsDiagnostics() {
+    return this.request<Record<string, unknown>>('/v1/sync/operations/diagnostics/', { method: 'GET' });
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
