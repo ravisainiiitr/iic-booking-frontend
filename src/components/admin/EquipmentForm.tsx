@@ -511,7 +511,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       const addAccessories = (d.additional_accessories || d.equipment_additional_accessories || []) as Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
       const slots = (d.slot_masters || []) as Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
       const profiles = (d.charge_profiles || []) as Array<Record<string, unknown>>;
-      const inputs = (d.input_fields || []) as Array<Record<string, unknown>>;
+      const rawInputs = (d.input_fields || []) as Array<Record<string, unknown>>;
+      const inputs = rawInputs.filter((i) => {
+        const k = String(i.field_key ?? "").trim().toUpperCase();
+        return k.length === 1 && /^[A-Z]$/.test(k);
+      });
       setFormData((prev) => ({
         ...prev,
         name: (d.name as string) ?? "",
@@ -681,7 +685,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       name: formData.name || undefined,
       code: formData.code || undefined,
       description: formData.description || null,
-      important_instruction: formData.important_instruction ?? null,
+      important_instruction: formData.important_instruction?.trim() || null,
       make: formData.make?.trim() || "",
       show_make_on_card: Boolean(formData.show_make_on_card),
       model_information: formData.model_information?.trim() || "",
@@ -691,7 +695,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       print_3d_stl_notification_email: formData.print_3d_stl_notification_email?.trim() || "",
       istem_portal_url: formData.istem_portal_url?.trim() || "",
       istem_fbr_status_url: formData.istem_fbr_status_url?.trim() || "",
-      status: formData.status || null,
+      status: formData.status || "ACTIVE",
       location: formData.location || null,
       latitude: (() => {
         const raw = String(formData.latitude ?? "").trim();
