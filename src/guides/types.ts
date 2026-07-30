@@ -75,7 +75,7 @@ export function bookingStatusSection(tweaks?: { extraBullets?: string[] }): Guid
       "Waitlisted — No slot was free; you are on the FCFS waitlist (WL1, WL2, …). Wallet is not charged until you are promoted to Booked.",
       "Booked — Your slot is confirmed. Note sample submission deadlines and arrival times.",
       "Awaiting your choice (disruption) — Maintenance, operator absence, or other disruption needs your decision (cancel/refund or reschedule).",
-      "Under Maintenance / Operator Absent / Other Disruption — Lab-side holds; watch for emails and dashboard updates.",
+      "Under Maintenance / Operator Absent / Analysis Not Possible — Lab-side holds; watch for emails and dashboard updates.",
       "Booking Not Utilized — Session did not proceed for user-side reasons (often no refund).",
       "Completed — Analysis/run finished successfully.",
       "Cancelled — Booking cancelled (by you or the lab, subject to policy).",

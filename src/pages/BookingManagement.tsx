@@ -151,12 +151,14 @@ const BookingManagement = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const expandId = searchParams.get("expand");
 
-  // Check if user is operator or manager
+  // Check if user is operator, manager, admin, or department administrator
   const userType: any = user?.user_type;
   const userTypeStr = userType ? String(userType).toLowerCase() : '';
   const isOperator = userTypeStr === 'operator';
   const isLabInchargeUser = isOperator;
-  const isManagerOrAdmin = userTypeStr === 'manager' || userTypeStr === 'admin';
+  const isDeptAdmin = userTypeStr === 'dept_admin';
+  const isManagerOrAdmin =
+    userTypeStr === 'manager' || userTypeStr === 'admin' || isDeptAdmin;
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
 
   useEffect(() => {
@@ -168,7 +170,7 @@ const BookingManagement = () => {
     }
 
     if (!isOperatorOrManager) {
-      toast.error("Access denied. Only operators and managers can access this page.");
+      toast.error("Access denied. Only Lab In-charge, Officer In-charge, Department Administrators, and Admins can access this page.");
       navigate("/dashboard");
       return;
     }

@@ -2984,7 +2984,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>)}
 
-          {isOperatorOrManager && (
+          {(isOperatorOrManager || isDeptAdmin) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
               onClick={() => navigate("/booking-management")}
@@ -2997,7 +2997,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Booking Management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Manage all bookings as operator or manager
+                      Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
                     </CardDescription>
                   </div>
                 </div>

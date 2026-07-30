@@ -3826,7 +3826,7 @@ class ApiClient {
     });
   }
 
-  /** Admin/OIC: flag booking for "Other Disruption" (requires reason; emailed to user). */
+  /** Admin / Dept Admin / OIC / Lab In Charge: flag booking as Analysis Not Possible (requires reason). */
   async bookingOtherDisruption(bookingId: number, reason: string) {
     return this.request<{
       message: string;

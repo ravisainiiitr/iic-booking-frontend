@@ -445,7 +445,7 @@ const MyBookings = () => {
   const isAdminOrOIC = (): boolean => {
     if (!currentUserType) return false;
     const t = String(currentUserType).toLowerCase();
-    return t === "admin" || t === "manager";
+    return t === "admin" || t === "manager" || t === "dept_admin";
   };
 
   const shouldShowTimeDisplay = (booking: Booking): boolean => {

@@ -110,7 +110,7 @@ export function underMaintenancePolicySection(): GuideSection {
     ],
     callouts: [
       "Check My Bookings and email promptly after a maintenance notice — deadlines are real.",
-      "Related: Other Disruption Policy · Wallet & Refund Policy · Booking Cancellation.",
+      "Related: Analysis Not Possible Policy · Wallet & Refund Policy · Booking Cancellation.",
     ],
     steps: [
       {
@@ -141,7 +141,7 @@ export function operatorAbsentPolicySection(): GuideSection {
     ],
     callouts: [
       "If you already submitted a sample, tell the Lab In-charge immediately so the sample can be safeguarded while disruption is resolved.",
-      "Related: Under Maintenance · Other Disruption · Sample Submission Policy.",
+      "Related: Under Maintenance · Analysis Not Possible · Sample Submission Policy.",
     ],
     steps: [
       {
@@ -168,7 +168,7 @@ export function bookingNotUtilizedPolicySection(): GuideSection {
       "Common causes — User does not report/arrive; sample never submitted or only marked sent without further progress; user abandons the booking without cancelling in time.",
       "Consequences — The booking is closed as Not Utilized. Charges are typically not refunded.",
       "Future bookings — Repeated non-utilization may be reviewed by the laboratory or department under local discipline/access rules.",
-      "Not the same as — Equipment Under Maintenance, Operator Absent, or Other Disruption (those are facility-side and usually refund/reschedule).",
+      "Not the same as — Equipment Under Maintenance, Operator Absent, or Analysis Not Possible (those are facility-side and usually refund/reschedule).",
       "Waitlisted users — Pure waitlist entries are not confirmed bookings. Do not confuse “still waiting for confirmation” with Not Utilized. If you submitted a sample while waitlisted, tell staff — you are awaiting promotion, not a no-show.",
     ],
     callouts: [
@@ -186,7 +186,7 @@ export function bookingNotUtilizedPolicySection(): GuideSection {
       },
       {
         title: "Example — What is NOT Not Utilized",
-        body: "Power failure stops the run (Other Disruption), or the operator is unavailable. Those follow disruption/refund rules — not Not Utilized.",
+        body: "Power failure stops the run (Analysis Not Possible), or the operator is unavailable. Those follow disruption/refund rules — not Not Utilized.",
       },
     ],
   };
@@ -195,16 +195,16 @@ export function bookingNotUtilizedPolicySection(): GuideSection {
 export function otherDisruptionPolicySection(): GuideSection {
   return {
     id: "policy-other-disruption",
-    title: "Other Disruption Policy",
+    title: "Analysis Not Possible Policy",
     paragraphs: [
-      "“Other Disruption” covers laboratory interruptions that are not simple planned maintenance or operator leave. Staff record a reason so you understand what happened.",
+      "“Analysis Not Possible” covers cases where the laboratory cannot complete the analysis as booked (for reasons other than simple planned maintenance or operator leave). Staff record a reason so you understand what happened.",
     ],
     bullets: [
-      "Examples — Power failure, network outage, instrument malfunction mid-run, unsafe environmental conditions, laboratory closure, safety stoppages.",
+      "Examples — Power failure, network outage, instrument malfunction mid-run, unsafe environmental conditions, laboratory closure, safety stoppages, or other conditions that prevent analysis.",
       "How bookings are handled — Affected bookings typically enter disruption-pending with a decision deadline, similar to maintenance/operator-absent flows.",
       "Refunds / reschedule — Cancel with refund is commonly available; reschedule unlocks when operations allow. Exact options appear on My Bookings and in email.",
       "Notifications — Email includes the staff-provided reason and deadline.",
-      "Administration — OIC / Lab In-charge / Admin apply the disruption and manage slot release when the booking is closed.",
+      "Administration — Lab In-charge, OIC, Department Administrator, or Admin can apply Analysis Not Possible and manage slot release when the booking is closed.",
     ],
     callouts: [
       "Read the disruption reason carefully and act before the deadline to protect your refund/reschedule options.",
@@ -213,11 +213,11 @@ export function otherDisruptionPolicySection(): GuideSection {
     steps: [
       {
         title: "Example — Power failure",
-        body: "A campus power incident stops the afternoon queue. Your booking is flagged Other Disruption with reason “Power failure”. You cancel with refund and rebook next week.",
+        body: "A campus power incident stops the afternoon queue. Your booking is flagged Analysis Not Possible with reason “Power failure”. You cancel with refund and rebook next week.",
       },
       {
         title: "Example — Safety closure",
-        body: "The lab closes for a safety drill. Staff apply Other Disruption. You wait for operational recovery and use the unlocked reschedule window.",
+        body: "The lab closes for a safety drill. Staff apply Analysis Not Possible. You wait for operational recovery and use the unlocked reschedule window.",
       },
     ],
   };

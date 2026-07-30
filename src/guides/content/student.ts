@@ -138,7 +138,7 @@ export const studentGuide: UserGuideContent = {
       {
         question: "Where are waitlist and disruption policies explained?",
         answer:
-          "See the Operational Policies chapters in this guide (Waitlist, Urgent Booking, Under Maintenance, Operator Absent, Not Utilized, Other Disruption, Sample Submission, and Sample Collection & Discard), plus the Operational Policies FAQ.",
+          "See the Operational Policies chapters in this guide (Waitlist, Urgent Booking, Under Maintenance, Operator Absent, Not Utilized, Analysis Not Possible, Sample Submission, and Sample Collection & Discard), plus the Operational Policies FAQ.",
       },
     ]),
     troubleshootingSection([

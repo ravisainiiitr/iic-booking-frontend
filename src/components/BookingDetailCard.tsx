@@ -1098,7 +1098,7 @@ export function BookingDetailCard({
     if (!actionDialog.booking) return;
     const reason = (actionNotes || "").trim();
     if (!reason) {
-      toast.error("Reason is required for Other Disruption.");
+      toast.error("Reason is required for Analysis Not Possible.");
       return;
     }
     setActionSubmitLoading(true);
@@ -1112,12 +1112,12 @@ export function BookingDetailCard({
       }
       const data = response.data as { message?: string; booking?: BookingDetailCardBooking } | undefined;
       if (data?.booking) setBooking(data.booking);
-      toast.success(data?.message || "Booking flagged for Other Disruption. User has been notified.");
+      toast.success(data?.message || "Booking flagged as Analysis Not Possible. User has been notified.");
       setConfirmAction({ open: false, type: null });
       closeActionDialog();
       onUpdated();
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to flag booking for other disruption");
+      toast.error(error instanceof Error ? error.message : "Failed to flag booking as Analysis Not Possible");
     } finally {
       setActionSubmitLoading(false);
     }
@@ -2229,12 +2229,6 @@ export function BookingDetailCard({
                     {isWaitlistedEntry ? "Leave Waitlist" : "Cancel booking"}
                   </Button>
                 )}
-              {!isHold && isOperatorOrManager && canPerformAction(booking, "complete", isOperator) && !isExternalSelfView && (
-                <Button size="sm" variant="outline" onClick={() => openActionDialog("complete", booking)}>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Complete
-                </Button>
-              )}
               {showSampleAcceptRejectActions && (
                 <>
                   <Button
@@ -2290,12 +2284,12 @@ export function BookingDetailCard({
                   </Button>
                 )}
               {!isHold &&
-                isManagerOrAdmin &&
+                isOperatorOrManager &&
                 canPerformAction(booking, "other_disruption", isOperator) &&
                 !isExternalSelfView && (
                   <Button size="sm" variant="outline" onClick={() => openActionDialog("other_disruption", booking)}>
                     <AlertCircle className="h-4 w-4 mr-2" />
-                    Other Disruption
+                    Analysis Not Possible
                   </Button>
                 )}
               {!isHold &&
@@ -2331,6 +2325,12 @@ export function BookingDetailCard({
                     Booking Not Utilized
                   </Button>
                 </div>
+              )}
+              {!isHold && isOperatorOrManager && canPerformAction(booking, "complete", isOperator) && !isExternalSelfView && (
+                <Button size="sm" variant="outline" onClick={() => openActionDialog("complete", booking)}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Complete
+                </Button>
               )}
               {isManagerOrAdmin &&
                 booking.status.toUpperCase() === "COMPLETED" &&
@@ -3206,7 +3206,7 @@ export function BookingDetailCard({
               {actionDialog.type === "refund" && "Refund Booking"}
               {actionDialog.type === "absent" && "Operator Unavailable"}
               {actionDialog.type === "under_maintenance" && "Under maintenance (disruption)"}
-              {actionDialog.type === "other_disruption" && "Other Disruption"}
+              {actionDialog.type === "other_disruption" && "Analysis Not Possible"}
               {actionDialog.type === "reschedule" && "Reschedule Booking"}
               {actionDialog.type === "not_utilized" && "Booking Not Utilized"}
             </DialogTitle>
@@ -3329,7 +3329,7 @@ export function BookingDetailCard({
                     : actionDialog.type === "under_maintenance"
                       ? "Optional context for staff (e.g. equipment issue reference)..."
                       : actionDialog.type === "other_disruption"
-                        ? "Enter reason for disruption (this will be emailed to the user)..."
+                        ? "Enter reason why analysis is not possible (this will be emailed to the user)..."
                       : "Add any notes (e.g. reason operator was unavailable)..."
                 }
               />
@@ -3340,7 +3340,7 @@ export function BookingDetailCard({
               )}
               {actionDialog.type === "other_disruption" && (
                 <p className="text-sm text-muted-foreground">
-                  Reason is required. The user will receive an email containing the same reason, and can then choose cancel (refund) or reschedule from My Bookings.
+                  Reason is required. The user will receive an email stating analysis is not possible for this booking, with the same reason, and can then choose cancel (refund) or reschedule from My Bookings.
                 </p>
               )}
               {actionDialog.type === "absent" && (
