@@ -47,7 +47,7 @@ import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
-import SampleTraceTimeline from "@/components/SampleTraceTimeline";
+import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 
@@ -1968,6 +1968,31 @@ export function BookingDetailCard({
               </p>
             )}
             <div className="flex flex-wrap gap-2">
+              {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
+                <SampleSubmittedAction
+                  bookingId={bookingPk ?? 0}
+                  sampleTrace={booking.sample_trace ?? []}
+                  canSetSampleSent={
+                    !isHold &&
+                    !isRefunded &&
+                    !isOperatorUnavailable &&
+                    !isBookingNotUtilized &&
+                    currentUserId != null &&
+                    booking.user === currentUserId
+                  }
+                  onTraceUpdated={(trace) => {
+                    setBooking((prev) => ({ ...prev, sample_trace: trace }));
+                  }}
+                  onUpdated={() => {
+                    void refreshBookingDetail({ silent: true });
+                    onUpdated();
+                  }}
+                  bookingComplete={booking.status.toUpperCase() === "COMPLETED"}
+                  bookingNotUtilized={isBookingNotUtilized}
+                  bookingRefunded={isRefunded}
+                  bookingOperatorUnavailable={isOperatorUnavailable}
+                />
+              )}
               {isFinanceUser &&
                 isExternalBookingType &&
                 booking.sample_return_after_analysis === true &&
@@ -2788,6 +2813,7 @@ export function BookingDetailCard({
               bookingNotUtilized={isBookingNotUtilized}
               bookingRefunded={isRefunded}
               bookingOperatorUnavailable={isOperatorUnavailable}
+              hideSampleSentButton
               hideHeldForwardedStep={(() => {
                 const ut = (booking.user_type_snapshot || "").toLowerCase();
                 return ut === "student" || ut === "faculty";

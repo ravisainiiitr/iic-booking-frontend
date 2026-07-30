@@ -122,6 +122,132 @@ interface SampleTraceTimelineProps {
   bookingRefunded?: boolean;
   /** When true, show terminal "Operator Unavailable" state in lifecycle UI. */
   bookingOperatorUnavailable?: boolean;
+  /** When true, Sample Submitted is rendered elsewhere (e.g. Actions) and omitted from the lifecycle footer. */
+  hideSampleSentButton?: boolean;
+}
+
+/** Sample Submitted control for booking Actions (first action button). */
+export function SampleSubmittedAction({
+  bookingId,
+  sampleTrace,
+  canSetSampleSent,
+  onUpdated,
+  onTraceUpdated,
+  bookingComplete = false,
+  bookingNotUtilized = false,
+  bookingRefunded = false,
+  bookingOperatorUnavailable = false,
+}: {
+  bookingId: number;
+  sampleTrace: SampleTraceEvent[];
+  canSetSampleSent: boolean;
+  onUpdated: () => void;
+  onTraceUpdated?: (sampleTrace: SampleTraceEvent[]) => void;
+  bookingComplete?: boolean;
+  bookingNotUtilized?: boolean;
+  bookingRefunded?: boolean;
+  bookingOperatorUnavailable?: boolean;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [sampleSentOpen, setSampleSentOpen] = useState(false);
+  const [sampleIdentifiers, setSampleIdentifiers] = useState("");
+  const [trackingId, setTrackingId] = useState("");
+  const [courierCompany, setCourierCompany] = useState("");
+
+  const lifecycleTerminal = bookingRefunded || bookingOperatorUnavailable || bookingNotUtilized;
+  const sampleAlreadySubmitted = sampleTrace.some(
+    (e) => String(e.status || "").toUpperCase() === "SAMPLE_SENT"
+  );
+
+  if (!canSetSampleSent || bookingComplete || lifecycleTerminal) {
+    return null;
+  }
+
+  const confirm = async () => {
+    setLoading(true);
+    try {
+      const combinedTracking =
+        trackingId && courierCompany ? `${courierCompany} | ${trackingId}` : trackingId || "";
+      const res = await apiClient.setBookingSampleStatus(
+        bookingId,
+        "SAMPLE_SENT" as any,
+        sampleIdentifiers,
+        combinedTracking
+      );
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      const trace = (res.data as { sample_trace?: SampleTraceEvent[] } | undefined)?.sample_trace;
+      if (trace && onTraceUpdated) {
+        onTraceUpdated(trace);
+      }
+      toast.success("Status updated.");
+      onUpdated();
+      setSampleSentOpen(false);
+      setSampleIdentifiers("");
+      setTrackingId("");
+      setCourierCompany("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setSampleSentOpen(true)}
+        disabled={sampleAlreadySubmitted || sampleTrace.length > 0 || loading}
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+        Sample Submitted
+      </Button>
+      <Dialog open={sampleSentOpen} onOpenChange={setSampleSentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Sample Submitted</DialogTitle>
+            <DialogDescription>
+              Optionally add sample identifiers, courier company name, and tracking ID for your records.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="actions-sample-identifiers">Sample identifiers (optional)</Label>
+            <Input
+              id="actions-sample-identifiers"
+              value={sampleIdentifiers}
+              onChange={(e) => setSampleIdentifiers(e.target.value)}
+              placeholder="e.g. ID-001, Batch 2"
+            />
+            <Label htmlFor="actions-courier-company">Courier company name (optional)</Label>
+            <Input
+              id="actions-courier-company"
+              value={courierCompany}
+              onChange={(e) => setCourierCompany(e.target.value)}
+              placeholder="e.g. DTDC, Blue Dart"
+            />
+            <Label htmlFor="actions-tracking-id">Tracking ID (optional)</Label>
+            <Input
+              id="actions-tracking-id"
+              value={trackingId}
+              onChange={(e) => setTrackingId(e.target.value)}
+              placeholder="e.g. AWB123456789"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSampleSentOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void confirm()} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 export default function SampleTraceTimeline({
@@ -142,6 +268,7 @@ export default function SampleTraceTimeline({
   bookingNotUtilized = false,
   bookingRefunded = false,
   bookingOperatorUnavailable = false,
+  hideSampleSentButton = false,
 }: SampleTraceTimelineProps) {
   const baseLadder = useMemo(
     () => (hideHeldForwardedStep ? STEPS_INTERNAL : STEPS_FULL),
@@ -591,7 +718,7 @@ export default function SampleTraceTimeline({
       </Dialog>
 
       <div className="flex flex-wrap gap-2 pt-2">
-        {canSetSampleSent && !bookingComplete && !lifecycleTerminal && (
+        {!hideSampleSentButton && canSetSampleSent && !bookingComplete && !lifecycleTerminal && (
           <>
             <Button
               size="sm"
