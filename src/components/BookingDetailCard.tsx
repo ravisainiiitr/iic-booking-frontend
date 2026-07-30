@@ -45,7 +45,7 @@ import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Trash2, Loader2, Wrench, Timer } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
@@ -121,6 +121,10 @@ export interface BookingDetailCardBooking extends BookingRef {
     extended?: boolean;
     hours?: number;
   } | null;
+  /** Absolute sample collection / discard deadline after booking completion (ISO). */
+  sample_collection_deadline_at?: string | null;
+  sample_collection_deadline_hours?: number | null;
+  completed_at?: string | null;
   start_time: string;
   end_time: string;
   daily_slots: Array<{
@@ -446,7 +450,7 @@ function isExternalUserTypeSnapshot(ut: string | null | undefined): boolean {
 function canPerformAction(booking: BookingDetailCardBooking, action: ActionType, isOperator: boolean): boolean {
   if (!action) return false;
   const status = booking.status.toUpperCase();
-  /** Sample Lifecycle "Analyzed" (trace COMPLETED) is the same workflow step as Actions → Complete; no second complete. */
+  /** Sample Lifecycle COMPLETED (written by Actions → Complete) means the booking is already finished. */
   const traceHasAnalyzed = (booking.sample_trace ?? []).some(
     (e) => String(e.status || "").toUpperCase() === "COMPLETED"
   );
@@ -647,14 +651,14 @@ export function BookingDetailCard({
   const [legacyRepeatDialogOpen, setLegacyRepeatDialogOpen] = useState(false);
   const [legacyRepeatNotes, setLegacyRepeatNotes] = useState("");
   const [legacyRepeatSubmitLoading, setLegacyRepeatSubmitLoading] = useState(false);
-  const [sampleDisposedDialogOpen, setSampleDisposedDialogOpen] = useState(false);
-  const [sampleDisposedReason, setSampleDisposedReason] = useState("");
+  const [sampleRejectDialogOpen, setSampleRejectDialogOpen] = useState(false);
+  const [sampleRejectReason, setSampleRejectReason] = useState("");
+  const [sampleActionLoading, setSampleActionLoading] = useState<null | "SAMPLE_ACCEPTED" | "SAMPLE_REJECTED">(null);
   const [returnShipDialogOpen, setReturnShipDialogOpen] = useState(false);
   const [returnShipCompany, setReturnShipCompany] = useState<string>("");
   const [returnShipOther, setReturnShipOther] = useState("");
   const [returnShipTracking, setReturnShipTracking] = useState("");
   const [returnShipSaving, setReturnShipSaving] = useState(false);
-  const [postAnalyzedActionLoading, setPostAnalyzedActionLoading] = useState<null | "DISPOSED">(null);
   const [analysisSummary, setAnalysisSummary] = useState<Record<string, unknown> | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
@@ -706,28 +710,56 @@ export function BookingDetailCard({
     }
   };
 
-  const handleSampleDisposedConfirm = async () => {
+  const handleSampleAccepted = async () => {
     if (bookingPk == null) return;
-    setPostAnalyzedActionLoading("DISPOSED");
+    setSampleActionLoading("SAMPLE_ACCEPTED");
+    try {
+      const res = await apiClient.setBookingSampleStatus(bookingPk, "SAMPLE_ACCEPTED");
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("Sample accepted.");
+      if (res.data?.sample_trace) {
+        setBooking((prev) => ({ ...prev, sample_trace: res.data!.sample_trace }));
+      }
+      await refreshBookingDetail();
+      onUpdated();
+    } finally {
+      setSampleActionLoading(null);
+    }
+  };
+
+  const handleSampleRejectedConfirm = async () => {
+    if (bookingPk == null) return;
+    const reason = sampleRejectReason.trim();
+    if (!reason) {
+      toast.error("Please specify a reason for rejection.");
+      return;
+    }
+    setSampleActionLoading("SAMPLE_REJECTED");
     try {
       const res = await apiClient.setBookingSampleStatus(
         bookingPk,
-        "DISPOSED",
+        "SAMPLE_REJECTED",
         undefined,
         undefined,
-        sampleDisposedReason.trim() || undefined
+        reason
       );
       if (res.error) {
         toast.error(res.error);
         return;
       }
-      toast.success("Sample marked as disposed.");
-      setSampleDisposedDialogOpen(false);
-      setSampleDisposedReason("");
+      toast.success("Sample rejected.");
+      setSampleRejectDialogOpen(false);
+      setSampleRejectReason("");
+      if (res.data?.sample_trace) {
+        setBooking((prev) => ({ ...prev, sample_trace: res.data!.sample_trace }));
+      }
       await refreshBookingDetail();
       onUpdated();
     } finally {
-      setPostAnalyzedActionLoading(null);
+      setSampleActionLoading(null);
     }
   };
 
@@ -1314,28 +1346,35 @@ export function BookingDetailCard({
     bookingPk != null &&
     (isOperatorOrManager || (currentUserId != null && booking.user === currentUserId));
   const traceHasAnalyzed = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "COMPLETED");
-  const traceHasDisposed = sampleTraceList.some((e) => String(e.status || "").toUpperCase() === "DISPOSED");
   const returnShippingAccountsLocked = sampleTraceList.some(
     (e) => String(e.status || "").toUpperCase() === "RETURNED"
   );
   const traceHasReturned = returnShippingAccountsLocked;
 
-  /** Match Sample Lifecycle: Analyzed shows Done when trace has COMPLETED or booking is Completed. */
-  const analyzedDoneForStaffActions = traceHasAnalyzed || isCompleted;
-  /** Staff can record dispose while booking is still Booked (trace ahead of formal Complete) or Completed. */
-  const bookingAllowsPostAnalyzedLifecycleActions =
-    (booking.status.toUpperCase() === "BOOKED" || isCompleted) &&
+  const latestAcceptReject = [...sampleTraceList]
+    .filter((e) => ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"].includes(String(e.status || "").toUpperCase()))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  const isRejectedSampleFlow = String(latestAcceptReject?.status || "").toUpperCase() === "SAMPLE_REJECTED";
+  const sampleAcceptedOrRejectedDone = !!latestAcceptReject;
+  const heldAtOfficeBlocksSampleActions =
+    isExternalBookingType &&
+    [...sampleTraceList]
+      .filter((e) => ["HELD_AT_OFFICE", "FORWARDED_TO_LAB"].includes(String(e.status || "").toUpperCase()))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.status?.toUpperCase() ===
+      "HELD_AT_OFFICE";
+
+  /** Sample Accepted / Rejected in the main Actions toolbar (internal staff only). */
+  const showSampleAcceptRejectActions =
+    isOperatorOrManager &&
+    !isExternalSelfView &&
+    !isExternalBookingType &&
     !isHold &&
     !isRefunded &&
     !isOperatorUnavailable &&
-    !isBookingNotUtilized;
-
-  /** After Analyzed: dispose (also auto-runs after retention). Sample Returned / Archived removed. */
-  const showSampleDisposedAction =
-    isOperatorOrManager &&
-    bookingAllowsPostAnalyzedLifecycleActions &&
-    analyzedDoneForStaffActions &&
-    !traceHasDisposed;
+    !isBookingNotUtilized &&
+    !isCompleted &&
+    !traceHasAnalyzed &&
+    !heldAtOfficeBlocksSampleActions;
 
   const hasDownloadableResults = !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0);
   const showIstemWorkflow =
@@ -1516,6 +1555,23 @@ export function BookingDetailCard({
             <BookingLifecycleCountdown
               countdown={(booking.lifecycle_countdown || booking.completion_countdown)!}
             />
+          )}
+
+          {isCompleted && booking.sample_collection_deadline_at && (
+            <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-1">
+              <div className="text-sm font-semibold text-foreground">Sample Collection Deadline</div>
+              <p className="text-sm text-muted-foreground">
+                {new Date(booking.sample_collection_deadline_at).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Please collect your sample before this date. Samples not collected may be discarded as per laboratory
+                policy.
+              </p>
+            </div>
           )}
 
           {canEditAtmosphereSensitive ? (
@@ -2179,6 +2235,39 @@ export function BookingDetailCard({
                   Complete
                 </Button>
               )}
+              {showSampleAcceptRejectActions && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      (sampleAcceptedOrRejectedDone && !isRejectedSampleFlow) ||
+                      sampleActionLoading !== null
+                    }
+                    onClick={() => void handleSampleAccepted()}
+                  >
+                    {sampleActionLoading === "SAMPLE_ACCEPTED" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ThumbsUp className="h-4 w-4 mr-2" />
+                    )}
+                    Sample Accepted
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={sampleAcceptedOrRejectedDone || sampleActionLoading !== null}
+                    onClick={() => setSampleRejectDialogOpen(true)}
+                  >
+                    {sampleActionLoading === "SAMPLE_REJECTED" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ThumbsDown className="h-4 w-4 mr-2" />
+                    )}
+                    Sample Rejected
+                  </Button>
+                </>
+              )}
               {!isHold && isOperatorOrManager && !isLabInchargeUser && canPerformAction(booking, "refund", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("refund", booking)}>
                   <RotateCcw className="h-4 w-4 mr-2" />
@@ -2393,17 +2482,6 @@ export function BookingDetailCard({
                   Repeat sample used
                 </span>
               )}
-              {showSampleDisposedAction && (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={postAnalyzedActionLoading !== null}
-                  onClick={() => setSampleDisposedDialogOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Disposed
-                </Button>
-              )}
               {!isOperator &&
                 currentUserId != null &&
                 booking.user === currentUserId &&
@@ -2447,50 +2525,45 @@ export function BookingDetailCard({
               )}
             </div>
             <Dialog
-              open={sampleDisposedDialogOpen}
+              open={sampleRejectDialogOpen}
               onOpenChange={(open) => {
-                setSampleDisposedDialogOpen(open);
-                if (!open) setSampleDisposedReason("");
+                setSampleRejectDialogOpen(open);
+                if (!open) setSampleRejectReason("");
               }}
             >
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Mark sample as disposed</DialogTitle>
-                  <DialogDescription>
-                    This records disposal in the sample lifecycle and notifies the user by email. Optional remarks are included in the record.
-                  </DialogDescription>
+                  <DialogTitle>Sample Rejected</DialogTitle>
+                  <DialogDescription>Please specify the reason for rejection (required).</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2 py-1">
-                  <Label htmlFor="sample-disposed-remarks">Remarks (optional)</Label>
-                  <Textarea
-                    id="sample-disposed-remarks"
-                    value={sampleDisposedReason}
-                    onChange={(e) => setSampleDisposedReason(e.target.value)}
-                    placeholder="e.g. Retention period ended; sample disposed per policy."
-                    rows={3}
-                    className="resize-none"
+                  <Label htmlFor="sample-reject-reason">Reason</Label>
+                  <Input
+                    id="sample-reject-reason"
+                    value={sampleRejectReason}
+                    onChange={(e) => setSampleRejectReason(e.target.value)}
+                    placeholder="e.g. Sample damaged, incorrect format"
                   />
                 </div>
                 <DialogFooter>
                   <Button
                     variant="outline"
-                    onClick={() => setSampleDisposedDialogOpen(false)}
-                    disabled={postAnalyzedActionLoading === "DISPOSED"}
+                    onClick={() => setSampleRejectDialogOpen(false)}
+                    disabled={sampleActionLoading === "SAMPLE_REJECTED"}
                   >
                     Cancel
                   </Button>
                   <Button
-                    variant="destructive"
-                    onClick={handleSampleDisposedConfirm}
-                    disabled={postAnalyzedActionLoading === "DISPOSED"}
+                    onClick={() => void handleSampleRejectedConfirm()}
+                    disabled={!sampleRejectReason.trim() || sampleActionLoading === "SAMPLE_REJECTED"}
                   >
-                    {postAnalyzedActionLoading === "DISPOSED" ? (
+                    {sampleActionLoading === "SAMPLE_REJECTED" ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Saving…
                       </>
                     ) : (
-                      "Confirm disposed"
+                      "Confirm"
                     )}
                   </Button>
                 </DialogFooter>

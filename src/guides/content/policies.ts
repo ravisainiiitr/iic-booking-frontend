@@ -182,7 +182,7 @@ export function bookingNotUtilizedPolicySection(): GuideSection {
       },
       {
         title: "Example — Sample never progresses",
-        body: "You booked and perhaps marked Sample Sent, but never completed the laboratory hand-off. Staff may close the booking as Not Utilized per policy.",
+        body: "You booked and perhaps marked Sample Submitted, but never completed the laboratory hand-off. Staff may close the booking as Not Utilized per policy.",
       },
       {
         title: "Example — What is NOT Not Utilized",
@@ -248,7 +248,7 @@ export function sampleSubmissionPolicySection(): GuideSection {
     steps: [
       {
         title: "Example — On-time physical sample",
-        body: "Your booking starts Thursday 10:00 with a 24-hour submission lead. You drop labelled vials Wednesday morning and mark Sample Sent. The lab accepts and runs the session.",
+        body: "Your booking starts Thursday 10:00 with a 24-hour submission lead. You drop labelled vials Wednesday morning and mark Sample Submitted. The lab accepts and runs the session.",
       },
       {
         title: "Example — Waitlisted early submission",

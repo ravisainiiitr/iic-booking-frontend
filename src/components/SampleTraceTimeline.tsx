@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -11,25 +10,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, Circle, Send, ThumbsUp, ThumbsDown, Loader2, Package, FlaskConical, XCircle, Info, Trash2, Ban } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Check, Circle, Send, Loader2, Package, FlaskConical, XCircle, Info, Ban } from "lucide-react";
 import type { SampleTraceEvent } from "@/lib/api";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 
 const STEPS_FULL: { key: string; label: string; statuses: string[] }[] = [
-  { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
+  { key: "sample_sent", label: "Sample Submitted", statuses: ["SAMPLE_SENT"] },
   { key: "held_or_forwarded", label: "Held at Office / Forwarded to Lab", statuses: ["HELD_AT_OFFICE", "FORWARDED_TO_LAB"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
-  { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
-  { key: "disposed", label: "Disposed", statuses: ["DISPOSED"] },
+  /** Booking Complete (Actions) writes COMPLETED trace; DISPOSED kept in statuses for legacy rows only. */
+  { key: "analyzed_ready", label: "Completed", statuses: ["COMPLETED", "DISPOSED"] },
 ];
 
 /** For internal users (students/faculty): no Held at Office / Forwarded to Lab step */
 const STEPS_INTERNAL: { key: string; label: string; statuses: string[] }[] = [
-  { key: "sample_sent", label: "Sample Sent", statuses: ["SAMPLE_SENT"] },
+  { key: "sample_sent", label: "Sample Submitted", statuses: ["SAMPLE_SENT"] },
   { key: "accepted_rejected", label: "Sample Accepted / Rejected", statuses: ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"] },
-  { key: "analyzed_ready", label: "Analyzed", statuses: ["COMPLETED"] },
-  { key: "disposed", label: "Disposed", statuses: ["DISPOSED"] },
+  { key: "analyzed_ready", label: "Completed", statuses: ["COMPLETED", "DISPOSED"] },
 ];
 
 const REFUNDED_TERMINAL_STEP = { key: "refunded", label: "Refunded", statuses: ["BOOKING_REFUNDED"] };
@@ -77,8 +76,9 @@ function computeFurthestIntermediateIndex(
 
 const STATUS_LABEL_OVERRIDES: Record<string, string> = {
   PROCESSING: "In Analysis",
-  COMPLETED: "Analyzed",
-  DISPOSED: "Disposed",
+  SAMPLE_SENT: "Sample Submitted",
+  COMPLETED: "Completed",
+  DISPOSED: "Completed",
   NOT_UTILIZED: "Booking Not Utilized",
   OP_UNAVAILABLE: "Operator Unavailable",
 };
@@ -152,11 +152,6 @@ export default function SampleTraceTimeline({
     [sampleTrace, baseLadder]
   );
 
-  const hasDisposedInTrace = useMemo(
-    () => sampleTrace.some((e) => String(e.status || "").toUpperCase() === "DISPOSED"),
-    [sampleTrace]
-  );
-
   const steps = useMemo(() => {
     if (bookingRefunded) {
       if (furthestIntermediateIndex < 0) return [REFUNDED_TERMINAL_STEP];
@@ -171,12 +166,6 @@ export default function SampleTraceTimeline({
       return [...baseLadder.slice(0, furthestIntermediateIndex + 1), NOT_UTILIZED_TERMINAL_STEP];
     }
 
-    if (hasDisposedInTrace) {
-      const f = computeFurthestIntermediateIndex(sampleTrace, baseLadder);
-      if (f < 0) return baseLadder;
-      return baseLadder.slice(0, f + 1);
-    }
-
     return baseLadder;
   }, [
     baseLadder,
@@ -184,21 +173,7 @@ export default function SampleTraceTimeline({
     bookingOperatorUnavailable,
     bookingNotUtilized,
     furthestIntermediateIndex,
-    hasDisposedInTrace,
-    sampleTrace,
   ]);
-
-  const furthestInSteps = useMemo(
-    () => computeFurthestIntermediateIndex(sampleTrace, steps),
-    [sampleTrace, steps]
-  );
-
-  /** Lifecycle visually closed at Disposed (no further steps shown). */
-  const postAnalyzedLifecycleClosed =
-    !bookingRefunded &&
-    !bookingOperatorUnavailable &&
-    !bookingNotUtilized &&
-    hasDisposedInTrace;
 
   /** Booking closed for lifecycle: no sample-status actions (user or staff). */
   const lifecycleTerminal =
@@ -208,12 +183,8 @@ export default function SampleTraceTimeline({
   const [sampleIdentifiers, setSampleIdentifiers] = useState("");
   const [trackingId, setTrackingId] = useState("");
   const [courierCompany, setCourierCompany] = useState("");
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
   const [heldDialogOpen, setHeldDialogOpen] = useState(false);
   const [heldReason, setHeldReason] = useState("");
-  const [disposeDialogOpen, setDisposeDialogOpen] = useState(false);
-  const [disposeReason, setDisposeReason] = useState("");
   const [detailEvent, setDetailEvent] = useState<SampleTraceEvent | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
@@ -231,18 +202,14 @@ export default function SampleTraceTimeline({
   const heldOrForwardedStep = baseLadder.find((s) => s.key === "held_or_forwarded");
   const acceptedRejectedStep = baseLadder.find((s) => s.key === "accepted_rejected")!;
   const analyzedReadyStep = baseLadder.find((s) => s.key === "analyzed_ready")!;
-  const disposedStep = baseLadder.find((s) => s.key === "disposed")!;
 
   const sampleSentEvent = getEventForStep(sampleTrace, sampleSentStep);
   const sampleSentDone = !!sampleSentEvent;
   const heldOrForwardedEvent = heldOrForwardedStep ? getEventForStep(sampleTrace, heldOrForwardedStep) : undefined;
   const heldOrForwardedDone = !!heldOrForwardedEvent;
   const acceptedOrRejectedEvent = getEventForStep(sampleTrace, acceptedRejectedStep);
-  const acceptedOrRejectedDone = !!acceptedOrRejectedEvent;
   const analyzedReadyEvent = getEventForStep(sampleTrace, analyzedReadyStep);
   const analyzedReadyDone = !!analyzedReadyEvent || bookingComplete;
-  const disposedEvent = getEventForStep(sampleTrace, disposedStep);
-  const disposedDone = !!disposedEvent;
   const acceptedRejectedEvents = sampleTrace.filter((e) => e.status === "SAMPLE_ACCEPTED" || e.status === "SAMPLE_REJECTED");
   const latestAcceptedRejected = acceptedRejectedEvents.length > 0
     ? acceptedRejectedEvents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
@@ -254,7 +221,6 @@ export default function SampleTraceTimeline({
     : null;
   const isHeldAtOfficeFlow = latestHeldOrForwarded?.status === "HELD_AT_OFFICE";
   const isExternalBooking = !hideHeldForwardedStep;
-  const applyHeldAtOfficeFlowRules = isExternalBooking && isHeldAtOfficeFlow;
   const isNotUtilizedFlow = bookingNotUtilized || sampleTrace.some((e) => String(e.status).toUpperCase() === "NOT_UTILIZED");
 
   const stepIndexByKey = new Map<string, number>(steps.map((s, idx) => [s.key, idx]));
@@ -271,17 +237,13 @@ export default function SampleTraceTimeline({
     if (terminalBookingOutcome) {
       return furthestIntermediateIndex >= 0 ? steps.length - 1 : 0;
     }
-    if (postAnalyzedLifecycleClosed) {
-      return Math.max(0, steps.length - 1);
-    }
     return Math.max(
-      bookingComplete ? (stepIndexByKey.get("analyzed_ready") ?? -1) : -1,
+      bookingComplete || analyzedReadyDone ? (stepIndexByKey.get("analyzed_ready") ?? -1) : -1,
       latestEvent ? stepIndexForStatus(latestEvent.status) : -1
     );
   })();
   const activeIdx = (() => {
     if (terminalBookingOutcome) return Math.max(0, steps.length - 1);
-    if (postAnalyzedLifecycleClosed) return Math.max(0, steps.length - 1);
     if (isRejectedFlow) return stepIndexByKey.get("accepted_rejected") ?? -1;
     if (isNotUtilizedFlow && !bookingNotUtilized) {
       return stepIndexByKey.get("not_utilized") ?? latestIdx;
@@ -343,12 +305,10 @@ export default function SampleTraceTimeline({
           const event = getEventForStep(sampleTrace, step);
 
           const stepIdx = stepIndexByKey.get(step.key) ?? index;
-          const lastStepKey = steps[steps.length - 1]?.key;
           const isTerminalDisplayStep =
             step.key === "refunded" ||
             step.key === "operator_unavailable" ||
-            step.key === "not_utilized" ||
-            (step.key === "disposed" && hasDisposedInTrace && lastStepKey === "disposed");
+            step.key === "not_utilized";
           const isAfterRejected =
             !bookingRefunded &&
             !bookingOperatorUnavailable &&
@@ -363,10 +323,6 @@ export default function SampleTraceTimeline({
             }
             if (terminalBookingOutcome && furthestIntermediateIndex < 0) {
               return isTerminalDisplayStep;
-            }
-            if (postAnalyzedLifecycleClosed) {
-              if (isTerminalDisplayStep) return true;
-              return stepIdx <= furthestInSteps;
             }
             return !isAfterRejected && (event ? true : latestIdx >= stepIdx);
           })();
@@ -644,12 +600,12 @@ export default function SampleTraceTimeline({
               disabled={sampleTrace.length > 0 || bookingComplete || !!loading}
             >
               {loading === "SAMPLE_SENT" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Sample Sent
+              Sample Submitted
             </Button>
             <Dialog open={sampleSentOpen} onOpenChange={setSampleSentOpen}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Mark Sample Sent</DialogTitle>
+                  <DialogTitle>Mark Sample Submitted</DialogTitle>
                   <DialogDescription>
                     Optionally add sample identifiers, courier company name, and tracking ID for your records.
                   </DialogDescription>
@@ -753,108 +709,7 @@ export default function SampleTraceTimeline({
             </Button>
           </>
         )}
-        {/* Sample Accepted, Sample Rejected, Analyzed, Disposed: only admin, officer in charge, lab in charge (hidden for external users when hideSampleStatusActions is true) */}
-        {canSetStaffStatus && !bookingComplete && !lifecycleTerminal && !hideSampleStatusActions && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setStatus("SAMPLE_ACCEPTED")}
-              disabled={(acceptedOrRejectedDone && !isRejectedFlow) || analyzedReadyDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
-            >
-              {loading === "SAMPLE_ACCEPTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsUp className="h-4 w-4 mr-2" />}
-              Sample Accepted
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setRejectDialogOpen(true)}
-              disabled={acceptedOrRejectedDone || analyzedReadyDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
-            >
-              {loading === "SAMPLE_REJECTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ThumbsDown className="h-4 w-4 mr-2" />}
-              Sample Rejected
-            </Button>
-            <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Sample Rejected</DialogTitle>
-                  <DialogDescription>Please specify the reason for rejection (required).</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2">
-                  <Label htmlFor="reject-reason">Reason</Label>
-                  <Input
-                    id="reject-reason"
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="e.g. Sample damaged, incorrect format"
-                  />
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
-                  <Button
-                    onClick={() => setStatus("SAMPLE_REJECTED", undefined, undefined, rejectReason.trim())}
-                    disabled={!rejectReason.trim() || loading === "SAMPLE_REJECTED"}
-                  >
-                    {loading === "SAMPLE_REJECTED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Confirm
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setStatus("COMPLETED")}
-              disabled={!acceptedOrRejectedDone || isRejectedFlow || analyzedReadyDone || disposedDone || applyHeldAtOfficeFlowRules || !!loading}
-            >
-              {loading === "COMPLETED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-              Analyzed
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setDisposeDialogOpen(true)}
-              disabled={!analyzedReadyDone || disposedDone || !!loading}
-              title="Also runs automatically after the sample retention period"
-            >
-              {loading === "DISPOSED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-              Disposed
-            </Button>
-            <Dialog open={disposeDialogOpen} onOpenChange={setDisposeDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Mark as Disposed</DialogTitle>
-                  <DialogDescription>
-                    Optional early dispose. Otherwise Disposed is applied automatically after the configured sample
-                    retention period. Confirming will notify the user by email.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2">
-                  <Label htmlFor="dispose-reason">Remarks (optional)</Label>
-                  <Textarea
-                    id="dispose-reason"
-                    value={disposeReason}
-                    onChange={(e) => setDisposeReason(e.target.value)}
-                    placeholder="e.g. Retention period ended; sample disposed as per policy."
-                    rows={3}
-                    className="resize-none"
-                  />
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDisposeDialogOpen(false)} disabled={loading === "DISPOSED"}>Cancel</Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setStatus("DISPOSED", undefined, undefined, disposeReason.trim() || undefined)}
-                    disabled={loading === "DISPOSED"}
-                  >
-                    {loading === "DISPOSED" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Confirm Disposed
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </>
-        )}
+        {/* Sample Accepted / Rejected / Complete live in the main Actions toolbar (BookingDetailCard). */}
       </div>
     </div>
   );
