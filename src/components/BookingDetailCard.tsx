@@ -675,6 +675,7 @@ export function BookingDetailCard({
   const [analysisSummary, setAnalysisSummary] = useState<Record<string, unknown> | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analyzeSoftwareDialogOpen, setAnalyzeSoftwareDialogOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -2682,14 +2683,26 @@ export function BookingDetailCard({
               analysisSummary) && (
               <div className="mt-4 pt-4 border-t no-print space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold">Remote Analysis</h3>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate("/remote-analysis")}
-                  >
-                    Open Collaboration Center
-                  </Button>
+                  <h3 className="text-base font-semibold">
+                    {String(
+                      (analysisSummary as any)?.workspace_page_title ||
+                        (analysisSummary as any)?.button_label ||
+                        (analysisSummary as any)?.analyze?.button_label ||
+                        "Analyze Data"
+                    )}
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {(isManagerOrAdmin || isOperator) && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => navigate("/admin/analysis-workflows")}>
+                          Workflow Designer
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => navigate("/remote-analysis")}>
+                          Operations center
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 {analysisLoading && (
                   <p className="text-sm text-muted-foreground">Loading analysis status…</p>
@@ -2698,95 +2711,161 @@ export function BookingDetailCard({
                   <>
                     <div className="grid gap-2 sm:grid-cols-2 text-sm">
                       <div>
-                        <span className="text-muted-foreground">Eligibility: </span>
+                        <span className="text-muted-foreground">Status: </span>
                         {String(
-                          ((analysisSummary.eligibility as Record<string, unknown>) || {}).eligible
-                            ? "Eligible"
-                            : ((analysisSummary.eligibility as Record<string, unknown>) || {}).reason ||
-                                "Not eligible"
+                          (analysisSummary as any)?.job?.ux_status ||
+                            ((analysisSummary as any)?.analyze?.job?.ux_status) ||
+                            (Boolean((analysisSummary as any).can_analyze) ? "Ready" : "") ||
+                            ((analysisSummary.eligibility as Record<string, unknown>) || {}).reason ||
+                            ((analysisSummary as any)?.analyze?.queue_message) ||
+                            "Not ready"
                         )}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Reservation: </span>
-                        {String(
-                          ((analysisSummary.reservation as Record<string, unknown>) || {}).status || "—"
-                        )}
+                        <span className="text-muted-foreground">RAW files: </span>
+                        {Boolean((analysisSummary as any).raw_ready ?? (analysisSummary as any)?.analyze?.raw_ready)
+                          ? "Available"
+                          : "Waiting for sync"}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Workstation: </span>
+                        <span className="text-muted-foreground">Workflow: </span>
                         {String(
-                          ((analysisSummary.reservation as Record<string, unknown>) || {}).workstation ||
+                          (analysisSummary as any)?.job?.workflow?.name ||
+                            ((analysisSummary as any)?.workflows?.[0]?.name) ||
+                            ((analysisSummary as any)?.analyze?.workflows?.[0]?.name) ||
                             "—"
                         )}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Session: </span>
+                        <span className="text-muted-foreground">Analysis Session: </span>
                         {String(
                           ((analysisSummary.session as Record<string, unknown>) || {}).status || "—"
                         )}
                       </div>
                     </div>
+                    {Boolean((analysisSummary as any)?.analyze?.queued || (analysisSummary as any)?.queued) && (
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        {String(
+                          (analysisSummary as any)?.analyze?.queue_message ||
+                            "An Analysis Environment is busy. Your request is queued."
+                        )}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        disabled={analysisBusy}
-                        onClick={async () => {
-                          setAnalysisBusy(true);
-                          try {
-                            const res = await apiClient.createBookingAnalysisReservation(Number(bookingPk));
-                            if (res.error) toast.error(res.error);
-                            else {
-                              toast.success("Analysis reservation ready");
-                              const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
-                              if (!refreshed.error) setAnalysisSummary(refreshed.data as Record<string, unknown>);
-                            }
-                          } finally {
-                            setAnalysisBusy(false);
-                          }
-                        }}
-                      >
-                        Create / refresh reservation
-                      </Button>
+                      {currentUserId != null && booking.user === currentUserId && (
+                        <Button
+                          size="sm"
+                          disabled={analysisBusy || (!(analysisSummary as any).can_analyze && !(analysisSummary as any)?.job && !(analysisSummary as any)?.analyze?.job)}
+                          onClick={() => navigate(`/analysis-workspace/${bookingPk}`)}
+                        >
+                          Open Analysis Workspace
+                        </Button>
+                      )}
                       {currentUserId != null && booking.user === currentUserId && (
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={analysisBusy}
+                          disabled={analysisBusy || !(analysisSummary as any).can_analyze}
                           onClick={async () => {
+                            const workflows =
+                              ((analysisSummary as any).workflows as Array<Record<string, unknown>>) ||
+                              ((analysisSummary as any)?.analyze?.workflows as Array<Record<string, unknown>>) ||
+                              [];
+                            const options =
+                              ((analysisSummary as any).software_options as Array<Record<string, unknown>>) ||
+                              ((analysisSummary as any)?.analyze?.software_options as Array<
+                                Record<string, unknown>
+                              >) ||
+                              [];
+                            if (workflows.length > 1 || options.length > 1) {
+                              navigate(`/analysis-workspace/${bookingPk}`);
+                              return;
+                            }
                             setAnalysisBusy(true);
                             try {
-                              const res = await apiClient.launchBookingAnalysisDesktop(Number(bookingPk));
+                              const workflowId =
+                                workflows.length === 1 ? String(workflows[0].id || "") : undefined;
+                              const mappingId =
+                                !workflowId && options.length === 1
+                                  ? String(options[0].id || "")
+                                  : undefined;
+                              const res = await apiClient.analyzeBookingData(Number(bookingPk), {
+                                workflow_id: workflowId || undefined,
+                                mapping_id: mappingId || undefined,
+                              });
                               if (res.error) toast.error(res.error);
-                              else {
-                                toast.success("Desktop session created");
-                                navigate("/remote-analysis");
+                              else if ((res.data as any)?.queued) {
+                                toast.success(
+                                  String(
+                                    (res.data as any)?.message ||
+                                      "Queued — waiting for an Analysis Environment"
+                                  )
+                                );
+                              } else {
+                                toast.success(
+                                  String((res.data as any)?.ux_status || "Analysis Session Active")
+                                );
+                                const launchUrl = String((res.data as any)?.launch_url || "");
+                                const launcher = String((res.data as any)?.launcher_url || "");
+                                if (launchUrl) window.open(launchUrl, "_blank", "noopener,noreferrer");
+                                else if (launcher) window.open(launcher, "_blank", "noopener,noreferrer");
                               }
+                              const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
+                              if (!refreshed.error) setAnalysisSummary(refreshed.data as Record<string, unknown>);
                             } finally {
                               setAnalysisBusy(false);
                             }
                           }}
                         >
-                          Launch Desktop
+                          {String(
+                            (analysisSummary as any)?.button_label ||
+                              (analysisSummary as any)?.analyze?.button_label ||
+                              "Analyze Data"
+                          )}
                         </Button>
                       )}
                       {(isManagerOrAdmin || isOperator) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={analysisBusy}
-                          onClick={async () => {
-                            setAnalysisBusy(true);
-                            try {
-                              const res = await apiClient.archiveBookingAnalysisWorkspace(Number(bookingPk));
-                              if (res.error) toast.error(res.error);
-                              else toast.success("Workspace archived");
-                            } finally {
-                              setAnalysisBusy(false);
-                            }
-                          }}
-                        >
-                          Archive workspace
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={analysisBusy}
+                            onClick={async () => {
+                              setAnalysisBusy(true);
+                              try {
+                                const res = await apiClient.createBookingAnalysisReservation(Number(bookingPk));
+                                if (res.error) toast.error(res.error);
+                                else {
+                                  toast.success("Reservation refreshed");
+                                  const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
+                                  if (!refreshed.error)
+                                    setAnalysisSummary(refreshed.data as Record<string, unknown>);
+                                }
+                              } finally {
+                                setAnalysisBusy(false);
+                              }
+                            }}
+                          >
+                            Refresh reservation
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={analysisBusy}
+                            onClick={async () => {
+                              setAnalysisBusy(true);
+                              try {
+                                const res = await apiClient.archiveBookingAnalysisWorkspace(Number(bookingPk));
+                                if (res.error) toast.error(res.error);
+                                else toast.success("Workspace archived");
+                              } finally {
+                                setAnalysisBusy(false);
+                              }
+                            }}
+                          >
+                            Archive workspace
+                          </Button>
+                        </>
                       )}
                     </div>
                     {Array.isArray(analysisSummary.timeline) &&
@@ -2807,6 +2886,71 @@ export function BookingDetailCard({
                         </div>
                       )}
                   </>
+                )}
+                {analyzeSoftwareDialogOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-md rounded-lg bg-background border p-4 space-y-3 shadow-lg">
+                      <h4 className="font-semibold text-base">Select analysis software</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Choose the software for this analysis. An Analysis PC will be assigned automatically.
+                      </p>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {(
+                          ((analysisSummary as any)?.software_options as Array<Record<string, unknown>>) ||
+                          ((analysisSummary as any)?.analyze?.software_options as Array<
+                            Record<string, unknown>
+                          >) ||
+                          []
+                        ).map((opt) => (
+                          <Button
+                            key={String(opt.id)}
+                            className="w-full justify-start"
+                            variant={opt.is_default ? "default" : "outline"}
+                            disabled={analysisBusy}
+                            onClick={async () => {
+                              setAnalysisBusy(true);
+                              try {
+                                const res = await apiClient.analyzeBookingData(Number(bookingPk), {
+                                  mapping_id: String(opt.id),
+                                });
+                                if (res.error) toast.error(res.error);
+                                else if ((res.data as any)?.queued) {
+                                  toast.success(String((res.data as any)?.message || "Queued"));
+                                  setAnalyzeSoftwareDialogOpen(false);
+                                } else {
+                                  toast.success("Analysis session starting");
+                                  setAnalyzeSoftwareDialogOpen(false);
+                                  const launchUrl = String((res.data as any)?.launch_url || "");
+                                  const launcher = String((res.data as any)?.launcher_url || "");
+                                  if (launchUrl) window.open(launchUrl, "_blank", "noopener,noreferrer");
+                                  else if (launcher) window.open(launcher, "_blank", "noopener,noreferrer");
+                                }
+                                const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
+                                if (!refreshed.error)
+                                  setAnalysisSummary(refreshed.data as Record<string, unknown>);
+                              } finally {
+                                setAnalysisBusy(false);
+                              }
+                            }}
+                          >
+                            {String(opt.name)}
+                            {opt.vendor ? ` · ${String(opt.vendor)}` : ""}
+                            {opt.is_default ? " (default)" : ""}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAnalyzeSoftwareDialogOpen(false)}
+                          disabled={analysisBusy}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

@@ -4206,6 +4206,130 @@ class ApiClient {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/`, { method: 'GET' });
   }
 
+  async getBookingAnalysisSoftware(bookingId: number) {
+    return this.request<{ software_options: Array<Record<string, unknown>> }>(
+      `/v1/bookings/${bookingId}/analysis/software/`,
+      { method: 'GET' }
+    );
+  }
+
+  async analyzeBookingData(
+    bookingId: number,
+    body: {
+      mapping_id?: string;
+      catalog_id?: string;
+      software_slug?: string;
+      workflow_id?: string;
+      variables?: Record<string, unknown>;
+    } = {}
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/analyze/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getBookingAnalysisWorkflows(bookingId: number) {
+    return this.request<{ workflows: Array<Record<string, unknown>> }>(
+      `/v1/bookings/${bookingId}/analysis/workflows/`,
+      { method: 'GET' }
+    );
+  }
+
+  async getBookingAnalysisJob(bookingId: number) {
+    return this.request<{ job: Record<string, unknown> | null }>(
+      `/v1/bookings/${bookingId}/analysis/job/`,
+      { method: 'GET' }
+    );
+  }
+
+  async completeAnalysisJobStep(bookingId: number, stepNumber: number, body: { force?: boolean } = {}) {
+    return this.request<Record<string, unknown>>(
+      `/v1/bookings/${bookingId}/analysis/job/steps/${stepNumber}/complete/`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async pauseAnalysisJob(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/job/pause/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async resumeAnalysisJob(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/job/resume/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async listAnalysisWorkflows() {
+    return this.request<{ workflows: Array<Record<string, unknown>> }>(`/v1/analysis/workflows/`, {
+      method: 'GET',
+    });
+  }
+
+  async getAnalysisWorkflow(workflowId: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/${workflowId}/`, { method: 'GET' });
+  }
+
+  async createAnalysisWorkflow(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateAnalysisWorkflow(workflowId: string, body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/${workflowId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async cloneAnalysisWorkflow(workflowId: string, body: { name?: string; as_template?: boolean } = {}) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/${workflowId}/clone/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async publishAnalysisWorkflow(workflowId: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/${workflowId}/publish/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async saveAnalysisWorkflowSteps(workflowId: string, steps: Array<Record<string, unknown>>) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/${workflowId}/steps/`, {
+      method: 'PUT',
+      body: JSON.stringify({ steps }),
+    });
+  }
+
+  async mapAnalysisWorkflowEquipment(
+    workflowId: string,
+    body: { equipment_id: number; is_default?: boolean; sort_order?: number; button_label_override?: string }
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/${workflowId}/map-equipment/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getAnalysisWorkflowOpsDashboard() {
+    return this.request<Record<string, unknown>>(`/v1/analysis/workflows/ops/`, { method: 'GET' });
+  }
+
+  async listAnalysisCapabilities() {
+    return this.request<{ capabilities: Array<Record<string, unknown>> }>(
+      `/v1/analysis/workflows/capabilities/`,
+      { method: 'GET' }
+    );
+  }
+
   async createBookingAnalysisReservation(bookingId: number) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/create/`, {
       method: 'POST',

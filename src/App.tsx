@@ -78,6 +78,8 @@ import OICMultiMode from "./pages/OICMultiMode";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
 import InventoryManagement from "./pages/InventoryManagement";
 import RemoteAnalysis from "./pages/RemoteAnalysis";
+import AnalysisWorkspace from "./pages/AnalysisWorkspace";
+import WorkflowDesigner from "./pages/WorkflowDesigner";
 import DepartmentSync from "./pages/DepartmentSync";
 import ProcurementWorkflow from "./pages/ProcurementWorkflow";
 import EquipmentLifecycleHub from "./pages/EquipmentLifecycleHub";
@@ -198,6 +200,15 @@ const App = () => (
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
                 <Route path="/inventory-management" element={<InventoryManagement />} />
                 <Route path="/remote-analysis" element={<RemoteAnalysis />} />
+                <Route path="/analysis-workspace/:bookingId" element={<AnalysisWorkspace />} />
+                <Route
+                  path="/admin/analysis-workflows"
+                  element={
+                    <AdminModuleGuard redirectTo="/dashboard">
+                      <WorkflowDesigner />
+                    </AdminModuleGuard>
+                  }
+                />
                 <Route path="/department-sync" element={<ErrorBoundary fallbackTitle="Department Sync" backPath="/dashboard"><DepartmentSync /></ErrorBoundary>} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
                 <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
