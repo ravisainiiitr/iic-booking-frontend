@@ -287,9 +287,35 @@ const MyBookings = () => {
   } | null>(null);
   const [cancelPreviewLoading, setCancelPreviewLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [resultsCache, setResultsCache] = useState<Record<string, { exists: boolean; files: Array<{ name: string; download_url: string }> }>>({});
+  const [resultsCache, setResultsCache] = useState<
+    Record<
+      string,
+      {
+        exists: boolean;
+        files: Array<{
+          name: string;
+          download_url: string;
+          key?: string;
+          source?: string;
+          uploaded_at?: string | null;
+          uploaded_by?: string | null;
+          size_bytes?: number;
+        }>;
+      }
+    >
+  >({});
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
-  const [resultsDialogFiles, setResultsDialogFiles] = useState<Array<{ name: string; download_url: string }>>([]);
+  const [resultsDialogFiles, setResultsDialogFiles] = useState<
+    Array<{
+      name: string;
+      download_url: string;
+      key?: string;
+      source?: string;
+      uploaded_at?: string | null;
+      uploaded_by?: string | null;
+      size_bytes?: number;
+    }>
+  >([]);
   const [resultsDialogBookingId, setResultsDialogBookingId] = useState<number | null>(null);
   const [resultsLoadingId, setResultsLoadingId] = useState<string | number | null>(null);
   const [zipDownloadInProgress, setZipDownloadInProgress] = useState(false);
@@ -496,7 +522,15 @@ const MyBookings = () => {
       return;
     }
     const exists = res.data?.exists ?? false;
-    const files = (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url }));
+    const files = (res.data?.files ?? []).map((f) => ({
+      name: f.name,
+      download_url: f.download_url,
+      key: f.key,
+      source: f.source,
+      uploaded_at: f.uploaded_at,
+      uploaded_by: f.uploaded_by,
+      size_bytes: f.size_bytes,
+    }));
     setResultsCache((prev) => ({ ...prev, [cacheKey]: { exists, files } }));
     if (exists && files.length > 0) {
       setResultsDialogBooking(booking);
@@ -1728,21 +1762,54 @@ const MyBookings = () => {
                   <Progress value={zipDownloadProgress} className="h-2" />
                 </div>
               )}
-              <p className="text-sm text-muted-foreground">Individual files:</p>
-              <ul className="space-y-2 max-h-64 overflow-y-auto">
-                {resultsDialogFiles.map((file, idx) => (
-                  <li key={idx}>
-                    <a
-                      href={file.download_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-primary hover:underline"
+              <p className="text-sm font-medium">Individual files</p>
+              <ul className="space-y-3 max-h-72 overflow-y-auto">
+                {resultsDialogFiles.map((file, idx) => {
+                  const sizeLabel =
+                    typeof file.size_bytes === "number" && file.size_bytes > 0
+                      ? file.size_bytes >= 1024 * 1024
+                        ? `${(file.size_bytes / (1024 * 1024)).toFixed(1)} MB`
+                        : file.size_bytes >= 1024
+                          ? `${(file.size_bytes / 1024).toFixed(1)} KB`
+                          : `${file.size_bytes} B`
+                      : null;
+                  const uploadedAtLabel = file.uploaded_at
+                    ? new Date(file.uploaded_at).toLocaleString()
+                    : null;
+                  return (
+                    <li
+                      key={file.key || `${file.name}-${idx}`}
+                      className="rounded-md border px-3 py-2 space-y-1"
                     >
-                      <Download className="h-4 w-4 shrink-0" />
-                      {file.name}
-                    </a>
-                  </li>
-                ))}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium break-all">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {[
+                              file.uploaded_by ? `Uploaded by ${file.uploaded_by}` : null,
+                              uploadedAtLabel,
+                              sizeLabel,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={async () => {
+                            const res = await apiClient.downloadBookingResultFile(file);
+                            if (res.error) toast.error(res.error);
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </DialogContent>

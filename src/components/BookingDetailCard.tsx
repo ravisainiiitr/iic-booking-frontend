@@ -605,7 +605,18 @@ export function BookingDetailCard({
   const [completeLoading, setCompleteLoading] = useState(false);
   const [expandedBookings, setExpandedBookings] = useState<Set<string | number>>(new Set([booking.booking_id]));
   const bookingPk = getRealBookingId(booking);
-  const [resultsData, setResultsData] = useState<{ exists: boolean; files: Array<{ name: string; download_url: string }> } | null>(null);
+  const [resultsData, setResultsData] = useState<{
+    exists: boolean;
+    files: Array<{
+      name: string;
+      download_url: string;
+      key?: string;
+      source?: string;
+      uploaded_at?: string | null;
+      uploaded_by?: string | null;
+      size_bytes?: number;
+    }>;
+  } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
   const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
@@ -830,7 +841,15 @@ export function BookingDetailCard({
         }
         setResultsData({
           exists: res.data?.exists ?? false,
-          files: (res.data?.files ?? []).map((f) => ({ name: f.name, download_url: f.download_url })),
+          files: (res.data?.files ?? []).map((f) => ({
+            name: f.name,
+            download_url: f.download_url,
+            key: f.key,
+            source: f.source,
+            uploaded_at: f.uploaded_at,
+            uploaded_by: f.uploaded_by,
+            size_bytes: f.size_bytes,
+          })),
         });
       })
       .finally(() => {
@@ -2891,9 +2910,9 @@ export function BookingDetailCard({
           <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Download Results</DialogTitle>
+                <DialogTitle>Results</DialogTitle>
                 <DialogDescription>
-                  Download the entire folder as ZIP (includes booking ID folder and all subfiles), or open individual files below.
+                  Download all files as a ZIP, or download individual result files below.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
@@ -2945,16 +2964,54 @@ export function BookingDetailCard({
                     <Progress value={zipDownloadProgress} className="h-2" />
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">Individual files:</p>
-                <ul className="space-y-2 max-h-64 overflow-y-auto">
-                  {resultsData?.files?.map((file, idx) => (
-                    <li key={idx}>
-                      <a href={file.download_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
-                        <Download className="h-4 w-4 shrink-0" />
-                        {file.name}
-                      </a>
-                    </li>
-                  ))}
+                <p className="text-sm font-medium">Individual files</p>
+                <ul className="space-y-3 max-h-72 overflow-y-auto">
+                  {resultsData?.files?.map((file, idx) => {
+                    const sizeLabel =
+                      typeof file.size_bytes === "number" && file.size_bytes > 0
+                        ? file.size_bytes >= 1024 * 1024
+                          ? `${(file.size_bytes / (1024 * 1024)).toFixed(1)} MB`
+                          : file.size_bytes >= 1024
+                            ? `${(file.size_bytes / 1024).toFixed(1)} KB`
+                            : `${file.size_bytes} B`
+                        : null;
+                    const uploadedAtLabel = file.uploaded_at
+                      ? new Date(file.uploaded_at).toLocaleString()
+                      : null;
+                    return (
+                      <li
+                        key={file.key || `${file.name}-${idx}`}
+                        className="rounded-md border px-3 py-2 space-y-1"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium break-all">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {[
+                                file.uploaded_by ? `Uploaded by ${file.uploaded_by}` : null,
+                                uploadedAtLabel ? uploadedAtLabel : null,
+                                sizeLabel,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            onClick={async () => {
+                              const res = await apiClient.downloadBookingResultFile(file);
+                              if (res.error) toast.error(res.error);
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </DialogContent>

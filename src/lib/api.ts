@@ -3948,16 +3948,86 @@ class ApiClient {
     }>(`/bookings/${bookingId}/events/`);
   }
 
-  /** List result files for a booking from S3 Results/{virtual_booking_id}/. Returns exists and presigned download URLs. */
+  /** List result files for a booking (S3 Results/ + DSA attachments + operator Complete uploads). */
   async getBookingResults(bookingId: number) {
     return this.request<{
       exists: boolean;
       virtual_booking_id: string | null;
-      files: Array<{ key: string; name: string; download_url: string }>;
+      files: Array<{
+        key: string;
+        name: string;
+        download_url: string;
+        source?: string;
+        uploaded_at?: string | null;
+        uploaded_by?: string | null;
+        size_bytes?: number;
+        content_type?: string;
+        attachment_id?: string;
+        file_id?: number;
+      }>;
       error?: string;
       code?: string;
       istem_portal_url?: string;
     }>(`/bookings/${bookingId}/results/`);
+  }
+
+  async downloadBookingResultFile(
+    file: { name: string; download_url: string; source?: string }
+  ): Promise<{ error?: string }> {
+    const url = (file.download_url || "").trim();
+    if (!url) return { error: "Missing download URL" };
+    const needsAuth =
+      file.source === "dsa" ||
+      file.source === "booking_result" ||
+      url.includes("/results/attachments/") ||
+      url.includes("/results/files/");
+    if (!needsAuth) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.click();
+      return {};
+    }
+    const token = this.getToken();
+    if (!token) return { error: "Not authenticated" };
+    let fetchUrl = url;
+    if (!url.startsWith("http")) {
+      const base = this.baseURL.endsWith("/") ? this.baseURL.slice(0, -1) : this.baseURL;
+      // Prefer path under API base when backend returned a relative /api/v1/... or /bookings/... path.
+      if (url.startsWith("/api/v1/")) {
+        fetchUrl = `${base}${url.slice("/api/v1".length)}`;
+      } else if (url.startsWith("/")) {
+        fetchUrl = `${base}${url}`;
+      } else {
+        fetchUrl = `${base}/${url}`;
+      }
+    }
+    try {
+      const res = await fetch(fetchUrl, { headers: { Authorization: `Token ${token}` } });
+      if (!res.ok) {
+        const text = await res.text();
+        try {
+          const j = JSON.parse(text) as { error?: string };
+          return { error: j.error || res.statusText };
+        } catch {
+          return { error: text || res.statusText };
+        }
+      }
+      const blob = await res.blob();
+      const name =
+        file.name ||
+        res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] ||
+        "result.bin";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      return {};
+    } catch (error: any) {
+      return { error: error?.message || "Download failed" };
+    }
   }
 
   async updateBookingIstemFbr(bookingId: number, istem_fbr_number: string) {
