@@ -11,6 +11,7 @@ import {
   faqSection,
   purposeSection,
 } from "../types";
+import { internalOperationalPoliciesSections } from "./policies";
 
 export const facultyGuide: UserGuideContent = {
   audience: "faculty",
@@ -18,7 +19,7 @@ export const facultyGuide: UserGuideContent = {
   title: "Faculty User Guide",
   subtitle: `${PRODUCT_NAME}`,
   welcomeHeadline: "Welcome, IIT Roorkee faculty",
-  welcomeBody: `Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. This guide explains Channel i login and the institute-wide features that keep research groups productive on the ${PRODUCT_NAME}.`,
+  welcomeBody: `Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. This guide explains Channel i login, booking, and operational policies (waitlist, urgent requests, maintenance, disruptions, samples) on the ${PRODUCT_NAME}.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -90,13 +91,16 @@ export const facultyGuide: UserGuideContent = {
       ],
     },
     bookingStatusSection(),
+    ...internalOperationalPoliciesSections(),
     notificationsSection([
       "Wallet join and recharge emails — act promptly so students are not blocked from booking.",
       "Supervisor queues (for example urgent requests) when you are assigned as reviewer.",
+      "Waitlist promotion, maintenance, and disruption notices for your own bookings.",
     ]),
     bestPracticesSection([
       "Approve wallet members before peak experimental periods.",
-      "Encourage students to cancel unused slots early.",
+      "Encourage students to cancel unused slots early so waitlists can promote.",
+      "Remind students of sample submission and collection/discard deadlines.",
     ]),
     permissionsSection({
       paragraphs: [
@@ -105,7 +109,7 @@ export const facultyGuide: UserGuideContent = {
       bullets: [
         "You manage your wallets and approvals — not other faculty wallets.",
         "You do not mark bookings complete or set equipment maintenance (OIC/operator roles).",
-        "Facility-caused disruptions follow compensation / free-reschedule rules published by the lab or institute policy.",
+        "Facility-caused disruptions follow cancel/refund and reschedule rules in the Operational Policies chapters.",
       ],
     }),
     faqSection([
@@ -122,6 +126,11 @@ export const facultyGuide: UserGuideContent = {
       {
         question: "Where do I reopen this guide?",
         answer: "User menu → User Guide, or the User Guide link in the footer when signed in.",
+      },
+      {
+        question: "Where are waitlist and disruption policies explained?",
+        answer:
+          "See the Operational Policies chapters in this guide (Waitlist through Sample Collection & Discard) and the Operational Policies FAQ.",
       },
     ]),
     troubleshootingSection([

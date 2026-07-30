@@ -11,6 +11,7 @@ import {
   faqSection,
   purposeSection,
 } from "../types";
+import { internalOperationalPoliciesSections } from "./policies";
 
 export const studentGuide: UserGuideContent = {
   audience: "student",
@@ -18,7 +19,7 @@ export const studentGuide: UserGuideContent = {
   title: "Student User Guide",
   subtitle: `${PRODUCT_NAME} — Channel i login, real-time booking, waitlist, and campus features`,
   welcomeHeadline: "Welcome, IIT Roorkee student",
-  welcomeBody: `As an internal IIT Roorkee user you can book laboratory equipment across participating departments, centres, and laboratories. This guide covers Channel i login, live slot booking, waitlists, cancellation, urgent requests, and how to download results from your dashboard.`,
+  welcomeBody: `As an internal IIT Roorkee user you can book laboratory equipment across participating departments, centres, and laboratories. This guide covers Channel i login, live slot booking, waitlists, cancellations, urgent requests, operational policies (maintenance, disruptions, samples), and how to download results from your dashboard.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -29,6 +30,7 @@ export const studentGuide: UserGuideContent = {
         "Browse and book eligible equipment in real time",
         "Join waitlists when slots are full",
         "Cancel fully or partially within institutional time limits",
+        "Understand waitlist, disruption, and sample policies",
         "Download results from your dashboard when the lab publishes them",
       ],
     }),
@@ -82,20 +84,29 @@ export const studentGuide: UserGuideContent = {
       id: "cancellation",
       title: "Cancellation and Waitlist",
       paragraphs: [
-        "You may cancel an entire booking or, where the lab allows, cancel part of a multi-slot booking within the published time window.",
+        "You may cancel an entire booking or, where the lab allows, cancel part of a multi-slot booking within the published time window. Full waitlist rules are in Waitlist Policy below.",
       ],
       bullets: [
         "Open My Bookings → select the booking → Cancel (full or partial when enabled).",
         "If a slot is full, join the FCFS waitlist; you will be notified if a place opens.",
-        "Respond promptly to short-notice waitlist offers — they may expire.",
+        "Respond promptly after promotion — sample and arrival deadlines still apply.",
+        "See Waitlist Policy, Wallet & Refunds (via Support if needed), and Sample Lifecycle chapters for details.",
+      ],
+      callouts: [
+        "Cross-reference: Waitlist Policy · Under Maintenance · Operator Absent · Sample Submission · Sample Collection & Discard.",
       ],
     },
     bookingStatusSection(),
+    ...internalOperationalPoliciesSections(),
     notificationsSection([
       "Sample submission deadline reminders — prepare and submit samples before the cut-off shown on the booking.",
+      "Waitlist join / promotion and Leave Waitlist confirmation emails.",
+      "Maintenance, operator absence, and other disruption decision deadlines.",
     ]),
     bestPracticesSection([
       "Coordinate with your faculty supervisor so the correct wallet is linked before you book.",
+      "Cancel unused slots early so waitlisted users can be promoted.",
+      "Collect analysed samples before the discard deadline in the completion email.",
     ]),
     permissionsSection({
       paragraphs: [
@@ -123,6 +134,11 @@ export const studentGuide: UserGuideContent = {
         question: "What if Channel i redirects fail?",
         answer:
           "Try another browser or clear cookies for the portal domains, then raise a Support Ticket with the approximate time of the failure.",
+      },
+      {
+        question: "Where are waitlist and disruption policies explained?",
+        answer:
+          "See the Operational Policies chapters in this guide (Waitlist, Urgent Booking, Under Maintenance, Operator Absent, Not Utilized, Other Disruption, Sample Submission, and Sample Collection & Discard), plus the Operational Policies FAQ.",
       },
     ]),
     troubleshootingSection([

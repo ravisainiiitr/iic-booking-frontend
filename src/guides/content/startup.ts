@@ -11,6 +11,7 @@ import {
   faqSection,
   purposeSection,
 } from "../types";
+import { internalOperationalPoliciesSections } from "./policies";
 
 export const startupGuide: UserGuideContent = {
   audience: "startup",
@@ -18,7 +19,7 @@ export const startupGuide: UserGuideContent = {
   title: "Startup / MSME User Guide",
   subtitle: `${PRODUCT_NAME} — incubated and external startup booking paths`,
   welcomeHeadline: "Welcome, startup / MSME user",
-  welcomeBody: `Startup and MSME accounts use the ${PRODUCT_NAME} to access instrumentation with category-specific rates. Whether you are incubated at IIT Roorkee or registering as an external startup/MSME, payment and eligibility rules may differ slightly — this guide covers both.`,
+  welcomeBody: `Startup and MSME accounts use the ${PRODUCT_NAME} to access instrumentation with category-specific rates. This guide covers booking, payment, and operational policies (waitlist, disruptions, samples) for incubated and external startup/MSME paths.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -63,9 +64,13 @@ export const startupGuide: UserGuideContent = {
       ],
     },
     bookingStatusSection(),
-    notificationsSection(),
+    ...internalOperationalPoliciesSections(),
+    notificationsSection([
+      "Sample deadline, waitlist promotion, and disruption decision emails.",
+    ]),
     bestPracticesSection([
       "Book early for popular characterisation tools used by many startups.",
+      "Cancel unused bookings early; collect samples before discard deadlines.",
     ]),
     permissionsSection({
       paragraphs: ["Startup accounts are end-user booking roles with category pricing — not lab staff roles."],
@@ -84,6 +89,11 @@ export const startupGuide: UserGuideContent = {
         question: "Are rates the same as industry?",
         answer:
           "Not necessarily. Always use Calculate Charges for your signed-in category on each equipment page.",
+      },
+      {
+        question: "Where are waitlist and disruption policies explained?",
+        answer:
+          "See the Operational Policies chapters in this guide and the Operational Policies FAQ.",
       },
     ]),
     troubleshootingSection([

@@ -11,6 +11,7 @@ import {
   faqSection,
   purposeSection,
 } from "../types";
+import { internalOperationalPoliciesSections } from "./policies";
 
 export const projectStaffGuide: UserGuideContent = {
   audience: "project_staff",
@@ -18,7 +19,7 @@ export const projectStaffGuide: UserGuideContent = {
   title: "Project Staff User Guide",
   subtitle: `${PRODUCT_NAME} — project-funded booking with PI wallet support`,
   welcomeHeadline: "Welcome, project staff",
-  welcomeBody: `Project staff book laboratory equipment much like students and faculty: internal rates when eligible, wallet or grant funding through the project PI, and the same sample workflows. This guide focuses on your access pattern and staying aligned with your faculty supervisor on the ${PRODUCT_NAME}.`,
+  welcomeBody: `Project staff book laboratory equipment much like students and faculty: internal rates when eligible, wallet or grant funding through the project PI, and the same sample workflows. This guide covers booking plus operational policies (waitlist, disruptions, samples) on the ${PRODUCT_NAME}.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -64,9 +65,13 @@ export const projectStaffGuide: UserGuideContent = {
       ],
     },
     bookingStatusSection(),
-    notificationsSection(),
+    ...internalOperationalPoliciesSections(),
+    notificationsSection([
+      "Sample deadline, waitlist, and disruption emails for your bookings.",
+    ]),
     bestPracticesSection([
       "Align booking dates with project milestones and PI availability for approvals.",
+      "Cancel unused slots early; collect samples before discard deadlines.",
     ]),
     permissionsSection({
       paragraphs: ["You book as an end user. Lab and department administration tools are outside this role."],
@@ -85,6 +90,11 @@ export const projectStaffGuide: UserGuideContent = {
       {
         question: "Who approves my wallet join?",
         answer: "Usually your faculty PI / wallet owner. Ask them to check Wallet join requests on their dashboard.",
+      },
+      {
+        question: "Where are waitlist and disruption policies explained?",
+        answer:
+          "See the Operational Policies chapters in this guide and the Operational Policies FAQ.",
       },
     ]),
     troubleshootingSection([
