@@ -162,6 +162,7 @@ export interface BookingDetailCardBooking extends BookingRef {
   rated_at?: string | null;
   equipment_enable_charge_recalculation?: boolean;
   equipment_user_rating_enabled?: boolean;
+  has_results?: boolean;
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
@@ -618,6 +619,7 @@ export function BookingDetailCard({
     }>;
   } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsRatingBlocked, setResultsRatingBlocked] = useState(false);
   const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
   const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
   const [fbrInput, setFbrInput] = useState("");
@@ -823,12 +825,14 @@ export function BookingDetailCard({
     if (!bookingPk || booking.status.toUpperCase() !== "COMPLETED") {
       setResultsData(null);
       setResultsLoading(false);
+      setResultsRatingBlocked(false);
       return;
     }
     let cancelled = false;
     setResultsLoading(true);
     setResultsData(null);
     setResultsFbrBlock(null);
+    setResultsRatingBlocked(false);
     apiClient
       .getBookingResults(bookingPk)
       .then((res) => {
@@ -836,6 +840,13 @@ export function BookingDetailCard({
         if (res.error) {
           if (res.errorCode === "istem_fbr_not_executed") {
             setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
+          } else if (
+            res.status === 403 &&
+            typeof res.error === "string" &&
+            res.error.toLowerCase().includes("rating")
+          ) {
+            // Rating gate hides the file list; still surface Results when booking reports files.
+            setResultsRatingBlocked(true);
           }
           return;
         }
@@ -858,7 +869,7 @@ export function BookingDetailCard({
     return () => {
       cancelled = true;
     };
-  }, [booking.booking_id, bookingPk, booking.status]);
+  }, [booking.booking_id, bookingPk, booking.status, booking.rating]);
 
   useEffect(() => {
     if (
@@ -1395,7 +1406,9 @@ export function BookingDetailCard({
     !traceHasAnalyzed &&
     !heldAtOfficeBlocksSampleActions;
 
-  const hasDownloadableResults = !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0);
+  const hasDownloadableResults =
+    !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0) ||
+    !!(resultsRatingBlocked && booking.has_results === true);
   const showIstemWorkflow =
     !isWaitlistedEntry &&
     !isFinanceUser &&
