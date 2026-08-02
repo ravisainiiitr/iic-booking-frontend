@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Loader2, Monitor, RefreshCw } from "lucide-react";
+import { ArrowLeft, HardDrive, Loader2, Monitor, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 type DashboardMetrics = {
@@ -464,6 +464,9 @@ export default function RemoteAnalysis() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/remote-analysis/agent-installer")}>
+              <HardDrive className="mr-2 h-4 w-4" /> Agent Installer
+            </Button>
             <Button variant="outline" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Dashboard
             </Button>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ExternalLink,
+  HardDrive,
   Loader2,
   RefreshCw,
   Server,
@@ -243,6 +244,15 @@ export default function DepartmentSync() {
                 variant="secondary"
                 size="sm"
                 className="bg-white/15 text-white border-0 hover:bg-white/25"
+                onClick={() => navigate("/department-sync/agent-installer")}
+              >
+                <HardDrive className="mr-2 h-4 w-4" />
+                Agent Installer
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/15 text-white border-0 hover:bg-white/25"
                 onClick={() => void load(true)}
                 disabled={refreshing}
               >
@@ -389,6 +399,7 @@ export default function DepartmentSync() {
                           <TableHead>Equipment</TableHead>
                           <TableHead>Host</TableHead>
                           <TableHead>CPU / Mem</TableHead>
+                          <TableHead>Queue</TableHead>
                           <TableHead>Last heartbeat</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -410,6 +421,9 @@ export default function DepartmentSync() {
                             <TableCell className="tabular-nums text-xs">
                               {a.cpu_percent != null ? `${Math.round(a.cpu_percent)}%` : "—"} /{" "}
                               {a.memory_percent != null ? `${Math.round(a.memory_percent)}%` : "—"}
+                            </TableCell>
+                            <TableCell className="tabular-nums text-xs">
+                              {a.queue_length != null ? a.queue_length : "—"}
                             </TableCell>
                             <TableCell className="text-xs whitespace-nowrap">{fmtTime(a.last_heartbeat_at)}</TableCell>
                             <TableCell>

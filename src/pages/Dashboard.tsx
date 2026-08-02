@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -3506,6 +3506,47 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open department sync</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg">
+                    <HardDrive className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Agent Installers</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Download Setup EXE for Remote Analysis PCs and Department Sync Equipment PCs
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="w-full bg-sky-600 hover:bg-sky-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/remote-analysis/agent-installer");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Remote Analysis Agent
+                </Button>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/department-sync/agent-installer");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Department Sync Agent
+                </Button>
               </CardContent>
             </Card>
           )}
