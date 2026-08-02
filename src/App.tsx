@@ -10,6 +10,7 @@ import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import LoginRedirect from "./pages/LoginRedirect";
 import AuthCallback from "./pages/AuthCallback";
 import EmailVerificationCallback from "./pages/EmailVerificationCallback";
 import SelfVerify from "./pages/SelfVerify";
@@ -78,7 +79,10 @@ import OICMultiMode from "./pages/OICMultiMode";
 import CalendarColorSettings from "./pages/CalendarColorSettings";
 import InventoryManagement from "./pages/InventoryManagement";
 import RemoteAnalysis from "./pages/RemoteAnalysis";
+import AgentInstaller from "./pages/AgentInstaller";
+import DsaAgentInstaller from "./pages/DsaAgentInstaller";
 import AnalysisWorkspace from "./pages/AnalysisWorkspace";
+import AnalysisLaunch from "./pages/AnalysisLaunch";
 import WorkflowDesigner from "./pages/WorkflowDesigner";
 import DepartmentSync from "./pages/DepartmentSync";
 import ProcurementWorkflow from "./pages/ProcurementWorkflow";
@@ -128,6 +132,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/login" element={<LoginRedirect />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/auth/verify-email" element={<EmailVerificationCallback />} />
                 <Route path="/auth/self-verify" element={<SelfVerify />} />
@@ -200,7 +205,9 @@ const App = () => (
                 <Route path="/calendar-colors" element={<CalendarColorSettings />} />
                 <Route path="/inventory-management" element={<InventoryManagement />} />
                 <Route path="/remote-analysis" element={<RemoteAnalysis />} />
+                <Route path="/remote-analysis/agent-installer" element={<AgentInstaller />} />
                 <Route path="/analysis-workspace/:bookingId" element={<AnalysisWorkspace />} />
+                <Route path="/analysis-launch/:bookingId" element={<AnalysisLaunch />} />
                 <Route
                   path="/admin/analysis-workflows"
                   element={
@@ -210,6 +217,7 @@ const App = () => (
                   }
                 />
                 <Route path="/department-sync" element={<ErrorBoundary fallbackTitle="Department Sync" backPath="/dashboard"><DepartmentSync /></ErrorBoundary>} />
+                <Route path="/department-sync/agent-installer" element={<DsaAgentInstaller />} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
                 <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
                 <Route path="/propose-equipment" element={<ProposeEquipment />} />

@@ -604,7 +604,7 @@ export function BookingDetailCard({
   const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
   const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
   const [completeLoading, setCompleteLoading] = useState(false);
-  const [expandedBookings, setExpandedBookings] = useState<Set<string | number>>(new Set([booking.booking_id]));
+  const [expandedBookings, setExpandedBookings] = useState<Set<string | number>>(new Set());
   const bookingPk = getRealBookingId(booking);
   const [resultsData, setResultsData] = useState<{
     exists: boolean;
@@ -675,7 +675,6 @@ export function BookingDetailCard({
   const [analysisSummary, setAnalysisSummary] = useState<Record<string, unknown> | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
-  const [analyzeSoftwareDialogOpen, setAnalyzeSoftwareDialogOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -784,11 +783,10 @@ export function BookingDetailCard({
   }, [initialBooking]);
 
   useEffect(() => {
-    const enabled =
-      Boolean((booking as any).equipment_enable_remote_analysis) ||
-      Boolean((booking as any).analysis_available);
+    const enabled = Boolean((booking as any).equipment_enable_remote_analysis);
     if (!bookingPk || !enabled) {
       setAnalysisSummary(null);
+      setAnalysisLoading(false);
       return;
     }
     let cancelled = false;
@@ -802,7 +800,7 @@ export function BookingDetailCard({
     return () => {
       cancelled = true;
     };
-  }, [bookingPk, (booking as any).equipment_enable_remote_analysis, (booking as any).analysis_available, booking.status]);
+  }, [bookingPk, (booking as any).equipment_enable_remote_analysis, booking.status]);
   
   useEffect(() => {
     setRatingCriteriaDraft({
@@ -1410,6 +1408,38 @@ export function BookingDetailCard({
   const hasDownloadableResults =
     !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0) ||
     !!(resultsRatingBlocked && booking.has_results === true);
+  const remoteAnalysisEnabled = Boolean((booking as any).equipment_enable_remote_analysis);
+  const resultsFolderLabel = remoteAnalysisEnabled ? "Raw Data" : "Results";
+  const analyzedDataAvailable = Boolean(
+    (analysisSummary as any)?.experience?.results?.available ||
+      ((analysisSummary as any)?.experience?.results?.file_count || 0) > 0
+  );
+  const analysisSessionStatus = String(
+    ((analysisSummary?.session as Record<string, unknown>) || {}).status || ""
+  ).toUpperCase();
+  const openAnalysisSessionStatuses = new Set([
+    "CREATED",
+    "PREPARING",
+    "READY",
+    "TOKEN_GENERATED",
+    "LAUNCHED",
+    "CONNECTING",
+    "CONNECTED",
+    "ACTIVE",
+    "IDLE",
+    "DISCONNECTING",
+  ]);
+  const hasOpenAnalysisSession = openAnalysisSessionStatuses.has(analysisSessionStatus);
+  const canOpenAnalysisWorkspace =
+    Boolean((analysisSummary as any)?.can_analyze) || hasOpenAnalysisSession;
+  const analysisEndedForBooking =
+    Boolean((analysisSummary as any)?.analysis_ended) ||
+    (!canOpenAnalysisWorkspace &&
+      ["COMPLETED", "TERMINATED", "EXPIRED"].includes(analysisSessionStatus));
+  const analysisWorkspaceId =
+    typeof (analysisSummary as any)?.workspace_id === "string"
+      ? String((analysisSummary as any).workspace_id)
+      : "";
   const showIstemWorkflow =
     !isWaitlistedEntry &&
     !isFinanceUser &&
@@ -2567,7 +2597,42 @@ export function BookingDetailCard({
                   }}
                 >
                   <FolderDown className="h-4 w-4 mr-2" />
-                  Results
+                  {resultsFolderLabel}
+                </Button>
+              )}
+              {remoteAnalysisEnabled && analyzedDataAvailable && analysisWorkspaceId && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white"
+                  disabled={isRefunded || analysisBusy}
+                  onClick={async () => {
+                    if (canSubmitRating) {
+                      setRatingRequiredPopupOpen(true);
+                      return;
+                    }
+                    setAnalysisBusy(true);
+                    try {
+                      const res = await apiClient.downloadRemoteAnalysisWorkspaceZip(analysisWorkspaceId, {
+                        scope: "analyzed",
+                      });
+                      if (res.error || !res.data) {
+                        toast.error(res.error || "Could not download Analyzed Data");
+                        return;
+                      }
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(res.data.blob);
+                      a.download = res.data.filename || "analyzed-data.zip";
+                      a.click();
+                      URL.revokeObjectURL(a.href);
+                      toast.success("Analyzed Data download started");
+                    } finally {
+                      setAnalysisBusy(false);
+                    }
+                  }}
+                >
+                  <FolderDown className="h-4 w-4 mr-2" />
+                  Analyzed Data
                 </Button>
               )}
               {!resultsLoading && isCompleted && isExternalSelfView && resultsFbrBlock && !hasDownloadableResults && (
@@ -2578,7 +2643,7 @@ export function BookingDetailCard({
                   type="button"
                   onClick={() => setResultsFbrInfoOpen(true)}
                 >
-                  Why can&apos;t I download results?
+                  Why can&apos;t I download {remoteAnalysisEnabled ? "raw data" : "results"}?
                 </Button>
               )}
             </div>
@@ -2677,20 +2742,10 @@ export function BookingDetailCard({
               )}
           </div>
 
-          {!isWaitlistedEntry &&
-            (Boolean((booking as any).equipment_enable_remote_analysis) ||
-              Boolean((booking as any).analysis_available) ||
-              analysisSummary) && (
+          {!isWaitlistedEntry && remoteAnalysisEnabled && (
               <div className="mt-4 pt-4 border-t no-print space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold">
-                    {String(
-                      (analysisSummary as any)?.workspace_page_title ||
-                        (analysisSummary as any)?.button_label ||
-                        (analysisSummary as any)?.analyze?.button_label ||
-                        "Analyze Data"
-                    )}
-                  </h3>
+                  <h3 className="text-base font-semibold">Analysis Workspace</h3>
                   <div className="flex flex-wrap gap-2">
                     {(isManagerOrAdmin || isOperator) && (
                       <>
@@ -2713,12 +2768,14 @@ export function BookingDetailCard({
                       <div>
                         <span className="text-muted-foreground">Status: </span>
                         {String(
-                          (analysisSummary as any)?.job?.ux_status ||
-                            ((analysisSummary as any)?.analyze?.job?.ux_status) ||
-                            (Boolean((analysisSummary as any).can_analyze) ? "Ready" : "") ||
-                            ((analysisSummary.eligibility as Record<string, unknown>) || {}).reason ||
-                            ((analysisSummary as any)?.analyze?.queue_message) ||
-                            "Not ready"
+                          analysisEndedForBooking
+                            ? "Ended"
+                            : (analysisSummary as any)?.job?.ux_status ||
+                                ((analysisSummary as any)?.analyze?.job?.ux_status) ||
+                                (Boolean((analysisSummary as any).can_analyze) ? "Ready" : "") ||
+                                ((analysisSummary.eligibility as Record<string, unknown>) || {}).reason ||
+                                ((analysisSummary as any)?.analyze?.queue_message) ||
+                                "Not ready"
                         )}
                       </div>
                       <div>
@@ -2743,87 +2800,119 @@ export function BookingDetailCard({
                         )}
                       </div>
                     </div>
-                    {Boolean((analysisSummary as any)?.analyze?.queued || (analysisSummary as any)?.queued) && (
-                      <p className="text-sm text-amber-700 dark:text-amber-400">
-                        {String(
-                          (analysisSummary as any)?.analyze?.queue_message ||
-                            "An Analysis Environment is busy. Your request is queued."
+                    {analysisEndedForBooking && (
+                      <div className="rounded-lg border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
+                        Remote analysis for this booking has ended. You can download{" "}
+                        <strong>Raw Data</strong>
+                        {analyzedDataAvailable ? (
+                          <>
+                            {" "}
+                            and <strong>Analyzed Data</strong>
+                          </>
+                        ) : null}{" "}
+                        from Actions above. A new analysis session cannot be requested on this booking.
+                      </div>
+                    )}
+                    {Boolean((analysisSummary as any)?.analyze?.queued || (analysisSummary as any)?.queued || (analysisSummary as any)?.experience?.queue?.is_queued) && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm space-y-2">
+                        <p className="font-medium">Analysis Environment Currently Unavailable</p>
+                        <p className="text-muted-foreground">
+                          All available Analysis Environments are currently processing other requests.
+                          Your request is in the execution queue and will start automatically.
+                        </p>
+                        {(analysisSummary as any)?.experience?.queue?.position != null && (
+                          <p>
+                            Queue position:{" "}
+                            <strong>
+                              {(analysisSummary as any).experience.queue.position} of{" "}
+                              {(analysisSummary as any).experience.queue.queue_size ||
+                                (analysisSummary as any).experience.queue.position}
+                            </strong>
+                            {(analysisSummary as any)?.experience?.queue?.estimated_wait_minutes !=
+                              null && (
+                              <>
+                                {" "}
+                                · Est. wait{" "}
+                                {(analysisSummary as any).experience.queue.estimated_wait_minutes} min
+                              </>
+                            )}
+                          </p>
                         )}
-                      </p>
+                      </div>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      {currentUserId != null && booking.user === currentUserId && (
+                      {currentUserId != null &&
+                        booking.user === currentUserId &&
+                        canOpenAnalysisWorkspace &&
+                        !analysisEndedForBooking && (
                         <Button
                           size="sm"
-                          disabled={analysisBusy || (!(analysisSummary as any).can_analyze && !(analysisSummary as any)?.job && !(analysisSummary as any)?.analyze?.job)}
+                          disabled={analysisBusy}
                           onClick={() => navigate(`/analysis-workspace/${bookingPk}`)}
                         >
-                          Open Analysis Workspace
+                          {hasOpenAnalysisSession ? "Continue Analysis" : "Open Analysis Workspace"}
                         </Button>
                       )}
-                      {currentUserId != null && booking.user === currentUserId && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={analysisBusy || !(analysisSummary as any).can_analyze}
-                          onClick={async () => {
-                            const workflows =
-                              ((analysisSummary as any).workflows as Array<Record<string, unknown>>) ||
-                              ((analysisSummary as any)?.analyze?.workflows as Array<Record<string, unknown>>) ||
-                              [];
-                            const options =
-                              ((analysisSummary as any).software_options as Array<Record<string, unknown>>) ||
-                              ((analysisSummary as any)?.analyze?.software_options as Array<
-                                Record<string, unknown>
-                              >) ||
-                              [];
-                            if (workflows.length > 1 || options.length > 1) {
-                              navigate(`/analysis-workspace/${bookingPk}`);
-                              return;
-                            }
-                            setAnalysisBusy(true);
-                            try {
-                              const workflowId =
-                                workflows.length === 1 ? String(workflows[0].id || "") : undefined;
-                              const mappingId =
-                                !workflowId && options.length === 1
-                                  ? String(options[0].id || "")
-                                  : undefined;
-                              const res = await apiClient.analyzeBookingData(Number(bookingPk), {
-                                workflow_id: workflowId || undefined,
-                                mapping_id: mappingId || undefined,
-                              });
-                              if (res.error) toast.error(res.error);
-                              else if ((res.data as any)?.queued) {
-                                toast.success(
-                                  String(
-                                    (res.data as any)?.message ||
-                                      "Queued — waiting for an Analysis Environment"
+                      {currentUserId != null &&
+                        booking.user === currentUserId &&
+                        (() => {
+                          const sessionStatus = String(
+                            ((analysisSummary.session as Record<string, unknown>) || {}).status || ""
+                          );
+                          const reservationStatus = String(
+                            ((analysisSummary.reservation as Record<string, unknown>) || {}).status || ""
+                          );
+                          const terminalSession = new Set([
+                            "COMPLETED",
+                            "TERMINATED",
+                            "EXPIRED",
+                            "FAILED",
+                            "",
+                          ]);
+                          const terminalRes = new Set([
+                            "COMPLETED",
+                            "EXPIRED",
+                            "CANCELLED",
+                            "FAILED",
+                            "",
+                          ]);
+                          const canEnd =
+                            (!terminalSession.has(sessionStatus) && Boolean(sessionStatus)) ||
+                            (!terminalRes.has(reservationStatus) && Boolean(reservationStatus)) ||
+                            Boolean((analysisSummary as any)?.job || (analysisSummary as any)?.analyze?.job);
+                          if (!canEnd) return null;
+                          return (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={analysisBusy}
+                              onClick={async () => {
+                                if (
+                                  !window.confirm(
+                                    "End analysis now? This frees the Analysis Environment for the next user."
                                   )
-                                );
-                              } else {
-                                toast.success(
-                                  String((res.data as any)?.ux_status || "Analysis Session Active")
-                                );
-                                const launchUrl = String((res.data as any)?.launch_url || "");
-                                const launcher = String((res.data as any)?.launcher_url || "");
-                                if (launchUrl) window.open(launchUrl, "_blank", "noopener,noreferrer");
-                                else if (launcher) window.open(launcher, "_blank", "noopener,noreferrer");
-                              }
-                              const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
-                              if (!refreshed.error) setAnalysisSummary(refreshed.data as Record<string, unknown>);
-                            } finally {
-                              setAnalysisBusy(false);
-                            }
-                          }}
-                        >
-                          {String(
-                            (analysisSummary as any)?.button_label ||
-                              (analysisSummary as any)?.analyze?.button_label ||
-                              "Analyze Data"
-                          )}
-                        </Button>
-                      )}
+                                ) {
+                                  return;
+                                }
+                                setAnalysisBusy(true);
+                                try {
+                                  const res = await apiClient.endBookingAnalysis(Number(bookingPk));
+                                  if (res.error) toast.error(res.error);
+                                  else {
+                                    toast.success("Analysis ended — environment released.");
+                                    const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
+                                    if (!refreshed.error)
+                                      setAnalysisSummary(refreshed.data as Record<string, unknown>);
+                                  }
+                                } finally {
+                                  setAnalysisBusy(false);
+                                }
+                              }}
+                            >
+                              End Analysis
+                            </Button>
+                          );
+                        })()}
                       {(isManagerOrAdmin || isOperator) && (
                         <>
                           <Button
@@ -2886,71 +2975,6 @@ export function BookingDetailCard({
                         </div>
                       )}
                   </>
-                )}
-                {analyzeSoftwareDialogOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-md rounded-lg bg-background border p-4 space-y-3 shadow-lg">
-                      <h4 className="font-semibold text-base">Select analysis software</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Choose the software for this analysis. An Analysis PC will be assigned automatically.
-                      </p>
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {(
-                          ((analysisSummary as any)?.software_options as Array<Record<string, unknown>>) ||
-                          ((analysisSummary as any)?.analyze?.software_options as Array<
-                            Record<string, unknown>
-                          >) ||
-                          []
-                        ).map((opt) => (
-                          <Button
-                            key={String(opt.id)}
-                            className="w-full justify-start"
-                            variant={opt.is_default ? "default" : "outline"}
-                            disabled={analysisBusy}
-                            onClick={async () => {
-                              setAnalysisBusy(true);
-                              try {
-                                const res = await apiClient.analyzeBookingData(Number(bookingPk), {
-                                  mapping_id: String(opt.id),
-                                });
-                                if (res.error) toast.error(res.error);
-                                else if ((res.data as any)?.queued) {
-                                  toast.success(String((res.data as any)?.message || "Queued"));
-                                  setAnalyzeSoftwareDialogOpen(false);
-                                } else {
-                                  toast.success("Analysis session starting");
-                                  setAnalyzeSoftwareDialogOpen(false);
-                                  const launchUrl = String((res.data as any)?.launch_url || "");
-                                  const launcher = String((res.data as any)?.launcher_url || "");
-                                  if (launchUrl) window.open(launchUrl, "_blank", "noopener,noreferrer");
-                                  else if (launcher) window.open(launcher, "_blank", "noopener,noreferrer");
-                                }
-                                const refreshed = await apiClient.getBookingAnalysis(Number(bookingPk));
-                                if (!refreshed.error)
-                                  setAnalysisSummary(refreshed.data as Record<string, unknown>);
-                              } finally {
-                                setAnalysisBusy(false);
-                              }
-                            }}
-                          >
-                            {String(opt.name)}
-                            {opt.vendor ? ` · ${String(opt.vendor)}` : ""}
-                            {opt.is_default ? " (default)" : ""}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setAnalyzeSoftwareDialogOpen(false)}
-                          disabled={analysisBusy}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
                 )}
               </div>
             )}
@@ -3027,7 +3051,7 @@ export function BookingDetailCard({
           <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Results not available yet</DialogTitle>
+                <DialogTitle>{resultsFolderLabel} not available yet</DialogTitle>
                 <DialogDescription className="text-left space-y-3 pt-2">
                   <span className="block text-foreground">{resultsFbrBlock?.message}</span>
                   {resultsFbrBlock?.portalUrl ? (
@@ -3067,9 +3091,10 @@ export function BookingDetailCard({
           <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Results</DialogTitle>
+                <DialogTitle>{resultsFolderLabel}</DialogTitle>
                 <DialogDescription>
-                  Download all files as a ZIP, or download individual result files below.
+                  Download all files as a ZIP, or download individual {remoteAnalysisEnabled ? "raw data" : "result"}{" "}
+                  files below.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
@@ -3508,7 +3533,10 @@ export function BookingDetailCard({
             <div className="space-y-3">
               <div>
                 <Label>Upload results (optional)</Label>
-                <p className="text-sm text-muted-foreground mb-2">Attach result files to send to the user&apos;s email with the booking complete message.</p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Upload result files to storage. The user can download them later from this booking via{" "}
+                  <span className="font-medium text-foreground">Results</span>. Files are not attached to email.
+                </p>
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
@@ -3540,7 +3568,9 @@ export function BookingDetailCard({
               </div>
               {completeUploadedFiles.length > 0 && (
                 <div className="rounded-md bg-muted p-3">
-                  <p className="text-sm font-medium mb-1">{completeUploadedFiles.length} file(s) sent to user email:</p>
+                  <p className="text-sm font-medium mb-1">
+                    {completeUploadedFiles.length} file(s) uploaded — available via Results:
+                  </p>
                   <ul className="text-sm text-muted-foreground list-disc list-inside">
                     {completeUploadedFiles.map((name, i) => (
                       <li key={`${name}-${i}`}>{name}</li>

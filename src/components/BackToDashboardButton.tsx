@@ -8,6 +8,15 @@ type Props = {
   /** Visual variant — header uses a solid primary CTA. */
   variant?: "header" | "ghost" | "outline";
   size?: "sm" | "default" | "lg";
+  /**
+   * Optional confirm message before leaving. When set, the user must confirm.
+   * Use for active analysis sessions — navigation does not terminate the session.
+   */
+  confirmMessage?: string | null;
+  /** Override destination (defaults to /dashboard). */
+  to?: string;
+  /** Accessible label override. */
+  label?: string;
 };
 
 /**
@@ -18,6 +27,9 @@ export function BackToDashboardButton({
   className,
   variant = "header",
   size = "sm",
+  confirmMessage = null,
+  to = "/dashboard",
+  label = "Return to Dashboard",
 }: Props) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -27,8 +39,12 @@ export function BackToDashboardButton({
   }
 
   const go = () => {
-    if (pathname === "/dashboard") return;
-    navigate("/dashboard");
+    if (pathname === to || pathname.startsWith(`${to}/`)) return;
+    if (confirmMessage) {
+      const ok = window.confirm(confirmMessage);
+      if (!ok) return;
+    }
+    navigate(to);
   };
 
   const buttonVariant =
@@ -45,11 +61,11 @@ export function BackToDashboardButton({
           "gap-2 font-semibold shadow-sm shadow-primary/10 transition-all duration-200 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className
       )}
-      aria-label="Back to Dashboard"
-      title="Back to Dashboard"
+      aria-label={label}
+      title={label}
     >
       <LayoutDashboard className="h-4 w-4 shrink-0" />
-      <span className="hidden sm:inline">Back to Dashboard</span>
+      <span className="hidden sm:inline">{label}</span>
       <span className="sm:hidden">Dashboard</span>
     </Button>
   );

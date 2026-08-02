@@ -1704,6 +1704,21 @@ class ApiClient {
     return `${base}/profiles/me/avatar/`;
   }
 
+  /**
+   * Absolute URL for a backend path that already carries the `/api` prefix
+   * (as returned by payload fields like `launcher_url`). Needed when handing a
+   * URL to the browser itself rather than to fetch.
+   */
+  resolveBackendUrl(path: string): string {
+    if (/^https?:\/\//i.test(path)) return path;
+    const base = this.baseURL.replace(/\/$/, '');
+    const absoluteBase = /^https?:\/\//i.test(base)
+      ? base
+      : `${window.location.origin}${base.startsWith('/') ? base : `/${base}`}`;
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    return `${absoluteBase}${normalized.replace(/^\/api(?=\/|$)/, '')}`;
+  }
+
   // Note: getProfile is deprecated, use getCurrentUser() or getProfileMe() instead
   // Keeping for backward compatibility but redirects to getCurrentUser
   async getProfile(userId?: string) {
@@ -4261,6 +4276,30 @@ class ApiClient {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/job/resume/`, {
       method: 'POST',
       body: JSON.stringify({}),
+    });
+  }
+
+  async endBookingAnalysis(bookingId: number, reason = 'Finished early by user') {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/end/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async extendBookingAnalysis(bookingId: number) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/extend/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async uploadBookingAnalysisFile(bookingId: number, file: File, folder = 'RawData') {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('folder', folder);
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/files/upload/`, {
+      method: 'POST',
+      body: form,
     });
   }
 
@@ -8402,14 +8441,20 @@ class ApiClient {
     return { data: { blob, filename: match?.[1] || 'download.bin' }, status: response.status };
   }
 
-  async downloadRemoteAnalysisWorkspaceZip(id: string) {
-    const url = `${this.baseURL}/v1/analysis/workspaces/${id}/download/?zip=1`;
+  async downloadRemoteAnalysisWorkspaceZip(id: string, opts?: { scope?: "analyzed" | "output" | "processed" }) {
+    const qs = new URLSearchParams({ zip: "1" });
+    if (opts?.scope) qs.set("scope", opts.scope);
+    const url = `${this.baseURL}/v1/analysis/workspaces/${id}/download/?${qs.toString()}`;
     const headers: HeadersInit = {};
     if (this.token) headers['Authorization'] = `Token ${this.token}`;
     const response = await fetch(url, { method: 'GET', headers });
     if (!response.ok) return { error: `Download failed (${response.status})`, status: response.status };
     const blob = await response.blob();
-    return { data: { blob, filename: `workspace-${id}.zip` }, status: response.status };
+    const filename =
+      opts?.scope === "analyzed" || opts?.scope === "output" || opts?.scope === "processed"
+        ? `analyzed-data-${id}.zip`
+        : `workspace-${id}.zip`;
+    return { data: { blob, filename }, status: response.status };
   }
 
   async archiveRemoteAnalysisWorkspace(id: string, note?: string) {
@@ -8480,6 +8525,167 @@ class ApiClient {
 
   async getRemoteAnalysisReports() {
     return this.request<unknown[]>('/v1/analysis/reports/', { method: 'GET' });
+  }
+
+  /** Agent Installer releases (Main Admin / RA manage). */
+  async getAgentInstallerReleases(all?: boolean) {
+    const qs = all ? '?all=1' : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/analysis/installer/releases/${qs}`,
+      { method: 'GET' }
+    );
+  }
+
+  async getAgentInstallerLatest() {
+    return this.request<Record<string, unknown>>('/v1/analysis/installer/releases/latest/', {
+      method: 'GET',
+    });
+  }
+
+  private async downloadBinaryWithProgress(
+    url: string,
+    opts?: {
+      offline?: boolean;
+      defaultFilename?: string;
+      onProgress?: (loaded: number, total: number | null) => void;
+      signal?: AbortSignal;
+    }
+  ) {
+    const headers: HeadersInit = {};
+    if (this.token) headers['Authorization'] = `Token ${this.token}`;
+    const response = await fetch(url, { method: 'GET', headers, signal: opts?.signal });
+    if (!response.ok) {
+      let detail = `Download failed (${response.status})`;
+      try {
+        const body = await response.json();
+        if (body?.detail) detail = String(body.detail);
+      } catch {
+        /* ignore */
+      }
+      return { error: detail, status: response.status };
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)"?/i.exec(disposition);
+    const filename = decodeURIComponent(
+      (match?.[1] || opts?.defaultFilename || 'download.bin').replace(/"/g, '')
+    );
+    const sha256 =
+      response.headers.get('X-Checksum-SHA256') ||
+      response.headers.get('x-checksum-sha256') ||
+      '';
+    const lengthHeader = response.headers.get('Content-Length');
+    const total = lengthHeader ? Number(lengthHeader) : null;
+    const version = response.headers.get('X-Release-Version') || '';
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      const blob = await response.blob();
+      opts?.onProgress?.(blob.size, total ?? blob.size);
+      return {
+        data: { blob, filename, sha256, sizeBytes: blob.size, version },
+        status: response.status,
+      };
+    }
+
+    const chunks: BlobPart[] = [];
+    let loaded = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        loaded += value.byteLength;
+        opts?.onProgress?.(loaded, total);
+      }
+    }
+    const blob = new Blob(chunks, {
+      type: response.headers.get('Content-Type') || 'application/octet-stream',
+    });
+    opts?.onProgress?.(blob.size, total ?? blob.size);
+    return {
+      data: { blob, filename, sha256, sizeBytes: blob.size, version },
+      status: response.status,
+    };
+  }
+
+  async downloadAgentInstallerLatest(opts?: {
+    offline?: boolean;
+    onProgress?: (loaded: number, total: number | null) => void;
+    signal?: AbortSignal;
+  }) {
+    const qs = opts?.offline ? '?offline=1' : '';
+    const url = `${this.baseURL}/v1/analysis/installer/releases/latest/download/${qs}`;
+    return this.downloadBinaryWithProgress(url, {
+      ...opts,
+      defaultFilename: opts?.offline
+        ? 'RemoteAnalysisAgentSetup-offline.zip'
+        : 'RemoteAnalysisAgentSetup.exe',
+    });
+  }
+
+  async createAgentInstallerDownloadTicket(opts?: { offline?: boolean; signal?: AbortSignal }) {
+    return this.request<{
+      token: string;
+      url: string;
+      expires_in: number;
+      filename: string;
+      size_bytes: number;
+      sha256: string;
+      version: string;
+      offline: boolean;
+    }>('/v1/analysis/installer/releases/latest/download-ticket/', {
+      method: 'POST',
+      body: JSON.stringify({ offline: Boolean(opts?.offline) }),
+      signal: opts?.signal,
+    });
+  }
+
+  /** DSA Installer releases (Main Admin / sync manage). */
+  async getDsaInstallerReleases(all?: boolean) {
+    const qs = all ? '?all=1' : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/sync/installer/releases/${qs}`,
+      { method: 'GET' }
+    );
+  }
+
+  async getDsaInstallerLatest() {
+    return this.request<Record<string, unknown>>('/v1/sync/installer/releases/latest/', {
+      method: 'GET',
+    });
+  }
+
+  async downloadDsaInstallerLatest(opts?: {
+    offline?: boolean;
+    onProgress?: (loaded: number, total: number | null) => void;
+    signal?: AbortSignal;
+  }) {
+    const qs = opts?.offline ? '?offline=1' : '';
+    const url = `${this.baseURL}/v1/sync/installer/releases/latest/download/${qs}`;
+    return this.downloadBinaryWithProgress(url, {
+      ...opts,
+      defaultFilename: opts?.offline
+        ? 'DepartmentSyncAgentSetup-offline.zip'
+        : 'DepartmentSyncAgentSetup.exe',
+    });
+  }
+
+  async createDsaInstallerDownloadTicket(opts?: { offline?: boolean; signal?: AbortSignal }) {
+    return this.request<{
+      token: string;
+      url: string;
+      expires_in: number;
+      filename: string;
+      size_bytes: number;
+      sha256: string;
+      version: string;
+      offline: boolean;
+    }>('/v1/sync/installer/releases/latest/download-ticket/', {
+      method: 'POST',
+      body: JSON.stringify({ offline: Boolean(opts?.offline) }),
+      signal: opts?.signal,
+    });
   }
 
   async generateRemoteAnalysisReport(reportType: string, format = 'JSON') {
