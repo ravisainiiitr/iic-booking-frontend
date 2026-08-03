@@ -141,6 +141,8 @@ export default function AnalysisLaunchPage() {
   const desktopResolved = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const [bookingLabel, setBookingLabel] = useState<string>("");
+
   const experience = (summary?.experience || {}) as Experience;
   const sessionExp = experience.session || {};
   const queue = experience.queue || {};
@@ -155,6 +157,9 @@ export default function AnalysisLaunchPage() {
     if (res.error) return null;
     const data = (res.data || {}) as Record<string, unknown>;
     setSummary(data);
+    const exp = (data.experience || {}) as Experience;
+    const vid = String(exp.virtual_booking_id || data.virtual_booking_id || "").trim();
+    if (vid) setBookingLabel(vid);
     return data;
   }, [bookingPk]);
 
@@ -196,6 +201,17 @@ export default function AnalysisLaunchPage() {
   useEffect(() => {
     if (!Number.isFinite(bookingPk)) return;
     void (async () => {
+      // Prefer virtual booking id for chrome even before experience payload arrives.
+      try {
+        const bres = await apiClient.getBookings({ booking_id: bookingPk, limit: 1 });
+        const row = bres.data?.bookings?.[0] as
+          | { virtual_booking_id?: string; booking_id?: string | number }
+          | undefined;
+        const vid = String(row?.virtual_booking_id || "").trim();
+        if (vid) setBookingLabel(vid);
+      } catch {
+        /* ignore */
+      }
       await refreshSummary();
       if (!launchAttempted.current) {
         launchAttempted.current = true;
@@ -350,8 +366,56 @@ export default function AnalysisLaunchPage() {
     return <div className="p-8">Invalid booking.</div>;
   }
 
-  const virtualId = String(experience.virtual_booking_id || summary?.virtual_booking_id || bookingPk);
+  const virtualId = String(
+    experience.virtual_booking_id ||
+      summary?.virtual_booking_id ||
+      bookingLabel ||
+      ""
+  ).trim() || String(bookingPk);
   const equipment = experience.equipment_name || experience.equipment_code || "Equipment";
+
+  const fallbackPrepareSteps = useMemo(() => {
+    const sessionStatus = String(
+      (summary?.session as { status?: string } | undefined)?.status ||
+        sessionExp.status ||
+        ""
+    ).toUpperCase();
+    const readyStatuses = new Set([
+      "READY",
+      "TOKEN_GENERATED",
+      "LAUNCHED",
+      "CONNECTING",
+      "CONNECTED",
+      "ACTIVE",
+      "IDLE",
+    ]);
+    const failed = ["FAILED", "TERMINATED", "EXPIRED"].includes(sessionStatus);
+    const ready = readyStatuses.has(sessionStatus);
+    const preparing = sessionStatus === "PREPARING" || sessionStatus === "CREATED" || !sessionStatus;
+    return [
+      { id: "1", label: "Booking confirmed", status: "done" },
+      {
+        id: "2",
+        label: "Analysis Environment allocated",
+        status: sessionStatus || preparing ? "done" : "pending",
+      },
+      {
+        id: "3",
+        label: "Synchronizing input data",
+        status: failed ? "pending" : ready ? "done" : preparing ? "active" : "pending",
+      },
+      {
+        id: "4",
+        label: "Launching Analysis Environment",
+        status: failed ? "pending" : ready ? (sessionStatus === "ACTIVE" || sessionStatus === "CONNECTED" ? "done" : "active") : "pending",
+      },
+      {
+        id: "5",
+        label: "Ready",
+        status: sessionStatus === "ACTIVE" || sessionStatus === "CONNECTED" ? "done" : "pending",
+      },
+    ];
+  }, [summary?.session, sessionExp.status]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950">
@@ -428,16 +492,7 @@ export default function AnalysisLaunchPage() {
               <AnalysisHorizontalStepper steps={horizontal} />
 
               <div className="grid gap-3 sm:grid-cols-2">
-                {(prepareSteps.length
-                  ? prepareSteps
-                  : [
-                      { id: "1", label: "Booking confirmed", status: "done" },
-                      { id: "2", label: "Analysis Environment allocated", status: "done" },
-                      { id: "3", label: "Synchronizing input data", status: "active" },
-                      { id: "4", label: "Launching Analysis Environment", status: "pending" },
-                      { id: "5", label: "Ready", status: "pending" },
-                    ]
-                ).map((s) => (
+                {(prepareSteps.length ? prepareSteps : fallbackPrepareSteps).map((s) => (
                   <div
                     key={s.id}
                     className={cn(
