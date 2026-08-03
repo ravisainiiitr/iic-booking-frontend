@@ -177,6 +177,9 @@ export default function AnalysisLaunchPage() {
     }
     const data = res.data || {};
     if (typeof data.session_id === "string") setSessionId(data.session_id);
+    if (data.launch_pending && data.detail) {
+      setError(String(data.detail));
+    }
     if (typeof data.launch_url === "string" && data.launch_url) {
       try {
         const guacUrl = await resolveGuacamoleDesktopUrl(data.launch_url);
