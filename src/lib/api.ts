@@ -813,6 +813,9 @@ class ApiClient {
       const response = await fetch(url, {
         ...options,
         headers,
+        // Never send Django session cookies on SPA API calls. A leftover session
+        // from the Analysis desktop handoff would otherwise trigger DRF CSRF checks.
+        credentials: "omit",
       });
 
       const data = await response.json().catch(() => ({}));
