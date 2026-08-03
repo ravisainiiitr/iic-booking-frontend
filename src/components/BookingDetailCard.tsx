@@ -1439,7 +1439,17 @@ export function BookingDetailCard({
   const analysisWorkspaceId =
     typeof (analysisSummary as any)?.workspace_id === "string"
       ? String((analysisSummary as any).workspace_id)
-      : "";
+      : typeof (analysisSummary as any)?.workspace?.id === "string"
+        ? String((analysisSummary as any).workspace.id)
+        : "";
+  const isAnalysisBookingActor =
+    currentUserId != null &&
+    (Number(booking.user) === Number(currentUserId) || Boolean(isManagerOrAdmin) || isOperator);
+  const analyzeDataButtonLabel = String(
+    (analysisSummary as any)?.button_label ||
+      (analysisSummary as any)?.analyze?.button_label ||
+      "Analyze Data"
+  );
   const showIstemWorkflow =
     !isWaitlistedEntry &&
     !isFinanceUser &&
@@ -2600,6 +2610,30 @@ export function BookingDetailCard({
                   {resultsFolderLabel}
                 </Button>
               )}
+              {remoteAnalysisEnabled &&
+                isAnalysisBookingActor &&
+                canOpenAnalysisWorkspace &&
+                !analysisEndedForBooking && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="bg-sky-600 hover:bg-sky-700 text-white"
+                  disabled={isRefunded || analysisBusy || analysisLoading}
+                  onClick={() => {
+                    if (canSubmitRating) {
+                      setRatingRequiredPopupOpen(true);
+                      return;
+                    }
+                    if (bookingPk == null) {
+                      toast.error("Invalid booking reference.");
+                      return;
+                    }
+                    navigate(`/analysis-workspace/${bookingPk}`);
+                  }}
+                >
+                  {hasOpenAnalysisSession ? "Continue Analysis" : analyzeDataButtonLabel}
+                </Button>
+              )}
               {remoteAnalysisEnabled && analyzedDataAvailable && analysisWorkspaceId && (
                 <Button
                   size="sm"
@@ -2841,8 +2875,7 @@ export function BookingDetailCard({
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      {currentUserId != null &&
-                        booking.user === currentUserId &&
+                      {isAnalysisBookingActor &&
                         canOpenAnalysisWorkspace &&
                         !analysisEndedForBooking && (
                         <Button
@@ -2853,8 +2886,7 @@ export function BookingDetailCard({
                           {hasOpenAnalysisSession ? "Continue Analysis" : "Open Analysis Workspace"}
                         </Button>
                       )}
-                      {currentUserId != null &&
-                        booking.user === currentUserId &&
+                      {isAnalysisBookingActor &&
                         (() => {
                           const sessionStatus = String(
                             ((analysisSummary.session as Record<string, unknown>) || {}).status || ""
