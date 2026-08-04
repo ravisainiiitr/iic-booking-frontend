@@ -177,7 +177,13 @@ export default function AnalysisLaunchPage() {
     }
     const data = res.data || {};
     if (typeof data.session_id === "string") setSessionId(data.session_id);
-    if (data.launch_pending && data.detail) {
+    const failure = data.failure as
+      | { user_message?: string; detail?: string; failure_category?: string; failed_stage?: string }
+      | undefined;
+    if (failure?.user_message) {
+      const cat = failure.failure_category ? `[${failure.failure_category}] ` : "";
+      setError(`${cat}${failure.user_message}`);
+    } else if (data.launch_pending && data.detail) {
       setError(String(data.detail));
     }
     if (typeof data.launch_url === "string" && data.launch_url) {
