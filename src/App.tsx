@@ -80,7 +80,11 @@ import CalendarColorSettings from "./pages/CalendarColorSettings";
 import InventoryManagement from "./pages/InventoryManagement";
 import RemoteAnalysis from "./pages/RemoteAnalysis";
 import AgentInstaller from "./pages/AgentInstaller";
+import RdpPathDiagnostics from "./pages/RdpPathDiagnostics";
 import DsaAgentInstaller from "./pages/DsaAgentInstaller";
+import DeploymentCenter from "./pages/DeploymentCenter";
+import LaboratoryInfrastructure from "./pages/LaboratoryInfrastructure";
+import TestDashboard from "./pages/TestDashboard";
 import AnalysisWorkspace from "./pages/AnalysisWorkspace";
 import AnalysisLaunch from "./pages/AnalysisLaunch";
 import WorkflowDesigner from "./pages/WorkflowDesigner";
@@ -206,6 +210,7 @@ const App = () => (
                 <Route path="/inventory-management" element={<InventoryManagement />} />
                 <Route path="/remote-analysis" element={<RemoteAnalysis />} />
                 <Route path="/remote-analysis/agent-installer" element={<AgentInstaller />} />
+                <Route path="/remote-analysis/rdp-diagnostics" element={<RdpPathDiagnostics />} />
                 <Route path="/analysis-workspace/:bookingId" element={<AnalysisWorkspace />} />
                 <Route path="/analysis-launch/:bookingId" element={<AnalysisLaunch />} />
                 <Route
@@ -218,6 +223,9 @@ const App = () => (
                 />
                 <Route path="/department-sync" element={<ErrorBoundary fallbackTitle="Department Sync" backPath="/dashboard"><DepartmentSync /></ErrorBoundary>} />
                 <Route path="/department-sync/agent-installer" element={<DsaAgentInstaller />} />
+                <Route path="/deployment-center" element={<ErrorBoundary fallbackTitle="Deployment Center" backPath="/dashboard"><DeploymentCenter /></ErrorBoundary>} />
+                <Route path="/laboratory-infrastructure" element={<ErrorBoundary fallbackTitle="Laboratory Infrastructure" backPath="/dashboard"><LaboratoryInfrastructure /></ErrorBoundary>} />
+                <Route path="/test-dashboard" element={<ErrorBoundary fallbackTitle="Test Dashboard" backPath="/dashboard"><TestDashboard /></ErrorBoundary>} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
                 <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
                 <Route path="/propose-equipment" element={<ProposeEquipment />} />

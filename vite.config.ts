@@ -11,7 +11,9 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8000",
-        changeOrigin: true,
+        // Keep the Host header so backend-built absolute URLs (e.g. the remote
+        // analysis desktop redirect) stay on this origin and retain cookies.
+        changeOrigin: false,
       },
     },
   },

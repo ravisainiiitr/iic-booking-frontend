@@ -8530,6 +8530,33 @@ class ApiClient {
     return this.request<unknown[]>('/v1/analysis/reports/', { method: 'GET' });
   }
 
+  /** RDP path diagnostics (Portal → Agent → Guacamole → Analysis PC). */
+  async getRemoteAnalysisRdpPath(params?: { workstation_id?: string; session_id?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.workstation_id) qs.set('workstation_id', params.workstation_id);
+    if (params?.session_id) qs.set('session_id', params.session_id);
+    const q = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/operations/rdp-path/${q}`, { method: 'GET' });
+  }
+
+  async runRemoteAnalysisRdpPath(body: {
+    workstation_id?: string;
+    session_id?: string;
+    issue_diagnose_command?: boolean;
+  }) {
+    return this.request<Record<string, unknown>>('/v1/analysis/operations/rdp-path/run/', {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  async getRemoteAnalysisConnectionTrace(sessionId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/analysis/session/${encodeURIComponent(sessionId)}/connection-trace/`,
+      { method: 'GET' }
+    );
+  }
+
   /** Agent Installer releases (Main Admin / RA manage). */
   async getAgentInstallerReleases(all?: boolean) {
     const qs = all ? '?all=1' : '';
@@ -8689,6 +8716,209 @@ class ApiClient {
       body: JSON.stringify({ offline: Boolean(opts?.offline) }),
       signal: opts?.signal,
     });
+  }
+
+  /** Deployment Center — aggregate DSA / RA / Equipment PC Wizard catalog. */
+  async getDeploymentCenter() {
+    return this.request<{
+      products: Array<{
+        key: string;
+        label: string;
+        guide_path?: string;
+        ticket_product?: string;
+        latest: Record<string, unknown> | null;
+        previous: Array<Record<string, unknown>>;
+      }>;
+      links?: Record<string, string>;
+    }>('/v1/deployment/center/', { method: 'GET' });
+  }
+
+  async createEquipmentWizardDownloadTicket(opts?: { signal?: AbortSignal }) {
+    return this.request<{
+      token: string;
+      url: string;
+      expires_in: number;
+      filename: string;
+      size_bytes: number;
+      sha256: string;
+      version: string;
+      offline: boolean;
+    }>('/v1/deployment/wizard/releases/latest/download-ticket/', {
+      method: 'POST',
+      body: JSON.stringify({}),
+      signal: opts?.signal,
+    });
+  }
+
+  /** Laboratory Infrastructure (Phase 2 enterprise fleet). */
+  async getLabInfrastructure(departmentId?: number) {
+    const qs = departmentId != null ? `?department_id=${departmentId}` : '';
+    return this.request<Record<string, unknown>>(`/v1/lab/infrastructure/${qs}`, { method: 'GET' });
+  }
+
+  async getLabNodeDetail(nodeId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/lab/infrastructure/nodes/${encodeURIComponent(nodeId)}/`,
+      { method: 'GET' }
+    );
+  }
+
+  async postLabRepair(nodeId: string, action: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/lab/infrastructure/nodes/${encodeURIComponent(nodeId)}/repair/`,
+      { method: 'POST', body: JSON.stringify({ action }) }
+    );
+  }
+
+  async runLabDiagnostics(nodeId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/lab/infrastructure/nodes/${encodeURIComponent(nodeId)}/diagnostics/`,
+      { method: 'POST', body: JSON.stringify({}) }
+    );
+  }
+
+  async getLabAlerts() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>('/v1/lab/alerts/', {
+      method: 'GET',
+    });
+  }
+
+  async ackLabAlert(alertId: string) {
+    return this.request<Record<string, unknown>>(`/v1/lab/alerts/${alertId}/ack/`, { method: 'POST', body: '{}' });
+  }
+
+  async getLabAudit() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>('/v1/lab/audit/', {
+      method: 'GET',
+    });
+  }
+
+  async getLabSoftwareCompliance() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      '/v1/lab/software/compliance/',
+      { method: 'GET' }
+    );
+  }
+
+  async getLabUtilizationReport() {
+    return this.request<Record<string, unknown>>('/v1/lab/reports/utilization/', { method: 'GET' });
+  }
+
+  async getTestingDashboard(runId?: string) {
+    const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
+    return this.request<{
+      overall: Record<string, unknown>;
+      modules: Array<Record<string, unknown>>;
+      progress?: Record<string, unknown> | null;
+      stages?: Array<Record<string, unknown>>;
+      readiness?: Record<string, unknown> | null;
+      current_test?: Record<string, unknown> | null;
+      health_panel?: Record<string, unknown>;
+      run_id?: string | null;
+      latest_run?: Record<string, unknown> | null;
+      mode?: string;
+    }>(`/v1/lab/testing/${qs}`, { method: 'GET' });
+  }
+
+  async seedTestingCatalog() {
+    return this.request<{ created: number; total: number }>('/v1/lab/testing/seed/', {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+
+  async startTestingRun(payload?: { name?: string; suite?: string; lab_context?: Record<string, unknown> }) {
+    return this.request<Record<string, unknown>>('/v1/lab/testing/runs/', {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async getTestingResults(opts?: {
+    runId?: string;
+    module?: string;
+    failedOnly?: boolean;
+    status?: string;
+    stage?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (opts?.runId) params.set('run_id', opts.runId);
+    if (opts?.module) params.set('module', opts.module);
+    if (opts?.status) params.set('status', opts.status);
+    if (opts?.stage != null) params.set('stage', String(opts.stage));
+    if (opts?.failedOnly) params.set('failed_only', '1');
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return this.request<{ count: number; run_id?: string | null; results: Array<Record<string, unknown>> }>(
+      `/v1/lab/testing/results/${qs}`,
+      { method: 'GET' }
+    );
+  }
+
+  async updateTestingResult(
+    resultId: string,
+    payload: {
+      status?: string;
+      actual_result?: string;
+      remarks?: string;
+      administrator_notes?: string;
+      log_url?: string;
+      advance?: boolean;
+    }
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/lab/testing/results/${resultId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getTestingWizard(runId?: string) {
+    const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
+    return this.request<{ progress: Record<string, unknown>; current_test: Record<string, unknown> | null }>(
+      `/v1/lab/testing/wizard/${qs}`,
+      { method: 'GET' }
+    );
+  }
+
+  async uploadTestingEvidence(form: FormData) {
+    return this.request<{ id: string; url?: string; kind: string; title: string }>(
+      '/v1/lab/testing/evidence/',
+      { method: 'POST', body: form }
+    );
+  }
+
+  async getTestingDefects(runId?: string) {
+    const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(`/v1/lab/testing/defects/${qs}`, {
+      method: 'GET',
+    });
+  }
+
+  async createTestingDefect(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/lab/testing/defects/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getTestingReadiness(runId?: string) {
+    const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
+    return this.request<Record<string, unknown>>(`/v1/lab/testing/readiness/${qs}`, { method: 'GET' });
+  }
+
+  async getTestingHealthPanel() {
+    return this.request<Record<string, unknown>>('/v1/lab/testing/health/', { method: 'GET' });
+  }
+
+  getTestingReportUrl(runId: string, format: 'json' | 'csv' | 'xlsx' | 'pdf' = 'json') {
+    return `/api/v1/lab/testing/runs/${runId}/report/?format=${format}`;
+  }
+
+  async getAgentInstallerReleasesForFleet() {
+    return this.getAgentInstallerReleases(true);
+  }
+
+  async getDsaInstallerReleasesForFleet() {
+    return this.getDsaInstallerReleases(true);
   }
 
   async generateRemoteAnalysisReport(reportType: string, format = 'JSON') {

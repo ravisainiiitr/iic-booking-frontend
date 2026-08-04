@@ -3511,6 +3511,72 @@ const Dashboard = () => {
           )}
 
           {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => navigate("/laboratory-infrastructure")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg">
+                    <HardDrive className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Laboratory Infrastructure</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Fleet monitoring, diagnostics, repair, alerts, and lifecycle for DSA, Equipment PCs, and Analysis PCs
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/laboratory-infrastructure");
+                  }}
+                >
+                  Open Fleet Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => navigate("/test-dashboard")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Acceptance Test Dashboard</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Phase 2.5 SAT coverage — module health, pass/fail drill-down (Main Admin)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/test-dashboard");
+                  }}
+                >
+                  Open Test Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
             <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3518,15 +3584,25 @@ const Dashboard = () => {
                     <HardDrive className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Agent Installers</CardTitle>
+                    <CardTitle className="text-lg">Deployment Center</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Download Setup EXE for Remote Analysis PCs and Department Sync Equipment PCs
+                      DSA, Remote Analysis Agent, and Equipment PC Wizard — versions, SHA-256, ticket downloads
                     </CardDescription>
                   </div>
                 </div>
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
               </CardHeader>
               <CardContent className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/deployment-center");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Open Deployment Center
+                </Button>
                 <Button
                   className="w-full bg-sky-600 hover:bg-sky-700 text-white"
                   onClick={(e) => {
@@ -3535,7 +3611,7 @@ const Dashboard = () => {
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Remote Analysis Agent
+                  RA Agent
                 </Button>
                 <Button
                   className="w-full bg-teal-600 hover:bg-teal-700 text-white"
@@ -3545,7 +3621,7 @@ const Dashboard = () => {
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Department Sync Agent
+                  DSA
                 </Button>
               </CardContent>
             </Card>
