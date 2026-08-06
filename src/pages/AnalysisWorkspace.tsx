@@ -60,6 +60,11 @@ type Experience = {
   poll_interval_seconds?: number;
 };
 
+/** Stable key for equipment-mapped catalog software options. */
+function softwareOptionKey(sw: Record<string, unknown>): string {
+  return String(sw.id || sw.mapping_id || sw.catalog_id || sw.slug || sw.name || "");
+}
+
 function formatBytes(n?: number) {
   const v = Number(n || 0);
   if (v < 1024) return `${v} B`;
@@ -146,6 +151,8 @@ export default function AnalysisWorkspacePage() {
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>("");
+  const [selectedSoftwareKey, setSelectedSoftwareKey] = useState<string>("");
+  const [catalogSoftware, setCatalogSoftware] = useState<Array<Record<string, unknown>> | null>(null);
   const [inputMode, setInputMode] = useState<"booking_raw" | "additional">("booking_raw");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -167,6 +174,18 @@ export default function AnalysisWorkspacePage() {
       if (!selectedWorkflow && workflows.length) {
         const def = workflows.find((w) => w.is_default) || workflows[0];
         setSelectedWorkflow(def.id);
+      }
+      const fromSummary =
+        ((data.software_options as Array<Record<string, unknown>>) ||
+          ((data.analyze as any)?.software_options as Array<Record<string, unknown>>) ||
+          []) as Array<Record<string, unknown>>;
+      if (!fromSummary.length) {
+        const swRes = await apiClient.getBookingAnalysisSoftware(bookingPk);
+        if (!swRes.error && swRes.data?.software_options?.length) {
+          setCatalogSoftware(swRes.data.software_options);
+        }
+      } else {
+        setCatalogSoftware(null);
       }
       setLoading(false);
     },
@@ -199,13 +218,33 @@ export default function AnalysisWorkspacePage() {
         ((summary?.analyze as any)?.software_options as Array<Record<string, unknown>>) ||
         []) as Array<Record<string, unknown>>;
     if (fromSummary.length) return fromSummary;
+    if (catalogSoftware?.length) return catalogSoftware;
     const selected = workflows.find((w) => w.id === selectedWorkflow) || workflows[0];
     return (selected?.required_software || []).map((name) => ({
       name,
       display_name: name,
       description: "Provided in this Analysis Environment",
     }));
-  }, [summary, workflows, selectedWorkflow]);
+  }, [summary, workflows, selectedWorkflow, catalogSoftware]);
+
+  const catalogSelectable = useMemo(
+    () =>
+      softwareOptions.some(
+        (sw) => Boolean(sw.slug || sw.catalog_id || sw.id || sw.mapping_id)
+      ),
+    [softwareOptions]
+  );
+
+  useEffect(() => {
+    if (!catalogSelectable || !softwareOptions.length) return;
+    if (selectedSoftwareKey) {
+      const stillValid = softwareOptions.some((sw) => softwareOptionKey(sw) === selectedSoftwareKey);
+      if (stillValid) return;
+    }
+    const def =
+      softwareOptions.find((sw) => Boolean(sw.is_default)) || softwareOptions[0];
+    setSelectedSoftwareKey(softwareOptionKey(def));
+  }, [catalogSelectable, softwareOptions, selectedSoftwareKey]);
 
   const canAnalyze = Boolean(summary?.can_analyze ?? (summary?.analyze as any)?.can_analyze);
   const selected = workflows.find((w) => w.id === selectedWorkflow) || workflows[0];
@@ -288,8 +327,14 @@ export default function AnalysisWorkspacePage() {
     }
     setBusy(true);
     try {
+      const selectedSw = catalogSelectable
+        ? softwareOptions.find((sw) => softwareOptionKey(sw) === selectedSoftwareKey)
+        : undefined;
       const res = await apiClient.analyzeBookingData(bookingPk, {
         workflow_id: selectedWorkflow || undefined,
+        mapping_id: selectedSw?.id ? String(selectedSw.id) : undefined,
+        catalog_id: selectedSw?.catalog_id ? String(selectedSw.catalog_id) : undefined,
+        software_slug: selectedSw?.slug ? String(selectedSw.slug) : undefined,
       });
       if (res.error) {
         toast.error(res.error);
@@ -730,8 +775,14 @@ export default function AnalysisWorkspacePage() {
 
             <Card className="border-slate-200/80 shadow-sm dark:border-border">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Available software</CardTitle>
-                <CardDescription>Applications provided in this Analysis Environment</CardDescription>
+                <CardTitle className="text-lg">
+                  {catalogSelectable ? "Select analysis software" : "Available software"}
+                </CardTitle>
+                <CardDescription>
+                  {catalogSelectable
+                    ? "Choose software mapped to this equipment. The portal allocates the best available Analysis PC automatically."
+                    : "Applications provided in this Analysis Environment"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
@@ -740,13 +791,25 @@ export default function AnalysisWorkspacePage() {
                       const name = String(sw.display_name || sw.name || sw.software_name || "Software");
                       const version = String(sw.version || sw.version_constraint || "");
                       const description = String(
-                        sw.description || sw.notes || "Installed for this Analysis Environment"
+                        sw.description ||
+                          sw.notes ||
+                          (catalogSelectable
+                            ? "Mapped for this equipment — PC selected automatically"
+                            : "Installed for this Analysis Environment")
                       );
-                      return (
-                        <div
-                          key={`${name}-${idx}`}
-                          className="flex gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-border dark:bg-card"
-                        >
+                      const key = softwareOptionKey(sw) || `${name}-${idx}`;
+                      const selected = catalogSelectable && key === selectedSoftwareKey;
+                      const cardClass = cn(
+                        "flex gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition dark:bg-card",
+                        catalogSelectable
+                          ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          : "hover:-translate-y-0.5 hover:shadow-md",
+                        selected
+                          ? "border-primary ring-2 ring-primary/30"
+                          : "border-slate-200/80 dark:border-border"
+                      );
+                      const body = (
+                        <>
                           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-sky-500/15 text-primary">
                             <AppWindow className="h-6 w-6" />
                           </div>
@@ -757,16 +820,36 @@ export default function AnalysisWorkspacePage() {
                                 v{version}
                               </Badge>
                             ) : null}
+                            {selected ? (
+                              <Badge className="mt-1 ml-1 text-[10px]">Selected</Badge>
+                            ) : null}
                             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                               {description}
                             </p>
                           </div>
+                        </>
+                      );
+                      if (catalogSelectable) {
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedSoftwareKey(key)}
+                            className={cardClass}
+                          >
+                            {body}
+                          </button>
+                        );
+                      }
+                      return (
+                        <div key={key} className={cardClass}>
+                          {body}
                         </div>
                       );
                     })
                   ) : (
                     <p className="col-span-full text-sm text-muted-foreground">
-                      Software list will appear when a workflow is configured for this equipment.
+                      Software list appears when equipment↔software mappings or a workflow are configured.
                     </p>
                   )}
                 </div>
