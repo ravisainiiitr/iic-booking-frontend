@@ -1,0 +1,5 @@
+{
+  "installer_auth": true,
+  "zero_touch_provisioning": true,
+  "min_portal_version": "2.5.2-r2"
+}
