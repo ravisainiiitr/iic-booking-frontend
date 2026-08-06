@@ -265,7 +265,11 @@ export default function DeploymentCenterPage() {
                               idleLabel="Offline package"
                               onClick={() => startDownload(product, "offline")}
                             />
-                          ) : null}
+                          ) : (
+                            <Button variant="outline" disabled title="Offline package is not published for this product">
+                              Offline package — Not available
+                            </Button>
+                          )}
                           {product.guide_path ? (
                             <Button variant="ghost" asChild>
                               <Link to={product.guide_path}>
