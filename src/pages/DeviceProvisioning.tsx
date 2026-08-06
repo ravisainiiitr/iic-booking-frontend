@@ -96,11 +96,17 @@ function typeLabel(t?: string) {
 
 export default function DeviceProvisioningPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const userType = String(user?.user_type || "").toLowerCase();
   const canManage = userType === "admin" || Boolean(user?.is_superuser);
 
-  const [tab, setTab] = useState<Tab>("pending");
+  const initialTab = ((): Tab => {
+    if (location.pathname.endsWith("/devices")) return "devices";
+    if (location.pathname.endsWith("/pending")) return "pending";
+    return "pending";
+  })();
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<ConsoleSummary | null>(null);
   const [pending, setPending] = useState<PendingRow[]>([]);
