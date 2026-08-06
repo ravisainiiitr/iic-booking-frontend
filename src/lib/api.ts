@@ -8248,9 +8248,132 @@ class ApiClient {
     return this.request<Record<string, unknown>>(`/v1/analysis/workstations/${id}/`, { method: 'GET' });
   }
 
-  async getRemoteAnalysisSoftware(workstationId?: string) {
-    const qs = workstationId ? `?workstation=${encodeURIComponent(workstationId)}` : '';
-    return this.request<unknown[]>(`/v1/analysis/software/${qs}`, { method: 'GET' });
+  async getRemoteAnalysisSoftware(workstationId?: string, params?: Record<string, string>) {
+    const qs = new URLSearchParams();
+    if (workstationId) qs.set('workstation', workstationId);
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v) qs.set(k, v);
+      });
+    }
+    const q = qs.toString() ? `?${qs}` : '';
+    return this.request<unknown[]>(`/v1/analysis/software/${q}`, { method: 'GET' });
+  }
+
+  async getRemoteAnalysisFleetInventory(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<Record<string, unknown>>(`/v1/analysis/fleet/inventory/${qs}`, { method: 'GET' });
+  }
+
+  // --- R6.1 Software Catalog SPA ---
+  async listAnalysisSoftwareCatalog(params?: Record<string, string>) {
+    const qs = new URLSearchParams(params || {});
+    const q = qs.toString() ? `?${qs}` : '';
+    return this.request<{
+      count: number;
+      results: Array<Record<string, unknown>>;
+      license_types: Array<{ value: string; label: string }>;
+    }>(`/v1/analysis/catalog/software/${q}`, { method: 'GET' });
+  }
+
+  async getAnalysisSoftwareCatalog(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/`, { method: 'GET' });
+  }
+
+  async createAnalysisSoftwareCatalog(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/catalog/software/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateAnalysisSoftwareCatalog(id: string, body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async disableAnalysisSoftwareCatalog(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/disable/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async enableAnalysisSoftwareCatalog(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/enable/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async archiveAnalysisSoftwareCatalog(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/archive/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getAnalysisSoftwareCatalogUsage(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/usage/`, {
+      method: 'GET',
+    });
+  }
+
+  async importAnalysisSoftwareCatalog(items: Array<Record<string, unknown>>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/catalog/software/import/', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
+  }
+
+  async listEquipmentAnalysisSoftware(params?: Record<string, string>) {
+    const qs = new URLSearchParams(params || {});
+    const q = qs.toString() ? `?${qs}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/analysis/catalog/equipment-software/${q}`,
+      { method: 'GET' }
+    );
+  }
+
+  async getEquipmentSoftwareMatrix(departmentId?: string | number) {
+    const qs = departmentId != null && departmentId !== '' ? `?department=${encodeURIComponent(String(departmentId))}` : '';
+    return this.request<{
+      catalogs: Array<Record<string, unknown>>;
+      equipment: Array<Record<string, unknown>>;
+    }>(`/v1/analysis/catalog/equipment-software/matrix/${qs}`, { method: 'GET' });
+  }
+
+  async putEquipmentSoftwareMatrix(body: {
+    equipment_id: number | string;
+    catalog_ids: string[];
+    default_catalog_id?: string | null;
+  }) {
+    return this.request<Record<string, unknown>>('/v1/analysis/catalog/equipment-software/matrix/', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async createEquipmentAnalysisSoftware(body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/analysis/catalog/equipment-software/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateEquipmentAnalysisSoftware(id: string, body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/equipment-software/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteEquipmentAnalysisSoftware(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/equipment-software/${id}/`, {
+      method: 'DELETE',
+    });
   }
 
   async getRemoteAnalysisCommands(workstationId?: string) {
@@ -8716,6 +8839,72 @@ class ApiClient {
       body: JSON.stringify({ offline: Boolean(opts?.offline) }),
       signal: opts?.signal,
     });
+  }
+
+  /** Platform version manifest (Phase R.2.6) — public, no auth. */
+  async getPlatformVersion() {
+    return this.request<{
+      portal_version: string;
+      backend_version?: string;
+      frontend_version?: string;
+      backend_commit?: string;
+      frontend_commit?: string;
+      git_commit?: string;
+      provisioning_version: string;
+      research_copilot_version?: string;
+      build_date?: string;
+      compatible_frontend_min?: string;
+      compatible_backend_min?: string;
+      supported_installers: Record<string, { minimum: string; latest: string }>;
+    }>('/version/', { method: 'GET' });
+  }
+
+  /** Public provisioning capabilities (Phase R.2.6). */
+  async getProvisioningCapabilities(params?: { product?: string; installer_version?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.product) qs.set('product', params.product);
+    if (params?.installer_version) qs.set('installer_version', params.installer_version);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{
+      zero_touch: boolean;
+      installer_auth: boolean;
+      provisioning_enabled: boolean;
+      provisioning_version: string;
+      auto_approve: boolean;
+      device_code: boolean;
+      portal_build?: string;
+      portal_version?: string;
+      research_copilot?: boolean;
+      research_copilot_version?: string;
+      supported_installers: Record<string, { minimum: string; latest: string }>;
+      links?: Record<string, string>;
+      installer_compatibility?: {
+        product: string;
+        installer_version: string;
+        minimum?: string;
+        latest?: string;
+        status: string;
+        compatible: boolean;
+        traffic_light?: string;
+        message?: string;
+        download_hint?: string;
+      };
+    }>(`/v1/provisioning/capabilities/${suffix}`, { method: 'GET' });
+  }
+
+  /** Admin deployment self-test (Phase R.2.6). */
+  async getProvisioningSelfTest(params?: { product?: string; installer_version?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.product) qs.set('product', params.product);
+    if (params?.installer_version) qs.set('installer_version', params.installer_version);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{
+      overall: string;
+      checks: Array<{ name: string; status: string; detail?: string }>;
+      version?: Record<string, unknown>;
+      capabilities?: Record<string, unknown>;
+      installer?: Record<string, unknown>;
+    }>(`/v1/provisioning/self-test/${suffix}`, { method: 'GET' });
   }
 
   /** Deployment Center — aggregate DSA / RA / Equipment PC Wizard catalog. */

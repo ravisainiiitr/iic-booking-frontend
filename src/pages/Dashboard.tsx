@@ -3473,14 +3473,36 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Remote Analysis</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Workstation registry, heartbeats, inventory, health, and remote commands
+                      Workstation registry, catalog, equipment↔software, inventory, and remote commands
                     </CardDescription>
                   </div>
                 </div>
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-2">
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open remote analysis</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate("/remote-analysis/software-catalog");
+                    }}
+                  >
+                    Software catalog
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate("/remote-analysis/equipment-software");
+                    }}
+                  >
+                    Eq ↔ Software
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

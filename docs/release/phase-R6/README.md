@@ -1,17 +1,18 @@
-# Phase R.6 — Frontend pointer
+# Phase R.6 / R6.1 — Frontend pointer
 
 **Primary docs:** `iic-booking-backend-deploy/docs/release/phase-R6/`
 
-## UI status
+## UI status (R6.1)
 
 | Feature | Status | Path |
 |---------|--------|------|
-| RA inventory (read-only) + queue | Implemented | `src/pages/RemoteAnalysis.tsx` |
-| Analysis Workspace software **selection** | R6 enhancement | `src/pages/AnalysisWorkspace.tsx` |
-| Auto PC (user never picks) | Implemented | Workspace / Launch — no PC picker |
-| Catalog / Eq↔Software SPA CRUD | Deferred (Django Admin) | Note in `EquipmentForm.tsx` |
-| License SPA CRUD | Deferred | Licensed column read-only only |
+| Software Catalog SPA CRUD | **Implemented** | `/remote-analysis/software-catalog` → `AnalysisSoftwareCatalog.tsx` |
+| Equipment ↔ Software matrix | **Implemented** | `/remote-analysis/equipment-software` → `EquipmentSoftwareMapping.tsx` |
+| RA inventory (search + richer columns) | Improved | `RemoteAnalysis.tsx` Installed Software tab |
+| Analysis Workspace software selection + metadata | Improved | `AnalysisWorkspace.tsx` |
+| Auto PC (user never picks) | Implemented | Workspace / Launch |
+| License SPA (full seat server product) | Deferred | Catalog fields + scheduler hooks only |
 
 ## Branch
 
-`feature/r6-remote-analysis-software-centric` — Workspace passes `mapping_id` / `catalog_id` / `software_slug` to `analyzeBookingData`.
+`feature/r6-remote-analysis-software-centric`

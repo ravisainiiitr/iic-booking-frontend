@@ -1677,9 +1677,23 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     placeholder="e.g. OriginPro"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Prefer Django Admin → Analysis software catalog + Equipment analysis software mappings
-                    (default software, button label, Analysis PC pool). This free-text field remains as a
-                    legacy fallback for scheduler matching.
+                    Prefer SPA →{" "}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => window.open("/remote-analysis/software-catalog", "_blank")}
+                    >
+                      Software Catalog
+                    </button>{" "}
+                    and{" "}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => window.open("/remote-analysis/equipment-software", "_blank")}
+                    >
+                      Equipment ↔ Software
+                    </button>{" "}
+                    (or Django Admin). This free-text field remains as a legacy fallback for scheduler matching.
                   </p>
                 </div>
               </div>

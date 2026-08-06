@@ -797,6 +797,13 @@ export default function AnalysisWorkspacePage() {
                             ? "Mapped for this equipment — PC selected automatically"
                             : "Installed for this Analysis Environment")
                       );
+                      const typicalUsage = String(sw.typical_usage || "");
+                      const fileTypes = Array.isArray(sw.accepted_file_types)
+                        ? (sw.accepted_file_types as unknown[]).map(String)
+                        : Array.isArray(sw.file_types)
+                          ? (sw.file_types as unknown[]).map(String)
+                          : [];
+                      const aiTags = Array.isArray(sw.ai_tags) ? (sw.ai_tags as unknown[]).map(String) : [];
                       const key = softwareOptionKey(sw) || `${name}-${idx}`;
                       const selected = catalogSelectable && key === selectedSoftwareKey;
                       const cardClass = cn(
@@ -826,6 +833,26 @@ export default function AnalysisWorkspacePage() {
                             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                               {description}
                             </p>
+                            {typicalUsage ? (
+                              <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                                Typical use: {typicalUsage}
+                              </p>
+                            ) : null}
+                            {fileTypes.length ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                Files: {fileTypes.slice(0, 6).join(", ")}
+                                {fileTypes.length > 6 ? "…" : ""}
+                              </p>
+                            ) : null}
+                            {aiTags.length ? (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {aiTags.slice(0, 4).map((t) => (
+                                  <Badge key={t} variant="outline" className="text-[9px]">
+                                    {t}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </>
                       );
