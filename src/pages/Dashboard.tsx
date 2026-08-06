@@ -3623,6 +3623,16 @@ const Dashboard = () => {
                   <Download className="mr-2 h-4 w-4" />
                   DSA
                 </Button>
+                <Button
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/device-provisioning");
+                  }}
+                >
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Devices
+                </Button>
               </CardContent>
             </Card>
           )}

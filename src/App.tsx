@@ -83,6 +83,8 @@ import AgentInstaller from "./pages/AgentInstaller";
 import RdpPathDiagnostics from "./pages/RdpPathDiagnostics";
 import DsaAgentInstaller from "./pages/DsaAgentInstaller";
 import DeploymentCenter from "./pages/DeploymentCenter";
+import DeviceProvisioning from "./pages/DeviceProvisioning";
+import InstallerAuth from "./pages/InstallerAuth";
 import LaboratoryInfrastructure from "./pages/LaboratoryInfrastructure";
 import TestDashboard from "./pages/TestDashboard";
 import AnalysisWorkspace from "./pages/AnalysisWorkspace";
@@ -224,6 +226,10 @@ const App = () => (
                 <Route path="/department-sync" element={<ErrorBoundary fallbackTitle="Department Sync" backPath="/dashboard"><DepartmentSync /></ErrorBoundary>} />
                 <Route path="/department-sync/agent-installer" element={<DsaAgentInstaller />} />
                 <Route path="/deployment-center" element={<ErrorBoundary fallbackTitle="Deployment Center" backPath="/dashboard"><DeploymentCenter /></ErrorBoundary>} />
+                <Route path="/device-provisioning" element={<ErrorBoundary fallbackTitle="Device Provisioning" backPath="/dashboard"><DeviceProvisioning /></ErrorBoundary>} />
+                <Route path="/device-provisioning/pending" element={<ErrorBoundary fallbackTitle="Device Provisioning" backPath="/dashboard"><DeviceProvisioning /></ErrorBoundary>} />
+                <Route path="/device-provisioning/devices" element={<ErrorBoundary fallbackTitle="Device Provisioning" backPath="/dashboard"><DeviceProvisioning /></ErrorBoundary>} />
+                <Route path="/device-provisioning/installer-auth" element={<InstallerAuth />} />
                 <Route path="/laboratory-infrastructure" element={<ErrorBoundary fallbackTitle="Laboratory Infrastructure" backPath="/dashboard"><LaboratoryInfrastructure /></ErrorBoundary>} />
                 <Route path="/test-dashboard" element={<ErrorBoundary fallbackTitle="Test Dashboard" backPath="/dashboard"><TestDashboard /></ErrorBoundary>} />
                 <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />

@@ -8804,6 +8804,161 @@ class ApiClient {
     return this.request<Record<string, unknown>>('/v1/lab/reports/utilization/', { method: 'GET' });
   }
 
+  // --- Device Provisioning (Phase R.2.1) ---
+  async getProvisioningConsole() {
+    return this.request<{
+      pending_installations: number;
+      provisioning: number;
+      active: number;
+      suspended: number;
+      revoked: number;
+      retired: number;
+      device_types: Array<{ value: string; label: string }>;
+      links?: Record<string, string>;
+    }>('/v1/provisioning/console/', { method: 'GET' });
+  }
+
+  async getProvisioningPending() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      '/v1/provisioning/pending/',
+      { method: 'GET' }
+    );
+  }
+
+  async approveProvisioningPending(
+    sessionId: string,
+    body?: {
+      display_name?: string;
+      department_id?: number | null;
+      equipment_id?: number | null;
+      workstation_role?: string;
+    }
+  ) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/pending/${encodeURIComponent(sessionId)}/approve/`,
+      { method: 'POST', body: JSON.stringify(body || {}) }
+    );
+  }
+
+  async rejectProvisioningPending(sessionId: string, reason?: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/pending/${encodeURIComponent(sessionId)}/reject/`,
+      { method: 'POST', body: JSON.stringify({ reason: reason || '' }) }
+    );
+  }
+
+  async updateProvisioningPending(sessionId: string, body: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/pending/${encodeURIComponent(sessionId)}/`,
+      { method: 'PATCH', body: JSON.stringify(body) }
+    );
+  }
+
+  async getProvisionedDevices(params?: { lifecycle?: string; device_type?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.lifecycle) qs.set('lifecycle', params.lifecycle);
+    if (params?.device_type) qs.set('device_type', params.device_type);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/provisioning/devices/${suffix}`,
+      { method: 'GET' }
+    );
+  }
+
+  async getRetiredDevices() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      '/v1/provisioning/devices/retired/',
+      { method: 'GET' }
+    );
+  }
+
+  async suspendProvisionedDevice(deviceId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/devices/${encodeURIComponent(deviceId)}/suspend/`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
+  async revokeProvisionedDevice(deviceId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/devices/${encodeURIComponent(deviceId)}/revoke/`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
+  async retireProvisionedDevice(deviceId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/devices/${encodeURIComponent(deviceId)}/retire/`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
+  async getProvisioningAudit(action?: string) {
+    const qs = action ? `?action=${encodeURIComponent(action)}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/provisioning/audit/${qs}`,
+      { method: 'GET' }
+    );
+  }
+
+  async getDepartmentProvisioningPolicies() {
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      '/v1/provisioning/policies/',
+      { method: 'GET' }
+    );
+  }
+
+  async getDepartmentProvisioningPolicy(departmentId: number) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/policies/${departmentId}/`,
+      { method: 'GET' }
+    );
+  }
+
+  async updateDepartmentProvisioningPolicy(
+    departmentId: number,
+    body: {
+      provisioning_mode?: string;
+      allowed_networks?: string[];
+      require_mfa?: boolean;
+      require_device_fingerprint?: boolean;
+      maximum_pending_lifetime_hours?: number;
+      auto_approve_existing_reinstalls?: boolean;
+      audit_enabled?: boolean;
+    }
+  ) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/policies/${departmentId}/`,
+      { method: 'PUT', body: JSON.stringify(body) }
+    );
+  }
+
+  async approveProvisioningByDeviceCode(body: {
+    device_code: string;
+    department_id?: number;
+    display_name?: string;
+  }) {
+    return this.request<Record<string, unknown>>(
+      '/v1/provisioning/pending/approve-by-code/',
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  }
+
+  async getUnassignedProvisioningEquipment(departmentId?: number) {
+    const qs = departmentId != null ? `?department_id=${departmentId}` : '';
+    return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
+      `/v1/provisioning/unassigned-equipment/${qs}`,
+      { method: 'GET' }
+    );
+  }
+
+  async replaceProvisionedDevice(deviceId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/provisioning/devices/${encodeURIComponent(deviceId)}/replace/`,
+      { method: 'POST', body: '{}' }
+    );
+  }
+
   async getTestingDashboard(runId?: string) {
     const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
     return this.request<{
