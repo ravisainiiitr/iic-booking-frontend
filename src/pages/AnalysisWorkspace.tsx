@@ -19,6 +19,7 @@ import {
 import { WorkspaceStatusStrip } from "@/components/analysis/WorkspaceHero";
 import { WhatHappensNext, buildWhatHappensSteps } from "@/components/analysis/WhatHappensNext";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
+import { DataWorkspaceBanner } from "@/components/analysis/DataWorkspaceBanner";
 import { DataFlowDiagram } from "@/components/analysis/DataFlowDiagram";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,7 @@ import {
   MonitorSmartphone,
   Upload,
   Layers,
+  Loader2,
 } from "lucide-react";
 
 type WorkflowOption = {
@@ -311,6 +313,16 @@ export default function AnalysisWorkspacePage() {
     experience.equipment_name ||
     "Analysis Environment";
 
+  const selectedSoftwareLabel = useMemo(() => {
+    if (selectedSoftwareKey) {
+      const sw = softwareOptions.find((s) => softwareOptionKey(s) === selectedSoftwareKey);
+      if (sw) return String(sw.display_name || sw.name || sw.slug || selectedSoftwareKey);
+    }
+    const first = softwareOptions[0];
+    if (first) return String(first.display_name || first.name || first.slug || "");
+    return "";
+  }, [selectedSoftwareKey, softwareOptions]);
+
   const startDisabled =
     busy ||
     queued ||
@@ -435,6 +447,97 @@ export default function AnalysisWorkspacePage() {
       />
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
+        {(experience as any)?.data_workspace ? (
+          <DataWorkspaceBanner data={(experience as any).data_workspace} />
+        ) : (
+          <DataWorkspaceBanner data={null} />
+        )}
+
+        {/* Primary CTA at top — Open Analysis Environment (do not bury at page bottom). */}
+        {!loading || summary ? (
+          <Card className="overflow-hidden border-[#0b3d91]/25 bg-white shadow-md dark:border-sky-800/50 dark:bg-card">
+            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#0b3d91] dark:text-sky-300">
+                  Analysis Workspace
+                </p>
+                <h1 className="truncate text-lg font-semibold tracking-tight sm:text-xl">
+                  {equipmentName}
+                  <span className="font-normal text-muted-foreground"> · Booking {virtualBookingId}</span>
+                </h1>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <span>
+                    Software:{" "}
+                    <span className="font-medium text-foreground">
+                      {selectedSoftwareLabel || envLabel || "—"}
+                    </span>
+                  </span>
+                  <span className="hidden sm:inline text-slate-300">|</span>
+                  <span>
+                    Status:{" "}
+                    <span className="font-medium text-foreground">
+                      {queued
+                        ? "Waiting in queue"
+                        : started
+                          ? "Session active"
+                          : envReady || canAnalyze
+                            ? "Ready"
+                            : "Preparing"}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+                <Button
+                  size="lg"
+                  className="min-w-[240px] rounded-xl bg-[#0b3d91] px-6 shadow-md transition hover:bg-[#0a357f] hover:shadow-lg active:translate-y-px active:shadow-sm disabled:opacity-60"
+                  disabled={startDisabled}
+                  onClick={openOrStart}
+                >
+                  {busy ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <MonitorSmartphone className="mr-2 h-4 w-4" />
+                  )}
+                  <span className="flex flex-col items-start leading-tight">
+                    <span className="text-[15px] font-semibold">
+                      {queued
+                        ? "Waiting in queue…"
+                        : busy
+                          ? "Starting…"
+                          : "Open Analysis Environment"}
+                    </span>
+                    {!queued && !busy ? (
+                      <span className="text-[10px] font-normal text-white/80">
+                        Connect to your Analysis PC
+                      </span>
+                    ) : null}
+                  </span>
+                </Button>
+                {resultsReady ? (
+                  <Button variant="secondary" size="sm" asChild>
+                    <Link to="/my-bookings">Download results</Link>
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {remainingSeconds != null && remainingSeconds > 0 && remainingSeconds <= 15 * 60 ? (
+          <div className="rounded-lg border border-amber-300/80 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            {remainingSeconds <= 5 * 60
+              ? "Final warning: your session is ending soon. "
+              : remainingSeconds <= 10 * 60
+                ? "Your scheduled session is ending soon. "
+                : "Session ending in under 15 minutes. "}
+            Please save your work to the <strong>Output</strong> folder.
+            {sessionExp.others_waiting
+              ? " Another user is waiting for this workstation."
+              : ""}
+            {sessionExp.save_reminder ? ` ${sessionExp.save_reminder}` : ""}
+          </div>
+        ) : null}
         {loading && !summary ? (
           <Card>
             <CardContent className="py-16 text-center text-muted-foreground">
@@ -449,7 +552,23 @@ export default function AnalysisWorkspacePage() {
               environmentReady={envReady || canAnalyze}
               queued={queued}
               heroMode={bannerMode as any}
+              queueTitle={queued ? queue.title : null}
+              queueBody={queued ? queue.body : null}
             />
+            {queued ? (
+              <Card className="border-amber-500/30 bg-amber-500/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    {queue.title || "Analysis Environment Currently Unavailable"}
+                  </CardTitle>
+                  <CardDescription className="space-y-1 text-sm text-foreground/80">
+                    {(Array.isArray(queue.body) ? queue.body : []).map((line: string) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : null}
 
             <Card className="border-slate-200/80 shadow-sm dark:border-border">
               <CardContent className="py-4">
@@ -749,9 +868,10 @@ export default function AnalysisWorkspacePage() {
                       </p>
                     )}
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <EnvStat label="Available" value={queue.environments?.available ?? "—"} tone="ok" />
                       <EnvStat label="Busy" value={queue.environments?.busy ?? "—"} tone="busy" />
+                      <EnvStat label="Offline" value={queue.environments?.offline ?? "—"} tone="wait" />
                       <EnvStat label="Waiting" value={queue.environments?.waiting ?? "—"} tone="wait" />
                     </div>
                   </CardContent>
@@ -887,35 +1007,16 @@ export default function AnalysisWorkspacePage() {
               <Button variant="outline" onClick={() => navigate(-1)}>
                 Back
               </Button>
-              <div className="flex flex-wrap items-center gap-2">
-                {resultsReady ? (
-                  <Button variant="secondary" asChild>
-                    <Link to="/my-bookings">Download results</Link>
-                  </Button>
-                ) : null}
-                <Button
-                  size="lg"
-                  className="min-w-[220px] bg-[#0b3d91] hover:bg-[#0a357f]"
-                  disabled={startDisabled}
-                  onClick={openOrStart}
-                >
-                  <MonitorSmartphone className="mr-2 h-4 w-4" />
-                  <span className="flex flex-col items-start leading-tight">
-                    <span>
-                      {queued
-                        ? "Waiting in queue…"
-                        : started
-                          ? "Open Analysis Environment"
-                          : "Open Analysis Environment"}
-                    </span>
-                    {!queued ? (
-                      <span className="text-[10px] font-normal text-white/80">
-                        You will be connected to the Analysis PC
-                      </span>
-                    ) : null}
-                  </span>
+              {resultsReady ? (
+                <Button variant="secondary" asChild>
+                  <Link to="/my-bookings">Download results</Link>
                 </Button>
-              </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Use <span className="font-medium text-foreground">Open Analysis Environment</span> at the
+                  top of this page to connect.
+                </p>
+              )}
             </div>
           </>
         )}
