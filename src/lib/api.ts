@@ -936,6 +936,8 @@ class ApiClient {
           errorCode: typeof maybeWaitlist.code === "string" ? maybeWaitlist.code : undefined,
           istem_portal_url: typeof maybeWaitlist.istem_portal_url === "string" ? maybeWaitlist.istem_portal_url : undefined,
           fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
+          // Preserve structured body (e.g. booking results rating gate with exists=true).
+          data: data as T,
         };
       }
 
@@ -6633,6 +6635,119 @@ class ApiClient {
         ...(params.public_email != null && { public_email: params.public_email }),
       }),
     });
+  }
+
+  // --- IIC Research Copilot ---
+  async researchCopilotBootstrap() {
+    return this.request<{
+      enabled: boolean;
+      assistant_name?: string;
+      role_bucket?: string;
+      suggested_prompts?: string[];
+      tools_available?: Array<Record<string, unknown>>;
+      capabilities?: Record<string, unknown>;
+    }>('/v1/research-copilot/bootstrap/');
+  }
+
+  async researchCopilotListConversations() {
+    return this.request<{
+      count: number;
+      results: Array<{ id: string; title: string; updated_at?: string | null }>;
+    }>('/v1/research-copilot/conversations/');
+  }
+
+  async researchCopilotCreateConversation(title?: string) {
+    return this.request<{
+      conversation: { id: string; title?: string };
+      suggested_prompts?: string[];
+    }>('/v1/research-copilot/conversations/', {
+      method: 'POST',
+      body: JSON.stringify({ title: title || '' }),
+    });
+  }
+
+  async researchCopilotGetConversation(conversationId: string) {
+    return this.request<{
+      id: string;
+      title?: string;
+      messages?: Array<Record<string, unknown>>;
+    }>(`/v1/research-copilot/conversations/${conversationId}/`);
+  }
+
+  async researchCopilotSendMessage(conversationId: string, content: string) {
+    return this.request<{
+      conversation_id: string;
+      message: Record<string, unknown>;
+      suggested_prompts?: string[];
+      tools_available?: Array<Record<string, unknown>>;
+    }>(`/v1/research-copilot/conversations/${conversationId}/messages/`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async researchCopilotFeedback(
+    conversationId: string,
+    params: { rating: 'up' | 'down'; comment?: string; message_id?: string },
+  ) {
+    return this.request<{ id: string; rating: string }>(
+      `/v1/research-copilot/conversations/${conversationId}/feedback/`,
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      },
+    );
+  }
+
+  async researchCopilotExecuteTool(name: string, arguments_: Record<string, unknown> = {}) {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/tools/execute/', {
+      method: 'POST',
+      body: JSON.stringify({ name, arguments: arguments_ }),
+    });
+  }
+
+  async researchCopilotKnowledgeDocuments() {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/documents/');
+  }
+
+  async researchCopilotKnowledgeAnalytics() {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/analytics/');
+  }
+
+  async researchCopilotKnowledgeSeed() {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/seed/', { method: 'POST' });
+  }
+
+  async researchCopilotKnowledgeRebuild() {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/rebuild-index/', {
+      method: 'POST',
+    });
+  }
+
+  async researchCopilotKnowledgeCreateDocument(payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/documents/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async researchCopilotKnowledgeReindex(documentId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/research-copilot/knowledge/documents/${documentId}/reindex/`,
+      { method: 'POST' },
+    );
+  }
+
+  async registerPushDevice(params: {
+    token: string;
+    platform?: string;
+    device_name?: string;
+    app_version?: string;
+  }) {
+    return this.request<{ id: number; created: boolean; platform: string; is_active: boolean }>(
+      '/notifications/devices/register/',
+      { method: 'POST', body: JSON.stringify(params) },
+    );
   }
 
   // Project endpoints

@@ -112,7 +112,9 @@ import ExternalUserManagement from "./pages/ExternalUserManagement";
 import OrganizationUsersManagement from "./pages/OrganizationUsersManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
 import ChatWidget from "./components/ChatWidget";
+import ResearchCopilot from "./components/ResearchCopilot";
 import UserGuidePreview from "./pages/UserGuidePreview";
+import AdminSettingsKnowledge from "./pages/AdminSettingsKnowledge";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -137,6 +139,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <ChatWidget />
+              <ResearchCopilot />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
@@ -198,6 +201,7 @@ const App = () => (
                 <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
                 <Route path="/content-management" element={<ContentManagement />} />
                 <Route path="/admin-settings" element={<AdminSettings />} />
+                <Route path="/admin-settings/knowledge" element={<AdminSettingsKnowledge />} />
                 <Route
                   path="/admin-settings/admin-panel-access"
                   element={
