@@ -14,6 +14,7 @@ function formatHMS(totalSeconds: number) {
 
 export function WorkspaceStatusStrip({
   remainingSeconds,
+  plannedSeconds,
   environmentLabel,
   environmentReady,
   queued,
@@ -24,6 +25,8 @@ export function WorkspaceStatusStrip({
   timerHint,
 }: {
   remainingSeconds?: number | null;
+  /** Static planned length when countdown has not started yet. */
+  plannedSeconds?: number | null;
   environmentLabel?: string;
   environmentReady?: boolean;
   queued?: boolean;
@@ -47,6 +50,10 @@ export function WorkspaceStatusStrip({
     return () => window.clearInterval(id);
   }, [remaining == null]);
 
+  const displaySeconds =
+    remaining != null ? remaining : typeof plannedSeconds === "number" ? plannedSeconds : null;
+  const isCountdown = remaining != null;
+
   return (
     <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-12 lg:gap-4">
       <Card className="border-slate-200/80 shadow-md lg:col-span-3 dark:border-border">
@@ -60,15 +67,19 @@ export function WorkspaceStatusStrip({
             </p>
             <p className="text-xs text-muted-foreground">
               {timerHint ||
-                (remaining != null ? "Session will expire in" : "Starts when analysis begins")}
+                (isCountdown
+                  ? "Session will expire in"
+                  : displaySeconds != null
+                    ? "Planned length — countdown starts when analysis begins"
+                    : "Starts when analysis begins")}
             </p>
             <p
               className={cn(
                 "mt-0.5 font-mono text-2xl font-semibold tabular-nums tracking-tight xl:text-3xl",
-                remaining != null && remaining <= 300 && "text-amber-600"
+                isCountdown && remaining != null && remaining <= 300 && "text-amber-600"
               )}
             >
-              {remaining != null ? formatHMS(remaining) : "— : — : —"}
+              {displaySeconds != null ? formatHMS(displaySeconds) : "— : — : —"}
             </p>
             <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
               HH&nbsp;&nbsp;MM&nbsp;&nbsp;SS
