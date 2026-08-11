@@ -1291,9 +1291,20 @@ const BookEquipment = () => {
     let cancelled = false;
     (async () => {
       const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
-      const res = await apiClient.getAdminUserBookingInfo(adminBookForUserId, {
-        equipmentId: equipmentId ?? undefined,
-      });
+      const listed = usersList.find((u) => String(u.id) === String(adminBookForUserId));
+
+      // Prefer equipment-scoped endpoint (same auth as book-on-behalf; no Users admin module).
+      let res =
+        equipmentId != null
+          ? await apiClient.getEquipmentBookForUserInfo(equipmentId, adminBookForUserId)
+          : { data: undefined as undefined, error: "missing_equipment" as string | undefined };
+
+      // Fallback to admin booking-info if equipment endpoint unavailable.
+      if (res.error || !(res.data && typeof res.data === "object" && "wallet_balance" in res.data)) {
+        res = await apiClient.getAdminUserBookingInfo(adminBookForUserId, {
+          equipmentId: equipmentId ?? undefined,
+        });
+      }
       if (cancelled) return;
 
       const payload = res.data;
@@ -1316,7 +1327,6 @@ const BookEquipment = () => {
       }
 
       // Do not treat error bodies ({detail:...}) as user info — that showed blank "—" fields.
-      const listed = usersList.find((u) => String(u.id) === String(adminBookForUserId));
       setAdminBookForUserInfo({
         email: listed?.email || "",
         department_name: "",
