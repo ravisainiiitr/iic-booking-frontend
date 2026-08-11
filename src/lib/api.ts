@@ -8473,6 +8473,19 @@ class ApiClient {
     });
   }
 
+  async setInstalledSoftwareAllocation(installId: number | string, allocationEnabled: boolean) {
+    return this.request<{
+      id: number;
+      software_name: string;
+      workstation_id: string;
+      allocation_enabled: boolean;
+      is_present: boolean;
+    }>(`/v1/analysis/catalog/installed-software/${installId}/allocation/`, {
+      method: 'POST',
+      body: JSON.stringify({ allocation_enabled: allocationEnabled }),
+    });
+  }
+
   async listEquipmentAnalysisSoftware(params?: Record<string, string>) {
     const qs = new URLSearchParams(params || {});
     const q = qs.toString() ? `?${qs}` : '';

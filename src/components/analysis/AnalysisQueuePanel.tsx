@@ -15,6 +15,7 @@ export type QueueExperience = {
     total?: number;
     available?: number;
     busy?: number;
+    offline?: number;
     waiting?: number;
   };
 };
@@ -69,10 +70,11 @@ export function AnalysisQueuePanel({ queue }: { queue: QueueExperience }) {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Stat label="Environments" value={env.total ?? "—"} />
           <Stat label="Available" value={env.available ?? "—"} accent="ok" />
           <Stat label="Busy" value={env.busy ?? "—"} accent="busy" />
+          <Stat label="Offline" value={env.offline ?? "—"} />
           <Stat
             label="Waiting"
             value={env.waiting ?? queue.people_ahead ?? "—"}
