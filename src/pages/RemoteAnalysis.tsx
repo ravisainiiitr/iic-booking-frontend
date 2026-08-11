@@ -54,6 +54,15 @@ type Workstation = {
   department_name?: string;
   current_command?: string;
   agent_version?: string;
+  data_root?: string;
+  input_path?: string;
+  output_path?: string;
+  workspace_disk_free_bytes?: number | null;
+  input_bytes?: number | null;
+  output_bytes?: number | null;
+  cleanup_status?: string;
+  last_sync_at?: string | null;
+  disk_low?: boolean;
 };
 
 type SoftwareRow = {
@@ -69,7 +78,10 @@ type SoftwareRow = {
   workstation_status?: string;
   workstation_health?: number;
   last_seen?: string | null;
+  last_updated?: string | null;
   install_path?: string;
+  allocation_enabled?: boolean;
+  catalog_status?: string;
 };
 
 type CommandRow = {
@@ -311,6 +323,11 @@ export default function RemoteAnalysis() {
   const [shareEmail, setShareEmail] = useState("");
   const [timelineSessionId, setTimelineSessionId] = useState("");
   const [timelineEvents, setTimelineEvents] = useState<Array<Record<string, unknown>>>([]);
+  const [fleetInventory, setFleetInventory] = useState<{
+    counts?: Record<string, number>;
+    workstations?: Array<Record<string, unknown>>;
+    generated_at?: string;
+  } | null>(null);
 
   const selected = useMemo(
     () => workstations.find((w) => w.id === selectedId) || null,
@@ -321,7 +338,7 @@ export default function RemoteAnalysis() {
     if (!canView) return;
     setLoading(true);
     try {
-      const [dashRes, wsRes, softRes, cmdRes, evtRes, schedRes, resRes, sessDashRes, sessRes, histRes, wspDashRes, wspRes, wspArchRes, opsRes, alertRes, reportRes, collabRes] =
+      const [dashRes, wsRes, softRes, cmdRes, evtRes, schedRes, resRes, sessDashRes, sessRes, histRes, wspDashRes, wspRes, wspArchRes, opsRes, alertRes, reportRes, collabRes, fleetRes] =
         await Promise.all([
           apiClient.getRemoteAnalysisDashboard(),
           apiClient.getRemoteAnalysisWorkstations(),
@@ -340,6 +357,7 @@ export default function RemoteAnalysis() {
           apiClient.getRemoteAnalysisAlerts(),
           apiClient.getRemoteAnalysisReports(),
           apiClient.getRemoteAnalysisCollaborationDashboard(),
+          apiClient.getRemoteAnalysisFleetInventory(),
         ]);
       if (dashRes.error || wsRes.error) {
         toast.error(dashRes.error || wsRes.error || "Failed to load Remote Analysis data");
@@ -362,6 +380,15 @@ export default function RemoteAnalysis() {
       setOpsAlerts((alertRes.data as Array<Record<string, unknown>>) || []);
       setOpsReports((reportRes.data as Array<Record<string, unknown>>) || []);
       setCollabDash((collabRes.data as Record<string, unknown>) || null);
+      setFleetInventory(
+        fleetRes.error
+          ? null
+          : ((fleetRes.data as {
+              counts?: Record<string, number>;
+              workstations?: Array<Record<string, unknown>>;
+              generated_at?: string;
+            }) || null)
+      );
       if (!selectedId && (wsRes.data as Workstation[])?.length) {
         setSelectedId((wsRes.data as Workstation[])[0].id);
       }
@@ -503,6 +530,7 @@ export default function RemoteAnalysis() {
             <TabsList className="flex flex-wrap h-auto gap-1">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="workstations">Workstations</TabsTrigger>
+              <TabsTrigger value="fleet">Fleet Inventory</TabsTrigger>
               <TabsTrigger value="software">Installed Software</TabsTrigger>
               <TabsTrigger value="heartbeats">Heartbeat History</TabsTrigger>
               <TabsTrigger value="commands">Commands</TabsTrigger>
@@ -613,6 +641,9 @@ export default function RemoteAnalysis() {
                         <TableHead>Hostname</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Health</TableHead>
+                        <TableHead>Data Root</TableHead>
+                        <TableHead>Cleanup</TableHead>
+                        <TableHead>Disk free</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Last heartbeat</TableHead>
                         <TableHead>Agent</TableHead>
@@ -633,6 +664,28 @@ export default function RemoteAnalysis() {
                             <Badge variant={statusVariant(w.status)}>{w.status}</Badge>
                           </TableCell>
                           <TableCell>{w.health_score}</TableCell>
+                          <TableCell className="max-w-[180px]">
+                            <div className="truncate font-mono text-xs" title={w.data_root || ""}>
+                              {w.data_root || "—"}
+                            </div>
+                            <div className="truncate text-[10px] text-muted-foreground" title={w.input_path || ""}>
+                              In: {w.input_path || "—"}
+                            </div>
+                            <div className="truncate text-[10px] text-muted-foreground" title={w.output_path || ""}>
+                              Out: {w.output_path || "—"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={w.cleanup_status === "failed" || w.disk_low ? "destructive" : "secondary"}>
+                              {w.cleanup_status || "idle"}
+                              {w.disk_low ? " · disk low" : ""}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {typeof w.workspace_disk_free_bytes === "number"
+                              ? `${(w.workspace_disk_free_bytes / (1024 ** 3)).toFixed(1)} GB`
+                              : "—"}
+                          </TableCell>
                           <TableCell>
                             {[w.building, w.room].filter(Boolean).join(" / ") || "—"}
                           </TableCell>
@@ -648,6 +701,86 @@ export default function RemoteAnalysis() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="fleet" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Fleet inventory</CardTitle>
+                  <CardDescription>
+                    Hostname, agent, online/offline, heartbeat age, reservation/session, tunnel readiness.
+                    {fleetInventory?.generated_at
+                      ? ` Generated ${new Date(String(fleetInventory.generated_at)).toLocaleString()}.`
+                      : ""}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {Object.entries(fleetInventory?.counts || {}).map(([k, v]) => (
+                      <div key={k} className="rounded-lg border p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{k}</p>
+                        <p className="text-xl font-semibold tabular-nums">{v as number}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Hostname</TableHead>
+                          <TableHead>Agent</TableHead>
+                          <TableHead>Online</TableHead>
+                          <TableHead>HB age</TableHead>
+                          <TableHead>Health</TableHead>
+                          <TableHead>Reservation</TableHead>
+                          <TableHead>RDP / Tunnel</TableHead>
+                          <TableHead>Version</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(fleetInventory?.workstations || []).map((row) => (
+                          <TableRow key={String(row.id)}>
+                            <TableCell>
+                              <div className="font-medium">{String(row.display_name || row.hostname || "—")}</div>
+                              <div className="text-xs text-muted-foreground">{String(row.status || "")}</div>
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">{String(row.agent_id || "—")}</TableCell>
+                            <TableCell>
+                              <Badge variant={row.online ? "default" : "secondary"}>
+                                {row.online ? "Online" : "Offline"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="tabular-nums text-sm">
+                              {row.heartbeat_age_seconds != null
+                                ? `${row.heartbeat_age_seconds}s`
+                                : "—"}
+                            </TableCell>
+                            <TableCell>{String(row.health_score ?? "—")}</TableCell>
+                            <TableCell className="text-xs">
+                              <div>{String(row.reservation_status || "—")}</div>
+                              <div className="text-muted-foreground">
+                                {String(row.current_booking || row.current_user_email || "")}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              <div>{String(row.rdp_status || "—")}</div>
+                              <div className="text-muted-foreground">{String(row.tunnel_status || "idle")}</div>
+                            </TableCell>
+                            <TableCell className="text-xs">{String(row.agent_version || "—")}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!fleetInventory?.workstations?.length ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-muted-foreground text-sm">
+                              No fleet inventory loaded.
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="software">
               <Card>
                 <CardHeader className="pb-3">
@@ -655,7 +788,8 @@ export default function RemoteAnalysis() {
                     <div>
                       <CardTitle className="text-base">RA Inventory — Installed Software</CardTitle>
                       <CardDescription>
-                        Agent-reported titles with department, health, license, and last seen. Use REFRESH_SOFTWARE on a workstation to rescan.
+                        Agent-reported titles with catalog status and allocation eligibility. Disable a title on one RAA
+                        to exclude it from scheduling without uninstalling. Use REFRESH_SOFTWARE to rescan.
                       </CardDescription>
                     </div>
                     <Input
@@ -676,8 +810,9 @@ export default function RemoteAnalysis() {
                         <TableHead>Workstation</TableHead>
                         <TableHead>Dept</TableHead>
                         <TableHead>Status / Health</TableHead>
-                        <TableHead>License</TableHead>
-                        <TableHead>Last seen</TableHead>
+                        <TableHead>Catalog</TableHead>
+                        <TableHead>Allocation</TableHead>
+                        <TableHead>Last inventory</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -712,13 +847,51 @@ export default function RemoteAnalysis() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              {s.licensed ? "Yes" : "No"}
-                              {s.license_type ? (
-                                <div className="text-[10px] text-muted-foreground">{s.license_type}</div>
-                              ) : null}
+                              <Badge variant="secondary">{s.catalog_status || "unlinked"}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {canManage ? (
+                                <Button
+                                  size="sm"
+                                  variant={s.allocation_enabled === false ? "destructive" : "outline"}
+                                  disabled={busyAction}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setBusyAction(true);
+                                    try {
+                                      const next = s.allocation_enabled === false;
+                                      const res = await apiClient.setInstalledSoftwareAllocation(s.id, next);
+                                      if (res.error) {
+                                        toast.error(res.error);
+                                        return;
+                                      }
+                                      setSoftware((prev) =>
+                                        prev.map((row) =>
+                                          row.id === s.id ? { ...row, allocation_enabled: next } : row
+                                        )
+                                      );
+                                      toast.success(
+                                        next
+                                          ? `${s.software_name} enabled for allocation`
+                                          : `${s.software_name} disabled for allocation`
+                                      );
+                                    } finally {
+                                      setBusyAction(false);
+                                    }
+                                  }}
+                                >
+                                  {s.allocation_enabled === false ? "Disabled" : "Enabled"}
+                                </Button>
+                              ) : (
+                                <Badge variant={s.allocation_enabled === false ? "destructive" : "default"}>
+                                  {s.allocation_enabled === false ? "Disabled" : "Enabled"}
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell className="text-xs">
-                              {s.last_seen ? new Date(s.last_seen).toLocaleString() : "—"}
+                              {s.last_updated || s.last_seen
+                                ? new Date(String(s.last_updated || s.last_seen)).toLocaleString()
+                                : "—"}
                             </TableCell>
                           </TableRow>
                         ))}

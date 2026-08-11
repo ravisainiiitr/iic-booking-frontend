@@ -2940,11 +2940,26 @@ export function BookingDetailCard({
                     )}
                     {Boolean((analysisSummary as any)?.analyze?.queued || (analysisSummary as any)?.queued || (analysisSummary as any)?.experience?.queue?.is_queued) && (
                       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm space-y-2">
-                        <p className="font-medium">Analysis Environment Currently Unavailable</p>
-                        <p className="text-muted-foreground">
-                          All available Analysis Environments are currently processing other requests.
-                          Your request is in the execution queue and will start automatically.
+                        <p className="font-medium">
+                          {String(
+                            (analysisSummary as any)?.experience?.queue?.title ||
+                              "Analysis Environment Currently Unavailable"
+                          )}
                         </p>
+                        {Array.isArray((analysisSummary as any)?.experience?.queue?.body) ? (
+                          ((analysisSummary as any).experience.queue.body as string[])
+                            .filter(Boolean)
+                            .map((line) => (
+                              <p key={line} className="text-muted-foreground">
+                                {line}
+                              </p>
+                            ))
+                        ) : (
+                          <p className="text-muted-foreground">
+                            All available Analysis Environments are currently processing other requests.
+                            Your request is in the execution queue and will start automatically.
+                          </p>
+                        )}
                         {(analysisSummary as any)?.experience?.queue?.position != null && (
                           <p>
                             Queue position:{" "}
