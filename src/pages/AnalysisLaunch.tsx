@@ -5,13 +5,10 @@ import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import {
-  AnalysisHorizontalStepper,
-  toHorizontalSteps,
-} from "@/components/analysis/AnalysisHorizontalStepper";
 import { cn } from "@/lib/utils";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
+import { DataWorkspaceBanner } from "@/components/analysis/DataWorkspaceBanner";
+import { AnalysisEnvironmentProgress } from "@/components/analysis/AnalysisEnvironmentProgress";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import IITRBanner from "@/components/IITRBanner";
 import {
@@ -20,7 +17,6 @@ import {
   Download,
   Loader2,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing" | "results";
@@ -333,13 +329,6 @@ export default function AnalysisLaunchPage() {
     return [10, 5, 2, 1].find((m) => mins <= m && remaining > 0) ?? null;
   }, [remaining]);
 
-  const horizontal = toHorizontalSteps(experience.journey, {
-    queued: Boolean(queue.is_queued),
-    ready: phase !== "prepare" || Boolean(desktopUrl),
-    started: phase === "desktop" || phase === "closing" || phase === "results",
-    results: phase === "results" || Boolean(results.available),
-  });
-
   const endAnalysis = async () => {
     if (!window.confirm("End analysis now? Results will be collected and the workspace cleaned.")) {
       return;
@@ -383,13 +372,12 @@ export default function AnalysisLaunchPage() {
   ).trim() || String(bookingPk);
   const equipment = experience.equipment_name || experience.equipment_code || "Equipment";
 
-  const fallbackPrepareSteps = useMemo(() => {
+  /** User-facing provisioning ladder — never mention Guacamole / tunnels. */
+  const provisionSteps = useMemo(() => {
     const sessionStatus = String(
-      (summary?.session as { status?: string } | undefined)?.status ||
-        sessionExp.status ||
-        ""
+      (summary?.session as { status?: string } | undefined)?.status || sessionExp.status || ""
     ).toUpperCase();
-    const readyStatuses = new Set([
+    const readyLike = [
       "READY",
       "TOKEN_GENERATED",
       "LAUNCHED",
@@ -397,34 +385,64 @@ export default function AnalysisLaunchPage() {
       "CONNECTED",
       "ACTIVE",
       "IDLE",
-    ]);
-    const failed = ["FAILED", "TERMINATED", "EXPIRED"].includes(sessionStatus);
-    const ready = readyStatuses.has(sessionStatus);
-    const preparing = sessionStatus === "PREPARING" || sessionStatus === "CREATED" || !sessionStatus;
+    ].includes(sessionStatus);
+    const allocated = readyLike || Boolean(desktopUrl) || prepareSteps.some((s) => s.status === "done");
+    const connecting =
+      Boolean(desktopUrl) ||
+      ["CONNECTING", "CONNECTED", "ACTIVE", "IDLE", "LAUNCHED"].includes(sessionStatus) ||
+      phase === "desktop";
+    const loadingEnv =
+      desktopReady || ["CONNECTED", "ACTIVE", "IDLE"].includes(sessionStatus);
+
+    // Prefer API desktop_prepare when present; otherwise branded ladder.
+    if (prepareSteps.length >= 3) {
+      return prepareSteps.map((s) => ({
+        id: String(s.id),
+        label: String(s.label).replace(/guacamole/gi, "remote desktop"),
+        status: String(s.status || "pending"),
+      }));
+    }
+
     return [
-      { id: "1", label: "Booking confirmed", status: "done" },
       {
-        id: "2",
-        label: "Analysis Environment allocated",
-        status: sessionStatus || preparing ? "done" : "pending",
+        id: "prepare-ws",
+        label: "Preparing workstation",
+        status: allocated ? "done" : "active",
       },
       {
-        id: "3",
-        label: "Synchronizing input data",
-        status: failed ? "pending" : ready ? "done" : preparing ? "active" : "pending",
+        id: "alloc",
+        label: "Workstation allocated",
+        status: allocated ? "done" : "pending",
       },
       {
-        id: "4",
-        label: "Launching Analysis Environment",
-        status: failed ? "pending" : ready ? (sessionStatus === "ACTIVE" || sessionStatus === "CONNECTED" ? "done" : "active") : "pending",
+        id: "software",
+        label: "Software verified",
+        status: allocated ? "done" : "pending",
       },
       {
-        id: "5",
-        label: "Ready",
-        status: sessionStatus === "ACTIVE" || sessionStatus === "CONNECTED" ? "done" : "pending",
+        id: "session",
+        label: "Starting analysis session",
+        status: connecting ? "done" : allocated ? "active" : "pending",
+      },
+      {
+        id: "connect",
+        label: "Connecting remote desktop",
+        status: loadingEnv ? "done" : connecting ? "active" : "pending",
+      },
+      {
+        id: "load",
+        label: "Loading environment",
+        status: loadingEnv ? "done" : connecting ? "active" : "pending",
       },
     ];
-  }, [summary?.session, sessionExp.status]);
+  }, [
+    prepareSteps,
+    desktopUrl,
+    desktopReady,
+    phase,
+    summary?.session,
+    sessionExp.status,
+  ]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950">
@@ -453,12 +471,29 @@ export default function AnalysisLaunchPage() {
         <div className="bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
           {warn} minute{warn === 1 ? "" : "s"} remaining
           {sessionExp.extend_blocked_reason ? ` · ${sessionExp.extend_blocked_reason}` : ""}
+          {" · Save results to the Output folder"}
         </div>
       ) : null}
+      {/* R9: keep Input/Output paths visible during prepare + live desktop (not only after Guacamole paints). */}
+      {(phase === "prepare" || phase === "desktop") && (
+        <div className="border-b border-slate-200/80 bg-white/95 px-4 py-2 dark:border-border dark:bg-background/95">
+          <div className={cn("mx-auto", phase === "prepare" ? "max-w-5xl" : "max-w-[1800px]")}>
+            <DataWorkspaceBanner
+              compact={phase === "desktop"}
+              data={(experience as any)?.data_workspace || null}
+            />
+          </div>
+        </div>
+      )}
 
       {phase === "prepare" && (
-        <div className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center gap-6 p-6">
-          <div className="flex justify-end">
+        <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-3xl flex-col justify-center gap-6 p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-600 dark:text-muted-foreground">
+                {equipment} · Booking {virtualId}
+              </p>
+            </div>
             <BackToDashboardButton
               variant="outline"
               size="sm"
@@ -466,84 +501,19 @@ export default function AnalysisLaunchPage() {
               confirmMessage="Leave while the Analysis Environment is preparing?\n\nYour session will continue in the background. You can reopen it from your booking."
             />
           </div>
-          <div className="text-center">
-            <div className="mb-4 flex justify-center">
-              <IITRBanner size="md" />
-            </div>
-            <p className="mt-1 text-sm font-medium text-slate-600 dark:text-muted-foreground">
-              {equipment} · Booking {virtualId}
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Preparing your Analysis Environment
-            </h1>
-            <p className="mx-auto mt-2 max-w-2xl text-muted-foreground">
-              Your Analysis Environment has been allocated. We are synchronizing your workspace and
-              will open the Analysis PC automatically — please keep this tab open.
-            </p>
-          </div>
 
-          <Card className="overflow-hidden border-primary/20 shadow-lg">
-            <div className="bg-gradient-to-r from-primary to-sky-800 px-6 py-5 text-primary-foreground">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-white/15 p-2">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">Preparing your Analysis Environment</p>
-                  <p className="text-sm text-primary-foreground/85">
-                    The desktop opens automatically when synchronization completes. Please keep this
-                    tab open.
-                  </p>
-                </div>
+          <Card className="overflow-hidden border-slate-200/80 shadow-lg dark:border-border">
+            <CardContent className="space-y-6 p-6 sm:p-8">
+              <div className="flex justify-center">
+                <IITRBanner size="sm" />
               </div>
-            </div>
-            <CardContent className="space-y-6 p-6">
-              <AnalysisHorizontalStepper steps={horizontal} />
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(prepareSteps.length ? prepareSteps : fallbackPrepareSteps).map((s) => (
-                  <div
-                    key={s.id}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border px-3 py-2.5",
-                      s.status === "done" && "border-emerald-500/30 bg-emerald-500/5",
-                      s.status === "active" && "border-primary/40 bg-primary/5"
-                    )}
-                  >
-                    {s.status === "done" ? (
-                      <Check className="h-4 w-4 text-emerald-600" />
-                    ) : s.status === "active" ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    ) : (
-                      <span className="h-4 w-4 rounded-full border border-muted-foreground/30" />
-                    )}
-                    <span className="text-sm font-medium">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <InfoTile label="Equipment" value={equipment} />
-                <InfoTile label="Booking" value={virtualId} />
-                <InfoTile
-                  label="Session duration"
-                  value={`${sessionExp.default_duration_minutes || 30} minutes`}
-                />
-                <InfoTile
-                  label="Input files"
-                  value={`${(input.booking_raw as any)?.file_count ?? (workspace.input as any)?.file_count ?? 0} · ${formatBytes(
-                    (input.booking_raw as any)?.total_size_bytes ?? (workspace.input as any)?.total_size_bytes
-                  )}`}
-                />
-                <InfoTile
-                  label="Sync status"
-                  value={String(workspace.sync_phase || workspace.sync_message || "Preparing")}
-                />
-                <InfoTile
-                  label="Current status"
-                  value={desktopUrl ? "Almost ready" : "Preparing"}
-                />
-              </div>
+              <AnalysisEnvironmentProgress
+                title="Preparing Analysis Environment"
+                subtitle="Your Analysis PC opens automatically when ready. Please keep this tab open."
+                steps={provisionSteps}
+                onCancel={() => navigate(`/analysis-workspace/${bookingPk}`)}
+                cancelLabel="Cancel"
+              />
 
               {queue.is_queued ? (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
@@ -555,47 +525,39 @@ export default function AnalysisLaunchPage() {
                 </div>
               ) : null}
 
-              {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+              {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
 
-              <div className="flex flex-wrap justify-between gap-2">
-                <Button variant="outline" asChild>
+              <div className="flex justify-center">
+                <Button variant="ghost" size="sm" asChild>
                   <Link to={`/analysis-workspace/${bookingPk}`}>Back to workspace</Link>
                 </Button>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparing secure Analysis Environment…
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Session rules & privacy</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-              <p>· Default session length is configurable per equipment.</p>
-              <p>· Extension is allowed only when nobody else is waiting.</p>
-              <p>· Click End Analysis when finished — do not only close the browser.</p>
-              <p>· After completion, the workspace is cleaned before the next user.</p>
-            </CardContent>
-          </Card>
+          <p className="text-center text-xs text-muted-foreground">
+            Input and Output folders are shown above — use them on the Analysis PC once connected.
+          </p>
         </div>
       )}
 
       {phase === "desktop" && (
-        <div className="relative flex h-[calc(100vh-5.5rem)] flex-col">
+        <div className="relative flex h-[calc(100vh-9.5rem)] flex-col">
           {!desktopReady && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-md">
-              <div className="mx-4 max-w-md rounded-2xl border border-white/10 bg-white p-7 text-center shadow-2xl dark:bg-card">
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/75 backdrop-blur-md">
+              <div className="mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-card sm:p-7">
                 <div className="mb-4 flex justify-center">
                   <IITRBanner size="sm" />
                 </div>
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-                <p className="mt-3 text-lg font-semibold">Launching Analysis Environment</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Finalizing your secure Analysis PC connection. This opens automatically — please wait.
-                </p>
+                <AnalysisEnvironmentProgress
+                  compact
+                  title="Connecting Analysis Environment"
+                  subtitle="Finalizing your secure Analysis PC connection. This opens automatically."
+                  steps={provisionSteps}
+                  onCancel={() => navigate(`/analysis-workspace/${bookingPk}`)}
+                  cancelLabel="Cancel"
+                />
+                {error ? <p className="mt-3 text-center text-sm text-rose-600">{error}</p> : null}
               </div>
             </div>
           )}

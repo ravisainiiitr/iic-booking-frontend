@@ -81,6 +81,8 @@ import InventoryManagement from "./pages/InventoryManagement";
 import RemoteAnalysis from "./pages/RemoteAnalysis";
 import AgentInstaller from "./pages/AgentInstaller";
 import RdpPathDiagnostics from "./pages/RdpPathDiagnostics";
+import AnalysisSoftwareCatalog from "./pages/AnalysisSoftwareCatalog";
+import EquipmentSoftwareMapping from "./pages/EquipmentSoftwareMapping";
 import DsaAgentInstaller from "./pages/DsaAgentInstaller";
 import DeploymentCenter from "./pages/DeploymentCenter";
 import DeviceProvisioning from "./pages/DeviceProvisioning";
@@ -110,7 +112,9 @@ import ExternalUserManagement from "./pages/ExternalUserManagement";
 import OrganizationUsersManagement from "./pages/OrganizationUsersManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
 import ChatWidget from "./components/ChatWidget";
+import ResearchCopilot from "./components/ResearchCopilot";
 import UserGuidePreview from "./pages/UserGuidePreview";
+import AdminSettingsKnowledge from "./pages/AdminSettingsKnowledge";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,6 +139,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <ChatWidget />
+              <ResearchCopilot />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
@@ -196,6 +201,7 @@ const App = () => (
                 <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
                 <Route path="/content-management" element={<ContentManagement />} />
                 <Route path="/admin-settings" element={<AdminSettings />} />
+                <Route path="/admin-settings/knowledge" element={<AdminSettingsKnowledge />} />
                 <Route
                   path="/admin-settings/admin-panel-access"
                   element={
@@ -213,6 +219,8 @@ const App = () => (
                 <Route path="/remote-analysis" element={<RemoteAnalysis />} />
                 <Route path="/remote-analysis/agent-installer" element={<AgentInstaller />} />
                 <Route path="/remote-analysis/rdp-diagnostics" element={<RdpPathDiagnostics />} />
+                <Route path="/remote-analysis/software-catalog" element={<AnalysisSoftwareCatalog />} />
+                <Route path="/remote-analysis/equipment-software" element={<EquipmentSoftwareMapping />} />
                 <Route path="/analysis-workspace/:bookingId" element={<AnalysisWorkspace />} />
                 <Route path="/analysis-launch/:bookingId" element={<AnalysisLaunch />} />
                 <Route

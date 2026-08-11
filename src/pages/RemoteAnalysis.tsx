@@ -63,7 +63,13 @@ type SoftwareRow = {
   version: string;
   workstation_hostname?: string;
   licensed: boolean;
+  license_type?: string;
   category?: string;
+  department_name?: string;
+  workstation_status?: string;
+  workstation_health?: number;
+  last_seen?: string | null;
+  install_path?: string;
 };
 
 type CommandRow = {
@@ -275,6 +281,7 @@ export default function RemoteAnalysis() {
   const [heartbeats, setHeartbeats] = useState<HeartbeatRow[]>([]);
   const [commandType, setCommandType] = useState("PING");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [softwareSearch, setSoftwareSearch] = useState("");
   const [busyAction, setBusyAction] = useState(false);
   const [schedulerDash, setSchedulerDash] = useState<SchedulerDash | null>(null);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
@@ -465,6 +472,12 @@ export default function RemoteAnalysis() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/remote-analysis/software-catalog")}>
+              Software Catalog
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/remote-analysis/equipment-software")}>
+              Eq ↔ Software
+            </Button>
             <Button variant="outline" onClick={() => navigate("/remote-analysis/rdp-diagnostics")}>
               <Network className="mr-2 h-4 w-4" /> RDP Diagnostics
             </Button>
@@ -637,7 +650,23 @@ export default function RemoteAnalysis() {
 
             <TabsContent value="software">
               <Card>
-                <CardContent className="pt-6 overflow-x-auto">
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-base">RA Inventory — Installed Software</CardTitle>
+                      <CardDescription>
+                        Agent-reported titles with department, health, license, and last seen. Use REFRESH_SOFTWARE on a workstation to rescan.
+                      </CardDescription>
+                    </div>
+                    <Input
+                      placeholder="Search software, publisher, workstation…"
+                      value={softwareSearch}
+                      onChange={(e) => setSoftwareSearch(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -645,19 +674,54 @@ export default function RemoteAnalysis() {
                         <TableHead>Version</TableHead>
                         <TableHead>Publisher</TableHead>
                         <TableHead>Workstation</TableHead>
-                        <TableHead>Licensed</TableHead>
+                        <TableHead>Dept</TableHead>
+                        <TableHead>Status / Health</TableHead>
+                        <TableHead>License</TableHead>
+                        <TableHead>Last seen</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {software.slice(0, 200).map((s) => (
-                        <TableRow key={s.id}>
-                          <TableCell>{s.software_name}</TableCell>
-                          <TableCell>{s.version || "—"}</TableCell>
-                          <TableCell>{s.publisher || "—"}</TableCell>
-                          <TableCell>{s.workstation_hostname || "—"}</TableCell>
-                          <TableCell>{s.licensed ? "Yes" : "No"}</TableCell>
-                        </TableRow>
-                      ))}
+                      {software
+                        .filter((s) => {
+                          const q = softwareSearch.trim().toLowerCase();
+                          if (!q) return true;
+                          return (
+                            s.software_name?.toLowerCase().includes(q) ||
+                            s.publisher?.toLowerCase().includes(q) ||
+                            s.workstation_hostname?.toLowerCase().includes(q) ||
+                            s.department_name?.toLowerCase().includes(q)
+                          );
+                        })
+                        .slice(0, 300)
+                        .map((s) => (
+                          <TableRow key={s.id}>
+                            <TableCell>
+                              <div className="font-medium">{s.software_name}</div>
+                              {s.category ? (
+                                <div className="text-[10px] text-muted-foreground">{s.category}</div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell>{s.version || "—"}</TableCell>
+                            <TableCell>{s.publisher || "—"}</TableCell>
+                            <TableCell>{s.workstation_hostname || "—"}</TableCell>
+                            <TableCell>{s.department_name || "—"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{s.workstation_status || "—"}</Badge>
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                {s.workstation_health != null ? `${s.workstation_health}%` : ""}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {s.licensed ? "Yes" : "No"}
+                              {s.license_type ? (
+                                <div className="text-[10px] text-muted-foreground">{s.license_type}</div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {s.last_seen ? new Date(s.last_seen).toLocaleString() : "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
                     </TableBody>
                   </Table>
                 </CardContent>

@@ -1670,16 +1670,30 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Analysis profile (legacy)</Label>
+                  <Label>Analysis profile legacy fallback (optional)</Label>
                   <Input
                     value={formData.analysis_profile || ""}
                     onChange={(e) => setFormData((p) => ({ ...p, analysis_profile: e.target.value }))}
                     placeholder="e.g. OriginPro"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Prefer Django Admin → Analysis software catalog + Equipment analysis software mappings
-                    (default software, button label, Analysis PC pool). This free-text field remains as a
-                    legacy fallback for scheduler matching.
+                    Primary configuration is now software catalog mapping. Configure via{" "}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => window.open("/remote-analysis/software-catalog", "_blank")}
+                    >
+                      Software Catalog
+                    </button>{" "}
+                    and{" "}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => window.open("/remote-analysis/equipment-software", "_blank")}
+                    >
+                      Equipment ↔ Software
+                    </button>{" "}
+                    (or Django Admin). Use this free-text value only for backward compatibility.
                   </p>
                 </div>
               </div>

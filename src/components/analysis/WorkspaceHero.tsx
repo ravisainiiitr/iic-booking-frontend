@@ -18,12 +18,20 @@ export function WorkspaceStatusStrip({
   environmentReady,
   queued,
   heroMode = "default",
+  queueTitle,
+  queueBody,
+  timerLabel,
+  timerHint,
 }: {
   remainingSeconds?: number | null;
   environmentLabel?: string;
   environmentReady?: boolean;
   queued?: boolean;
   heroMode?: "ready" | "queued" | "running" | "results" | "default";
+  queueTitle?: string | null;
+  queueBody?: string | string[] | null;
+  timerLabel?: string;
+  timerHint?: string;
 }) {
   const [remaining, setRemaining] = useState<number | null>(
     typeof remainingSeconds === "number" ? remainingSeconds : null
@@ -48,10 +56,11 @@ export function WorkspaceStatusStrip({
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Session timer
+              {timerLabel || "Session timer"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {remaining != null ? "Session will expire in" : "Starts when analysis begins"}
+              {timerHint ||
+                (remaining != null ? "Session will expire in" : "Starts when analysis begins")}
             </p>
             <p
               className={cn(
@@ -69,7 +78,12 @@ export function WorkspaceStatusStrip({
       </Card>
 
       <div className="md:col-span-3 lg:col-span-6">
-        <WorkspaceReadyBanner mode={heroMode} />
+        <WorkspaceReadyBanner
+          mode={heroMode}
+          queueTitle={queueTitle}
+          queueBody={queueBody}
+          useQueueCopy={Boolean(queueTitle && (heroMode === "queued" || heroMode === "ready"))}
+        />
       </div>
 
       <Card className="border-slate-200/80 shadow-md lg:col-span-3 dark:border-border">
@@ -103,18 +117,24 @@ export function WorkspaceStatusStrip({
 
 export function WorkspaceReadyBanner({
   mode,
+  queueTitle,
+  queueBody,
+  useQueueCopy = false,
 }: {
   mode: "ready" | "queued" | "running" | "results" | "default";
+  queueTitle?: string | null;
+  queueBody?: string | string[] | null;
+  useQueueCopy?: boolean;
 }) {
   const copy = {
     ready: {
       title: "Analysis Environment is Ready!",
-      subtitle: "Review your booking details and input data, then open the Analysis Environment.",
+      subtitle: "Review your booking details and input data, then start the Analysis Environment.",
     },
     queued: {
       title: "Analysis Environment Currently Unavailable",
       subtitle:
-        "All environments are busy. You are in the execution queue and will start automatically.",
+        "You are in the execution queue and will start automatically when an environment is available.",
     },
     running: {
       title: "Analysis Session in Progress",
@@ -130,6 +150,15 @@ export function WorkspaceReadyBanner({
     },
   }[mode];
 
+  const title =
+    useQueueCopy && queueTitle
+      ? queueTitle
+      : copy.title;
+  const subtitle =
+    useQueueCopy && queueBody
+      ? (Array.isArray(queueBody) ? queueBody.filter(Boolean).join(" ") : String(queueBody))
+      : copy.subtitle;
+
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-[#0b3d91] via-[#1a56b8] to-sky-600 p-6 text-white shadow-lg">
       <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10" aria-hidden />
@@ -139,8 +168,8 @@ export function WorkspaceReadyBanner({
           <Rocket className="h-7 w-7" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{copy.title}</h2>
-          <p className="mt-1.5 max-w-3xl text-sm text-white/85 sm:text-[15px]">{copy.subtitle}</p>
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2>
+          <p className="mt-1.5 max-w-3xl text-sm text-white/85 sm:text-[15px]">{subtitle}</p>
         </div>
       </div>
     </div>
