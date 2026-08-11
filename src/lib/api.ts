@@ -8500,7 +8500,24 @@ class ApiClient {
     return this.request<{
       catalogs: Array<Record<string, unknown>>;
       equipment: Array<Record<string, unknown>>;
+      inventory_summary?: Record<string, unknown>;
     }>(`/v1/analysis/catalog/equipment-software/matrix/${qs}`, { method: 'GET' });
+  }
+
+  async syncAnalysisSoftwareCatalogFromInventory(body?: {
+    refresh_agents?: boolean;
+    limit?: number;
+  }) {
+    return this.request<{
+      accepted: boolean;
+      before?: Record<string, unknown>;
+      after?: Record<string, unknown>;
+      backfill?: Record<string, unknown>;
+      refresh_agents?: Record<string, unknown>;
+    }>('/v1/analysis/catalog/software/sync-from-inventory/', {
+      method: 'POST',
+      body: JSON.stringify(body || { refresh_agents: true }),
+    });
   }
 
   async putEquipmentSoftwareMatrix(body: {

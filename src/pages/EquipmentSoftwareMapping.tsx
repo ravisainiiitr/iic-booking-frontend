@@ -67,8 +67,10 @@ export default function EquipmentSoftwareMapping() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [catalogs, setCatalogs] = useState<CatalogCol[]>([]);
   const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
+  const [inventorySummary, setInventorySummary] = useState<Record<string, unknown> | null>(null);
   const [departmentId, setDepartmentId] = useState<string>("all");
   const [equipmentId, setEquipmentId] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -83,19 +85,49 @@ export default function EquipmentSoftwareMapping() {
         toast.error(res.error);
         setCatalogs([]);
         setEquipment([]);
+        setInventorySummary(null);
         return;
       }
       const cats = (res.data?.catalogs as CatalogCol[]) || [];
       const eqs = (res.data?.equipment as EquipmentRow[]) || [];
       setCatalogs(cats);
       setEquipment(eqs);
+      setInventorySummary((res.data?.inventory_summary as Record<string, unknown>) || null);
       if (!cats.length) {
-        toast.message("No active catalog software yet — enroll an RAA or add catalog entries.");
+        const summary = (res.data?.inventory_summary as Record<string, unknown>) || {};
+        const distinct = Number(summary.distinct_software_names || 0);
+        if (distinct > 0) {
+          toast.message(
+            `RAA inventory has ${distinct} software title(s) but the catalog is empty — use Sync from RAA.`
+          );
+        } else {
+          toast.message("No active catalog software yet — enroll an RAA or sync inventory.");
+        }
       }
     } finally {
       setLoading(false);
     }
   }, [departmentId]);
+
+  const syncFromInventory = useCallback(async () => {
+    if (!canManage) return;
+    setSyncing(true);
+    try {
+      const res = await apiClient.syncAnalysisSoftwareCatalogFromInventory({ refresh_agents: true });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      const after = res.data?.after || {};
+      const refresh = res.data?.refresh_agents || {};
+      toast.success(
+        `Catalog now ${Number(after.active_catalog_count || 0)} active · refreshed ${Number(refresh.enqueued || 0)} agent(s)`
+      );
+      await load();
+    } finally {
+      setSyncing(false);
+    }
+  }, [canManage, load]);
 
   useEffect(() => {
     if (canView) void load();
@@ -219,11 +251,30 @@ export default function EquipmentSoftwareMapping() {
             <Button variant="outline" size="sm" onClick={() => navigate("/remote-analysis/software-catalog")}>
               Software catalog
             </Button>
+            {canManage ? (
+              <Button variant="secondary" size="sm" disabled={syncing} onClick={() => void syncFromInventory()}>
+                {syncing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
+                Sync from RAA
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" onClick={() => void load()}>
               <RefreshCw className="mr-1 h-4 w-4" /> Refresh
             </Button>
           </div>
         </div>
+
+        {inventorySummary && Number(inventorySummary.distinct_software_names || 0) > catalogs.length ? (
+          <Card className="border-amber-200 bg-amber-50/60">
+            <CardContent className="py-3 text-sm text-amber-950">
+              RAA inventory reports {Number(inventorySummary.distinct_software_names)} distinct title
+              {Number(inventorySummary.distinct_software_names) === 1 ? "" : "s"} across{" "}
+              {Number(inventorySummary.workstations_with_inventory || 0)} PC
+              {Number(inventorySummary.workstations_with_inventory || 0) === 1 ? "" : "s"}, but only{" "}
+              {catalogs.length} catalog card{catalogs.length === 1 ? "" : "s"} are active.
+              {canManage ? " Use Sync from RAA to promote inventory into the catalog and refresh agents." : ""}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader className="pb-3">
@@ -285,15 +336,35 @@ export default function EquipmentSoftwareMapping() {
           </div>
         ) : catalogs.length === 0 ? (
           <Card>
-            <CardContent className="space-y-2 py-8 text-sm text-muted-foreground">
-              <p>No active catalog software.</p>
-              <p>
-                Enroll a Remote Analysis Agent (inventory auto-fills the catalog), or{" "}
-                <button className="underline" onClick={() => navigate("/remote-analysis/software-catalog")}>
-                  add catalog entries
-                </button>
-                .
-              </p>
+            <CardContent className="space-y-3 py-8 text-sm text-muted-foreground">
+              <p>No active catalog software for mapping yet.</p>
+              {Number(inventorySummary?.distinct_software_names || 0) > 0 ? (
+                <p>
+                  RAA inventory already has {Number(inventorySummary?.distinct_software_names)} discovered title
+                  {Number(inventorySummary?.distinct_software_names) === 1 ? "" : "s"}. Sync promotes them into the
+                  searchable catalog (no manual per-equipment pre-specification required).
+                </p>
+              ) : (
+                <p>
+                  Enroll a Remote Analysis Agent (selected install inventory auto-fills the catalog), or add catalog
+                  entries manually.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {canManage ? (
+                  <Button size="sm" disabled={syncing} onClick={() => void syncFromInventory()}>
+                    {syncing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+                    Sync from RAA inventory
+                  </Button>
+                ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/remote-analysis/software-catalog")}
+                >
+                  Open software catalog
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : !selectedEquipment ? (

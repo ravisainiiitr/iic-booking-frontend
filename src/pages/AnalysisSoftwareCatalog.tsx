@@ -82,6 +82,7 @@ export default function AnalysisSoftwareCatalog() {
   const [usage, setUsage] = useState<Record<string, unknown> | null>(null);
   const [importText, setImportText] = useState("[\n  { \"name\": \"OriginPro\", \"vendor\": \"OriginLab\", \"license_type\": \"concurrent\" }\n]");
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +206,22 @@ export default function AnalysisSoftwareCatalog() {
     }
   };
 
+  const syncFromInventory = async () => {
+    setSyncing(true);
+    try {
+      const res = await apiClient.syncAnalysisSoftwareCatalogFromInventory({ refresh_agents: true });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      const after = res.data?.after || {};
+      toast.success(`Catalog sync complete · ${Number(after.active_catalog_count || 0)} active entries`);
+      await load();
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const filteredCount = useMemo(() => rows.length, [rows]);
 
   if (!canView) {
@@ -248,6 +265,10 @@ export default function AnalysisSoftwareCatalog() {
             </Button>
             {canManage && (
               <>
+                <Button variant="secondary" size="sm" disabled={syncing} onClick={() => void syncFromInventory()}>
+                  {syncing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
+                  Sync from RAA
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                   <Upload className="mr-1 h-4 w-4" /> Import
                 </Button>
