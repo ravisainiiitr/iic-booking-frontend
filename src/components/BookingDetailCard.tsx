@@ -2383,7 +2383,18 @@ export function BookingDetailCard({
                   booking.status.toUpperCase() === "WAITLISTED" ||
                   (booking as any).is_waitlist_entry === true) &&
                 !booking.source_booking_id &&
-                (currentUserId != null && booking.user === currentUserId && !isExternalBookingUserType(booking.user_type_snapshot) || (!isOperator && !isExternalSelfView)) && (
+                (() => {
+                  const isOwn =
+                    currentUserId != null && Number(booking.user) === Number(currentUserId);
+                  const ownerMayCancel =
+                    isOwn &&
+                    !isOperator &&
+                    !isExternalBookingUserType(booking.user_type_snapshot);
+                  // Admin / Dept Admin / OIC: cancel others within server-enforced scope (list already scoped).
+                  const staffMayCancelOther =
+                    Boolean(isManagerOrAdmin) && !isOwn && !isWaitlistedEntry;
+                  return ownerMayCancel || staffMayCancelOther;
+                })() && (
                   <Button size="sm" variant="destructive" onClick={() => onUserCancelClick(booking)}>
                     <XCircle className="h-4 w-4 mr-2" />
                     {isWaitlistedEntry ? "Leave Waitlist" : "Cancel booking"}

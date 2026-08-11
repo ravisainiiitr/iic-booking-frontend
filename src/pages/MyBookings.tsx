@@ -474,6 +474,12 @@ const MyBookings = () => {
     return t === "admin" || t === "manager" || t === "dept_admin";
   };
 
+  /** Staff cancel of another user's booking (server enforces dept/OIC equipment scope). */
+  const isStaffCancelingOtherUser = (booking: Booking): boolean => {
+    if (!isAdminOrOIC() || user?.id == null) return false;
+    return Number(booking.user) !== Number(user.id);
+  };
+
   const shouldShowTimeDisplay = (booking: Booking): boolean => {
     if (isAdminOrOIC()) return true;
     return booking.equipment_weekly_view_display !== "SLOT_ID";
@@ -892,11 +898,14 @@ const MyBookings = () => {
     }
   };
 
-  /** Cancel allowed outside normal threshold when maintenance disruption policy applies. Waitlist: any time if entry id present. */
+  /** Cancel allowed outside normal threshold when maintenance disruption policy applies. Waitlist: any time if entry id present. Staff canceling others bypasses the owner time window. */
   const canUseCancelButton = (booking: Booking) => {
     if (isRepeatBooking(booking)) return false;
     if (isWaitlistedEntry(booking)) {
       return Boolean(booking.waitlist_entry_id);
+    }
+    if (isStaffCancelingOtherUser(booking)) {
+      return canCancelBooking(booking);
     }
     return (
       canCancelBooking(booking) &&
@@ -966,8 +975,13 @@ const MyBookings = () => {
       openCancelDialog(booking);
       return;
     }
-    // Check if cancel is allowed based on time threshold (maintenance disruption: always allowed)
-    if (!booking.maintenance_disruption_flag && !isWithinThresholdWindow(booking)) {
+    // Owner cancel: enforce reschedule-hours threshold (maintenance disruption always allowed).
+    // Staff canceling another user's booking: no owner time-window gate (server enforces role scope).
+    if (
+      !isStaffCancelingOtherUser(booking) &&
+      !booking.maintenance_disruption_flag &&
+      !isWithinThresholdWindow(booking)
+    ) {
       if (booking.start_time) {
         const startTime = new Date(booking.start_time);
         const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
@@ -1102,14 +1116,23 @@ const MyBookings = () => {
         }
       }
 
-      const response = await apiClient.userCancelBooking(
-        backendId,
-        true, // Always refund
-        cancelNotes || undefined,
-        slotIdsPayload,
-        reducedInputValues,
-        printAnalysisIdsPayload,
-      );
+      const response = isStaffCancelingOtherUser(selectedBooking)
+        ? await apiClient.cancelBooking(
+            backendId,
+            true, // Always refund
+            cancelNotes || undefined,
+            slotIdsPayload,
+            reducedInputValues,
+            printAnalysisIdsPayload,
+          )
+        : await apiClient.userCancelBooking(
+            backendId,
+            true, // Always refund
+            cancelNotes || undefined,
+            slotIdsPayload,
+            reducedInputValues,
+            printAnalysisIdsPayload,
+          );
 
       if (response.error) {
         toast.error(response.error || "Failed to cancel booking");
