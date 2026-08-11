@@ -1670,14 +1670,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Analysis profile (legacy)</Label>
+                  <Label>Analysis profile legacy fallback (optional)</Label>
                   <Input
                     value={formData.analysis_profile || ""}
                     onChange={(e) => setFormData((p) => ({ ...p, analysis_profile: e.target.value }))}
                     placeholder="e.g. OriginPro"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Prefer SPA →{" "}
+                    Primary configuration is now software catalog mapping. Configure via{" "}
                     <button
                       type="button"
                       className="underline"
@@ -1693,7 +1693,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     >
                       Equipment ↔ Software
                     </button>{" "}
-                    (or Django Admin). This free-text field remains as a legacy fallback for scheduler matching.
+                    (or Django Admin). Use this free-text value only for backward compatibility.
                   </p>
                 </div>
               </div>

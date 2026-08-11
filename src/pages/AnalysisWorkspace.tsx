@@ -924,6 +924,14 @@ export default function AnalysisWorkspacePage() {
                           ? (sw.file_types as unknown[]).map(String)
                           : [];
                       const aiTags = Array.isArray(sw.ai_tags) ? (sw.ai_tags as unknown[]).map(String) : [];
+                      const installedCount =
+                        typeof sw.installed_count === "number" ? sw.installed_count : null;
+                      const onlineCount = typeof sw.online_count === "number" ? sw.online_count : null;
+                      const availableCount =
+                        typeof sw.available_count === "number" ? sw.available_count : null;
+                      const busyCount = typeof sw.busy_count === "number" ? sw.busy_count : null;
+                      const offlineCount =
+                        typeof sw.offline_count === "number" ? sw.offline_count : null;
                       const key = softwareOptionKey(sw) || `${name}-${idx}`;
                       const selected = catalogSelectable && key === selectedSoftwareKey;
                       const cardClass = cn(
@@ -957,6 +965,15 @@ export default function AnalysisWorkspacePage() {
                               <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
                                 Typical use: {typicalUsage}
                               </p>
+                            ) : null}
+                            {installedCount !== null ? (
+                              <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+                                <span>Installed: {installedCount}</span>
+                                <span>Online: {onlineCount ?? "—"}</span>
+                                <span>Available: {availableCount ?? "—"}</span>
+                                <span>Busy: {busyCount ?? "—"}</span>
+                                <span>Offline: {offlineCount ?? "—"}</span>
+                              </div>
                             ) : null}
                             {fileTypes.length ? (
                               <p className="mt-1 text-[10px] text-muted-foreground">
