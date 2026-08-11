@@ -257,6 +257,7 @@ export default function AnalysisWorkspacePage() {
     experience.equipment_name || experience.equipment_code || "Analysis Equipment"
   );
   const queue = (experience.queue || {}) as any;
+  const checkinExp = (experience.checkin || {}) as any;
   const sessionExp = (experience.session || {}) as any;
   const resultsExp = (experience.results || {}) as any;
   const workspaceExp = (experience.workspace || {}) as any;
@@ -266,20 +267,31 @@ export default function AnalysisWorkspacePage() {
   const reservation = (summary?.reservation || {}) as any;
   const session = (summary?.session || {}) as any;
 
+  const awaitingCheckin = Boolean(
+    experience.awaiting_checkin ||
+      checkinExp.required ||
+      reservation.status === "AWAITING_CHECKIN"
+  );
   const queued = Boolean(queue.is_queued);
   const sessionStatus = String(session.status || sessionExp.status || "");
   const started = ["LAUNCHED", "CONNECTING", "CONNECTED", "ACTIVE", "IDLE"].includes(sessionStatus);
   const envReady =
-    Boolean(reservation.allocated) &&
+    Boolean(reservation.allocated || awaitingCheckin) &&
     !queued &&
-    ["READY", "TOKEN_GENERATED", "RESERVED", "ACTIVE", ""].includes(String(reservation.status || ""));
+    ["READY", "TOKEN_GENERATED", "RESERVED", "ACTIVE", "AWAITING_CHECKIN", ""].includes(
+      String(reservation.status || "")
+    );
   const resultsReady = Boolean(resultsExp.available);
+  const checkinRemainingSeconds =
+    typeof checkinExp.remaining_seconds === "number" ? checkinExp.remaining_seconds : null;
   const remainingSeconds =
     typeof sessionExp.remaining_seconds === "number"
       ? sessionExp.remaining_seconds
       : typeof session.remaining_seconds === "number"
         ? session.remaining_seconds
-        : null;
+        : awaitingCheckin
+          ? checkinRemainingSeconds
+          : null;
 
   const bannerMode = resultsReady
     ? "results"
@@ -326,7 +338,7 @@ export default function AnalysisWorkspacePage() {
   const startDisabled =
     busy ||
     queued ||
-    (!canAnalyze && !started && !envReady) ||
+    (!canAnalyze && !started && !envReady && !awaitingCheckin) ||
     (inputMode === "booking_raw" &&
       Number(bookingRaw.file_count || 0) === 0 &&
       !(summary as any)?.raw_ready);
@@ -335,6 +347,10 @@ export default function AnalysisWorkspacePage() {
     if (!Number.isFinite(bookingPk)) return;
     if (started) {
       navigate(`/analysis-launch/${bookingPk}${session.id ? `?session=${session.id}` : ""}`);
+      return;
+    }
+    if (awaitingCheckin) {
+      navigate(`/analysis-launch/${bookingPk}`);
       return;
     }
     setBusy(true);
@@ -356,6 +372,9 @@ export default function AnalysisWorkspacePage() {
       if (data.queued) {
         toast.message("Your request is in the execution queue.");
         await refresh({ silent: true });
+      } else if (data.awaiting_checkin) {
+        toast.success("Analysis Environment ready — start your session.");
+        navigate(`/analysis-launch/${bookingPk}`);
       } else {
         toast.success(String(data.ux_status || "Preparing Analysis Environment"));
         navigate(`/analysis-launch/${bookingPk}${data.session_id ? `?session=${data.session_id}` : ""}`);
@@ -432,7 +451,7 @@ export default function AnalysisWorkspacePage() {
         equipmentName={equipmentName}
         bookingLabel={virtualBookingId}
         remainingSeconds={remainingSeconds}
-        showSessionControls={started || remainingSeconds != null}
+        showSessionControls={started || remainingSeconds != null || awaitingCheckin}
         canExtend={Boolean(sessionExp.can_extend)}
         extendMinutes={Number(sessionExp.extension_minutes || 15)}
         extendBlockedReason={
@@ -480,9 +499,11 @@ export default function AnalysisWorkspacePage() {
                         ? "Waiting in queue"
                         : started
                           ? "Session active"
-                          : envReady || canAnalyze
-                            ? "Ready"
-                            : "Preparing"}
+                          : awaitingCheckin
+                            ? "Ready — start session"
+                            : envReady || canAnalyze
+                              ? "Ready"
+                              : "Preparing"}
                     </span>
                   </span>
                 </div>
@@ -505,11 +526,15 @@ export default function AnalysisWorkspacePage() {
                         ? "Waiting in queue…"
                         : busy
                           ? "Starting…"
-                          : "Open Analysis Environment"}
+                          : awaitingCheckin
+                            ? "Start Analysis"
+                            : "Open Analysis Environment"}
                     </span>
                     {!queued && !busy ? (
                       <span className="text-[10px] font-normal text-white/80">
-                        Connect to your Analysis PC
+                        {awaitingCheckin
+                          ? "Your Analysis PC is reserved — start before the timer expires"
+                          : "Connect to your Analysis PC"}
                       </span>
                     ) : null}
                   </span>
@@ -549,12 +574,61 @@ export default function AnalysisWorkspacePage() {
             <WorkspaceStatusStrip
               remainingSeconds={remainingSeconds}
               environmentLabel={envLabel}
-              environmentReady={envReady || canAnalyze}
+              environmentReady={envReady || canAnalyze || awaitingCheckin}
               queued={queued}
               heroMode={bannerMode as any}
-              queueTitle={queued ? queue.title : null}
-              queueBody={queued ? queue.body : null}
+              queueTitle={
+                awaitingCheckin
+                  ? queue.title || "Analysis Environment Ready"
+                  : queued
+                    ? queue.title
+                    : null
+              }
+              queueBody={
+                awaitingCheckin
+                  ? queue.body || [
+                      "A compatible Analysis PC has been allocated automatically.",
+                      "Start your session before the check-in timer expires.",
+                    ]
+                  : queued
+                    ? queue.body
+                    : null
+              }
+              timerLabel={
+                awaitingCheckin && !started ? "Check-in expires in" : undefined
+              }
+              timerHint={
+                awaitingCheckin && !started
+                  ? "Start Analysis before this timer reaches zero"
+                  : undefined
+              }
             />
+            {awaitingCheckin && !queued ? (
+              <Card className="border-emerald-500/30 bg-emerald-500/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Analysis Environment Ready</CardTitle>
+                  <CardDescription className="space-y-1 text-sm text-foreground/80">
+                    <p>
+                      Workstation: <strong>Allocated automatically</strong>
+                    </p>
+                    {selectedSoftwareLabel ? (
+                      <p>
+                        Software: <strong>{selectedSoftwareLabel}</strong>
+                      </p>
+                    ) : null}
+                    <p>
+                      Analysis PC: <strong>Ready</strong>
+                    </p>
+                    {checkinRemainingSeconds != null ? (
+                      <p>
+                        Check-in window:{" "}
+                        <strong>{Math.max(0, Math.ceil(checkinRemainingSeconds / 60))} min remaining</strong>
+                      </p>
+                    ) : null}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : null}
             {queued ? (
               <Card className="border-amber-500/30 bg-amber-500/5">
                 <CardHeader className="pb-2">
@@ -864,7 +938,9 @@ export default function AnalysisWorkspacePage() {
                       </>
                     ) : (
                       <p className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-200">
-                        You are not waiting in queue. You can start when ready.
+                        {awaitingCheckin
+                          ? "Your Analysis PC is allocated. Click Start Analysis when you are ready."
+                          : "You are not waiting in queue. You can start when ready."}
                       </p>
                     )}
 
