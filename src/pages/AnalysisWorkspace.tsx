@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import {
   AppWindow,
   HardDrive,
+  Info,
   MonitorSmartphone,
   Upload,
   Loader2,
