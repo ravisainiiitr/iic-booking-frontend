@@ -6646,6 +6646,7 @@ class ApiClient {
       suggested_prompts?: string[];
       tools_available?: Array<Record<string, unknown>>;
       capabilities?: Record<string, unknown>;
+      command_actions?: Array<{ id: string; label: string; href?: string; prompt?: string }>;
     }>('/v1/research-copilot/bootstrap/');
   }
 
@@ -6706,16 +6707,25 @@ class ApiClient {
     });
   }
 
-  async researchCopilotKnowledgeDocuments() {
-    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/documents/');
+  async researchCopilotKnowledgeDocuments(params?: { search?: string; index_status?: string; category?: string; status?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set('search', params.search);
+    if (params?.index_status) qs.set('index_status', params.index_status);
+    if (params?.category) qs.set('category', params.category);
+    if (params?.status) qs.set('status', params.status);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/knowledge/documents/${suffix}`);
   }
 
   async researchCopilotKnowledgeAnalytics() {
     return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/analytics/');
   }
 
-  async researchCopilotKnowledgeSeed() {
-    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/seed/', { method: 'POST' });
+  async researchCopilotKnowledgeSeed(force = false) {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/seed/', {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    });
   }
 
   async researchCopilotKnowledgeRebuild() {
@@ -6732,10 +6742,30 @@ class ApiClient {
   }
 
   async researchCopilotKnowledgeReindex(documentId: string) {
-    return this.request<Record<string, unknown>>(
-      `/v1/research-copilot/knowledge/documents/${documentId}/reindex/`,
-      { method: 'POST' },
-    );
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/knowledge/documents/${documentId}/reindex/`, {
+      method: 'POST',
+    });
+  }
+
+  async researchCopilotKnowledgeDocumentDetail(documentId: string) {
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/knowledge/documents/${documentId}/`);
+  }
+
+  async researchCopilotKnowledgeUpdateDocument(documentId: string, payload: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/knowledge/documents/${documentId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async researchCopilotKnowledgeArchiveDocument(documentId: string) {
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/knowledge/documents/${documentId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async researchCopilotKnowledgeJobs() {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/jobs/');
   }
 
   async registerPushDevice(params: {

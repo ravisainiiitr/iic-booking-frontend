@@ -48,9 +48,40 @@ type ConversationSummary = {
   updated_at?: string | null;
 };
 
+type CommandAction = {
+  id: string;
+  label: string;
+  href?: string;
+  prompt?: string;
+};
+
 /** Build-time soft gate. Backend `enabled` is authoritative. */
 const isViteCopilotEnabled =
   String(import.meta.env.VITE_RESEARCH_COPILOT_ENABLED || "").toLowerCase() === "true";
+
+const DEFAULT_COMMANDS: CommandAction[] = [
+  { id: "my_bookings", label: "My Bookings", href: "/my-bookings" },
+  { id: "find_equipment", label: "Find Equipment", href: "/equipments" },
+  { id: "sample_status", label: "Check Sample Status", prompt: "What is the sample status of my latest booking?" },
+  { id: "software", label: "Find Analysis Software", href: "/remote-analysis/software-catalog" },
+  { id: "results", label: "My Results", prompt: "Are results available for my latest completed booking?" },
+  { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
+];
+
+function copilotErrorMessage(res: { error?: string | null; status?: number | null }) {
+  const status = res.status ?? 0;
+  const raw = (res.error || "").toLowerCase();
+  if (status === 429 || raw.includes("throttl") || raw.includes("rate")) {
+    return "Research Copilot rate limit reached. Please wait a bit, or continue using the normal booking portal.";
+  }
+  if (status === 503 || raw.includes("disabled") || raw.includes("unavailable")) {
+    return "Research Copilot is temporarily unavailable. You can continue using the normal booking portal.";
+  }
+  if (!status && res.error) {
+    return "Unable to reach Research Copilot. Check your network/session, or continue using the portal.";
+  }
+  return res.error || "Something went wrong. Please try again or continue using the normal booking portal.";
+}
 
 function SimpleMarkdown({ text }: { text: string }) {
   const lines = text.split("\n");
@@ -91,7 +122,11 @@ export default function ResearchCopilot() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [suggested, setSuggested] = useState<string[]>([]);
+  const [commands, setCommands] = useState<CommandAction[]>(DEFAULT_COMMANDS);
   const [assistantName, setAssistantName] = useState("IIC Research Copilot");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isCopilotEnabled = isViteCopilotEnabled && backendEnabled !== false;
@@ -136,6 +171,8 @@ export default function ResearchCopilot() {
         }
         setAssistantName(res.data.assistant_name || "IIC Research Copilot");
         setSuggested(res.data.suggested_prompts || []);
+        const ca = (res.data as { command_actions?: CommandAction[] }).command_actions;
+        if (ca?.length) setCommands(ca);
       } else if (res.error) {
         // 503 / disabled → hide UI rather than show a broken panel
         setBackendEnabled(false);
@@ -214,7 +251,7 @@ export default function ResearchCopilot() {
           {
             id: `e-${Date.now()}`,
             role: "assistant",
-            content: res.error || "Something went wrong. Please try again or open Support Tickets.",
+            content: copilotErrorMessage(res),
             escalate_hint: true,
           },
         ]);
@@ -241,7 +278,8 @@ export default function ResearchCopilot() {
         {
           id: `e-${Date.now()}`,
           role: "assistant",
-          content: "Unable to reach Research Copilot. Check your session and try again.",
+          content:
+            "Research Copilot is temporarily unavailable (network error). You can continue using the normal booking portal.",
         },
       ]);
     } finally {
@@ -259,9 +297,21 @@ export default function ResearchCopilot() {
     }
   };
 
-  const feedback = async (rating: "up" | "down") => {
+  const feedback = async (rating: "up" | "down", messageId?: string, comment?: string) => {
     if (!conversationId) return;
-    await apiClient.researchCopilotFeedback(conversationId, { rating });
+    await apiClient.researchCopilotFeedback(conversationId, {
+      rating,
+      message_id: messageId,
+      comment,
+    });
+  };
+
+  const submitReport = async () => {
+    if (!conversationId || !reportText.trim()) return;
+    await feedback("down", reportMessageId || undefined, `INCORRECT: ${reportText.trim()}`);
+    setReportOpen(false);
+    setReportText("");
+    setReportMessageId(null);
   };
 
   if (!isCopilotEnabled) return null;
@@ -359,11 +409,14 @@ export default function ResearchCopilot() {
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                             <div className="mt-3 border-t border-border/60 pt-2">
                               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Sources
+                                Sources · Knowledge document
                               </div>
                               <ul className="mt-1 space-y-1">
                                 {msg.citations.map((c, idx) => (
                                   <li key={`${c.source_id || c.title}-${idx}`} className="text-xs">
+                                    <span className="mr-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                                      {(c.source_type || c.category || "document").toString()}
+                                    </span>
                                     {c.url ? (
                                       <button
                                         type="button"
@@ -378,17 +431,41 @@ export default function ResearchCopilot() {
                                         }}
                                       >
                                         {c.title}
-                                        {c.category ? ` · ${c.category}` : ""}
                                       </button>
                                     ) : (
-                                      <span>
-                                        {c.title}
-                                        {c.category ? ` · ${c.category}` : ""}
-                                      </span>
+                                      <span>{c.title}</span>
                                     )}
+                                    {c.snippet ? (
+                                      <div className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">{c.snippet}</div>
+                                    ) : null}
                                   </li>
                                 ))}
                               </ul>
+                            </div>
+                          )}
+                          {msg.role === "assistant" && msg.id !== "welcome" && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => void feedback("up", msg.id)}
+                              >
+                                Helpful
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => {
+                                  setReportMessageId(msg.id);
+                                  setReportOpen(true);
+                                }}
+                              >
+                                Report incorrect
+                              </Button>
                             </div>
                           )}
                           {msg.role === "assistant" && msg.suggested_actions && msg.suggested_actions.length > 0 && (
@@ -451,6 +528,34 @@ export default function ResearchCopilot() {
                   </div>
                 </ScrollArea>
 
+                {commands.length > 0 && (
+                  <div className="border-t px-3 py-2">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Quick actions
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {commands.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => {
+                            if (c.href) {
+                              setOpen(false);
+                              navigate(c.href);
+                            } else if (c.prompt) {
+                              void send(c.prompt);
+                            }
+                          }}
+                          className="rounded-full border bg-background px-3 py-1 text-left text-xs font-medium text-foreground hover:bg-muted"
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {suggested.length > 0 && (
                   <div className="flex flex-wrap gap-2 border-t px-3 py-2">
                     {suggested.slice(0, 4).map((s) => (
@@ -464,6 +569,34 @@ export default function ResearchCopilot() {
                         {s}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {reportOpen && (
+                  <div className="border-t bg-muted/40 p-3">
+                    <div className="mb-1 text-xs font-semibold">Report incorrect answer</div>
+                    <Input
+                      placeholder="What was wrong? (helps admins improve knowledge)"
+                      value={reportText}
+                      onChange={(e) => setReportText(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={() => void submitReport()} disabled={!reportText.trim()}>
+                        Submit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setReportOpen(false);
+                          setReportText("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 )}
 

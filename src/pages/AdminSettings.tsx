@@ -13,6 +13,7 @@ import {
   Database,
   Star,
   KeyRound,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -160,6 +161,14 @@ const AdminSettings = () => {
               title="Quality Improvement"
               description="Bugs & portal suggestions from users"
               onClick={() => navigate("/admin-settings/quality-improvement")}
+            />
+          )}
+          {isAdmin && (
+            <SettingsTile
+              icon={<BookOpen className="h-5 w-5" />}
+              title="Research Copilot Knowledge"
+              description="Manage SOPs, FAQs, indexing, gaps, and Copilot usage"
+              onClick={() => navigate("/admin-settings/knowledge")}
             />
           )}
           {can("admin_settings.rewards") && (
