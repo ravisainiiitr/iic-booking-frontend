@@ -268,7 +268,12 @@ export default function EquipmentSoftwareMapping() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => navigate("/admin/equipment")}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate("/admin/section/equipment")}
+              title="Open equipment administration to enable Remote Analysis"
+            >
               <Settings2 className="mr-1 h-4 w-4" /> Manage Equipment
             </Button>
           </CardContent>
