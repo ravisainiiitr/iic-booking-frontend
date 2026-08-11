@@ -62,12 +62,19 @@ export default function EquipmentSoftwareMapping() {
       const res = await apiClient.getEquipmentSoftwareMatrix(dept);
       if (res.error) {
         toast.error(res.error);
+        setCatalogs([]);
+        setEquipment([]);
         return;
       }
       const cats = (res.data?.catalogs as CatalogCol[]) || [];
       const eqs = (res.data?.equipment as EquipmentRow[]) || [];
       setCatalogs(cats);
       setEquipment(eqs);
+      if (!cats.length) {
+        toast.message("No active catalog software yet — add entries in Software catalog first.");
+      } else if (!eqs.length) {
+        toast.message("No equipment with Remote Analysis enabled. Enable it on equipment settings.");
+      }
       const nextDraft: Record<number, Set<string>> = {};
       const nextDefaults: Record<number, string | null> = {};
       for (const eq of eqs) {
@@ -220,12 +227,23 @@ export default function EquipmentSoftwareMapping() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading matrix…
               </div>
             ) : catalogs.length === 0 ? (
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  No active catalog software.{" "}
+                  <button className="underline" onClick={() => navigate("/remote-analysis/software-catalog")}>
+                    Add catalog entries
+                  </button>{" "}
+                  first, then return here to map them to equipment.
+                </p>
+                <p>
+                  Only equipment with <strong>Remote Analysis enabled</strong> appear in this matrix.
+                </p>
+              </div>
+            ) : visibleEquipment.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No active catalog software.{" "}
-                <button className="underline" onClick={() => navigate("/remote-analysis/software-catalog")}>
-                  Add catalog entries
-                </button>{" "}
-                first.
+                No equipment with Remote Analysis enabled
+                {departmentFilter !== "all" ? " in this department" : ""}. Enable Remote Analysis on the
+                equipment record, then Refresh.
               </p>
             ) : (
               <Table>
