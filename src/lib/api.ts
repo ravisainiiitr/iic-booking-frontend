@@ -7631,6 +7631,23 @@ class ApiClient {
     );
   }
 
+  /** Admin/OIC/Dept Admin: selected-user details while booking on behalf (equipment-scoped). */
+  async getEquipmentBookForUserInfo(equipmentId: number | string, userId: number | string) {
+    return this.request<{
+      id?: number;
+      name?: string;
+      email: string;
+      department_name: string;
+      phone_number?: string;
+      user_type?: string;
+      wallet_faculty_owner: { name: string; email: string } | null;
+      wallet_balance: string;
+      equipment_id?: number;
+    }>(`/equipments/${equipmentId}/book-for-user-info/?user_id=${encodeURIComponent(String(userId))}`, {
+      method: "GET",
+    });
+  }
+
   /** Admin: get user booking info (email, department, Supervisor, balance) for "Book slots for user". */
   async getAdminUserBookingInfo(userId: number | string, options?: { equipmentId?: number | string }) {
     const endpoint = this.getAdminEndpoint('users');
