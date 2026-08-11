@@ -38,6 +38,7 @@ type CopilotMessage = {
     href?: string;
     enabled?: boolean;
     hint?: string;
+    requires_confirmation?: boolean;
   }>;
 };
 
@@ -47,7 +48,8 @@ type ConversationSummary = {
   updated_at?: string | null;
 };
 
-const isCopilotEnabled =
+/** Build-time soft gate. Backend `enabled` is authoritative. */
+const isViteCopilotEnabled =
   String(import.meta.env.VITE_RESEARCH_COPILOT_ENABLED || "").toLowerCase() === "true";
 
 function SimpleMarkdown({ text }: { text: string }) {
@@ -83,6 +85,7 @@ export default function ResearchCopilot() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
+  const [backendEnabled, setBackendEnabled] = useState<boolean | null>(null);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -90,6 +93,8 @@ export default function ResearchCopilot() {
   const [suggested, setSuggested] = useState<string[]>([]);
   const [assistantName, setAssistantName] = useState("IIC Research Copilot");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isCopilotEnabled = isViteCopilotEnabled && backendEnabled !== false;
 
   const welcome = useMemo(
     () =>
@@ -118,13 +123,24 @@ export default function ResearchCopilot() {
   }, [conversationId, refreshList]);
 
   const bootstrap = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !isViteCopilotEnabled) return;
     setBootstrapping(true);
     try {
       const res = await apiClient.researchCopilotBootstrap();
       if (res.data) {
+        const enabled = res.data.enabled !== false;
+        setBackendEnabled(enabled);
+        if (!enabled) {
+          setOpen(false);
+          return;
+        }
         setAssistantName(res.data.assistant_name || "IIC Research Copilot");
         setSuggested(res.data.suggested_prompts || []);
+      } else if (res.error) {
+        // 503 / disabled → hide UI rather than show a broken panel
+        setBackendEnabled(false);
+        setOpen(false);
+        return;
       }
       await refreshList();
       if (!messages.length) {
@@ -134,6 +150,16 @@ export default function ResearchCopilot() {
       setBootstrapping(false);
     }
   }, [isAuthenticated, messages.length, refreshList, welcome]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isViteCopilotEnabled) return;
+    // Probe backend flag once so FAB stays hidden when production Copilot is OFF
+    void (async () => {
+      const res = await apiClient.researchCopilotBootstrap();
+      if (res.data) setBackendEnabled(res.data.enabled !== false);
+      else setBackendEnabled(false);
+    })();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (open && isAuthenticated) void bootstrap();
@@ -366,31 +392,49 @@ export default function ResearchCopilot() {
                             </div>
                           )}
                           {msg.role === "assistant" && msg.suggested_actions && msg.suggested_actions.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {msg.suggested_actions.map((a) => (
-                                <Button
-                                  key={a.id}
-                                  type="button"
-                                  size="sm"
-                                  variant={a.enabled === false ? "outline" : "secondary"}
-                                  disabled={a.enabled === false}
-                                  title={a.hint}
-                                  className="h-8 text-xs"
-                                  onClick={() => {
-                                    if (a.href) {
-                                      setOpen(false);
-                                      navigate(a.href);
+                            <div className="mt-3 space-y-2">
+                              {msg.suggested_actions.some((a) => a.requires_confirmation) && (
+                                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                                  Suggested action — opens the portal so you can review and confirm. Copilot does not
+                                  change bookings, wallet, or reservations by itself.
+                                </p>
+                              )}
+                              <div className="flex flex-wrap gap-2">
+                                {msg.suggested_actions.map((a) => (
+                                  <Button
+                                    key={a.id}
+                                    type="button"
+                                    size="sm"
+                                    variant={
+                                      a.requires_confirmation
+                                        ? "default"
+                                        : a.enabled === false
+                                          ? "outline"
+                                          : "secondary"
                                     }
-                                  }}
-                                >
-                                  {a.label}
-                                </Button>
-                              ))}
+                                    disabled={a.enabled === false || !a.href}
+                                    title={
+                                      a.requires_confirmation
+                                        ? `${a.hint || a.label} — you must confirm in the portal before anything changes.`
+                                        : a.hint
+                                    }
+                                    className="h-8 text-xs"
+                                    onClick={() => {
+                                      if (a.href) {
+                                        setOpen(false);
+                                        navigate(a.href);
+                                      }
+                                    }}
+                                  >
+                                    {a.requires_confirmation ? `Review & confirm: ${a.label}` : a.label}
+                                  </Button>
+                                ))}
+                              </div>
                             </div>
                           )}
                           {msg.escalate_hint && (
                             <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                              Low confidence or human help requested — use Support Tickets for escalation (AI.5 will auto-create).
+                              Low confidence or human help requested — use Support Tickets for escalation.
                             </p>
                           )}
                         </div>
@@ -445,4 +489,4 @@ export default function ResearchCopilot() {
   );
 }
 
-export { isCopilotEnabled };
+export { isViteCopilotEnabled as isCopilotEnabled };
