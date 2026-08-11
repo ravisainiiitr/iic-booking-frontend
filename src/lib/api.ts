@@ -3872,7 +3872,8 @@ class ApiClient {
     refund: boolean = false,
     notes?: string,
     slotIds?: number[],
-    reducedInputValues?: Record<string, number | string>
+    reducedInputValues?: Record<string, number | string>,
+    printAnalysisIds?: string[],
   ) {
     return this.request<{
       message: string;
@@ -3887,6 +3888,9 @@ class ApiClient {
         ...(slotIds && slotIds.length > 0 ? { slot_ids: slotIds } : {}),
         ...(reducedInputValues && Object.keys(reducedInputValues).length > 0
           ? { reduced_input_values: reducedInputValues }
+          : {}),
+        ...(printAnalysisIds && printAnalysisIds.length > 0
+          ? { print_analysis_ids: printAnalysisIds }
           : {}),
       }),
     });
