@@ -159,7 +159,7 @@ export default function AnalysisLaunchPage() {
     return data;
   }, [bookingPk]);
 
-  const pollLaunch = useCallback(async () => {
+    const pollLaunch = useCallback(async () => {
     if (!Number.isFinite(bookingPk)) return;
     // Already exchanged Portal launch token → Guacamole client URL.
     if (desktopResolved.current) {
@@ -179,8 +179,22 @@ export default function AnalysisLaunchPage() {
     if (failure?.user_message) {
       const cat = failure.failure_category ? `[${failure.failure_category}] ` : "";
       setError(`${cat}${failure.user_message}`);
+      // Credential / hard failures: stop creating more sessions.
+      if (
+        failure.failure_category === "credentials" ||
+        /credentials/i.test(failure.user_message)
+      ) {
+        desktopResolved.current = true;
+      }
+      return;
     } else if (data.launch_pending && data.detail) {
       setError(String(data.detail));
+    }
+    if (typeof data.status === "string" && data.status === "FAILED") {
+      const detail = String(data.detail || "Analysis Environment preparation failed.");
+      setError(detail);
+      desktopResolved.current = true;
+      return;
     }
     if (typeof data.launch_url === "string" && data.launch_url) {
       try {
@@ -197,6 +211,9 @@ export default function AnalysisLaunchPage() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to open Analysis Environment";
         setError(message);
+        if (/credentials/i.test(message)) {
+          desktopResolved.current = true;
+        }
       }
     }
     await refreshSummary();
