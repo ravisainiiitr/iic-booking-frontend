@@ -60,11 +60,15 @@ const isViteCopilotEnabled =
   String(import.meta.env.VITE_RESEARCH_COPILOT_ENABLED || "").toLowerCase() === "true";
 
 const DEFAULT_COMMANDS: CommandAction[] = [
-  { id: "my_bookings", label: "My Bookings", href: "/my-bookings" },
-  { id: "find_equipment", label: "Find Equipment", href: "/equipments" },
-  { id: "sample_status", label: "Check Sample Status", prompt: "What is the sample status of my latest booking?" },
+  { id: "next_booking", label: "My next booking", prompt: "What is my next booking?" },
+  { id: "my_bookings", label: "My bookings", href: "/my-bookings", prompt: "List my recent bookings." },
+  { id: "booking_status", label: "Check booking status", prompt: "What is the status of my latest booking?" },
+  { id: "sample_status", label: "Check sample status", prompt: "What is the sample status of my latest booking?" },
+  { id: "results", label: "Check results", prompt: "Are results available for my latest completed booking?" },
+  { id: "find_equipment", label: "Find equipment", href: "/equipments", prompt: "Help me find suitable equipment for my sample." },
+  { id: "search_slots", label: "Search available slots", prompt: "Search available slots for FESEM this week." },
+  { id: "estimate_cost", label: "Estimate booking cost", prompt: "Estimate the cost of booking FESEM for 2 hours." },
   { id: "software", label: "Find Analysis Software", href: "/remote-analysis/software-catalog" },
-  { id: "results", label: "My Results", prompt: "Are results available for my latest completed booking?" },
   { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
 ];
 
@@ -73,6 +77,9 @@ function copilotErrorMessage(res: { error?: string | null; status?: number | nul
   const raw = (res.error || "").toLowerCase();
   if (status === 429 || raw.includes("throttl") || raw.includes("rate")) {
     return "Research Copilot rate limit reached. Please wait a bit, or continue using the normal booking portal.";
+  }
+  if (raw.includes("busy")) {
+    return "Research Copilot is temporarily busy. Your booking and other portal operations are unaffected.";
   }
   if (status === 503 || raw.includes("disabled") || raw.includes("unavailable")) {
     return "Research Copilot is temporarily unavailable. You can continue using the normal booking portal.";
