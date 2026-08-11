@@ -806,6 +806,8 @@ const BookEquipment = () => {
     wallet_faculty_owner: { name: string; email: string } | null;
     wallet_balance: string;
   } | null>(null);
+  const [adminBookForUserInfoLoading, setAdminBookForUserInfoLoading] = useState(false);
+  const [adminBookForUserInfoError, setAdminBookForUserInfoError] = useState<string | null>(null);
   const [equipmentDeptWalletBalance, setEquipmentDeptWalletBalance] = useState<{
     balance: string;
     is_zero: boolean;
@@ -1286,9 +1288,13 @@ const BookEquipment = () => {
       !adminBookForUserId
     ) {
       setAdminBookForUserInfo(null);
+      setAdminBookForUserInfoLoading(false);
+      setAdminBookForUserInfoError(null);
       return;
     }
     let cancelled = false;
+    setAdminBookForUserInfoLoading(true);
+    setAdminBookForUserInfoError(null);
     (async () => {
       const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
       const listed = usersList.find((u) => String(u.id) === String(adminBookForUserId));
@@ -1323,10 +1329,12 @@ const BookEquipment = () => {
           wallet_faculty_owner: { name: string; email: string } | null;
           wallet_balance: string;
         });
+        setAdminBookForUserInfoError(null);
+        setAdminBookForUserInfoLoading(false);
         return;
       }
 
-      // Do not treat error bodies ({detail:...}) as user info — that showed blank "—" fields.
+      // Keep list email visible, but surface the real API error.
       setAdminBookForUserInfo({
         email: listed?.email || "",
         department_name: "",
@@ -1334,11 +1342,13 @@ const BookEquipment = () => {
         wallet_faculty_owner: null,
         wallet_balance: "—",
       });
-      toast.error(
+      const errMsg =
         typeof res.error === "string"
           ? res.error
-          : "Could not load selected user details (email, department, wallet)."
-      );
+          : "Could not load selected user details (email, department, wallet).";
+      setAdminBookForUserInfoError(errMsg);
+      setAdminBookForUserInfoLoading(false);
+      toast.error(errMsg);
     })();
     return () => {
       cancelled = true;
@@ -6677,6 +6687,8 @@ const BookEquipment = () => {
                                           onSelect={() => {
                                             setAdminBookForUserId(String(u.id));
                                             setAdminBookForUserInfo(null); // Clear until new fetch completes
+                                            setAdminBookForUserInfoError(null);
+                                            setAdminBookForUserInfoLoading(true);
                                             setChargeCalculated(false);
                                             setCalculatedCharge(null);
                                             setShowSlots(false);
@@ -6703,7 +6715,7 @@ const BookEquipment = () => {
                         <p className="text-xs text-muted-foreground mt-2">Charge will be calculated for the selected user.</p>
                       </div>
                     </div>
-                    {adminBookForUserInfo && (
+                    {adminBookForUserId && (adminBookForUserInfoLoading || adminBookForUserInfo) && (
                       <div className="w-full mt-4 p-5 rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/10 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-primary/20">
                           <h4 className="text-sm font-semibold uppercase tracking-wider text-primary">
@@ -6713,17 +6725,31 @@ const BookEquipment = () => {
                             variant="outline"
                             size="sm"
                             className="gap-2"
+                            disabled={adminBookForUserInfoLoading || !adminBookForUserId}
                             onClick={async () => {
                               if (!adminBookForUserId) return;
                               const displayName =
                                 usersList.find((u) => String(u.id) === adminBookForUserId)?.name ||
                                 usersList.find((u) => String(u.id) === adminBookForUserId)?.email ||
+                                adminBookForUserInfo?.email ||
                                 `User #${adminBookForUserId}`;
                               setUserTransactionHistoryDialog({ open: true, userId: adminBookForUserId, userDisplayName: displayName });
                               setUserTransactionHistory({ loading: true, transactions: [], error: null });
                               try {
                                 const res = await apiClient.getAdminUserTransactionHistory(adminBookForUserId, 100, 0);
-                                setUserTransactionHistory({ loading: false, transactions: res.data?.transactions ?? [], error: null });
+                                if (res.error) {
+                                  setUserTransactionHistory({
+                                    loading: false,
+                                    transactions: [],
+                                    error: typeof res.error === "string" ? res.error : "Failed to load transactions",
+                                  });
+                                  return;
+                                }
+                                setUserTransactionHistory({
+                                  loading: false,
+                                  transactions: res.data?.transactions ?? [],
+                                  error: null,
+                                });
                               } catch (e: unknown) {
                                 setUserTransactionHistory({
                                   loading: false,
@@ -6737,32 +6763,46 @@ const BookEquipment = () => {
                             View Transaction History
                           </Button>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-base">
-                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80">
-                            <span className="text-xs font-semibold uppercase text-muted-foreground">Email</span>
-                            <span className="font-medium text-foreground">{adminBookForUserInfo.email || "—"}</span>
+                        {adminBookForUserInfoLoading ? (
+                          <div className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
+                            Loading user details…
                           </div>
-                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80">
-                            <span className="text-xs font-semibold uppercase text-muted-foreground">Department</span>
-                            <span className="font-medium text-foreground">{adminBookForUserInfo.department_name || "—"}</span>
-                          </div>
-                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80 sm:col-span-2 lg:col-span-1">
-                            <span className="text-xs font-semibold uppercase text-muted-foreground">Phone number</span>
-                            <span className="font-medium text-foreground">{adminBookForUserInfo.phone_number || "—"}</span>
-                          </div>
-                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80 sm:col-span-2 lg:col-span-1">
-                            <span className="text-xs font-semibold uppercase text-muted-foreground">Supervisor</span>
-                            <span className="font-medium text-foreground">
-                              {adminBookForUserInfo.wallet_faculty_owner
-                                ? `${adminBookForUserInfo.wallet_faculty_owner.name}${adminBookForUserInfo.wallet_faculty_owner.email ? ` (${adminBookForUserInfo.wallet_faculty_owner.email})` : ""}`
-                                : "—"}
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-1 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 sm:col-span-2 lg:col-span-4">
-                            <span className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400">Wallet balance</span>
-                            <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400">₹{adminBookForUserInfo.wallet_balance}</span>
-                          </div>
-                        </div>
+                        ) : (
+                          <>
+                            {adminBookForUserInfoError && (
+                              <p className="mb-3 text-sm text-destructive">{adminBookForUserInfoError}</p>
+                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-base">
+                              <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80">
+                                <span className="text-xs font-semibold uppercase text-muted-foreground">Email</span>
+                                <span className="font-medium text-foreground">{adminBookForUserInfo?.email || "—"}</span>
+                              </div>
+                              <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80">
+                                <span className="text-xs font-semibold uppercase text-muted-foreground">Department</span>
+                                <span className="font-medium text-foreground">{adminBookForUserInfo?.department_name || "—"}</span>
+                              </div>
+                              <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80 sm:col-span-2 lg:col-span-1">
+                                <span className="text-xs font-semibold uppercase text-muted-foreground">Phone number</span>
+                                <span className="font-medium text-foreground">{adminBookForUserInfo?.phone_number || "—"}</span>
+                              </div>
+                              <div className="flex flex-col gap-1 p-3 rounded-lg bg-background/80 sm:col-span-2 lg:col-span-1">
+                                <span className="text-xs font-semibold uppercase text-muted-foreground">Supervisor</span>
+                                <span className="font-medium text-foreground">
+                                  {adminBookForUserInfo?.wallet_faculty_owner
+                                    ? `${adminBookForUserInfo.wallet_faculty_owner.name}${adminBookForUserInfo.wallet_faculty_owner.email ? ` (${adminBookForUserInfo.wallet_faculty_owner.email})` : ""}`
+                                    : "—"}
+                                </span>
+                              </div>
+                              <div className="flex flex-col gap-1 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 sm:col-span-2 lg:col-span-4">
+                                <span className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400">Wallet balance</span>
+                                <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                                  ₹{adminBookForUserInfo?.wallet_balance ?? "—"}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -9090,12 +9130,25 @@ const BookEquipment = () => {
                   onClick={async () => {
                     const displayName = usersList.find((u) => String(u.id) === adminBookForUserId)?.name ||
                       usersList.find((u) => String(u.id) === adminBookForUserId)?.email ||
+                      adminBookForUserInfo?.email ||
                       `User #${adminBookForUserId}`;
                     setUserTransactionHistoryDialog({ open: true, userId: adminBookForUserId, userDisplayName: displayName });
                     setUserTransactionHistory({ loading: true, transactions: [], error: null });
                     try {
                       const res = await apiClient.getAdminUserTransactionHistory(adminBookForUserId, 100, 0);
-                      setUserTransactionHistory({ loading: false, transactions: res.data?.transactions ?? [], error: null });
+                      if (res.error) {
+                        setUserTransactionHistory({
+                          loading: false,
+                          transactions: [],
+                          error: typeof res.error === "string" ? res.error : "Failed to load transactions",
+                        });
+                        return;
+                      }
+                      setUserTransactionHistory({
+                        loading: false,
+                        transactions: res.data?.transactions ?? [],
+                        error: null,
+                      });
                     } catch (e: any) {
                       setUserTransactionHistory({ loading: false, transactions: [], error: e?.message ?? "Failed to load transactions" });
                     }
@@ -9183,7 +9236,12 @@ const BookEquipment = () => {
               ) : userTransactionHistory.error ? (
                 <p className="text-center text-destructive py-8">{userTransactionHistory.error}</p>
               ) : userTransactionHistory.transactions.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No transactions found.</p>
+                <p className="text-center text-muted-foreground py-8 px-4">
+                  No wallet transactions found for this user yet.
+                  {adminBookForUserInfo?.wallet_balance && adminBookForUserInfo.wallet_balance !== "—"
+                    ? ` Current wallet balance shown on the booking page: ₹${adminBookForUserInfo.wallet_balance}.`
+                    : " If a booking debit was expected, confirm the booking completed and the user has an accessible wallet."}
+                </p>
               ) : (
                 <Table>
                   <TableHeader>
