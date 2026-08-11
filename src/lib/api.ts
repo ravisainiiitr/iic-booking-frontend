@@ -7632,14 +7632,23 @@ class ApiClient {
   }
 
   /** Admin: get user booking info (email, department, Supervisor, balance) for "Book slots for user". */
-  async getAdminUserBookingInfo(userId: number | string) {
+  async getAdminUserBookingInfo(userId: number | string, options?: { equipmentId?: number | string }) {
     const endpoint = this.getAdminEndpoint('users');
+    const params = new URLSearchParams();
+    if (options?.equipmentId != null && String(options.equipmentId).trim() !== "") {
+      params.set("equipment_id", String(options.equipmentId));
+    }
+    const q = params.toString() ? `?${params.toString()}` : "";
     return this.request<{
+      id?: number;
+      name?: string;
       email: string;
       department_name: string;
+      phone_number?: string;
+      user_type?: string;
       wallet_faculty_owner: { name: string; email: string } | null;
       wallet_balance: string;
-    }>(`${endpoint}${userId}/booking-info/?for_booking=1`, { method: 'GET' });
+    }>(`${endpoint}${userId}/booking-info/${q}`, { method: 'GET' });
   }
 
   /** Admin/OIC: get transaction history for a user (e.g. to verify debit after booking for user). */

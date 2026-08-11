@@ -1290,13 +1290,52 @@ const BookEquipment = () => {
     }
     let cancelled = false;
     (async () => {
-      const res = await apiClient.getAdminUserBookingInfo(adminBookForUserId);
+      const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
+      const res = await apiClient.getAdminUserBookingInfo(adminBookForUserId, {
+        equipmentId: equipmentId ?? undefined,
+      });
       if (cancelled) return;
-      if (res.data) setAdminBookForUserInfo(res.data);
-      else setAdminBookForUserInfo(null);
+
+      const payload = res.data;
+      const looksValid =
+        !res.error &&
+        payload &&
+        typeof payload === "object" &&
+        "wallet_balance" in payload &&
+        typeof (payload as { wallet_balance?: unknown }).wallet_balance === "string";
+
+      if (looksValid) {
+        setAdminBookForUserInfo(payload as {
+          email: string;
+          department_name: string;
+          phone_number?: string;
+          wallet_faculty_owner: { name: string; email: string } | null;
+          wallet_balance: string;
+        });
+        return;
+      }
+
+      // Do not treat error bodies ({detail:...}) as user info — that showed blank "—" fields.
+      const listed = usersList.find((u) => String(u.id) === String(adminBookForUserId));
+      setAdminBookForUserInfo({
+        email: listed?.email || "",
+        department_name: "",
+        phone_number: "",
+        wallet_faculty_owner: null,
+        wallet_balance: "—",
+      });
+      toast.error(
+        typeof res.error === "string"
+          ? res.error
+          : "Could not load selected user details (email, department, wallet)."
+      );
     })();
-    return () => { cancelled = true; };
-  }, [adminBookForUserId, userType]);
+    return () => {
+      cancelled = true;
+    };
+    // usersList used only for error fallback; omit from deps to avoid toast spam on list refresh
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminBookForUserId, userType, equipmentDetail?.equipment_id, selectedEquipment?.id]);
 
   // Wallet balance for this equipment's internal department (same sub-wallet used at booking).
   // Only end users (student/faculty/external…); OIC/admin/staff are not prompted to recharge.
