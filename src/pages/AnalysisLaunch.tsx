@@ -497,6 +497,7 @@ export default function AnalysisLaunchPage() {
           <div className={cn("mx-auto", phase === "prepare" ? "max-w-5xl" : "max-w-[1800px]")}>
             <DataWorkspaceBanner
               compact={phase === "desktop"}
+              showDataRoot={false}
               data={(experience as any)?.data_workspace || null}
             />
           </div>

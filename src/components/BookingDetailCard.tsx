@@ -828,47 +828,97 @@ export function BookingDetailCard({
       return;
     }
     let cancelled = false;
-    setResultsLoading(true);
-    setResultsData(null);
-    setResultsFbrBlock(null);
-    setResultsRatingBlocked(false);
-    apiClient
-      .getBookingResults(bookingPk)
-      .then((res) => {
-        if (cancelled) return;
-        if (res.error) {
-          if (res.errorCode === "istem_fbr_not_executed") {
-            setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
-          } else if (
-            res.status === 403 &&
-            typeof res.error === "string" &&
-            res.error.toLowerCase().includes("rating")
-          ) {
-            // Rating gate hides the file list; still surface Results when booking reports files.
-            setResultsRatingBlocked(true);
+    const loadResults = () => {
+      setResultsLoading(true);
+      setResultsFbrBlock(null);
+      setResultsRatingBlocked(false);
+      return apiClient
+        .getBookingResults(bookingPk)
+        .then((res) => {
+          if (cancelled) return;
+          if (res.error) {
+            if (res.errorCode === "istem_fbr_not_executed") {
+              setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
+            } else if (
+              res.status === 403 &&
+              typeof res.error === "string" &&
+              res.error.toLowerCase().includes("rating")
+            ) {
+              // Rating gate hides the file list; still surface Results/Raw Data when files exist.
+              setResultsRatingBlocked(true);
+              if (res.data?.exists) {
+                setResultsData({ exists: true, files: [] });
+              }
+            }
+            return;
           }
-          return;
-        }
-        setResultsData({
-          exists: res.data?.exists ?? false,
-          files: (res.data?.files ?? []).map((f) => ({
-            name: f.name,
-            download_url: f.download_url,
-            key: f.key,
-            source: f.source,
-            uploaded_at: f.uploaded_at,
-            uploaded_by: f.uploaded_by,
-            size_bytes: f.size_bytes,
-          })),
+          setResultsData({
+            exists: res.data?.exists ?? false,
+            files: (res.data?.files ?? []).map((f) => ({
+              name: f.name,
+              download_url: f.download_url,
+              key: f.key,
+              source: f.source,
+              uploaded_at: f.uploaded_at,
+              uploaded_by: f.uploaded_by,
+              size_bytes: f.size_bytes,
+            })),
+          });
+        })
+        .finally(() => {
+          if (!cancelled) setResultsLoading(false);
         });
-      })
-      .finally(() => {
-        if (!cancelled) setResultsLoading(false);
-      });
+    };
+    void loadResults();
     return () => {
       cancelled = true;
     };
   }, [booking.booking_id, bookingPk, booking.status, booking.rating]);
+
+  // Keep Raw Data in sync after DSA upload without requiring a hard refresh.
+  useVisibilityPolling({
+    enabled:
+      !isWaitlistedEntry &&
+      bookingPk != null &&
+      booking.status.toUpperCase() === "COMPLETED",
+    intervalMs: 15000,
+    onPoll: async () => {
+      if (bookingPk == null) return;
+      const res = await apiClient.getBookingResults(bookingPk);
+      if (res.error) {
+        if (
+          res.status === 403 &&
+          typeof res.error === "string" &&
+          res.error.toLowerCase().includes("rating")
+        ) {
+          setResultsRatingBlocked(true);
+          if (res.data?.exists) {
+            setResultsData({ exists: true, files: [] });
+          }
+        }
+        return;
+      }
+      setResultsRatingBlocked(false);
+      setResultsData({
+        exists: res.data?.exists ?? false,
+        files: (res.data?.files ?? []).map((f) => ({
+          name: f.name,
+          download_url: f.download_url,
+          key: f.key,
+          source: f.source,
+          uploaded_at: f.uploaded_at,
+          uploaded_by: f.uploaded_by,
+          size_bytes: f.size_bytes,
+        })),
+      });
+      if (Boolean((booking as any).equipment_enable_remote_analysis)) {
+        const analysisRes = await apiClient.getBookingAnalysis(Number(bookingPk));
+        if (!analysisRes.error) {
+          setAnalysisSummary((analysisRes.data as Record<string, unknown>) || null);
+        }
+      }
+    },
+  });
 
   useEffect(() => {
     if (
@@ -1407,9 +1457,18 @@ export function BookingDetailCard({
 
   const hasDownloadableResults =
     !!(resultsData?.exists && (resultsData?.files?.length || 0) > 0) ||
-    !!(resultsRatingBlocked && booking.has_results === true);
+    !!(resultsRatingBlocked && (booking.has_results === true || resultsData?.exists === true));
   const remoteAnalysisEnabled = Boolean((booking as any).equipment_enable_remote_analysis);
   const resultsFolderLabel = remoteAnalysisEnabled ? "Raw Data" : "Results";
+  const rawReadyFromAnalysis = Boolean(
+    (analysisSummary as any)?.raw_ready ?? (analysisSummary as any)?.analyze?.raw_ready
+  );
+  // When Remote Analysis is enabled, Raw Data must stay visible from booking results
+  // independently of analysis workspace output_files / experience.results.available.
+  const showRawOrResultsAction =
+    hasDownloadableResults ||
+    (remoteAnalysisEnabled && rawReadyFromAnalysis && !resultsFbrBlock) ||
+    (remoteAnalysisEnabled && resultsRatingBlocked && rawReadyFromAnalysis);
   const analyzedDataAvailable = Boolean(
     (analysisSummary as any)?.experience?.results?.available ||
       ((analysisSummary as any)?.experience?.results?.file_count || 0) > 0
@@ -1434,6 +1493,9 @@ export function BookingDetailCard({
     Boolean((analysisSummary as any)?.can_analyze) || hasOpenAnalysisSession;
   const analysisEndedForBooking =
     Boolean((analysisSummary as any)?.analysis_ended) ||
+    Boolean((analysisSummary as any)?.analyze?.analysis_ended) ||
+    Boolean((analysisSummary as any)?.analysis_closed_at) ||
+    Boolean((analysisSummary as any)?.analyze?.analysis_closed_at) ||
     (!canOpenAnalysisWorkspace &&
       ["COMPLETED", "TERMINATED", "EXPIRED"].includes(analysisSessionStatus));
   const analysisWorkspaceId =
@@ -2592,16 +2654,41 @@ export function BookingDetailCard({
                     Repeat sample
                   </Button>
                 )}
-              {!resultsLoading && hasDownloadableResults && (
+              {!resultsLoading && showRawOrResultsAction && (
                 <Button
                   size="sm"
                   variant="default"
                   className="bg-green-600 hover:bg-green-700 text-white"
                   disabled={isRefunded}
-                  onClick={() => {
+                  onClick={async () => {
                     if (canSubmitRating) {
                       setRatingRequiredPopupOpen(true);
                       return;
+                    }
+                    if (
+                      bookingPk != null &&
+                      !(resultsData?.files?.length) &&
+                      (rawReadyFromAnalysis || remoteAnalysisEnabled)
+                    ) {
+                      setResultsLoading(true);
+                      const res = await apiClient.getBookingResults(bookingPk);
+                      setResultsLoading(false);
+                      if (res.error) {
+                        toast.error(res.error);
+                        return;
+                      }
+                      setResultsData({
+                        exists: res.data?.exists ?? false,
+                        files: (res.data?.files ?? []).map((f) => ({
+                          name: f.name,
+                          download_url: f.download_url,
+                          key: f.key,
+                          source: f.source,
+                          uploaded_at: f.uploaded_at,
+                          uploaded_by: f.uploaded_by,
+                          size_bytes: f.size_bytes,
+                        })),
+                      });
                     }
                     setResultsDialogOpen(true);
                   }}
@@ -2634,7 +2721,10 @@ export function BookingDetailCard({
                   {hasOpenAnalysisSession ? "Continue Analysis" : analyzeDataButtonLabel}
                 </Button>
               )}
-              {remoteAnalysisEnabled && analyzedDataAvailable && analysisWorkspaceId && (
+              {remoteAnalysisEnabled &&
+                analyzedDataAvailable &&
+                analysisWorkspaceId &&
+                analysisEndedForBooking && (
                 <Button
                   size="sm"
                   variant="default"
@@ -2814,7 +2904,7 @@ export function BookingDetailCard({
                       </div>
                       <div>
                         <span className="text-muted-foreground">RAW files: </span>
-                        {Boolean((analysisSummary as any).raw_ready ?? (analysisSummary as any)?.analyze?.raw_ready)
+                        {rawReadyFromAnalysis || hasDownloadableResults
                           ? "Available"
                           : "Waiting for sync"}
                       </div>
@@ -2836,7 +2926,8 @@ export function BookingDetailCard({
                     </div>
                     {analysisEndedForBooking && (
                       <div className="rounded-lg border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
-                        Remote analysis for this booking has ended. You can download{" "}
+                        Remote analysis session is over for this booking. You cannot rejoin or start a new
+                        remote analysis session. You can download{" "}
                         <strong>Raw Data</strong>
                         {analyzedDataAvailable ? (
                           <>
@@ -2844,7 +2935,7 @@ export function BookingDetailCard({
                             and <strong>Analyzed Data</strong>
                           </>
                         ) : null}{" "}
-                        from Actions above. A new analysis session cannot be requested on this booking.
+                        from Actions above when available.
                       </div>
                     )}
                     {Boolean((analysisSummary as any)?.analyze?.queued || (analysisSummary as any)?.queued || (analysisSummary as any)?.experience?.queue?.is_queued) && (
@@ -2884,6 +2975,11 @@ export function BookingDetailCard({
                           onClick={() => navigate(`/analysis-workspace/${bookingPk}`)}
                         >
                           {hasOpenAnalysisSession ? "Continue Analysis" : "Open Analysis Workspace"}
+                        </Button>
+                      )}
+                      {isAnalysisBookingActor && analysisEndedForBooking && (
+                        <Button size="sm" disabled title="Remote analysis session is over">
+                          Open Analysis Workspace
                         </Button>
                       )}
                       {isAnalysisBookingActor &&

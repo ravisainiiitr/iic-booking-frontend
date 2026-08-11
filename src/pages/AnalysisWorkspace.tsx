@@ -12,25 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AnalysisHorizontalStepper,
-  toHorizontalSteps,
-} from "@/components/analysis/AnalysisHorizontalStepper";
 import { WorkspaceStatusStrip } from "@/components/analysis/WorkspaceHero";
-import { WhatHappensNext, buildWhatHappensSteps } from "@/components/analysis/WhatHappensNext";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
 import { DataWorkspaceBanner } from "@/components/analysis/DataWorkspaceBanner";
-import { DataFlowDiagram } from "@/components/analysis/DataFlowDiagram";
 import { cn } from "@/lib/utils";
 import {
-  Activity,
   AppWindow,
-  FolderSync,
   HardDrive,
-  Info,
   MonitorSmartphone,
   Upload,
-  Layers,
   Loader2,
 } from "lucide-react";
 
@@ -96,53 +86,6 @@ function formatStart(iso?: string | null) {
   } catch {
     return "—";
   }
-}
-
-/** Map workspace sync phase / internal messages to user-facing copy. */
-function formatSyncStatusLabel(phase?: unknown, message?: unknown): string {
-  const p = String(phase || "").trim();
-  const msg = String(message || "").trim();
-
-  const PHASE_LABELS: Record<string, string> = {
-    Preparing: "Preparing workspace",
-    PREPARING: "Preparing workspace",
-    QUEUED: "Waiting to sync",
-    DownloadingInput: "Copying input data",
-    DOWNLOADING: "Copying input data",
-    VerifyingInput: "Verifying input data",
-    InputReady: "Input data ready",
-    READY: "Input data ready",
-    SessionStarting: "Starting session",
-    SessionActive: "Session active",
-    CollectingOutput: "Collecting results",
-    UploadingOutput: "Uploading results",
-    UPLOADING: "Uploading results",
-    UploadVerified: "Results uploaded",
-    Cleanup: "Cleaning workspace",
-    Completed: "Sync complete",
-    COMPLETED: "Sync complete",
-    PreparationFailed: "Sync failed — retry needed",
-    FAILED: "Sync failed — retry needed",
-    UploadFailed: "Results upload failed",
-    RetryPending: "Retrying sync",
-    RETRYING: "Retrying sync",
-    CleanupFailed: "Cleanup issue",
-    Cancelled: "Sync cancelled",
-    CANCELLED: "Sync cancelled",
-  };
-
-  if (p && PHASE_LABELS[p]) return PHASE_LABELS[p];
-
-  // Hide agent/ingest telemetry like "ingested=0 skipped=0 failed=0"
-  const looksLikeTelemetry =
-    /ingested\s*=/i.test(msg) ||
-    /skipped\s*=/i.test(msg) ||
-    /failed\s*=/i.test(msg) ||
-    /^\d+\s*(file|bytes?)/i.test(msg);
-
-  if (msg && !looksLikeTelemetry && msg.length < 80) return msg;
-  if (p) return p.replace(/([a-z])([A-Z])/g, "$1 $2");
-  return "Waiting to sync";
 }
 
 export default function AnalysisWorkspacePage() {
@@ -303,21 +246,14 @@ export default function AnalysisWorkspacePage() {
           ? "ready"
           : "default";
 
-  const horizontalSteps = toHorizontalSteps(experience.journey, {
-    queued,
-    ready: envReady || canAnalyze,
-    started,
-    results: resultsReady,
-  });
-
-  const nextSteps = buildWhatHappensSteps({
-    queued,
-    preparing: !started && !resultsReady,
-    started,
-    results: resultsReady,
-    cleanupDone: String((experience as any)?.cleanup?.status || "") === "done",
-    journey: experience.journey,
-  });
+  const plannedSeconds = (() => {
+    const mins = Number(
+      sessionExp.default_duration_minutes ||
+        selected?.estimated_duration_minutes ||
+        30
+    );
+    return Number.isFinite(mins) && mins > 0 ? Math.floor(mins * 60) : null;
+  })();
 
   const envLabel =
     (sessionExp as any)?.environment_label ||
@@ -335,9 +271,16 @@ export default function AnalysisWorkspacePage() {
     return "";
   }, [selectedSoftwareKey, softwareOptions]);
 
+  const analysisEnded = Boolean(
+    (summary as any)?.analysis_ended ||
+      (summary as any)?.analyze?.analysis_ended ||
+      (summary as any)?.analysis_closed_at
+  );
+
   const startDisabled =
     busy ||
     queued ||
+    analysisEnded ||
     (!canAnalyze && !started && !envReady && !awaitingCheckin) ||
     (inputMode === "booking_raw" &&
       Number(bookingRaw.file_count || 0) === 0 &&
@@ -436,15 +379,6 @@ export default function AnalysisWorkspacePage() {
     return <div className="p-8">Invalid booking.</div>;
   }
 
-  const syncStatus = formatSyncStatusLabel(
-    workspaceExp.sync_phase || (summary as any)?.workspace?.sync_phase,
-    workspaceExp.sync_message || (summary as any)?.workspace?.sync_message
-  );
-  const currentStepLabel =
-    nextSteps.find((s) => s.status === "active")?.label ||
-    horizontalSteps.find((s) => s.status === "active")?.label ||
-    "Review & prepare";
-
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#e8eef8_0%,_#f8fafc_45%,_#ffffff_100%)] dark:from-slate-950 dark:via-background dark:to-background">
       <AnalysisWorkspaceChrome
@@ -466,14 +400,29 @@ export default function AnalysisWorkspacePage() {
       />
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
-        {(experience as any)?.data_workspace ? (
-          <DataWorkspaceBanner data={(experience as any).data_workspace} />
-        ) : (
-          <DataWorkspaceBanner data={null} />
-        )}
+        <DataWorkspaceBanner
+          showDataRoot={false}
+          data={(experience as any)?.data_workspace || null}
+        />
+
+        {analysisEnded ? (
+          <Card className="border-muted bg-muted/30">
+            <CardContent className="space-y-2 p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Remote analysis session is over</p>
+              <p>
+                You cannot start or rejoin a remote analysis session for this booking. Download{" "}
+                <strong>Raw Data</strong> / <strong>Analyzed Data</strong> from Booking Details when
+                available.
+              </p>
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/my-bookings">Back to Booking Details</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Primary CTA at top — Open Analysis Environment (do not bury at page bottom). */}
-        {!loading || summary ? (
+        {!analysisEnded && (!loading || summary) ? (
           <Card className="overflow-hidden border-[#0b3d91]/25 bg-white shadow-md dark:border-sky-800/50 dark:bg-card">
             <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
               <div className="min-w-0 space-y-1">
@@ -573,6 +522,7 @@ export default function AnalysisWorkspacePage() {
           <>
             <WorkspaceStatusStrip
               remainingSeconds={remainingSeconds}
+              plannedSeconds={remainingSeconds == null ? plannedSeconds : null}
               environmentLabel={envLabel}
               environmentReady={envReady || canAnalyze || awaitingCheckin}
               queued={queued}
@@ -643,48 +593,6 @@ export default function AnalysisWorkspacePage() {
                 </CardHeader>
               </Card>
             ) : null}
-
-            <Card className="border-slate-200/80 shadow-sm dark:border-border">
-              <CardContent className="py-4">
-                <AnalysisHorizontalStepper steps={horizontalSteps} />
-              </CardContent>
-            </Card>
-
-            {/* Live status dashboard */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <StatusTile
-                icon={MonitorSmartphone}
-                label="Environment"
-                value={started ? "Active" : envReady || canAnalyze ? "Ready" : queued ? "Queued" : "Preparing"}
-              />
-              <StatusTile
-                icon={Layers}
-                label="Workspace"
-                value={String(workspaceExp.status || (summary as any)?.workspace?.status || "Ready")}
-              />
-              <StatusTile icon={FolderSync} label="Synchronization" value={syncStatus} />
-              <StatusTile
-                icon={Activity}
-                label="Session remaining"
-                value={
-                  remainingSeconds != null
-                    ? `${Math.floor(remainingSeconds / 60)} min`
-                    : started
-                      ? "Active"
-                      : "Not started"
-                }
-              />
-              <StatusTile
-                icon={Info}
-                label="Queue"
-                value={
-                  queued
-                    ? `Position ${queue.position ?? "—"}`
-                    : "Not waiting"
-                }
-              />
-              <StatusTile icon={AppWindow} label="Current step" value={currentStepLabel} />
-            </div>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(240px,1.05fr)_minmax(0,2.1fr)_minmax(240px,1.05fr)] lg:gap-5 xl:gap-6">
               {/* Left — booking */}
@@ -874,8 +782,6 @@ export default function AnalysisWorkspacePage() {
                     </p>
                   </div>
 
-                  <DataFlowDiagram />
-
                   {workflows.length > 1 ? (
                     <div className="space-y-1.5">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -966,8 +872,6 @@ export default function AnalysisWorkspacePage() {
                 </Card>
               </div>
             </div>
-
-            <WhatHappensNext steps={nextSteps} />
 
             <Card className="border-slate-200/80 shadow-sm dark:border-border">
               <CardHeader className="pb-2">
@@ -1147,26 +1051,6 @@ function EnvStat({
     >
       <p className="text-lg font-semibold tabular-nums">{value}</p>
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function StatusTile({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-sm dark:border-border dark:bg-card">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        <p className="text-[10px] font-semibold uppercase tracking-wide">{label}</p>
-      </div>
-      <p className="mt-1 truncate text-sm font-semibold">{value}</p>
     </div>
   );
 }
