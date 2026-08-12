@@ -209,13 +209,19 @@ export default function AnalysisSoftwareCatalog() {
   const syncFromInventory = async () => {
     setSyncing(true);
     try {
-      const res = await apiClient.syncAnalysisSoftwareCatalogFromInventory({ refresh_agents: true });
+      const res = await apiClient.syncAnalysisSoftwareCatalogFromInventory({ refresh_agents: false });
       if (res.error) {
         toast.error(res.error);
         return;
       }
       const after = res.data?.after || {};
-      toast.success(`Catalog sync complete · ${Number(after.active_catalog_count || 0)} active entries`);
+      const cleanup = (res.data?.cleanup || {}) as Record<string, unknown>;
+      const archived =
+        Number(cleanup.infrastructure_archived || 0) + Number(cleanup.unmanaged_auto_archived || 0);
+      toast.success(
+        `Catalog sync complete · ${Number(after.active_catalog_count || 0)} analysis entries` +
+          (archived > 0 ? ` · archived ${archived} non-analysis` : "")
+      );
       await load();
     } finally {
       setSyncing(false);
