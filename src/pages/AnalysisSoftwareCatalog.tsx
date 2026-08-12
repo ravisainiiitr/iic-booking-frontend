@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Archive, Eye, Loader2, Plus, RefreshCw, Upload } from "lucide-react";
+import { ArrowLeft, Archive, Eye, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 type CatalogRow = {
@@ -83,6 +83,8 @@ export default function AnalysisSoftwareCatalog() {
   const [importText, setImportText] = useState("[\n  { \"name\": \"OriginPro\", \"vendor\": \"OriginLab\", \"license_type\": \"concurrent\" }\n]");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,6 +107,7 @@ export default function AnalysisSoftwareCatalog() {
       }
       setRows((res.data?.results as CatalogRow[]) || []);
       setLicenseTypes(res.data?.license_types || []);
+      setSelectedIds(new Set());
     } finally {
       setLoading(false);
     }
@@ -229,6 +232,68 @@ export default function AnalysisSoftwareCatalog() {
   };
 
   const filteredCount = useMemo(() => rows.length, [rows]);
+  const allSelected = rows.length > 0 && selectedIds.size === rows.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < rows.length;
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(rows.map((r) => r.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const toggleSelectOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedIds.size) return;
+    const count = selectedIds.size;
+    const ok = window.confirm(
+      `Permanently delete ${count} software entr${count === 1 ? "y" : "ies"}?\n\n` +
+        "This removes them from the Analysis Software Catalog and clears equipment mappings. " +
+        "Installed inventory rows on RAA PCs are kept but unlinked."
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await apiClient.bulkDeleteAnalysisSoftwareCatalog(Array.from(selectedIds));
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`Deleted ${Number(res.data?.deleted || count)} software entr${count === 1 ? "y" : "ies"}`);
+      setSelectedIds(new Set());
+      await load();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteOne = async (row: CatalogRow) => {
+    const ok = window.confirm(
+      `Permanently delete "${row.name}"?\n\nEquipment mappings for this software will also be removed.`
+    );
+    if (!ok) return;
+    const res = await apiClient.deleteAnalysisSoftwareCatalog(row.id);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`Deleted ${row.name}`);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(row.id);
+      return next;
+    });
+    await load();
+  };
 
   if (!canView) {
     return (
@@ -330,6 +395,31 @@ export default function AnalysisSoftwareCatalog() {
 
         <Card>
           <CardContent className="pt-6">
+            {canManage && selectedIds.size > 0 && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2">
+                <div className="text-sm">
+                  <span className="font-medium">{selectedIds.size}</span> selected
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                    Clear selection
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deleting}
+                    onClick={() => void deleteSelected()}
+                  >
+                    {deleting ? (
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-1 h-4 w-4" />
+                    )}
+                    Delete selected
+                  </Button>
+                </div>
+              </div>
+            )}
             {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading catalog…
@@ -338,6 +428,15 @@ export default function AnalysisSoftwareCatalog() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {canManage && (
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                          onCheckedChange={(v) => toggleSelectAll(Boolean(v))}
+                          aria-label="Select all"
+                        />
+                      </TableHead>
+                    )}
                     <TableHead>Name</TableHead>
                     <TableHead>Vendor</TableHead>
                     <TableHead>License</TableHead>
@@ -349,7 +448,16 @@ export default function AnalysisSoftwareCatalog() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} data-state={selectedIds.has(row.id) ? "selected" : undefined}>
+                      {canManage && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(row.id)}
+                            onCheckedChange={(v) => toggleSelectOne(row.id, Boolean(v))}
+                            aria-label={`Select ${row.name}`}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div className="font-medium">{row.name}</div>
                         <div className="text-xs text-muted-foreground">{row.slug}</div>
@@ -416,6 +524,15 @@ export default function AnalysisSoftwareCatalog() {
                             >
                               <Archive className="h-4 w-4" />
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => void deleteOne(row)}
+                              title="Delete permanently"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </>
                         )}
                       </TableCell>
@@ -423,7 +540,7 @@ export default function AnalysisSoftwareCatalog() {
                   ))}
                   {!rows.length && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={canManage ? 8 : 7} className="text-center text-muted-foreground">
                         No catalog entries match filters.
                       </TableCell>
                     </TableRow>

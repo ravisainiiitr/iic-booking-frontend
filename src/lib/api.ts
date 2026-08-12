@@ -8490,6 +8490,25 @@ class ApiClient {
     });
   }
 
+  async deleteAnalysisSoftwareCatalog(id: string) {
+    return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async bulkDeleteAnalysisSoftwareCatalog(ids: string[]) {
+    return this.request<{
+      ok?: boolean;
+      requested?: number;
+      deleted?: number;
+      deleted_ids?: string[];
+      detail?: string;
+    }>('/v1/analysis/catalog/software/bulk-delete/', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
   async getAnalysisSoftwareCatalogUsage(id: string) {
     return this.request<Record<string, unknown>>(`/v1/analysis/catalog/software/${id}/usage/`, {
       method: 'GET',
