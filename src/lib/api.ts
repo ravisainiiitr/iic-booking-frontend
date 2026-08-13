@@ -2015,6 +2015,18 @@ class ApiClient {
       equipment_name: string;
       user_type: string;
       profile_type: string;
+      pricing_profile?: string;
+      applied_profile?: string;
+      normal_charge?: string | null;
+      applied_charge?: string;
+      pricing?: {
+        pricing_profile?: string;
+        is_pi_rate?: boolean;
+        current_user_is_pi?: boolean;
+        wallet_owner_is_pi?: boolean;
+        wallet_owner_id?: number | null;
+        wallet_owner_email?: string | null;
+      };
       input_values: Record<string, number | string>;
       total_time_minutes: number;
       base_charge: string;
@@ -4395,6 +4407,53 @@ class ApiClient {
   async getBookingAnalysisFiles(bookingId: number) {
     return this.request<Array<Record<string, unknown>>>(`/v1/bookings/${bookingId}/analysis/files/`, {
       method: 'GET',
+    });
+  }
+
+  /** R12 — human-friendly Current / Previous analysis data browser (metadata only). */
+  async getBookingAnalysisDataBrowser(
+    bookingId: number,
+    params: {
+      q?: string;
+      equipment?: string;
+      sample?: string;
+      date_from?: string;
+      date_to?: string;
+      file_type?: string;
+      scope?: 'current' | 'previous' | 'all' | string;
+      page?: number;
+      page_size?: number;
+      prefix?: string;
+      file_offset?: number;
+      file_limit?: number;
+      source_booking_id?: number;
+    } = {}
+  ) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      qs.set(key, String(value));
+    });
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<Record<string, unknown>>(
+      `/v1/bookings/${bookingId}/analysis/data-browser/${suffix}`,
+      { method: 'GET' }
+    );
+  }
+
+  /** R12 — record / stage a Select Analysis Data choice into workspace RawData. */
+  async selectBookingAnalysisData(
+    bookingId: number,
+    body: {
+      source_booking_id: number;
+      folder_path?: string;
+      file_names?: string[];
+      stage?: boolean;
+    }
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/data-selection/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     });
   }
 
@@ -8041,6 +8100,14 @@ class ApiClient {
         department_code?: string | null;
       }>;
       operators: Array<{
+        id: number;
+        name: string;
+        email: string;
+        department_id?: number | null;
+        department_name?: string | null;
+        department_code?: string | null;
+      }>;
+      faculty?: Array<{
         id: number;
         name: string;
         email: string;

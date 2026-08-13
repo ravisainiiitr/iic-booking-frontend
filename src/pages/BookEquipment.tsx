@@ -739,6 +739,10 @@ const BookEquipment = () => {
     base_charge?: string;
     gst_percent?: number;
     gst_amount?: string;
+    pricing_profile?: string;
+    applied_profile?: string;
+    normal_charge?: string | null;
+    applied_charge?: string;
     reward?: {
       points_balance: string;
       requested_points: string;
@@ -2511,6 +2515,10 @@ const BookEquipment = () => {
           base_charge: response.data.base_charge,
           gst_percent: response.data.gst_percent ?? 0,
           gst_amount: response.data.gst_amount ?? "0",
+          pricing_profile: response.data.pricing_profile,
+          applied_profile: response.data.applied_profile,
+          normal_charge: response.data.normal_charge ?? null,
+          applied_charge: response.data.applied_charge,
           reward: response.data.reward,
         });
         setChargeCalculated(true);
@@ -7742,6 +7750,26 @@ const BookEquipment = () => {
                         </div>
                       )}
                       <div className="mt-4 pt-3 border-t space-y-1.5">
+                        {calculatedCharge.normal_charge != null &&
+                        calculatedCharge.applied_profile &&
+                        calculatedCharge.applied_profile !== "Normal" ? (
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>Normal Charge</span>
+                            <span>{formatINR(calculatedCharge.normal_charge)}</span>
+                          </div>
+                        ) : null}
+                        {calculatedCharge.applied_profile ? (
+                          <div className="flex justify-between text-sm">
+                            <span>Applied Profile</span>
+                            <span className="font-medium">{calculatedCharge.applied_profile}</span>
+                          </div>
+                        ) : null}
+                        {calculatedCharge.applied_charge != null ? (
+                          <div className="flex justify-between text-sm">
+                            <span>Applied Charge</span>
+                            <span>{formatINR(calculatedCharge.applied_charge)}</span>
+                          </div>
+                        ) : null}
                         <div className="flex justify-between font-semibold text-base pt-1">
                           <span>Final amount</span>
                           <span>{formatINR(calculatedCharge.total_charge)}</span>

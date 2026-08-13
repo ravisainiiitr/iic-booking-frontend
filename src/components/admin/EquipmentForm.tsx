@@ -81,12 +81,14 @@ const EQUIPMENT_SECTION_NAV: Array<{ id: string; label: string }> = [
   { id: "eq-sec-slots", label: "Slot config" },
   { id: "eq-sec-remote-analysis", label: "Remote Analysis" },
   { id: "eq-sec-managers", label: "OIC" },
+  { id: "eq-sec-pis", label: "PIs" },
   { id: "eq-sec-operators", label: "Operators" },
   { id: "eq-sec-specs", label: "Specs" },
   { id: "eq-sec-accessories", label: "Accessories" },
   { id: "eq-sec-inputs", label: "Dynamic fields" },
   { id: "eq-sec-slot-masters", label: "Slot masters" },
   { id: "eq-sec-charges", label: "Charges" },
+  { id: "eq-sec-pi-charges", label: "PI Charges" },
 ];
 
 export type EquipmentFormData = {
@@ -180,11 +182,22 @@ export type EquipmentFormData = {
   video_url?: string | null;
   equipment_managers?: Array<{ manager: number }>;
   equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY' }>;
+  equipment_pis?: Array<{ faculty: number; is_active?: boolean }>;
   equipment_specifications?: Array<{ spec_key: string; spec_value?: string }>;
   equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
   equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
   charge_profiles?: Array<{
+    user_type: string;
+    is_active?: boolean;
+    require_istem_fbr?: boolean;
+    show_charge_breakdown?: boolean;
+    primary_unit_charge: string | number;
+    secondary_unit_charge?: string | number;
+    breakpoint?: string | number | null;
+    time_formula?: string | null;
+  }>;
+  pi_charge_profiles?: Array<{
     user_type: string;
     is_active?: boolean;
     require_istem_fbr?: boolean;
@@ -236,6 +249,7 @@ type EquipmentFormChoices = {
   user_groups: Array<{ id: number; name: string; code: string }>;
   managers: StaffUserChoice[];
   operators: StaffUserChoice[];
+  faculty?: StaffUserChoice[];
   profile_type_choices: Array<{ value: string; label: string }>;
   status_choices: Array<{ value: string; label: string }>;
   user_type_choices?: Array<{ value: string; label: string }>;
@@ -333,11 +347,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     analysis_notes: "",
     equipment_managers: [],
     equipment_operators: [],
+    equipment_pis: [],
     equipment_specifications: [],
     equipment_accessories: [],
     equipment_additional_accessories: [],
     slot_masters: [],
     charge_profiles: [],
+    pi_charge_profiles: [],
     input_fields: [],
     print_materials: [],
     param_definitions: [],
@@ -506,11 +522,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       const d = initialData as Record<string, unknown>;
       const managers = (d.managers || d.equipment_managers || []) as Array<{ manager: number }>;
       const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string }>;
+      const pis = (d.equipment_pis || d.pis || []) as Array<{ faculty?: number; faculty_id?: number; is_active?: boolean }>;
       const specs = (d.specifications || d.equipment_specifications || []) as Array<{ spec_key: string; spec_value?: string }>;
       const accessories = (d.accessories || d.equipment_accessories || []) as Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
       const addAccessories = (d.additional_accessories || d.equipment_additional_accessories || []) as Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
       const slots = (d.slot_masters || []) as Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
       const profiles = (d.charge_profiles || []) as Array<Record<string, unknown>>;
+      const piProfiles = (d.pi_charge_profiles || []) as Array<Record<string, unknown>>;
       const rawInputs = (d.input_fields || []) as Array<Record<string, unknown>>;
       const inputs = rawInputs.filter((i) => {
         const k = String(i.field_key ?? "").trim().toUpperCase();
@@ -595,6 +613,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         video_url: (d.video_url as string) ?? null,
         equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number })) : prev.equipment_managers ?? [],
         equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY" })) : prev.equipment_operators ?? [],
+        equipment_pis: Array.isArray(pis)
+          ? pis
+              .map((p) => ({
+                faculty: typeof p.faculty === "number" ? p.faculty : Number(p.faculty_id),
+                is_active: p.is_active !== false,
+              }))
+              .filter((p) => Number.isFinite(p.faculty) && p.faculty > 0)
+          : prev.equipment_pis ?? [],
         equipment_specifications: Array.isArray(specs) ? specs.map((s) => ({ spec_key: s.spec_key ?? "", spec_value: s.spec_value ?? "" })) : prev.equipment_specifications ?? [],
         equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_accessories ?? [],
         equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_additional_accessories ?? [],
@@ -609,6 +635,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           breakpoint: p.breakpoint ?? null,
           time_formula: p.time_formula ?? null,
         })) : prev.charge_profiles ?? [],
+        pi_charge_profiles: Array.isArray(piProfiles) ? piProfiles.map((p) => ({
+          user_type: String(p.user_type ?? ""),
+          is_active: p.is_active !== false,
+          require_istem_fbr: Boolean(p.require_istem_fbr),
+          show_charge_breakdown: p.show_charge_breakdown !== false,
+          primary_unit_charge: p.primary_unit_charge ?? 0,
+          secondary_unit_charge: p.secondary_unit_charge ?? 0,
+          breakpoint: p.breakpoint ?? null,
+          time_formula: p.time_formula ?? null,
+        })) : prev.pi_charge_profiles ?? [],
         input_fields: Array.isArray(inputs) ? inputs.map((i) => {
           const rawOpts = i.options;
           const optsObj =
@@ -794,11 +830,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       analysis_notes: formData.analysis_notes != null ? String(formData.analysis_notes) : "",
       equipment_managers: formData.equipment_managers ?? [],
       equipment_operators: formData.equipment_operators ?? [],
+      equipment_pis: formData.equipment_pis ?? [],
       equipment_specifications: formData.equipment_specifications ?? [],
       equipment_accessories: formData.equipment_accessories ?? [],
       equipment_additional_accessories: formData.equipment_additional_accessories ?? [],
       slot_masters: formData.slot_masters ?? [],
       charge_profiles: formData.charge_profiles ?? [],
+      pi_charge_profiles: formData.pi_charge_profiles ?? [],
       input_fields: (formData.input_fields ?? []).map((f) => {
         const fieldType = String(f.field_type || "").toUpperCase();
         const field_key = String(f.field_key || "").trim().toUpperCase().slice(0, 1);
@@ -1963,6 +2001,151 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       ) : null}
       </FormSection>
 
+      <FormSection
+        id="eq-sec-pi-charges"
+        title="PI Charge profiles"
+        description="Discounted facility rates for assigned Faculty PIs (and wallet owners who are PIs). Independent of Normal and Discounted profiles."
+        defaultOpen={false}
+      >
+      <div className="rounded border divide-y">
+        {(formData.pi_charge_profiles ?? []).length === 0 ? (
+          <p className="p-3 text-sm text-muted-foreground">No PI charge profiles yet. Add user-type rows below.</p>
+        ) : (
+          (formData.pi_charge_profiles ?? []).map((cp, idx) => {
+            const label =
+              (choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type;
+            return (
+              <div key={`pi-${cp.user_type}-${idx}`} className="p-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                  <div className="space-y-1">
+                    <Label>User type</Label>
+                    <p className="text-sm font-medium">{label}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`pi-cp-primary-${idx}`}>Primary charge</Label>
+                    <Input
+                      id={`pi-cp-primary-${idx}`}
+                      type="number"
+                      step="0.01"
+                      value={String(cp.primary_unit_charge ?? "")}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.pi_charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], primary_unit_charge: e.target.value };
+                          return { ...p, pi_charge_profiles: arr };
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`pi-cp-secondary-${idx}`}>Secondary charge</Label>
+                    <Input
+                      id={`pi-cp-secondary-${idx}`}
+                      type="number"
+                      step="0.01"
+                      value={String(cp.secondary_unit_charge ?? "")}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.pi_charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], secondary_unit_charge: e.target.value };
+                          return { ...p, pi_charge_profiles: arr };
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`pi-cp-breakpoint-${idx}`}>Breakpoint</Label>
+                    <Input
+                      id={`pi-cp-breakpoint-${idx}`}
+                      type="number"
+                      step="0.01"
+                      placeholder="Optional"
+                      value={cp.breakpoint === null || cp.breakpoint === undefined ? "" : String(cp.breakpoint)}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.pi_charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], breakpoint: e.target.value === "" ? null : e.target.value };
+                          return { ...p, pi_charge_profiles: arr };
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={cp.is_active !== false}
+                      onCheckedChange={(checked) =>
+                        setFormData((p) => {
+                          const arr = [...(p.pi_charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], is_active: checked === true };
+                          return { ...p, pi_charge_profiles: arr };
+                        })
+                      }
+                    />
+                    Active
+                  </label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        pi_charge_profiles: (p.pi_charge_profiles ?? []).filter((_, i) => i !== idx),
+                      }))
+                    }
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+      {(choices.user_type_choices ?? []).length > 0 ? (
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Select
+            value="__add__"
+            onValueChange={(v) => {
+              if (!v || v === "__add__") return;
+              if ((formData.pi_charge_profiles ?? []).some((cp) => cp.user_type === v)) return;
+              setFormData((p) => ({
+                ...p,
+                pi_charge_profiles: [
+                  ...(p.pi_charge_profiles ?? []),
+                  {
+                    user_type: v,
+                    is_active: true,
+                    require_istem_fbr: false,
+                    show_charge_breakdown: true,
+                    primary_unit_charge: 0,
+                    secondary_unit_charge: 0,
+                    breakpoint: null,
+                    time_formula: null,
+                  },
+                ],
+              }));
+            }}
+          >
+            <SelectTrigger className="w-[280px]">
+              <SelectValue placeholder="Add PI charge profile" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__add__" disabled>Add PI charge profile</SelectItem>
+              {(choices.user_type_choices ?? [])
+                .filter((c) => !(formData.pi_charge_profiles ?? []).some((cp) => cp.user_type === c.value))
+                .map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      </FormSection>
+
       <FormSection id="eq-sec-media" title="Image / Video" description="Upload new files, or clear the current ones. Images are stored in S3 and displayed via a stable URL." defaultOpen>
       <div className="space-y-2">
         <h4 className="text-sm font-medium">Image</h4>
@@ -2483,6 +2666,87 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             <div key={idx} className="flex items-center justify-between p-2">
               <span className="text-sm">{(choices.managers ?? []).find((c) => c.id === m.manager)?.name || (choices.managers ?? []).find((c) => c.id === m.manager)?.email || `ID ${m.manager}`}</span>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_managers: (p.equipment_managers ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
+            </div>
+          ))
+        )}
+      </div>
+      </FormSection>
+
+      <FormSection
+        id="eq-sec-pis"
+        title="Principal Investigators"
+        description="Faculty PIs for this equipment. When the booking user or their wallet owner is an assigned PI, the PI Charge Profile applies (server-side)."
+        defaultOpen
+      >
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value="__add__"
+          onValueChange={(v) => {
+            if (!v || v === "__add__") return;
+            const id = parseInt(v, 10);
+            if (!id || (formData.equipment_pis ?? []).some((p) => p.faculty === id)) return;
+            setFormData((p) => ({
+              ...p,
+              equipment_pis: [...(p.equipment_pis ?? []), { faculty: id, is_active: true }],
+            }));
+          }}
+        >
+          <SelectTrigger className="w-[280px]"><SelectValue placeholder="Add Faculty PI" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__add__" disabled>Add Faculty PI</SelectItem>
+            {(choices.faculty ?? [])
+              .filter((f) => !(formData.equipment_pis ?? []).some((x) => x.faculty === f.id))
+              .map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>
+                  {f.name || f.email} ({f.email})
+                  {f.department_name
+                    ? ` — ${f.department_name}${f.department_code ? ` (${f.department_code})` : ""}`
+                    : ""}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="rounded border divide-y">
+        {(formData.equipment_pis ?? []).length === 0 ? (
+          <p className="p-2 text-sm text-muted-foreground">No Principal Investigators assigned.</p>
+        ) : (
+          (formData.equipment_pis ?? []).map((pi, idx) => (
+            <div key={idx} className="flex items-center justify-between gap-2 p-2">
+              <span className="text-sm">
+                {(choices.faculty ?? []).find((c) => c.id === pi.faculty)?.name
+                  || (choices.faculty ?? []).find((c) => c.id === pi.faculty)?.email
+                  || `ID ${pi.faculty}`}
+              </span>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={pi.is_active !== false}
+                    onCheckedChange={(checked) =>
+                      setFormData((p) => {
+                        const arr = [...(p.equipment_pis ?? [])];
+                        arr[idx] = { ...arr[idx], is_active: checked === true };
+                        return { ...p, equipment_pis: arr };
+                      })
+                    }
+                  />
+                  Active
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      equipment_pis: (p.equipment_pis ?? []).filter((_, i) => i !== idx),
+                    }))
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
             </div>
           ))
         )}
