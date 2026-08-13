@@ -2015,6 +2015,18 @@ class ApiClient {
       equipment_name: string;
       user_type: string;
       profile_type: string;
+      pricing_profile?: string;
+      applied_profile?: string;
+      normal_charge?: string | null;
+      applied_charge?: string;
+      pricing?: {
+        pricing_profile?: string;
+        is_pi_rate?: boolean;
+        current_user_is_pi?: boolean;
+        wallet_owner_is_pi?: boolean;
+        wallet_owner_id?: number | null;
+        wallet_owner_email?: string | null;
+      };
       input_values: Record<string, number | string>;
       total_time_minutes: number;
       base_charge: string;
@@ -4401,27 +4413,30 @@ class ApiClient {
   /** R12: human-friendly Current/Previous analysis data browser (metadata only). */
   async getBookingAnalysisDataBrowser(
     bookingId: number,
-    params?: {
+    params: {
       q?: string;
       equipment?: string;
       sample?: string;
+      date_from?: string;
+      date_to?: string;
       file_type?: string;
-      scope?: 'current' | 'previous' | 'all';
+      scope?: 'current' | 'previous' | 'all' | string;
       page?: number;
       page_size?: number;
-    },
+      prefix?: string;
+      file_offset?: number;
+      file_limit?: number;
+      source_booking_id?: number;
+    } = {},
   ) {
     const qs = new URLSearchParams();
-    if (params?.q) qs.set('q', params.q);
-    if (params?.equipment) qs.set('equipment', params.equipment);
-    if (params?.sample) qs.set('sample', params.sample);
-    if (params?.file_type) qs.set('file_type', params.file_type);
-    if (params?.scope) qs.set('scope', params.scope);
-    if (params?.page != null) qs.set('page', String(params.page));
-    if (params?.page_size != null) qs.set('page_size', String(params.page_size));
-    const q = qs.toString();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      qs.set(key, String(value));
+    });
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return this.request<Record<string, unknown>>(
-      `/v1/bookings/${bookingId}/analysis/data-browser/${q ? `?${q}` : ''}`,
+      `/v1/bookings/${bookingId}/analysis/data-browser/${suffix}`,
       { method: 'GET' },
     );
   }
@@ -8085,6 +8100,14 @@ class ApiClient {
         department_code?: string | null;
       }>;
       operators: Array<{
+        id: number;
+        name: string;
+        email: string;
+        department_id?: number | null;
+        department_name?: string | null;
+        department_code?: string | null;
+      }>;
+      faculty?: Array<{
         id: number;
         name: string;
         email: string;
