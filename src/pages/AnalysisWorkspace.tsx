@@ -287,6 +287,7 @@ export default function AnalysisWorkspacePage() {
     busy ||
     queued ||
     analysisEnded ||
+    (!dataSourceConfirmed && !dataSelectionLabel && !started) ||
     (!canAnalyze && !started && !envReady && !awaitingCheckin) ||
     (inputMode === "booking_raw" &&
       Number(bookingRaw.file_count || 0) === 0 &&
@@ -294,6 +295,10 @@ export default function AnalysisWorkspacePage() {
 
   const openOrStart = async () => {
     if (!Number.isFinite(bookingPk)) return;
+    if (!started && !dataSourceConfirmed && !dataSelectionLabel) {
+      toast.message("Choose your input data first: Current booking, Previous booking, or Upload.");
+      return;
+    }
     if (started) {
       navigate(`/analysis-launch/${bookingPk}${session.id ? `?session=${session.id}` : ""}`);
       return;
@@ -487,7 +492,9 @@ export default function AnalysisWorkspacePage() {
                     </span>
                     {!queued && !busy ? (
                       <span className="text-[10px] font-normal text-white/80">
-                        {awaitingCheckin
+                        {!dataSourceConfirmed && !dataSelectionLabel && !started
+                          ? "Select input data below first"
+                          : awaitingCheckin
                           ? "Your Analysis PC is reserved — start before the timer expires"
                           : "Connect to your Analysis PC"}
                       </span>
