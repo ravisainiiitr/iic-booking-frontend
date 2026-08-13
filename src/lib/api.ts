@@ -4398,6 +4398,50 @@ class ApiClient {
     });
   }
 
+  /** R12: human-friendly Current/Previous analysis data browser (metadata only). */
+  async getBookingAnalysisDataBrowser(
+    bookingId: number,
+    params?: {
+      q?: string;
+      equipment?: string;
+      sample?: string;
+      file_type?: string;
+      scope?: 'current' | 'previous' | 'all';
+      page?: number;
+      page_size?: number;
+    },
+  ) {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set('q', params.q);
+    if (params?.equipment) qs.set('equipment', params.equipment);
+    if (params?.sample) qs.set('sample', params.sample);
+    if (params?.file_type) qs.set('file_type', params.file_type);
+    if (params?.scope) qs.set('scope', params.scope);
+    if (params?.page != null) qs.set('page', String(params.page));
+    if (params?.page_size != null) qs.set('page_size', String(params.page_size));
+    const q = qs.toString();
+    return this.request<Record<string, unknown>>(
+      `/v1/bookings/${bookingId}/analysis/data-browser/${q ? `?${q}` : ''}`,
+      { method: 'GET' },
+    );
+  }
+
+  /** R12: confirm dataset selection (and optional staging) without downloading to RAA yet. */
+  async selectBookingAnalysisData(
+    bookingId: number,
+    body: {
+      source_booking_id: number;
+      folder_path?: string;
+      file_names?: string[];
+      stage?: boolean;
+    },
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/data-selection/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async archiveBookingAnalysisWorkspace(bookingId: number) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/archive/`, {
       method: 'POST',

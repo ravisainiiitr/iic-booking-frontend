@@ -15,6 +15,7 @@ import {
 import { WorkspaceStatusStrip } from "@/components/analysis/WorkspaceHero";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
 import { DataWorkspaceBanner } from "@/components/analysis/DataWorkspaceBanner";
+import { SelectAnalysisDataBrowser } from "@/components/analysis/SelectAnalysisDataBrowser";
 import { cn } from "@/lib/utils";
 import {
   AppWindow,
@@ -23,6 +24,7 @@ import {
   MonitorSmartphone,
   Upload,
   Loader2,
+  FolderSearch,
 } from "lucide-react";
 
 type WorkflowOption = {
@@ -100,6 +102,8 @@ export default function AnalysisWorkspacePage() {
   const [selectedSoftwareKey, setSelectedSoftwareKey] = useState<string>("");
   const [catalogSoftware, setCatalogSoftware] = useState<Array<Record<string, unknown>> | null>(null);
   const [inputMode, setInputMode] = useState<"booking_raw" | "additional">("booking_raw");
+  const [dataBrowserOpen, setDataBrowserOpen] = useState(false);
+  const [dataSelectionLabel, setDataSelectionLabel] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(
@@ -689,6 +693,24 @@ export default function AnalysisWorkspacePage() {
                             Uploaded
                           </span>
                         </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInputMode("booking_raw");
+                              setDataBrowserOpen(true);
+                            }}
+                          >
+                            <FolderSearch className="mr-1.5 h-3.5 w-3.5" />
+                            Select Analysis Data
+                          </Button>
+                          {dataSelectionLabel ? (
+                            <span className="text-xs text-muted-foreground">{dataSelectionLabel}</span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -1019,6 +1041,23 @@ export default function AnalysisWorkspacePage() {
           </>
         )}
       </div>
+      {Number.isFinite(bookingPk) ? (
+        <SelectAnalysisDataBrowser
+          bookingId={bookingPk}
+          open={dataBrowserOpen}
+          onOpenChange={setDataBrowserOpen}
+          onSelected={(info) => {
+            const n = info.fileNames?.length || 0;
+            setDataSelectionLabel(
+              n
+                ? `Selected ${n} file(s) from booking #${info.sourceBookingId}`
+                : `Selected data from booking #${info.sourceBookingId}`
+            );
+            setInputMode("booking_raw");
+            void refresh({ silent: true });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
