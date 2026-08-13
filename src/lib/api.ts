@@ -4410,7 +4410,7 @@ class ApiClient {
     });
   }
 
-  /** R12 — human-friendly Current / Previous analysis data browser (metadata only). */
+  /** R12: human-friendly Current/Previous analysis data browser (metadata only). */
   async getBookingAnalysisDataBrowser(
     bookingId: number,
     params: {
@@ -4427,7 +4427,7 @@ class ApiClient {
       file_offset?: number;
       file_limit?: number;
       source_booking_id?: number;
-    } = {}
+    } = {},
   ) {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -4437,11 +4437,11 @@ class ApiClient {
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return this.request<Record<string, unknown>>(
       `/v1/bookings/${bookingId}/analysis/data-browser/${suffix}`,
-      { method: 'GET' }
+      { method: 'GET' },
     );
   }
 
-  /** R12 — record / stage a Select Analysis Data choice into workspace RawData. */
+  /** R12: confirm dataset selection (and optional staging) without downloading to RAA yet. */
   async selectBookingAnalysisData(
     bookingId: number,
     body: {
@@ -4449,7 +4449,7 @@ class ApiClient {
       folder_path?: string;
       file_names?: string[];
       stage?: boolean;
-    }
+    },
   ) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/data-selection/`, {
       method: 'POST',
