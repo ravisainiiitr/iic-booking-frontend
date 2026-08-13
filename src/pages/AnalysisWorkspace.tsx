@@ -283,20 +283,24 @@ export default function AnalysisWorkspacePage() {
       (summary as any)?.analysis_closed_at
   );
 
+  const hasDataSource = Boolean(dataSourceConfirmed || dataSelectionLabel);
   const startDisabled =
     busy ||
     queued ||
     analysisEnded ||
-    (!dataSourceConfirmed && !dataSelectionLabel && !started) ||
+    (!started && !hasDataSource) ||
     (!canAnalyze && !started && !envReady && !awaitingCheckin) ||
     (inputMode === "booking_raw" &&
+      !dataSelectionLabel &&
       Number(bookingRaw.file_count || 0) === 0 &&
       !(summary as any)?.raw_ready);
 
   const openOrStart = async () => {
     if (!Number.isFinite(bookingPk)) return;
-    if (!started && !dataSourceConfirmed && !dataSelectionLabel) {
-      toast.message("Choose your input data first: Current booking, Previous booking, or Upload.");
+    if (!started && !hasDataSource) {
+      toast.message("Select your input data first", {
+        description: "Choose Current Booking Data, Previous Booking Data, or Upload Data.",
+      });
       return;
     }
     if (started) {
@@ -491,12 +495,12 @@ export default function AnalysisWorkspacePage() {
                             : "Open Analysis Environment"}
                     </span>
                     {!queued && !busy ? (
-                      <span className="text-[10px] font-normal text-white/80">
-                        {!dataSourceConfirmed && !dataSelectionLabel && !started
-                          ? "Select input data below first"
+                  <span className="text-[10px] font-normal text-white/80">
+                        {!hasDataSource && !started
+                          ? "Select Current / Previous / Upload data first"
                           : awaitingCheckin
-                          ? "Your Analysis PC is reserved — start before the timer expires"
-                          : "Connect to your Analysis PC"}
+                            ? "Your Analysis PC is reserved — start before the timer expires"
+                            : "Connect to your Analysis PC"}
                       </span>
                     ) : null}
                   </span>
@@ -980,7 +984,7 @@ export default function AnalysisWorkspacePage() {
                     ) : (
                       <p className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-200">
                         {awaitingCheckin
-                          ? "Your Analysis PC is allocated. Click Start Analysis when you are ready."
+                          ? "Your Analysis PC is allocated. Select input data above, then click Start Analysis."
                           : "You are not waiting in queue. You can start when ready."}
                       </p>
                     )}
