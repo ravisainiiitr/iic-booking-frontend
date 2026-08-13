@@ -101,9 +101,10 @@ export default function AnalysisWorkspacePage() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>("");
   const [selectedSoftwareKey, setSelectedSoftwareKey] = useState<string>("");
   const [catalogSoftware, setCatalogSoftware] = useState<Array<Record<string, unknown>> | null>(null);
-  const [inputMode, setInputMode] = useState<"booking_raw" | "additional">("booking_raw");
+  const [inputMode, setInputMode] = useState<"booking_raw" | "additional" | "previous">("booking_raw");
   const [dataBrowserOpen, setDataBrowserOpen] = useState(false);
   const [dataSelectionLabel, setDataSelectionLabel] = useState<string>("");
+  const [dataSourceConfirmed, setDataSourceConfirmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(
@@ -558,6 +559,112 @@ export default function AnalysisWorkspacePage() {
                   : undefined
               }
             />
+
+            {/* R13 — data selection comes first; allocation may continue in parallel */}
+            {!started && !dataSourceConfirmed && !dataSelectionLabel ? (
+              <Card className="border-sky-500/25 bg-gradient-to-br from-sky-50/80 to-white shadow-sm dark:from-sky-950/20 dark:to-background">
+                <CardHeader>
+                  <CardTitle className="text-xl">What data would you like to analyze?</CardTitle>
+                  <CardDescription>
+                    Choose a data source before (or while) an Analysis PC is allocated. You do not need
+                    to wait for a PC to select your files.
+                  </CardDescription>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>
+                      Equipment: <strong className="text-foreground">{equipmentName}</strong>
+                    </span>
+                    <span>
+                      Booking: <strong className="text-foreground">{virtualBookingId}</strong>
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                  <button
+                    type="button"
+                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-sky-500/50 hover:shadow-md"
+                    onClick={() => {
+                      setInputMode("booking_raw");
+                      setDataSourceConfirmed(true);
+                      setDataBrowserOpen(true);
+                    }}
+                  >
+                    <p className="text-sm font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                      Current Booking Data
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Use data associated with this booking (sample folders and result files).
+                    </p>
+                    <span className="mt-4 inline-flex text-sm font-medium text-sky-700 dark:text-sky-300">
+                      Select →
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-sky-500/50 hover:shadow-md"
+                    onClick={() => {
+                      setInputMode("previous");
+                      setDataSourceConfirmed(true);
+                      setDataBrowserOpen(true);
+                    }}
+                  >
+                    <p className="text-sm font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                      Previous Booking Data
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Search your authorized previous bookings by sample, file, equipment, or date.
+                    </p>
+                    <span className="mt-4 inline-flex text-sm font-medium text-violet-700 dark:text-violet-300">
+                      Browse →
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-sky-500/50 hover:shadow-md"
+                    onClick={() => {
+                      setInputMode("additional");
+                      setDataSourceConfirmed(true);
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                      Upload Data
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Drag &amp; drop or browse files from your computer (large files stream when supported).
+                    </p>
+                    <span className="mt-4 inline-flex text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                      Upload →
+                    </span>
+                  </button>
+                </CardContent>
+              </Card>
+            ) : null}
+            {dataSelectionLabel || dataSourceConfirmed ? (
+              <Card className="border-emerald-500/20 bg-emerald-500/5">
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm">
+                  <div>
+                    <p className="font-medium text-emerald-900 dark:text-emerald-100">Selected data</p>
+                    <p className="text-muted-foreground">
+                      {dataSelectionLabel ||
+                        (inputMode === "additional"
+                          ? "Upload mode — add files below"
+                          : "Continue with booking / previous data selection")}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setDataSourceConfirmed(false);
+                      setDataSelectionLabel("");
+                    }}
+                  >
+                    Change source
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
+
             {awaitingCheckin && !queued ? (
               <Card className="border-emerald-500/30 bg-emerald-500/5">
                 <CardHeader className="pb-2">
@@ -733,14 +840,12 @@ export default function AnalysisWorkspacePage() {
                           <strong>Input Data</strong> folder.
                         </li>
                         <li>
-                          After analysis, generated files go to the <strong>Output Results</strong>{" "}
-                          folder and sync securely to the Portal.
+                          Save generated analysis files anywhere in your session workspace during the
+                          session. When you click <strong>End Session</strong>, the system collects
+                          session files, uploads them securely, and makes them available under{" "}
+                          <strong>Booking Details → Analyzed Data</strong>.
                         </li>
-                        <li>
-                          When sync completes, download processed files from your{" "}
-                          <strong>Booking Details</strong> page (Analyzed Data).
-                        </li>
-                        <li>You will also receive an email when results are ready.</li>
+                        <li>You will also receive an email when results are ready (download from the portal — files are not emailed).</li>
                       </ul>
                     </div>
                   ) : null}
@@ -1053,6 +1158,7 @@ export default function AnalysisWorkspacePage() {
                 ? `Selected ${n} file(s) from booking #${info.sourceBookingId}`
                 : `Selected data from booking #${info.sourceBookingId}`
             );
+            setDataSourceConfirmed(true);
             setInputMode("booking_raw");
             void refresh({ silent: true });
           }}

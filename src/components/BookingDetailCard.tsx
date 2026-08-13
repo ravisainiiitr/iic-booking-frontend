@@ -1507,11 +1507,6 @@ export function BookingDetailCard({
   const isAnalysisBookingActor =
     currentUserId != null &&
     (Number(booking.user) === Number(currentUserId) || Boolean(isManagerOrAdmin) || isOperator);
-  const analyzeDataButtonLabel = String(
-    (analysisSummary as any)?.button_label ||
-      (analysisSummary as any)?.analyze?.button_label ||
-      "Analyze Data"
-  );
   const showIstemWorkflow =
     !isWaitlistedEntry &&
     !isFinanceUser &&
@@ -2708,34 +2703,11 @@ export function BookingDetailCard({
                   {resultsFolderLabel}
                 </Button>
               )}
-              {remoteAnalysisEnabled &&
-                isAnalysisBookingActor &&
-                canOpenAnalysisWorkspace &&
-                !analysisEndedForBooking && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="bg-sky-600 hover:bg-sky-700 text-white"
-                  disabled={isRefunded || analysisBusy || analysisLoading}
-                  onClick={() => {
-                    if (canSubmitRating) {
-                      setRatingRequiredPopupOpen(true);
-                      return;
-                    }
-                    if (bookingPk == null) {
-                      toast.error("Invalid booking reference.");
-                      return;
-                    }
-                    navigate(`/analysis-workspace/${bookingPk}`);
-                  }}
-                >
-                  {hasOpenAnalysisSession ? "Continue Analysis" : analyzeDataButtonLabel}
-                </Button>
-              )}
+              {/* Launch CTA lives in Analysis Workspace below — Actions keeps file folders only
+                  (Raw Data / Analyzed Data) so users do not confuse Analyze Data with a download. */}
               {remoteAnalysisEnabled &&
                 analyzedDataAvailable &&
-                analysisWorkspaceId &&
-                analysisEndedForBooking && (
+                analysisWorkspaceId && (
                 <Button
                   size="sm"
                   variant="default"
