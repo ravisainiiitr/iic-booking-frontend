@@ -9373,6 +9373,14 @@ class ApiClient {
     );
   }
 
+  /** Permanently remove a retired device from inventory (admin console). */
+  async removeRetiredProvisionedDevice(deviceId: string) {
+    return this.request<{ ok?: boolean; removed?: Record<string, unknown> }>(
+      `/v1/provisioning/devices/${encodeURIComponent(deviceId)}/remove/`,
+      { method: 'DELETE' }
+    );
+  }
+
   async getProvisioningAudit(action?: string) {
     const qs = action ? `?action=${encodeURIComponent(action)}` : '';
     return this.request<{ count: number; results: Array<Record<string, unknown>> }>(
