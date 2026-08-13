@@ -83,8 +83,15 @@ type PolicyRow = {
   exists?: boolean;
 };
 
+type InternalDepartment = {
+  id: number;
+  name: string;
+  code: string;
+};
+
 const MODE_LABELS: Record<string, string> = {
   manual_approval: "Manual Approval",
+  department_administrator_login: "Department Administrator Login",
   trusted_auto_approve: "Trusted Auto-Approve",
   restricted_auto_approve: "Restricted Auto-Approve",
   device_code: "Device Code Approval",
@@ -120,16 +127,19 @@ export default function DeviceProvisioningPage() {
   const [policyDeptId, setPolicyDeptId] = useState("");
   const [policyDraft, setPolicyDraft] = useState<Partial<PolicyRow>>({});
   const [policySaving, setPolicySaving] = useState(false);
+  const [internalDepartments, setInternalDepartments] = useState<InternalDepartment[]>([]);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, p, d, r, a, pol] = await Promise.all([
+    const [c, p, d, r, a, pol, depts] = await Promise.all([
       apiClient.getProvisioningConsole(),
       apiClient.getProvisioningPending(),
       apiClient.getProvisionedDevices(),
       apiClient.getRetiredDevices(),
       apiClient.getProvisioningAudit(),
       apiClient.getDepartmentProvisioningPolicies(),
+      apiClient.getDepartments("internal"),
     ]);
     if (c.error || p.error || d.error || r.error || a.error) {
       toast.error(c.error || p.error || d.error || r.error || a.error || "Failed to load");
@@ -144,6 +154,15 @@ export default function DeviceProvisioningPage() {
     if (pol.error) {
       // Policies endpoint may be empty on first deploy — non-fatal for other tabs.
       setPolicies([]);
+    }
+    if (!depts.error && depts.data?.departments) {
+      setInternalDepartments(
+        (depts.data.departments || []).map((x) => ({
+          id: Number(x.id),
+          name: String(x.name || ""),
+          code: String(x.code || ""),
+        }))
+      );
     }
     setLoading(false);
   }, []);
@@ -164,7 +183,7 @@ export default function DeviceProvisioningPage() {
         ? Number(deptRaw)
         : row.department_id ?? undefined;
     if (String(row.device_type || "").toLowerCase() === "dsa" && (department_id == null || Number.isNaN(department_id))) {
-      toast.error("Assign a Department ID before approving a DSA installation");
+      toast.error("Assign an Internal Department before approving a DSA installation");
       return;
     }
     if (department_id != null && !Number.isNaN(department_id) && department_id !== row.department_id) {
@@ -225,6 +244,28 @@ export default function DeviceProvisioningPage() {
     }
   };
 
+  const removeRetired = async (deviceId: string) => {
+    const label =
+      retired.find((d) => d.id === deviceId)?.display_name ||
+      retired.find((d) => d.id === deviceId)?.hostname ||
+      deviceId;
+    if (
+      !window.confirm(
+        `Permanently remove retired device "${label}"?\n\nThis deletes it from the console inventory and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setRemovingId(deviceId);
+    const res = await apiClient.removeRetiredProvisionedDevice(deviceId);
+    setRemovingId(null);
+    if (res.error) toast.error(res.error);
+    else {
+      toast.success("Retired device removed");
+      void load();
+    }
+  };
+
   const approveByCode = async () => {
     const code = deviceCodeInput.trim();
     if (!code) {
@@ -257,7 +298,7 @@ export default function DeviceProvisioningPage() {
   const savePolicy = async () => {
     const id = Number(policyDraft.department_id || policyDeptId);
     if (!id || Number.isNaN(id)) {
-      toast.error("Department ID required");
+      toast.error("Internal Department required");
       return;
     }
     setPolicySaving(true);
@@ -420,13 +461,24 @@ export default function DeviceProvisioningPage() {
                             setRenameDraft((prev) => ({ ...prev, [row.id]: e.target.value }))
                           }
                         />
-                        <Input
-                          placeholder="Department ID"
-                          value={deptDraft[row.id] ?? (row.department_id != null ? String(row.department_id) : "")}
+                        <select
+                          className="flex h-10 w-full min-w-[12rem] rounded-md border border-input bg-background px-3 text-sm"
+                          value={
+                            deptDraft[row.id] ??
+                            (row.department_id != null ? String(row.department_id) : "")
+                          }
                           onChange={(e) =>
                             setDeptDraft((prev) => ({ ...prev, [row.id]: e.target.value }))
                           }
-                        />
+                        >
+                          <option value="">Internal Department…</option>
+                          {internalDepartments.map((dept) => (
+                            <option key={dept.id} value={String(dept.id)}>
+                              {dept.name}
+                              {dept.code ? ` (${dept.code})` : ""}
+                            </option>
+                          ))}
+                        </select>
                         <Button variant="outline" size="sm" onClick={() => void rename(row)}>
                           Rename
                         </Button>
@@ -452,20 +504,30 @@ export default function DeviceProvisioningPage() {
             <CardHeader>
               <CardTitle className="text-lg">Department Settings → Device Provisioning</CardTitle>
               <CardDescription>
-                Choose Manual, Trusted Auto-Approve, Restricted Auto-Approve (CIDR), or Device Code.
-                New departments default to Trusted Auto-Approve. Existing departments without a policy stay Manual.
+                Choose Manual, Department Administrator Login, Trusted Auto-Approve,
+                Restricted Auto-Approve (CIDR), or Device Code. Department Administrator Login
+                auto-approves only when the respective department administrator signs in during
+                installer authentication. New departments default to Trusted Auto-Approve.
+                Existing departments without a policy stay Manual.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Department ID</p>
-                  <Input
-                    className="w-40"
+                  <p className="text-xs text-muted-foreground">Internal Department</p>
+                  <select
+                    className="flex h-10 min-w-[16rem] rounded-md border border-input bg-background px-3 text-sm"
                     value={policyDeptId}
                     onChange={(e) => setPolicyDeptId(e.target.value)}
-                    placeholder="e.g. 12"
-                  />
+                  >
+                    <option value="">Select department…</option>
+                    {internalDepartments.map((dept) => (
+                      <option key={dept.id} value={String(dept.id)}>
+                        {dept.name}
+                        {dept.code ? ` (${dept.code})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => void loadPolicyForDept()}>
                   Load policy
@@ -489,6 +551,12 @@ export default function DeviceProvisioningPage() {
                         </option>
                       ))}
                     </select>
+                    {policyDraft.provisioning_mode === "department_administrator_login" ? (
+                      <p className="text-xs text-muted-foreground">
+                        Approval requires login by the department administrator for the selected
+                        internal department (Main Admin may also approve).
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Allowed Networks (CIDR, one per line)</p>
@@ -664,16 +732,38 @@ export default function DeviceProvisioningPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Retired Devices</CardTitle>
+              <CardDescription>
+                Soft-retired inventory. Use Remove to permanently delete a retired device from the
+                console (cannot be undone).
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {!retired.length ? (
                 <p className="text-sm text-muted-foreground">No retired devices.</p>
               ) : (
                 retired.map((d) => (
-                  <div key={d.id} className="rounded-md border p-3 text-sm">
-                    <span className="font-medium">{d.display_name || d.hostname}</span>{" "}
-                    <Badge variant="secondary">{typeLabel(d.device_type)}</Badge>
-                    <p className="text-xs text-muted-foreground">Retired {d.retired_at || "—"}</p>
+                  <div
+                    key={d.id}
+                    className="flex flex-col gap-2 rounded-md border p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <span className="font-medium">{d.display_name || d.hostname}</span>{" "}
+                      <Badge variant="secondary">{typeLabel(d.device_type)}</Badge>
+                      <p className="text-xs text-muted-foreground">Retired {d.retired_at || "—"}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={removingId === d.id}
+                      onClick={() => void removeRetired(d.id)}
+                    >
+                      {removingId === d.id ? (
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-1 h-4 w-4" />
+                      )}
+                      Remove
+                    </Button>
                   </div>
                 ))
               )}
