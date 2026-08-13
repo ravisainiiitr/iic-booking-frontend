@@ -1510,7 +1510,7 @@ export function BookingDetailCard({
   const analyzeDataButtonLabel = String(
     (analysisSummary as any)?.button_label ||
       (analysisSummary as any)?.analyze?.button_label ||
-      "Analyze Data"
+      "Open Analysis Workspace"
   );
   const showIstemWorkflow =
     !isWaitlistedEntry &&
@@ -2734,8 +2734,7 @@ export function BookingDetailCard({
               )}
               {remoteAnalysisEnabled &&
                 analyzedDataAvailable &&
-                analysisWorkspaceId &&
-                analysisEndedForBooking && (
+                analysisWorkspaceId && (
                 <Button
                   size="sm"
                   variant="default"
