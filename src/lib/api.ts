@@ -4449,6 +4449,7 @@ class ApiClient {
       folder_path?: string;
       file_names?: string[];
       stage?: boolean;
+      source?: string;
     },
   ) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/data-selection/`, {

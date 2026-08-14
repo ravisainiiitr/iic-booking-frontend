@@ -103,8 +103,18 @@ export default function AnalysisWorkspacePage() {
   const [catalogSoftware, setCatalogSoftware] = useState<Array<Record<string, unknown>> | null>(null);
   const [inputMode, setInputMode] = useState<"booking_raw" | "additional" | "previous">("booking_raw");
   const [dataBrowserOpen, setDataBrowserOpen] = useState(false);
+  const [browserScope, setBrowserScope] = useState<"current" | "previous">("current");
   const [dataSelectionLabel, setDataSelectionLabel] = useState<string>("");
   const [dataSourceConfirmed, setDataSourceConfirmed] = useState(false);
+  const [selectionSummary, setSelectionSummary] = useState<{
+    virtualBookingId?: string;
+    folderPath?: string;
+    fileCount?: number;
+    totalSizeBytes?: number;
+    sampleName?: string;
+  } | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadItems, setUploadItems] = useState<Array<{ name: string; size: number; status: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(
@@ -137,6 +147,28 @@ export default function AnalysisWorkspacePage() {
         }
       } else {
         setCatalogSoftware(null);
+      }
+      const sel = (data.analysis_data_selection || {}) as Record<string, unknown>;
+      if (sel && (sel.source || sel.virtual_booking_id || sel.source_booking_id)) {
+        const virtual = String(sel.virtual_booking_id || "");
+        const folder = String(sel.folder_path || "");
+        const count = Number(sel.file_count || (Array.isArray(sel.file_names) ? sel.file_names.length : 0) || 0);
+        setDataSelectionLabel(
+          String(sel.source) === "upload"
+            ? `Uploaded ${count} file(s)`
+            : [virtual, folder].filter(Boolean).join(" · ") || "Selected data"
+        );
+        setDataSourceConfirmed(true);
+        setSelectionSummary({
+          virtualBookingId: virtual,
+          folderPath: folder,
+          fileCount: count,
+          totalSizeBytes: Number(sel.total_size_bytes || 0),
+          sampleName: String(sel.sample_name || ""),
+        });
+        if (String(sel.source) === "upload") setInputMode("additional");
+        else if (String(sel.source) === "previous") setInputMode("previous");
+        else setInputMode("booking_raw");
       }
       setLoading(false);
     },
@@ -284,6 +316,8 @@ export default function AnalysisWorkspacePage() {
   );
 
   const hasDataSource = Boolean(dataSourceConfirmed || dataSelectionLabel);
+  const selectingData = !started && !analysisEnded && !hasDataSource && !awaitingCheckin;
+  const showSessionDashboard = started || awaitingCheckin || (queued && hasDataSource);
   const startDisabled =
     busy ||
     queued ||
@@ -328,7 +362,7 @@ export default function AnalysisWorkspacePage() {
       }
       const data = res.data || {};
       if (data.queued) {
-        toast.message("Your request is in the execution queue.");
+        toast.message("Your data is ready. We are waiting for a compatible Analysis PC.");
         await refresh({ silent: true });
       } else if (data.awaiting_checkin) {
         toast.success("Analysis Environment ready — start your session.");
@@ -376,12 +410,34 @@ export default function AnalysisWorkspacePage() {
   const uploadPastData = async (file: File | null) => {
     if (!file) return;
     setBusy(true);
+    setUploadItems((prev) => [
+      ...prev.filter((p) => p.name !== file.name),
+      { name: file.name, size: file.size, status: "Uploading…" },
+    ]);
     try {
       const res = await apiClient.uploadBookingAnalysisFile(bookingPk, file, "RawData");
-      if (res.error) toast.error(res.error);
-      else {
+      if (res.error) {
+        toast.error(res.error);
+        setUploadItems((prev) =>
+          prev.map((p) => (p.name === file.name ? { ...p, status: "Failed" } : p))
+        );
+      } else {
         setInputMode("additional");
-        toast.success("File uploaded — it will sync before the environment launches.");
+        setDataSourceConfirmed(true);
+        setDataSelectionLabel((prev) => {
+          const nextCount = (uploadItems.length || 0) + 1;
+          return `Uploaded ${nextCount} file(s)`;
+        });
+        setSelectionSummary((prev) => ({
+          virtualBookingId: virtualBookingId,
+          folderPath: "Upload",
+          fileCount: (prev?.fileCount || 0) + 1,
+          totalSizeBytes: (prev?.totalSizeBytes || 0) + file.size,
+        }));
+        setUploadItems((prev) =>
+          prev.map((p) => (p.name === file.name ? { ...p, status: "Uploaded" } : p))
+        );
+        toast.success(`${file.name} uploaded.`);
         await refresh({ silent: true });
       }
     } finally {
@@ -415,10 +471,12 @@ export default function AnalysisWorkspacePage() {
       />
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
-        <DataWorkspaceBanner
-          showDataRoot={false}
-          data={(experience as any)?.data_workspace || null}
-        />
+        {showSessionDashboard ? (
+          <DataWorkspaceBanner
+            showDataRoot={false}
+            data={(experience as any)?.data_workspace || null}
+          />
+        ) : null}
 
         {analysisEnded ? (
           <Card className="border-muted bg-muted/30">
@@ -436,8 +494,8 @@ export default function AnalysisWorkspacePage() {
           </Card>
         ) : null}
 
-        {/* Primary CTA at top — Open Analysis Environment (do not bury at page bottom). */}
-        {!analysisEnded && (!loading || summary) ? (
+        {/* Session dashboard CTA — shown after data is confirmed or a session exists. */}
+        {!analysisEnded && !selectingData && (!loading || summary) ? (
           <Card className="overflow-hidden border-[#0b3d91]/25 bg-white shadow-md dark:border-sky-800/50 dark:bg-card">
             <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
               <div className="min-w-0 space-y-1">
@@ -537,6 +595,7 @@ export default function AnalysisWorkspacePage() {
           </Card>
         ) : (
           <>
+            {showSessionDashboard ? (
             <WorkspaceStatusStrip
               remainingSeconds={remainingSeconds}
               plannedSeconds={remainingSeconds == null ? plannedSeconds : null}
@@ -570,15 +629,14 @@ export default function AnalysisWorkspacePage() {
                   : undefined
               }
             />
+            ) : null}
 
-            {/* R13 — data selection comes first; allocation may continue in parallel */}
-            {!started && !dataSourceConfirmed && !dataSelectionLabel ? (
+            {selectingData ? (
               <Card className="border-sky-500/25 bg-gradient-to-br from-sky-50/80 to-white shadow-sm dark:from-sky-950/20 dark:to-background">
                 <CardHeader>
                   <CardTitle className="text-xl">What data would you like to analyze?</CardTitle>
                   <CardDescription>
-                    Choose a data source before (or while) an Analysis PC is allocated. You do not need
-                    to wait for a PC to select your files.
+                    Choose the data you want to use for this Remote Analysis session.
                   </CardDescription>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span>
@@ -595,7 +653,7 @@ export default function AnalysisWorkspacePage() {
                     className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-sky-500/50 hover:shadow-md"
                     onClick={() => {
                       setInputMode("booking_raw");
-                      setDataSourceConfirmed(true);
+                      setBrowserScope("current");
                       setDataBrowserOpen(true);
                     }}
                   >
@@ -603,7 +661,7 @@ export default function AnalysisWorkspacePage() {
                       Current Booking Data
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Use data associated with this booking (sample folders and result files).
+                      Use data from this booking.
                     </p>
                     <span className="mt-4 inline-flex text-sm font-medium text-sky-700 dark:text-sky-300">
                       Select →
@@ -611,10 +669,10 @@ export default function AnalysisWorkspacePage() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-sky-500/50 hover:shadow-md"
+                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-violet-500/50 hover:shadow-md"
                     onClick={() => {
                       setInputMode("previous");
-                      setDataSourceConfirmed(true);
+                      setBrowserScope("previous");
                       setDataBrowserOpen(true);
                     }}
                   >
@@ -622,7 +680,7 @@ export default function AnalysisWorkspacePage() {
                       Previous Booking Data
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Search your authorized previous bookings by sample, file, equipment, or date.
+                      Use data from an earlier authorized booking.
                     </p>
                     <span className="mt-4 inline-flex text-sm font-medium text-violet-700 dark:text-violet-300">
                       Browse →
@@ -630,18 +688,17 @@ export default function AnalysisWorkspacePage() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-sky-500/50 hover:shadow-md"
+                    className="rounded-2xl border bg-card p-5 text-left shadow-sm transition hover:border-emerald-500/50 hover:shadow-md"
                     onClick={() => {
                       setInputMode("additional");
-                      setDataSourceConfirmed(true);
-                      fileInputRef.current?.click();
+                      setUploadOpen(true);
                     }}
                   >
                     <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                       Upload Data
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Drag &amp; drop or browse files from your computer (large files stream when supported).
+                      Drag &amp; drop or browse files.
                     </p>
                     <span className="mt-4 inline-flex text-sm font-medium text-emerald-700 dark:text-emerald-300">
                       Upload →
@@ -650,28 +707,56 @@ export default function AnalysisWorkspacePage() {
                 </CardContent>
               </Card>
             ) : null}
-            {dataSelectionLabel || dataSourceConfirmed ? (
+            {hasDataSource && !started ? (
               <Card className="border-emerald-500/20 bg-emerald-500/5">
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm">
-                  <div>
-                    <p className="font-medium text-emerald-900 dark:text-emerald-100">Selected data</p>
-                    <p className="text-muted-foreground">
-                      {dataSelectionLabel ||
-                        (inputMode === "additional"
-                          ? "Upload mode — add files below"
-                          : "Continue with booking / previous data selection")}
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Your Analysis Data</CardTitle>
+                  <CardDescription>Confirm this selection to continue into Remote Analysis.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <p>
+                    Booking:{" "}
+                    <strong>{selectionSummary?.virtualBookingId || virtualBookingId}</strong>
+                  </p>
+                  <p>
+                    Data:{" "}
+                    <strong>{selectionSummary?.folderPath || dataSelectionLabel || "Selected dataset"}</strong>
+                  </p>
+                  <p>
+                    Files: <strong>{selectionSummary?.fileCount ?? "—"}</strong>
+                  </p>
+                  <p>
+                    Size:{" "}
+                    <strong>
+                      {selectionSummary?.totalSizeBytes != null
+                        ? formatBytes(selectionSummary.totalSizeBytes)
+                        : "—"}
+                    </strong>
+                  </p>
+                  {queued ? (
+                    <p className="pt-2 text-amber-800 dark:text-amber-200">
+                      Your data is ready. We are waiting for a compatible Analysis PC.
                     </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2 pt-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setDataSourceConfirmed(false);
+                        setDataSelectionLabel("");
+                        setSelectionSummary(null);
+                      }}
+                    >
+                      Back
+                    </Button>
+                    {!queued && !awaitingCheckin ? (
+                      <Button size="sm" disabled={busy} onClick={() => void openOrStart()}>
+                        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Use This Data →
+                      </Button>
+                    ) : null}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setDataSourceConfirmed(false);
-                      setDataSelectionLabel("");
-                    }}
-                  >
-                    Change source
-                  </Button>
                 </CardContent>
               </Card>
             ) : null}
@@ -717,6 +802,8 @@ export default function AnalysisWorkspacePage() {
               </Card>
             ) : null}
 
+            {showSessionDashboard ? (
+            <>
             <div className="grid gap-4 lg:grid-cols-[minmax(240px,1.05fr)_minmax(0,2.1fr)_minmax(240px,1.05fr)] lg:gap-5 xl:gap-6">
               {/* Left — booking */}
               <Card className="border-slate-200/80 shadow-sm dark:border-border">
@@ -741,6 +828,36 @@ export default function AnalysisWorkspacePage() {
                     }
                   />
                   <InfoRow label="Workflow" value={selected?.name || "—"} />
+                  {((experience as any)?.data_workspace?.input_path ||
+                    (experience as any)?.workspace?.label) &&
+                  (started || awaitingCheckin) ? (
+                    <div className="rounded-lg border bg-muted/30 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Session Information
+                      </p>
+                      {(experience as any)?.data_workspace?.input_path ? (
+                        <p className="mt-1 text-xs">
+                          Your selected data will be available on the Analysis PC at:
+                          <br />
+                          <strong className="break-all">
+                            {String((experience as any).data_workspace.input_path)}
+                          </strong>
+                        </p>
+                      ) : null}
+                      {(experience as any)?.workspace?.label || summary?.workspace_id ? (
+                        <p className="mt-2 text-xs">
+                          Session Workspace:{" "}
+                          <strong>
+                            {String(
+                              (experience as any)?.workspace?.label ||
+                                summary?.workspace_id ||
+                                "Prepared"
+                            )}
+                          </strong>
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                       Session status
@@ -1154,6 +1271,8 @@ export default function AnalysisWorkspacePage() {
                 </p>
               )}
             </div>
+            </>
+            ) : null}
           </>
         )}
       </div>
@@ -1162,18 +1281,85 @@ export default function AnalysisWorkspacePage() {
           bookingId={bookingPk}
           open={dataBrowserOpen}
           onOpenChange={setDataBrowserOpen}
+          initialScope={browserScope}
           onSelected={(info) => {
-            const n = info.fileNames?.length || 0;
-            setDataSelectionLabel(
-              n
-                ? `Selected ${n} file(s) from booking #${info.sourceBookingId}`
-                : `Selected data from booking #${info.sourceBookingId}`
-            );
+            const virtual = info.virtualBookingId || virtualBookingId;
+            const n = info.fileCount || info.fileNames?.length || 0;
+            setDataSelectionLabel(n ? `${virtual} · ${n} file(s)` : virtual);
+            setSelectionSummary({
+              virtualBookingId: virtual,
+              folderPath: info.folderPath || "",
+              fileCount: n,
+              totalSizeBytes: info.totalSizeBytes || 0,
+              sampleName: info.sampleName || "",
+            });
             setDataSourceConfirmed(true);
-            setInputMode("booking_raw");
+            setInputMode(browserScope === "previous" ? "previous" : "booking_raw");
             void refresh({ silent: true });
           }}
         />
+      ) : null}
+      {uploadOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-lg shadow-xl">
+            <CardHeader>
+              <CardTitle>Upload Data</CardTitle>
+              <CardDescription>Drag &amp; drop or browse files from your computer.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <button
+                type="button"
+                className="flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-10 text-sm text-muted-foreground hover:border-emerald-500/60 hover:bg-emerald-50/50"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const files = Array.from(e.dataTransfer.files || []);
+                  files.forEach((file) => void uploadPastData(file));
+                }}
+              >
+                <Upload className="mb-2 h-6 w-6" />
+                Drop files here or click to browse
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  files.forEach((file) => void uploadPastData(file));
+                }}
+              />
+              {uploadItems.length ? (
+                <ul className="space-y-1 text-sm">
+                  {uploadItems.map((item) => (
+                    <li key={item.name} className="flex items-center justify-between gap-2">
+                      <span className="truncate">{item.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatBytes(item.size)} · {item.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setUploadOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  disabled={!uploadItems.some((i) => i.status === "Uploaded")}
+                  onClick={() => {
+                    setUploadOpen(false);
+                    setDataSourceConfirmed(true);
+                  }}
+                >
+                  Continue →
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : null}
     </div>
   );

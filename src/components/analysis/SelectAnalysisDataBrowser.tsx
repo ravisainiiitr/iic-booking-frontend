@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -24,68 +23,46 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
+import {
+  type DataBrowserDataset,
+  type DataBrowserFolder,
+  datasetBookingLabel,
+  formatBookingWhen,
+  formatBytes,
+} from "@/components/analysis/dataBrowserUtils";
 
-export type DataBrowserFile = {
-  name: string;
-  relative_path?: string;
-  size?: number;
-  size_bytes?: number;
-  type?: string;
-  modified_at?: string | null;
-  source?: string;
-  entry_key?: string;
-};
-
-export type DataBrowserFolder = {
-  name: string;
-  path: string;
-  files: DataBrowserFile[];
-  file_count?: number;
-  total_size_bytes?: number;
-  has_more_files?: boolean;
-};
-
-export type DataBrowserDataset = {
-  booking_id: string;
-  booking_pk: number;
-  booking_reference?: string;
-  virtual_booking_id?: string;
-  equipment_name?: string;
-  equipment_code?: string;
-  sample_name?: string;
-  booking_date?: string | null;
-  booking_time?: string | null;
-  is_current?: boolean;
-  file_count?: number;
-  total_size_bytes?: number;
-  folders: DataBrowserFolder[];
-};
+export type {
+  DataBrowserDataset,
+  DataBrowserFile,
+  DataBrowserFolder,
+} from "@/components/analysis/dataBrowserUtils";
 
 type Props = {
   bookingId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialScope?: "current" | "previous";
   onSelected?: (info: {
     sourceBookingId: number;
+    virtualBookingId?: string;
     folderPath?: string;
     fileNames: string[];
+    fileCount?: number;
+    totalSizeBytes?: number;
+    sampleName?: string;
     preview?: Record<string, unknown>;
   }) => void;
 };
 
-function formatBytes(n?: number) {
-  const v = Number(n || 0);
-  if (v < 1024) return `${v} B`;
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
-  return `${(v / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSelected }: Props) {
-  const [scope, setScope] = useState<"current" | "previous" | "all">("all");
+export function SelectAnalysisDataBrowser({
+  bookingId,
+  open,
+  onOpenChange,
+  initialScope = "current",
+  onSelected,
+}: Props) {
+  const [scope, setScope] = useState<"current" | "previous">(initialScope);
   const [q, setQ] = useState("");
-  const [equipment, setEquipment] = useState("");
-  const [sample, setSample] = useState("");
-  const [fileType, setFileType] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [datasets, setDatasets] = useState<DataBrowserDataset[]>([]);
@@ -93,9 +70,13 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
   const [selectedDatasetPk, setSelectedDatasetPk] = useState<number | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string>("");
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [preview, setPreview] = useState<DataBrowserFile | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (open) setScope(initialScope);
+  }, [open, initialScope]);
 
   const load = useCallback(async () => {
     if (!bookingId || !open) return;
@@ -103,9 +84,6 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
     try {
       const res = await apiClient.getBookingAnalysisDataBrowser(bookingId, {
         q: q.trim() || undefined,
-        equipment: equipment.trim() || undefined,
-        sample: sample.trim() || undefined,
-        file_type: fileType.trim() || undefined,
         scope,
         page,
         page_size: 20,
@@ -125,7 +103,7 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
     } finally {
       setLoading(false);
     }
-  }, [bookingId, open, q, equipment, sample, fileType, scope, page]);
+  }, [bookingId, open, q, scope, page]);
 
   useEffect(() => {
     void load();
@@ -136,8 +114,9 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
       setSelectedDatasetPk(null);
       setSelectedFolder("");
       setSelectedFiles([]);
-      setPreview(null);
       setPage(1);
+      setConfirming(false);
+      setExpanded({});
     }
   }, [open]);
 
@@ -145,6 +124,28 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
     () => datasets.find((d) => d.booking_pk === selectedDatasetPk) || null,
     [datasets, selectedDatasetPk]
   );
+
+  const expandDataset = async (ds: DataBrowserDataset) => {
+    const key = String(ds.booking_pk);
+    const nextOpen = !expanded[key];
+    setExpanded((prev) => ({ ...prev, [key]: nextOpen }));
+    setSelectedDatasetPk(ds.booking_pk);
+    if (!nextOpen) return;
+    if ((ds.folders || []).length > 0) return;
+    const res = await apiClient.getBookingAnalysisDataBrowser(bookingId, {
+      scope,
+      source_booking_id: ds.booking_pk,
+      page: 1,
+      page_size: 1,
+    });
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    const detailed = ((res.data as { datasets?: DataBrowserDataset[] })?.datasets || [])[0];
+    if (!detailed) return;
+    setDatasets((prev) => prev.map((row) => (row.booking_pk === ds.booking_pk ? { ...row, ...detailed } : row)));
+  };
 
   const toggleFile = (relativePath: string) => {
     setSelectedFiles((prev) =>
@@ -158,6 +159,14 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
     setSelectedFiles(names);
   };
 
+  const goConfirm = () => {
+    if (!selectedDatasetPk) {
+      toast.error("Choose a dataset first.");
+      return;
+    }
+    setConfirming(true);
+  };
+
   const confirmSelect = async () => {
     if (!selectedDatasetPk) {
       toast.error("Choose a dataset first.");
@@ -169,18 +178,23 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
         source_booking_id: selectedDatasetPk,
         folder_path: selectedFolder || undefined,
         file_names: selectedFiles.length ? selectedFiles : undefined,
-        stage: true,
+        stage: false,
       });
       if (res.error) {
         toast.error(res.error);
         return;
       }
+      const preview = (res.data as Record<string, unknown>)?.preview as Record<string, unknown> | undefined;
       toast.success("Analysis data selected.");
       onSelected?.({
         sourceBookingId: selectedDatasetPk,
+        virtualBookingId: datasetBookingLabel(selectedDataset || ({} as DataBrowserDataset)),
         folderPath: selectedFolder || undefined,
         fileNames: selectedFiles,
-        preview: (res.data as Record<string, unknown>)?.preview as Record<string, unknown> | undefined,
+        fileCount: Number(preview?.file_count || selectedFiles.length || selectedDataset?.file_count || 0),
+        totalSizeBytes: Number(preview?.size || selectedDataset?.total_size_bytes || 0),
+        sampleName: String(preview?.sample_name || selectedDataset?.sample_name || ""),
+        preview,
       });
       onOpenChange(false);
     } finally {
@@ -188,24 +202,55 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
     }
   };
 
+  const title = scope === "previous" ? "Previous Booking Data" : "Current Booking Data";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-full max-w-3xl overflow-hidden p-0 sm:rounded-xl">
         <DialogHeader className="border-b px-6 py-4 text-left">
-          <DialogTitle>Select Analysis Data</DialogTitle>
+          <DialogTitle>{confirming ? "Your Analysis Data" : title}</DialogTitle>
           <DialogDescription>
-            Browse Current and Previous booking data by sample, equipment, and files. Metadata only —
-            nothing is made public.
+            {confirming
+              ? "Confirm the data that will be prepared for Remote Analysis."
+              : "Search by virtual booking ID, sample, file, or folder. Only your authorized bookings for this equipment are shown."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 px-6 py-3">
-          <div className="flex flex-wrap gap-2">
-            <div className="relative min-w-[180px] flex-1">
+        {confirming && selectedDataset ? (
+          <div className="space-y-3 px-6 py-5 text-sm">
+            <div className="rounded-xl border bg-muted/20 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Booking</p>
+              <p className="mt-1 text-base font-semibold">{datasetBookingLabel(selectedDataset)}</p>
+              {selectedDataset.sample_name ? (
+                <p className="mt-2 text-muted-foreground">
+                  Sample: <span className="text-foreground">{selectedDataset.sample_name}</span>
+                </p>
+              ) : null}
+              <p className="mt-2 text-muted-foreground">
+                Data:{" "}
+                <span className="text-foreground">
+                  {selectedFolder || (selectedFiles.length ? selectedFiles[0] : "Entire dataset")}
+                </span>
+              </p>
+              <p className="mt-2 text-muted-foreground">
+                Files:{" "}
+                <span className="text-foreground">
+                  {selectedFiles.length || selectedDataset.file_count || 0}
+                </span>
+              </p>
+              <p className="mt-2 text-muted-foreground">
+                Size:{" "}
+                <span className="text-foreground">{formatBytes(selectedDataset.total_size_bytes)}</span>
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 px-6 py-3">
+            <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 className="pl-8"
-                placeholder="Search sample, file, booking…"
+                placeholder="Search virtual booking ID, sample, file, or folder…"
                 value={q}
                 onChange={(e) => {
                   setPage(1);
@@ -213,79 +258,37 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
                 }}
               />
             </div>
-            <Input
-              className="w-[140px]"
-              placeholder="Equipment"
-              value={equipment}
-              onChange={(e) => {
-                setPage(1);
-                setEquipment(e.target.value);
-              }}
-            />
-            <Input
-              className="w-[140px]"
-              placeholder="Sample"
-              value={sample}
-              onChange={(e) => {
-                setPage(1);
-                setSample(e.target.value);
-              }}
-            />
-            <Input
-              className="w-[110px]"
-              placeholder="File type"
-              value={fileType}
-              onChange={(e) => {
-                setPage(1);
-                setFileType(e.target.value);
-              }}
-            />
-          </div>
 
-          <Tabs
-            value={scope}
-            onValueChange={(v) => {
-              setPage(1);
-              setScope(v as "current" | "previous" | "all");
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="current">Current Data</TabsTrigger>
-              <TabsTrigger value="previous">Previous Data</TabsTrigger>
-            </TabsList>
-            <TabsContent value={scope} className="mt-3">
-              <ScrollArea className="h-[42vh] rounded-lg border">
-                <div className="space-y-2 p-3">
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading datasets…
-                    </div>
-                  ) : null}
-                  {!loading && datasets.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      No datasets match these filters.
-                    </p>
-                  ) : null}
-                  {datasets.map((ds) => {
-                    const key = String(ds.booking_pk);
-                    const isOpen = Boolean(expanded[key]);
-                    const active = selectedDatasetPk === ds.booking_pk;
-                    return (
-                      <div
-                        key={key}
-                        className={cn(
-                          "rounded-xl border p-3 transition",
-                          active ? "border-primary bg-primary/5" : "hover:bg-muted/40"
-                        )}
-                      >
+            <ScrollArea className="h-[46vh] rounded-lg border">
+              <div className="space-y-2 p-3">
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading datasets…
+                  </div>
+                ) : null}
+                {!loading && datasets.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No authorized datasets match this search.
+                  </p>
+                ) : null}
+                {datasets.map((ds) => {
+                  const key = String(ds.booking_pk);
+                  const isOpen = Boolean(expanded[key]);
+                  const active = selectedDatasetPk === ds.booking_pk;
+                  const label = datasetBookingLabel(ds);
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        "rounded-xl border p-3 transition",
+                        active ? "border-primary bg-primary/5" : "hover:bg-muted/40"
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
                         <button
                           type="button"
-                          className="flex w-full items-start gap-2 text-left"
-                          onClick={() => {
-                            setSelectedDatasetPk(ds.booking_pk);
-                            setExpanded((prev) => ({ ...prev, [key]: !isOpen }));
-                          }}
+                          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                          onClick={() => void expandDataset(ds)}
                         >
                           {isOpen ? (
                             <ChevronDown className="mt-0.5 h-4 w-4 shrink-0" />
@@ -294,9 +297,6 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-semibold">
-                                {ds.sample_name || "Untitled sample"}
-                              </span>
                               {ds.is_current ? (
                                 <Badge className="text-[10px]">Current</Badge>
                               ) : (
@@ -305,136 +305,134 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
                                 </Badge>
                               )}
                             </div>
+                            <p className="mt-1 font-semibold tracking-tight">{label}</p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {ds.equipment_name || "—"}
-                              {ds.equipment_code ? ` (${ds.equipment_code})` : ""} ·{" "}
-                              {ds.booking_date || "—"}
-                              {ds.booking_time ? ` ${ds.booking_time}` : ""} · Ref{" "}
-                              {ds.virtual_booking_id || ds.booking_id}
+                              {formatBookingWhen(ds.booking_date, ds.booking_time) || "—"}
                             </p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {ds.equipment_name || "—"}
+                            </p>
+                            {ds.sample_name && !/^\d+$/.test(String(ds.sample_name).trim()) ? (
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                Sample: {ds.sample_name}
+                              </p>
+                            ) : null}
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {ds.file_count ?? 0} files · {formatBytes(ds.total_size_bytes)}
                             </p>
                           </div>
                         </button>
-
-                        {isOpen ? (
-                          <div className="mt-3 space-y-2 border-t pt-3 pl-6">
-                            {(ds.folders || []).map((folder) => (
-                              <div key={`${key}-${folder.path || folder.name}`} className="space-y-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                                    <Folder className="h-3.5 w-3.5 text-amber-600" />
-                                    {folder.name || "Root"}
-                                    <span className="text-xs font-normal text-muted-foreground">
-                                      ({folder.file_count ?? folder.files?.length ?? 0})
-                                    </span>
-                                  </p>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-xs"
-                                    onClick={() => {
-                                      setSelectedDatasetPk(ds.booking_pk);
-                                      selectFolderAll(folder);
-                                    }}
-                                  >
-                                    Select folder
-                                  </Button>
-                                </div>
-                                <ul className="space-y-1">
-                                  {(folder.files || []).map((file) => {
-                                    const rel = file.relative_path || file.name;
-                                    const checked = selectedFiles.includes(rel);
-                                    return (
-                                      <li
-                                        key={rel}
-                                        className="flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-muted/50"
-                                      >
-                                        <Checkbox
-                                          checked={checked}
-                                          onCheckedChange={() => {
-                                            setSelectedDatasetPk(ds.booking_pk);
-                                            setSelectedFolder(folder.path || "");
-                                            toggleFile(rel);
-                                          }}
-                                        />
-                                        <button
-                                          type="button"
-                                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                                          onClick={() => setPreview(file)}
-                                        >
-                                          <FileIcon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                                          <span className="truncate">{file.name}</span>
-                                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                                            {formatBytes(file.size_bytes ?? file.size)} ·{" "}
-                                            {file.type || "file"}
-                                          </span>
-                                        </button>
-                                      </li>
-                                    );
-                                  })}
-                                </ul>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
+                        <Button
+                          size="sm"
+                          variant={active ? "default" : "outline"}
+                          className="shrink-0"
+                          onClick={() => {
+                            setSelectedDatasetPk(ds.booking_pk);
+                            setConfirming(false);
+                          }}
+                        >
+                          Select
+                        </Button>
                       </div>
-                    );
-                  })}
-                  {hasMore ? (
-                    <div className="pt-2 text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={loading}
-                        onClick={() => setPage((p) => p + 1)}
-                      >
-                        Load more
-                      </Button>
+
+                      {isOpen ? (
+                        <div className="mt-3 space-y-2 border-t pt-3 pl-6">
+                          {(ds.folders || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No files listed yet.</p>
+                          ) : null}
+                          {(ds.folders || []).map((folder) => (
+                            <div key={`${key}-${folder.path || folder.name}`} className="space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="flex items-center gap-1.5 text-sm font-medium">
+                                  <Folder className="h-3.5 w-3.5 text-amber-600" />
+                                  {folder.name || "Root"}
+                                  <span className="text-xs font-normal text-muted-foreground">
+                                    ({folder.file_count ?? folder.files?.length ?? 0})
+                                  </span>
+                                </p>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs"
+                                  onClick={() => {
+                                    setSelectedDatasetPk(ds.booking_pk);
+                                    selectFolderAll(folder);
+                                  }}
+                                >
+                                  Select folder
+                                </Button>
+                              </div>
+                              <ul className="space-y-1">
+                                {(folder.files || []).map((file) => {
+                                  const rel = file.relative_path || file.name;
+                                  const checked = selectedFiles.includes(rel);
+                                  return (
+                                    <li
+                                      key={rel}
+                                      className="flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-muted/50"
+                                    >
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={() => {
+                                          setSelectedDatasetPk(ds.booking_pk);
+                                          setSelectedFolder(folder.path || "");
+                                          toggleFile(rel);
+                                        }}
+                                      />
+                                      <FileIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatBytes(file.size_bytes ?? file.size)}
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-
-          {preview ? (
-            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-              <p className="font-medium">Preview</p>
-              <p className="mt-1 text-muted-foreground">
-                <strong className="text-foreground">{preview.name}</strong> ·{" "}
-                {formatBytes(preview.size_bytes ?? preview.size)} · {preview.type || "unknown"} ·{" "}
-                source {preview.source || "—"}
-                {preview.modified_at ? ` · ${preview.modified_at}` : ""}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                File contents are not streamed here. Select the file or folder to stage into your
-                Analysis Workspace Input Data folder.
-              </p>
-            </div>
-          ) : null}
-
-          {selectedDataset ? (
-            <p className="text-xs text-muted-foreground">
-              Selected dataset: {selectedDataset.sample_name || selectedDataset.virtual_booking_id}
-              {selectedFiles.length
-                ? ` · ${selectedFiles.length} file(s)`
-                : selectedFolder
-                  ? ` · folder ${selectedFolder || "Root"}`
-                  : " · entire dataset"}
-            </p>
-          ) : null}
-        </div>
+                  );
+                })}
+                {hasMore ? (
+                  <div className="pt-2 text-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={loading}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      Load more
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
 
         <DialogFooter className="border-t px-6 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button onClick={() => void confirmSelect()} disabled={busy || !selectedDatasetPk}>
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Use selected data
-          </Button>
+          {confirming ? (
+            <>
+              <Button variant="outline" onClick={() => setConfirming(false)} disabled={busy}>
+                Back
+              </Button>
+              <Button onClick={() => void confirmSelect()} disabled={busy || !selectedDatasetPk}>
+                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Use This Data →
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={goConfirm} disabled={busy || !selectedDatasetPk}>
+                Continue →
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

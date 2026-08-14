@@ -167,6 +167,7 @@ export type EquipmentFormData = {
   repeat_sample_request_days?: number | null;
   repeat_sample_disclaimer?: string | null;
   enable_remote_analysis?: boolean;
+  auto_complete_booking?: boolean;
   remote_analysis_enabled_from_status?: string | null;
   analysis_workspace_retention_days?: number | null;
   analysis_session_limit?: number | null;
@@ -336,6 +337,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
     enable_remote_analysis: false,
+    auto_complete_booking: false,
     remote_analysis_enabled_from_status: "COMPLETED",
     analysis_workspace_retention_days: 90,
     analysis_session_limit: 5,
@@ -598,6 +600,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         repeat_sample_request_days: (d.repeat_sample_request_days as number | null) ?? null,
         repeat_sample_disclaimer: (d.repeat_sample_disclaimer as string) ?? "",
         enable_remote_analysis: d.enable_remote_analysis === true,
+        auto_complete_booking: d.auto_complete_booking === true,
         remote_analysis_enabled_from_status: (d.remote_analysis_enabled_from_status as string) || "COMPLETED",
         analysis_workspace_retention_days: (d.analysis_workspace_retention_days as number | null) ?? 90,
         analysis_session_limit: (d.analysis_session_limit as number | null) ?? 5,
@@ -819,6 +822,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
       enable_remote_analysis: formData.enable_remote_analysis === true,
+      auto_complete_booking: formData.auto_complete_booking === true,
       remote_analysis_enabled_from_status: formData.remote_analysis_enabled_from_status || "COMPLETED",
       analysis_workspace_retention_days: formData.analysis_workspace_retention_days ?? 90,
       analysis_session_limit: formData.analysis_session_limit ?? 5,
@@ -1643,7 +1647,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       <FormSection
         id="eq-sec-remote-analysis"
         title="Remote Analysis"
-        description="Enable browser remote desktop analysis after booking completion. Shows only when Remote Analysis is enabled."
+        description="Remote Analysis and Auto Complete Booking are independent equipment settings."
         defaultOpen={false}
       >
         <div className="space-y-4 max-w-2xl">
@@ -1655,6 +1659,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             />
             Enable Remote Analysis
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={formData.auto_complete_booking === true}
+              onChange={(e) => setFormData((p) => ({ ...p, auto_complete_booking: e.target.checked }))}
+            />
+            Enable Auto Complete Booking
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Independent of Remote Analysis. When enabled, bookings for this equipment are marked
+            Completed after the scheduled end time only if meaningful result data exists.
+          </p>
           {formData.enable_remote_analysis && (
             <>
               <div className="space-y-2">
