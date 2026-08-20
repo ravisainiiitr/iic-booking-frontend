@@ -39,6 +39,9 @@ import TAAssignments from "./pages/TAAssignments";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Wallet from "./pages/Wallet";
 import WalletPeerTransfer from "./pages/WalletPeerTransfer";
+import WalletCreditFacilityRequest from "./pages/WalletCreditFacilityRequest";
+import AdminWalletCreditManagement from "./pages/AdminWalletCreditManagement";
+import IdentityAdministration from "./pages/IdentityAdministration";
 import Reports from "./pages/Reports";
 import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
@@ -172,6 +175,10 @@ const App = () => (
                 <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
                 <Route path="/wallet" element={<Wallet />} />
                 <Route path="/wallet/transfer" element={<WalletPeerTransfer />} />
+                <Route path="/wallet/credit-facility" element={<WalletCreditFacilityRequest />} />
+                <Route path="/admin/wallet-credit" element={<AdminWalletCreditManagement />} />
+                <Route path="/admin/wallet-credit/:facilityId" element={<AdminWalletCreditManagement />} />
+                <Route path="/admin/identity" element={<IdentityAdministration />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/bookings" element={<ReportBookingsList />} />
                 <Route path="/proforma-invoice" element={<ProformaInvoice />} />

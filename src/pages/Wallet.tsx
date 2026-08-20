@@ -2209,6 +2209,15 @@ const Wallet = () => {
                     Transfer
                   </Button>
                 )}
+                {!isShared && (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/wallet/credit-facility")}
+                    className="flex items-center gap-2"
+                  >
+                    Credit Facility
+                  </Button>
+                )}
                 {canShowWalletRecharge && (
                   <Button
                     onClick={() => openRechargeDialog()}
@@ -3019,8 +3028,11 @@ const Wallet = () => {
             </CardTitle>
             <CardDescription>
               Funds allocated by department. Equipment linked to a department deducts from the corresponding
-              sub-wallet. Eligible faculty can avail a one-time Credit Facility here, and track limit,
-              outstanding, and recovery after recharges.
+              sub-wallet. For temporary credit, use{" "}
+              <button type="button" className="underline" onClick={() => navigate("/wallet/credit-facility")}>
+                Credit Facility → Request Wallet Credit
+              </button>{" "}
+              (Main Administrator approval). Automatic overdraft credit is retired.
             </CardDescription>
           </CardHeader>
           <CardContent>

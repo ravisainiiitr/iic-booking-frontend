@@ -18,6 +18,7 @@ import {
   UserCog,
   UserPlus,
   Landmark,
+  IdCard,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
@@ -159,12 +160,30 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
   },
   {
     key: "walletCreditFacilitySettings",
-    label: "Wallet Credit Facility Settings",
-    description: "Temporary credit line defaults for faculty wallet recharge requests",
+    label: "Wallet Credit Facility Settings (retired)",
+    description: "Legacy temporary recharge credit defaults (retired — use Wallet Credit Management)",
     icon: <CreditCard className="h-6 w-6" />,
     path: "/admin-settings/wallet-credit-facility-settings",
     mainAdminOnly: true,
     moduleKey: "user_management.wallet_credit_facility_settings",
+  },
+  {
+    key: "walletCreditManagement",
+    label: "Wallet Credit Management",
+    description: "Review Channel-I profiles and approve/reject administrator-controlled wallet credit requests",
+    icon: <CreditCard className="h-6 w-6" />,
+    path: "/admin/wallet-credit",
+    mainAdminOnly: true,
+    moduleKey: "user_management.wallet_credit_facility_settings",
+  },
+  {
+    key: "identityAdministration",
+    label: "Identity, Department Mapping & HoD",
+    description: "Channel-I identity, degree classification, department mapping, HoD, student lifecycle",
+    icon: <IdCard className="h-6 w-6" />,
+    path: "/admin/identity",
+    mainAdminOnly: true,
+    moduleKey: "user_management",
   },
   {
     key: "walletStudentRechargeSettings",

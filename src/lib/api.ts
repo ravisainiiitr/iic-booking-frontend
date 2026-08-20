@@ -3539,7 +3539,7 @@ class ApiClient {
     }>("/department-faculty-credit-facility/my-status/", { method: "GET" });
   }
 
-  /** Faculty Wallet: avail one-time department credit facility. */
+  /** Faculty Wallet: avail one-time department credit facility (RETIRED — returns 410). */
   async availDepartmentFacultyCreditFacility(data: { department_id: number; amount: number | string }) {
     return this.request<{
       message: string;
@@ -3564,6 +3564,152 @@ class ApiClient {
         amount: data.amount,
       }),
     });
+  }
+
+  /** Administrator-approved Wallet Credit Facility (v2) */
+  async getWalletCreditFacilitySummary() {
+    return this.request<{
+      feature_enabled: boolean;
+      current_wallet_balance: string;
+      existing_outstanding_credit: string;
+      active_facility_reference: string | null;
+      eligibility: { allowed: boolean; code: string; message: string };
+      notice: string;
+      policy: {
+        max_credit_amount: string;
+        min_request_amount: string;
+        max_outstanding_amount: string;
+        max_credit_duration_days: number;
+      };
+    }>("/wallet/credit-requests/summary/", { method: "GET" });
+  }
+
+  async listWalletCreditFacilities() {
+    return this.request<{ results: any[] }>("/wallet/credit-requests/", { method: "GET" });
+  }
+
+  async requestWalletCreditFacility(data: {
+    requested_amount: number | string;
+    purpose: string;
+    remarks?: string;
+    department_id?: number;
+  }) {
+    return this.request<any>("/wallet/credit-requests/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async repayWalletCreditFacility(
+    facilityId: number | string,
+    data: { amount: number | string; mode?: string; utr_or_reference?: string; remarks?: string },
+  ) {
+    return this.request<any>(`/wallet/credit-requests/${facilityId}/repay/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminListWalletCreditFacilities(params?: { status?: string; employee_id?: string; user?: string }) {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.employee_id) q.set("employee_id", params.employee_id);
+    if (params?.user) q.set("user", params.user);
+    const qs = q.toString();
+    return this.request<{ counts: Record<string, number>; results: any[] }>(
+      `/admin/wallet-credit/${qs ? `?${qs}` : ""}`,
+      { method: "GET" },
+    );
+  }
+
+  async adminGetWalletCreditFacility(facilityId: number | string) {
+    return this.request<any>(`/admin/wallet-credit/${facilityId}/`, { method: "GET" });
+  }
+
+  async adminApproveWalletCreditFacility(
+    facilityId: number | string,
+    data: {
+      approved_amount?: number | string;
+      due_date?: string;
+      reason?: string;
+      post_credit?: boolean;
+    },
+  ) {
+    return this.request<any>(`/admin/wallet-credit/${facilityId}/approve/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminRejectWalletCreditFacility(facilityId: number | string, data: { reason: string }) {
+    return this.request<any>(`/admin/wallet-credit/${facilityId}/reject/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminClarifyWalletCreditFacility(facilityId: number | string, data: { reason: string }) {
+    return this.request<any>(`/admin/wallet-credit/${facilityId}/clarification/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getIdentityDashboard() {
+    return this.request<Record<string, number | string>>("/admin/identity/dashboard/");
+  }
+  async listDegreeClassifications() {
+    return this.request<{ results: any[] }>("/admin/identity/degrees/");
+  }
+  async saveDegreeClassification(data: Record<string, unknown>) {
+    return this.request<any>("/admin/identity/degrees/", { method: "POST", body: JSON.stringify(data) });
+  }
+  async listDepartmentMappings(params?: { unmapped?: boolean; q?: string }) {
+    const q = new URLSearchParams();
+    if (params?.unmapped) q.set("unmapped", "1");
+    if (params?.q) q.set("q", params.q);
+    const qs = q.toString();
+    return this.request<{ results: any[] }>(`/admin/identity/department-mappings/${qs ? `?${qs}` : ""}`);
+  }
+  async saveDepartmentMapping(data: Record<string, unknown>) {
+    return this.request<any>("/admin/identity/department-mappings/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  async listHodAssignments() {
+    return this.request<{ results: any[] }>("/admin/identity/hods/");
+  }
+  async assignHod(data: { user_id: number; department_id: number }) {
+    return this.request<any>("/admin/identity/hods/", { method: "POST", body: JSON.stringify(data) });
+  }
+  async disableHod(id: number) {
+    return this.request<any>(`/admin/identity/hods/${id}/disable/`, { method: "POST", body: JSON.stringify({}) });
+  }
+  async listIdentityStudents() {
+    return this.request<{ results: any[] }>("/admin/identity/students/");
+  }
+  async listValidityExtensions() {
+    return this.request<{ results: any[] }>("/admin/identity/extensions/");
+  }
+  async requestValidityExtension(data: { student_id: number; reason: string }) {
+    return this.request<any>("/admin/identity/extensions/", { method: "POST", body: JSON.stringify(data) });
+  }
+  async approveValidityExtension(id: number, reason?: string) {
+    return this.request<any>(`/admin/identity/extensions/${id}/approve/`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason || "" }),
+    });
+  }
+  async getMyHod() {
+    return this.request<{
+      classification: string;
+      is_undergraduate: boolean;
+      department_status: string;
+      internal_department_name: string;
+      hod: { id: number; name: string; email: string; department: string; has_wallet: boolean } | null;
+      message: string | null;
+    }>("/identity/my-hod/");
   }
 
   async sendUserOtpForRecharge(
@@ -4000,6 +4146,7 @@ class ApiClient {
         content_type?: string;
         attachment_id?: string;
         file_id?: number;
+        node_role?: string;
       }>;
       error?: string;
       code?: string;
@@ -9760,6 +9907,53 @@ class ApiClient {
       '/v1/sync/admin/workspaces/',
       { method: 'GET' },
     );
+  }
+
+  async getEquipmentWorkspaceNodes(equipmentId: number) {
+    return this.request<{
+      equipment_id: number;
+      nodes: Array<{
+        id: string;
+        role: string;
+        display_name?: string;
+        hostname?: string;
+        workspace_root?: string;
+        share_name?: string;
+        smb_unc?: string;
+        smb_status?: string;
+        online?: boolean | null;
+        agent_pc?: string;
+        required?: boolean;
+        enabled?: boolean;
+        sort_order?: number;
+      }>;
+      count: number;
+    }>(`/v1/sync/admin/equipment/${equipmentId}/workspace-nodes/`, { method: 'GET' });
+  }
+
+  async putEquipmentWorkspaceNodes(
+    equipmentId: number,
+    nodes: Array<{
+      id?: string;
+      role: string;
+      display_name?: string;
+      hostname?: string;
+      workspace_root?: string;
+      share_name?: string;
+      required?: boolean;
+      enabled?: boolean;
+      sort_order?: number;
+    }>,
+  ) {
+    return this.request<{
+      equipment_id: number;
+      nodes: Array<Record<string, unknown>>;
+      count: number;
+      error?: string;
+    }>(`/v1/sync/admin/equipment/${equipmentId}/workspace-nodes/`, {
+      method: 'PUT',
+      body: JSON.stringify({ nodes }),
+    });
   }
 
   async getDepartmentSyncLogs(params?: { severity?: string; agent_id?: string }) {
