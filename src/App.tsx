@@ -42,6 +42,7 @@ import WalletPeerTransfer from "./pages/WalletPeerTransfer";
 import WalletCreditFacilityRequest from "./pages/WalletCreditFacilityRequest";
 import AdminWalletCreditManagement from "./pages/AdminWalletCreditManagement";
 import IdentityAdministration from "./pages/IdentityAdministration";
+import AdminPortalMigration from "./pages/AdminPortalMigration";
 import Reports from "./pages/Reports";
 import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
@@ -179,6 +180,7 @@ const App = () => (
                 <Route path="/admin/wallet-credit" element={<AdminWalletCreditManagement />} />
                 <Route path="/admin/wallet-credit/:facilityId" element={<AdminWalletCreditManagement />} />
                 <Route path="/admin/identity" element={<IdentityAdministration />} />
+                <Route path="/admin/portal-migration" element={<AdminPortalMigration />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/bookings" element={<ReportBookingsList />} />
                 <Route path="/proforma-invoice" element={<ProformaInvoice />} />

@@ -466,17 +466,21 @@ const Profile = () => {
         }
       }
 
-      if (!profileData.gender || !["male", "female", "other"].includes(profileData.gender)) {
-        toast.error("Gender is required");
-        setSaving(false);
-        return;
+      if (!(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i) {
+        if (!profileData.gender || !["male", "female", "other"].includes(profileData.gender)) {
+          toast.error("Gender is required");
+          setSaving(false);
+          return;
+        }
       }
       // Update profile using /api/users/{user_id}/
       const payload: Parameters<typeof apiClient.updateProfile>[0] = {
         name: profileData.name,
         phone_number: profileData.phone_number,
-        gender: profileData.gender,
       };
+      if (!(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i) {
+        payload.gender = profileData.gender;
+      }
       if (profileData.can_have_wallet) {
         payload.wallet_low_balance_alert_enabled = profileData.wallet_low_balance_alert_enabled;
         payload.wallet_low_balance_alert_threshold = profileData.wallet_low_balance_alert_enabled
@@ -599,20 +603,49 @@ const Profile = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="gender">Gender <span className="text-destructive">*</span></Label>
-                <Select
-                  value={profileData.gender || ""}
-                  onValueChange={(v) => setProfileData(prev => ({ ...prev, gender: v }))}
-                >
-                  <SelectTrigger id="gender">
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="gender">
+                  Gender{" "}
+                  {(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i ? (
+                    <span className="text-muted-foreground font-normal">(Channel-I / read-only)</span>
+                  ) : (
+                    <span className="text-destructive">*</span>
+                  )}
+                </Label>
+                {(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i ? (
+                  <>
+                    <Input
+                      id="gender"
+                      value={
+                        profileData.gender === "male"
+                          ? "Male"
+                          : profileData.gender === "female"
+                            ? "Female"
+                            : profileData.gender === "other"
+                              ? "Other"
+                              : profileData.gender || "—"
+                      }
+                      disabled
+                      readOnly
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Gender is supplied by Channel-I and cannot be edited here.
+                    </p>
+                  </>
+                ) : (
+                  <Select
+                    value={profileData.gender || ""}
+                    onValueChange={(v) => setProfileData((prev) => ({ ...prev, gender: v }))}
+                  >
+                    <SelectTrigger id="gender">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">

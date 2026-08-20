@@ -3701,6 +3701,21 @@ class ApiClient {
       body: JSON.stringify({ reason: reason || "" }),
     });
   }
+  async getPortalMigrationDashboard() {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/dashboard/");
+  }
+  async patchPortalMigrationState(data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/state/", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+  async transitionPortalMigration(data: { to_phase: string; note?: string; mismatch_count?: number }) {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/transition/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
   async getMyHod() {
     return this.request<{
       classification: string;

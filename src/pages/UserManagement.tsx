@@ -19,6 +19,7 @@ import {
   UserPlus,
   Landmark,
   IdCard,
+  RefreshCw,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
@@ -182,6 +183,15 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
     description: "Channel-I identity, degree classification, department mapping, HoD, student lifecycle",
     icon: <IdCard className="h-6 w-6" />,
     path: "/admin/identity",
+    mainAdminOnly: true,
+    moduleKey: "user_management",
+  },
+  {
+    key: "portalMigration",
+    label: "Portal Migration",
+    description: "Cutover state, booking gate, legacy wallet sync watermark, and phase transitions",
+    icon: <RefreshCw className="h-6 w-6" />,
+    path: "/admin/portal-migration",
     mainAdminOnly: true,
     moduleKey: "user_management",
   },
