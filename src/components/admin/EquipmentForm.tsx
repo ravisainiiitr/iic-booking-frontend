@@ -189,6 +189,7 @@ export type EquipmentFormData = {
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
   charge_profiles?: Array<{
     user_type: string;
+    profile_type?: string | null;
     is_active?: boolean;
     require_istem_fbr?: boolean;
     show_charge_breakdown?: boolean;
@@ -199,6 +200,7 @@ export type EquipmentFormData = {
   }>;
   pi_charge_profiles?: Array<{
     user_type: string;
+    profile_type?: string | null;
     is_active?: boolean;
     require_istem_fbr?: boolean;
     show_charge_breakdown?: boolean;
@@ -627,6 +629,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? s.close_time : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
         charge_profiles: Array.isArray(profiles) ? profiles.map((p) => ({
           user_type: String(p.user_type ?? ""),
+          profile_type: (p.profile_type as string | null) ?? null,
           is_active: p.is_active !== false,
           require_istem_fbr: Boolean(p.require_istem_fbr),
           show_charge_breakdown: p.show_charge_breakdown !== false,
@@ -637,6 +640,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         })) : prev.charge_profiles ?? [],
         pi_charge_profiles: Array.isArray(piProfiles) ? piProfiles.map((p) => ({
           user_type: String(p.user_type ?? ""),
+          profile_type: (p.profile_type as string | null) ?? null,
           is_active: p.is_active !== false,
           require_istem_fbr: Boolean(p.require_istem_fbr),
           show_charge_breakdown: p.show_charge_breakdown !== false,
@@ -746,7 +750,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         return Number.isFinite(n) ? n : null;
       })(),
       google_maps_url: formData.google_maps_url?.trim() || null,
-      profile_type: formData.profile_type || null,
+      // Legacy equipment.profile_type: derive from first active STANDARD charge profile.
+      profile_type:
+        (formData.charge_profiles ?? []).find((cp) => cp.is_active !== false && cp.profile_type)?.profile_type
+        || formData.profile_type
+        || null,
       category: formData.category ?? null,
       equipment_group: formData.equipment_group ?? null,
       parent_equipment: formData.parent_equipment ?? null,
@@ -1168,23 +1176,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Profile Type</Label>
-          <Select
-            value={formData.profile_type ?? "none"}
-            onValueChange={(v) => setFormData((p) => ({ ...p, profile_type: v === "none" ? null : v }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Profile type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— None —</SelectItem>
-              {choices.profile_type_choices.map((c) => (
-                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
           <Label>Status</Label>
           <Select
             value={formData.status === "MAINTENANCE" ? "REPAIR" : (formData.status ?? "ACTIVE")}
@@ -1204,7 +1195,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </div>
       </div>
 
-      {formData.profile_type === "MULTI_PARAM" && (
+      {((formData.charge_profiles ?? []).some((cp) => cp.profile_type === "MULTI_PARAM")
+        || (formData.pi_charge_profiles ?? []).some((cp) => cp.profile_type === "MULTI_PARAM")) && (
         <div className="rounded-lg border p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1360,7 +1352,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </div>
       )}
 
-      {formData.profile_type === "PRINT_3D" && (
+      {((formData.charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")
+        || (formData.pi_charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")) && (
         <div className="rounded-lg border p-4 space-y-4">
           <div className="space-y-2 max-w-xl">
             <Label htmlFor="print-3d-stl-notification-email">STL notification email</Label>
@@ -1827,8 +1820,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
       </FormSection>
 
-      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing." defaultOpen>
+      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing and calculation profile type (SAMPLE / HOUR / …)." defaultOpen>
       <p className="text-muted-foreground text-xs">
+        Select a <strong>Profile type</strong> for each user type — time and amount use that row’s type.
         Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
         <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
@@ -1845,6 +1839,29 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <div className="space-y-1">
                     <Label>User type</Label>
                     <p className="text-sm font-medium">{label}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Profile type</Label>
+                    <Select
+                      value={cp.profile_type ?? "none"}
+                      onValueChange={(v) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], profile_type: v === "none" ? null : v };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Profile type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— None —</SelectItem>
+                        {choices.profile_type_choices.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`cp-primary-${idx}`}>Primary charge</Label>
@@ -1878,6 +1895,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       }
                     />
                   </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
                   <div className="space-y-1">
                     <Label htmlFor={`cp-breakpoint-${idx}`}>Breakpoint</Label>
                     <Input
@@ -1973,6 +1992,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   ...(p.charge_profiles ?? []),
                   {
                     user_type: v,
+                    profile_type: null,
                     is_active: true,
                     require_istem_fbr: false,
                     show_charge_breakdown: true,
@@ -2004,7 +2024,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       <FormSection
         id="eq-sec-pi-charges"
         title="PI Charge profiles"
-        description="Discounted facility rates for assigned Faculty PIs (and wallet owners who are PIs). Independent of Normal and Discounted profiles."
+        description="Discounted facility rates for assigned Faculty PIs (and wallet owners who are PIs). Each row has its own profile type."
         defaultOpen={false}
       >
       <div className="rounded border divide-y">
@@ -2020,6 +2040,29 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <div className="space-y-1">
                     <Label>User type</Label>
                     <p className="text-sm font-medium">{label}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Profile type</Label>
+                    <Select
+                      value={cp.profile_type ?? "none"}
+                      onValueChange={(v) =>
+                        setFormData((p) => {
+                          const arr = [...(p.pi_charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], profile_type: v === "none" ? null : v };
+                          return { ...p, pi_charge_profiles: arr };
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Profile type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— None —</SelectItem>
+                        {choices.profile_type_choices.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`pi-cp-primary-${idx}`}>Primary charge</Label>
@@ -2053,13 +2096,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       }
                     />
                   </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
                   <div className="space-y-1">
                     <Label htmlFor={`pi-cp-breakpoint-${idx}`}>Breakpoint</Label>
                     <Input
                       id={`pi-cp-breakpoint-${idx}`}
                       type="number"
                       step="0.01"
-                      placeholder="Optional"
                       value={cp.breakpoint === null || cp.breakpoint === undefined ? "" : String(cp.breakpoint)}
                       onChange={(e) =>
                         setFormData((p) => {
@@ -2118,6 +2162,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   ...(p.pi_charge_profiles ?? []),
                   {
                     user_type: v,
+                    profile_type: null,
                     is_active: true,
                     require_istem_fbr: false,
                     show_charge_breakdown: true,

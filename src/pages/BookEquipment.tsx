@@ -169,6 +169,9 @@ interface EquipmentDetail {
   description: string;
   profile_type: string;
   profile_type_display: string;
+  /** Calculation type for the current user (from their charge profile); prefer over profile_type when set. */
+  viewer_profile_type?: string | null;
+  viewer_profile_type_display?: string | null;
   status: string;
   status_display: string;
   location: string;
@@ -2111,9 +2114,15 @@ const BookEquipment = () => {
 
       const eq = response.data;
       
-      // Store full equipment detail for slot processing
-      // But don't process slots yet - wait for charge calculation
-      setEquipmentDetail(eq);
+      // Store full equipment detail for slot processing.
+      // Prefer viewer charge-profile type for booking UI gating (PRINT_3D / HOUR / …).
+      setEquipmentDetail({
+        ...eq,
+        profile_type: String(eq.viewer_profile_type || eq.profile_type || ""),
+        profile_type_display: String(
+          eq.viewer_profile_type_display || eq.profile_type_display || eq.viewer_profile_type || eq.profile_type || "",
+        ),
+      });
       
       // Reset charge calculation state when equipment changes
       setChargeCalculated(false);
