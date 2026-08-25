@@ -85,7 +85,6 @@ const EQUIPMENT_SECTION_NAV: Array<{ id: string; label: string }> = [
   { id: "eq-sec-operators", label: "Operators" },
   { id: "eq-sec-specs", label: "Specs" },
   { id: "eq-sec-accessories", label: "Accessories" },
-  { id: "eq-sec-inputs", label: "Dynamic fields" },
   { id: "eq-sec-slot-masters", label: "Slot masters" },
   { id: "eq-sec-charges", label: "Charges" },
   { id: "eq-sec-pi-charges", label: "PI Charges" },
@@ -210,6 +209,7 @@ export type EquipmentFormData = {
     time_formula?: string | null;
   }>;
   input_fields?: Array<{
+    user_type?: string;
     field_key: string;
     field_label: string;
     field_type: string;
@@ -661,6 +661,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               optsObj.allowNegative === true ||
               String(optsObj.allow_negative ?? "").toLowerCase() === "true");
           return {
+            user_type: String(i.user_type ?? "").trim(),
             field_key: String(i.field_key ?? ""),
             field_label: String(i.field_label ?? ""),
             field_type: String(i.field_type ?? "TEXT"),
@@ -709,17 +710,30 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       return;
     }
     const inputFields = formData.input_fields ?? [];
+    const seenKeysByUserType = new Map<string, Set<string>>();
     for (let i = 0; i < inputFields.length; i++) {
+      const ut = String(inputFields[i].user_type || "").trim();
       const key = String(inputFields[i].field_key || "").trim().toUpperCase();
       const label = String(inputFields[i].field_label || "").trim();
+      if (!ut) {
+        toast.error(`Dynamic input field #${i + 1}: User type is required (attach under a charge profile).`);
+        return;
+      }
       if (!/^[A-Z]$/.test(key)) {
         toast.error(`Dynamic input field #${i + 1}: Field key must be a single letter A–Z.`);
         return;
       }
       if (!label) {
-        toast.error(`Dynamic input field ${key}: Field label is required.`);
+        toast.error(`Dynamic input field ${key} (${ut}): Field label is required.`);
         return;
       }
+      const seen = seenKeysByUserType.get(ut) ?? new Set<string>();
+      if (seen.has(key)) {
+        toast.error(`Duplicate field key ${key} for user type ${ut}.`);
+        return;
+      }
+      seen.add(key);
+      seenKeysByUserType.set(ut, seen);
     }
     const payload: EquipmentFormData = {
       name: formData.name || undefined,
@@ -849,6 +863,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         const fieldType = String(f.field_type || "").toUpperCase();
         const field_key = String(f.field_key || "").trim().toUpperCase().slice(0, 1);
         const field_label = String(f.field_label || "").trim();
+        const user_type = String(f.user_type || "").trim();
         const source_element_field_key = f.source_element_field_key
           ? String(f.source_element_field_key).trim().toUpperCase().slice(0, 1) || null
           : null;
@@ -861,6 +876,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           else delete base.allow_negative;
           return {
             ...f,
+            user_type,
             field_key,
             field_label,
             source_element_field_key,
@@ -869,6 +885,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         }
         return {
           ...f,
+          user_type,
           field_key,
           field_label,
           source_element_field_key,
@@ -894,6 +911,231 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       clearImage: clearImage && !imageFile,
       clearVideo: clearVideo && !videoFile,
     });
+  };
+
+  const updateInputField = (
+    globalIdx: number,
+    patch: Partial<NonNullable<EquipmentFormData["input_fields"]>[number]>,
+  ) => {
+    setFormData((p) => {
+      const arr = [...(p.input_fields ?? [])];
+      if (!arr[globalIdx]) return p;
+      arr[globalIdx] = { ...arr[globalIdx], ...patch };
+      return { ...p, input_fields: arr };
+    });
+  };
+
+  const addInputFieldForUserType = (userType: string) => {
+    const used = new Set(
+      (formData.input_fields ?? [])
+        .filter((f) => String(f.user_type || "") === userType)
+        .map((f) => f.field_key),
+    );
+    const nextKey = DYNAMIC_INPUT_FIELD_KEYS.find((k) => !used.has(k)) ?? "A";
+    setFormData((p) => ({
+      ...p,
+      input_fields: [
+        ...(p.input_fields ?? []),
+        {
+          user_type: userType,
+          field_key: nextKey,
+          field_label: "",
+          field_type: choices?.dynamic_input_field_type_choices?.[0]?.value ?? "TEXT",
+          is_required: false,
+          editing_required: false,
+          default_value: "",
+          options: [],
+          help_text: "",
+          source_element_field_key: null,
+        },
+      ],
+    }));
+  };
+
+  const removeInputFieldAt = (globalIdx: number) => {
+    setFormData((p) => ({
+      ...p,
+      input_fields: (p.input_fields ?? []).filter((_, i) => i !== globalIdx),
+    }));
+  };
+
+  const renderDynamicFieldsForUserType = (userType: string, idPrefix: string) => {
+    const indexed = (formData.input_fields ?? [])
+      .map((f, idx) => ({ f, idx }))
+      .filter(({ f }) => String(f.user_type || "") === userType);
+    return (
+      <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Dynamic input fields</p>
+            <p className="text-xs text-muted-foreground">
+              Fields A–Z for this user type only (used in time/charge formulas and on the booking page).
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => addInputFieldForUserType(userType)}>
+            Add field
+          </Button>
+        </div>
+        {indexed.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No fields for this user type yet.</p>
+        ) : (
+          indexed.map(({ f, idx }) => (
+            <div key={`${idPrefix}-${idx}-${f.field_key}`} className="rounded-md border bg-background p-3 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Field key</Label>
+                  <Select value={f.field_key || "A"} onValueChange={(v) => updateInputField(idx, { field_key: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-xs">Field label</Label>
+                  <Input
+                    value={f.field_label}
+                    onChange={(e) => updateInputField(idx, { field_label: e.target.value })}
+                    placeholder="e.g. Number of samples"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Field type</Label>
+                  <Select
+                    value={f.field_type || "TEXT"}
+                    onValueChange={(v) => {
+                      const nextType = String(v || "").toUpperCase();
+                      const prevType = String(f.field_type || "").toUpperCase();
+                      let nextOptions = f.options;
+                      if (nextType === "NUMERIC") {
+                        nextOptions =
+                          f.options && typeof f.options === "object" && !Array.isArray(f.options)
+                            ? f.options
+                            : {};
+                      } else if (prevType === "NUMERIC" || !Array.isArray(f.options)) {
+                        nextOptions = [];
+                      } else {
+                        nextOptions = normalizeOptionsList(f.options);
+                      }
+                      updateInputField(idx, { field_type: v, options: nextOptions as typeof f.options });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(choices?.dynamic_input_field_type_choices ?? [
+                        { value: "NUMERIC", label: "Numeric" },
+                        { value: "TEXT", label: "Text" },
+                        { value: "RADIO", label: "Radio" },
+                        { value: "COMBO", label: "Combo/Dropdown" },
+                        { value: "MULTI_SELECT", label: "Multi-select" },
+                        { value: "TOGGLE", label: "Toggle" },
+                        { value: "PERIODIC_TABLE", label: "Periodic table / Element selector" },
+                        { value: "TABLE", label: "Table" },
+                        { value: "ICPMS_STANDARD_COVERAGE", label: "ICPMS Standard Coverage" },
+                      ]).map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Default value</Label>
+                  <Input
+                    value={f.default_value ?? ""}
+                    onChange={(e) => updateInputField(idx, { default_value: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">
+                    {String(f.field_type || "").toUpperCase() === "TABLE"
+                      ? "Row count field key"
+                      : "Source element field key"}
+                  </Label>
+                  <Select
+                    value={f.source_element_field_key || "__none__"}
+                    onValueChange={(v) =>
+                      updateInputField(idx, { source_element_field_key: v === "__none__" ? null : v })
+                    }
+                  >
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
+                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-4 pb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={f.is_required ?? false}
+                      onCheckedChange={(c) => updateInputField(idx, { is_required: c === true })}
+                    />
+                    <Label className="text-xs">Required</Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={f.editing_required ?? false}
+                      onCheckedChange={(c) => updateInputField(idx, { editing_required: c === true })}
+                    />
+                    <Label className="text-xs">Editing required</Label>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Options (one per line)</Label>
+                  <Textarea
+                    rows={2}
+                    value={optionsToLines(f.options)}
+                    onChange={(e) => updateInputField(idx, { options: linesToOptions(e.target.value) })}
+                    disabled={String(f.field_type || "").toUpperCase() === "NUMERIC"}
+                  />
+                  {String(f.field_type || "").toUpperCase() === "NUMERIC" && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        id={`${idPrefix}-allow-neg-${idx}`}
+                        type="checkbox"
+                        className="h-4 w-4 rounded border"
+                        checked={Boolean(f.allow_negative)}
+                        onChange={(e) => updateInputField(idx, { allow_negative: e.target.checked })}
+                      />
+                      <Label htmlFor={`${idPrefix}-allow-neg-${idx}`} className="text-xs font-normal cursor-pointer">
+                        Allow negative values
+                      </Label>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Help text</Label>
+                  <Textarea
+                    rows={2}
+                    value={f.help_text ?? ""}
+                    onChange={(e) => updateInputField(idx, { help_text: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => removeInputFieldAt(idx)}
+                >
+                  Remove field
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    );
   };
 
   if (choicesLoading || !choices) {
@@ -1820,9 +2062,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
       </FormSection>
 
-      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing and calculation profile type (SAMPLE / HOUR / …)." defaultOpen>
+      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing, calculation profile type, and dynamic input fields (SAMPLE / HOUR / …)." defaultOpen>
       <p className="text-muted-foreground text-xs">
         Select a <strong>Profile type</strong> for each user type — time and amount use that row’s type.
+        Configure <strong>Dynamic input fields</strong> under each user type (different types may need different fields).
         Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
         <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
@@ -1919,7 +2162,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <Label htmlFor={`cp-formula-${idx}`}>Time formula</Label>
                   <Input
                     id={`cp-formula-${idx}`}
-                    placeholder='e.g. (A * C) + B'
+                    placeholder={
+                      cp.profile_type === "HOUR"
+                        ? 'e.g. ((((C-B)/D)*E)*A)/60 — blank or B = legacy slots'
+                        : 'e.g. (A * C) + B'
+                    }
                     value={cp.time_formula ?? ""}
                     onChange={(e) =>
                       setFormData((p) => {
@@ -1929,7 +2176,15 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       })
                     }
                   />
+                  {cp.profile_type === "HOUR" ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      HOUR: generic formula returns minutes (same engine as SAMPLE). Blank or <code>B</code> keeps
+                      legacy Slot Duration × field B (optional toggle C + secondary). Formula path: hours × primary
+                      only (no toggle).
+                    </p>
+                  ) : null}
                 </div>
+                {renderDynamicFieldsForUserType(cp.user_type, `cp-${idx}`)}
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -2115,6 +2370,33 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     />
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`pi-cp-formula-${idx}`}>Time formula</Label>
+                  <Input
+                    id={`pi-cp-formula-${idx}`}
+                    placeholder={
+                      cp.profile_type === "HOUR"
+                        ? 'e.g. ((((C-B)/D)*E)*A)/60 — blank or B = legacy slots'
+                        : 'e.g. (A * C) + B'
+                    }
+                    value={cp.time_formula ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.pi_charge_profiles ?? [])];
+                        arr[idx] = { ...arr[idx], time_formula: e.target.value === "" ? null : e.target.value };
+                        return { ...p, pi_charge_profiles: arr };
+                      })
+                    }
+                  />
+                </div>
+                {(formData.charge_profiles ?? []).some((scp) => scp.user_type === cp.user_type) ? (
+                  <p className="text-xs text-muted-foreground">
+                    Dynamic input fields for this user type are edited under the standard Charge profiles row above
+                    (shared for STANDARD and PI pricing).
+                  </p>
+                ) : (
+                  renderDynamicFieldsForUserType(cp.user_type, `pi-${idx}`)
+                )}
                 <div className="flex flex-wrap gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <Checkbox
@@ -2977,276 +3259,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </div>
       </div>
       </div>
-      </FormSection>
-
-      <FormSection
-        id="eq-sec-inputs"
-        title="Dynamic Input Fields"
-        description="Per-equipment dynamic fields (A–Z) used in charge formulas and booking forms. Matches Django DynamicInputFieldInline."
-        defaultOpen
-      >
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const used = new Set((formData.input_fields ?? []).map((f) => f.field_key));
-              const nextKey = DYNAMIC_INPUT_FIELD_KEYS.find((k) => !used.has(k)) ?? "A";
-              setFormData((p) => ({
-                ...p,
-                input_fields: [
-                  ...(p.input_fields ?? []),
-                  {
-                    field_key: nextKey,
-                    field_label: "",
-                    field_type: choices.dynamic_input_field_type_choices?.[0]?.value ?? "TEXT",
-                    is_required: false,
-                    editing_required: false,
-                    default_value: "",
-                    options: [],
-                    help_text: "",
-                    source_element_field_key: null,
-                  },
-                ],
-              }));
-            }}
-          >
-            Add field
-          </Button>
-        </div>
-        {(formData.input_fields ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">No dynamic input fields configured.</p>
-        ) : (
-          (formData.input_fields ?? []).map((f, idx) => (
-            <div key={idx} className="rounded-md border p-3 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-                <div className="space-y-1">
-                  <Label className="text-xs">Field key</Label>
-                  <Select
-                    value={f.field_key || "A"}
-                    onValueChange={(v) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = { ...arr[idx], field_key: v };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
-                        <SelectItem key={k} value={k}>{k}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <Label className="text-xs">Field label</Label>
-                  <Input
-                    value={f.field_label}
-                    onChange={(e) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = { ...arr[idx], field_label: e.target.value };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                    placeholder="e.g. Number of samples"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Field type</Label>
-                  <Select
-                    value={f.field_type || "TEXT"}
-                    onValueChange={(v) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        const prev = arr[idx];
-                        const nextType = String(v || "").toUpperCase();
-                        const prevType = String(prev.field_type || "").toUpperCase();
-                        let nextOptions = prev.options;
-                        if (nextType === "NUMERIC") {
-                          nextOptions =
-                            prev.options && typeof prev.options === "object" && !Array.isArray(prev.options)
-                              ? prev.options
-                              : {};
-                        } else if (prevType === "NUMERIC" || !Array.isArray(prev.options)) {
-                          nextOptions = [];
-                        } else {
-                          nextOptions = normalizeOptionsList(prev.options);
-                        }
-                        arr[idx] = { ...prev, field_type: v, options: nextOptions as typeof prev.options };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(choices.dynamic_input_field_type_choices ?? [
-                        { value: "NUMERIC", label: "Numeric" },
-                        { value: "TEXT", label: "Text" },
-                        { value: "RADIO", label: "Radio" },
-                        { value: "COMBO", label: "Combo/Dropdown" },
-                        { value: "MULTI_SELECT", label: "Multi-select" },
-                        { value: "TOGGLE", label: "Toggle" },
-                        { value: "PERIODIC_TABLE", label: "Periodic table / Element selector" },
-                        { value: "TABLE", label: "Table" },
-                        { value: "ICPMS_STANDARD_COVERAGE", label: "ICPMS Standard Coverage" },
-                      ]).map((c) => (
-                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
-                <div className="space-y-1">
-                  <Label className="text-xs">Default value</Label>
-                  <Input
-                    value={f.default_value ?? ""}
-                    onChange={(e) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = { ...arr[idx], default_value: e.target.value };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">
-                    {String(f.field_type || "").toUpperCase() === "TABLE"
-                      ? "Row count field key"
-                      : "Source element field key"}
-                  </Label>
-                  <Select
-                    value={f.source_element_field_key || "__none__"}
-                    onValueChange={(v) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = { ...arr[idx], source_element_field_key: v === "__none__" ? null : v };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                  >
-                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
-                        <SelectItem key={k} value={k}>{k}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground">
-                    {String(f.field_type || "").toUpperCase() === "TABLE"
-                      ? "When set (e.g. A), the table auto-generates that many rows from the referenced field’s value. First column is Serial Number (1…N)."
-                      : "For ICPMS Standard Coverage: the Periodic Table field key providing the element list."}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 pb-1">
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={f.is_required ?? false}
-                      onCheckedChange={(c) =>
-                        setFormData((p) => {
-                          const arr = [...(p.input_fields ?? [])];
-                          arr[idx] = { ...arr[idx], is_required: c === true };
-                          return { ...p, input_fields: arr };
-                        })
-                      }
-                    />
-                    <Label className="text-xs">Required</Label>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={f.editing_required ?? false}
-                      onCheckedChange={(c) =>
-                        setFormData((p) => {
-                          const arr = [...(p.input_fields ?? [])];
-                          arr[idx] = { ...arr[idx], editing_required: c === true };
-                          return { ...p, input_fields: arr };
-                        })
-                      }
-                    />
-                    <Label className="text-xs">Editing required</Label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Options (one per line)</Label>
-                  <Textarea
-                    rows={3}
-                    value={optionsToLines(f.options)}
-                    onChange={(e) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = {
-                          ...arr[idx],
-                          options: linesToOptions(e.target.value),
-                        };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                    placeholder={"For RADIO / COMBO / MULTI_SELECT / TABLE, one option (or column header) per line"}
-                    disabled={String(f.field_type || "").toUpperCase() === "NUMERIC"}
-                  />
-                  {String(f.field_type || "").toUpperCase() === "NUMERIC" && (
-                    <div className="flex items-center gap-2 pt-2">
-                      <input
-                        id={`allow-neg-${idx}`}
-                        type="checkbox"
-                        className="h-4 w-4 rounded border"
-                        checked={Boolean(f.allow_negative)}
-                        onChange={(e) =>
-                          setFormData((p) => {
-                            const arr = [...(p.input_fields ?? [])];
-                            arr[idx] = { ...arr[idx], allow_negative: e.target.checked };
-                            return { ...p, input_fields: arr };
-                          })
-                        }
-                      />
-                      <Label htmlFor={`allow-neg-${idx}`} className="text-xs font-normal cursor-pointer">
-                        Allow negative values when lower limit is blank (opens floor to −upper). Negative lower/upper
-                        limits in help text already permit signed values and defaults.
-                      </Label>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Help text</Label>
-                  <Textarea
-                    rows={3}
-                    value={f.help_text ?? ""}
-                    onChange={(e) =>
-                      setFormData((p) => {
-                        const arr = [...(p.input_fields ?? [])];
-                        arr[idx] = { ...arr[idx], help_text: e.target.value };
-                        return { ...p, input_fields: arr };
-                      })
-                    }
-                    placeholder="NUMERIC: line 1 = lower limit (e.g. -50), line 2 = upper limit, line 3 = step. Negative defaults are allowed when within these limits."
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => setFormData((p) => ({ ...p, input_fields: (p.input_fields ?? []).filter((_, i) => i !== idx) }))}
-                >
-                  Remove field
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
       </FormSection>
 
       <FormSection

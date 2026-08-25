@@ -1877,7 +1877,15 @@ class ApiClient {
     return this.request<any>(`/equipment/${id}/`);
   }
 
-  async getEquipmentDetailById(id: number | string) {
+  async getEquipmentDetailById(
+    id: number | string,
+    options?: { forUserType?: string | null; allInputFields?: boolean },
+  ) {
+    const q = new URLSearchParams();
+    if (options?.allInputFields) q.set("all_input_fields", "1");
+    const forUt = (options?.forUserType || "").trim();
+    if (forUt) q.set("for_user_type", forUt);
+    const suffix = q.toString() ? `?${q.toString()}` : "";
     return this.request<{
       equipment_id: number;
       code: string;
@@ -1966,7 +1974,7 @@ class ApiClient {
       }>;
       created_at: string;
       updated_at: string;
-    }>(`/equipments/${id}/`);
+    }>(`/equipments/${id}/${suffix}`);
   }
 
   async updateEquipment(id: string, data: any) {
@@ -7710,7 +7718,8 @@ class ApiClient {
 
   async adminGet<T = unknown>(section: string, id: number | string) {
     const endpoint = this.getAdminEndpoint(section);
-    return this.request<T>(`${endpoint}${id}/`, { method: 'GET' });
+    const suffix = section === "equipment" ? "?all_input_fields=1" : "";
+    return this.request<T>(`${endpoint}${id}/${suffix}`, { method: 'GET' });
   }
 
   async adminPatch<T = unknown>(section: string, id: number | string, data: Record<string, unknown>) {

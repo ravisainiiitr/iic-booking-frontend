@@ -810,6 +810,7 @@ const BookEquipment = () => {
     email: string;
     department_name: string;
     phone_number?: string;
+    user_type?: string;
     wallet_faculty_owner: { name: string; email: string } | null;
     wallet_balance: string;
   } | null>(null);
@@ -1333,6 +1334,7 @@ const BookEquipment = () => {
           email: string;
           department_name: string;
           phone_number?: string;
+          user_type?: string;
           wallet_faculty_owner: { name: string; email: string } | null;
           wallet_balance: string;
         });
@@ -1346,6 +1348,7 @@ const BookEquipment = () => {
         email: listed?.email || "",
         department_name: "",
         phone_number: "",
+        user_type: listed?.user_type || "",
         wallet_faculty_owner: null,
         wallet_balance: "—",
       });
@@ -2082,11 +2085,16 @@ const BookEquipment = () => {
     });
   };
 
-  const fetchEquipmentDetail = useCallback(async (equipmentId: number | string) => {
+  const fetchEquipmentDetail = useCallback(async (
+    equipmentId: number | string,
+    options?: { forUserType?: string | null },
+  ) => {
     if (equipmentAccessBlockedRef.current) return;
     try {
       setLoadingEquipmentDetail(true);
-      const response = await apiClient.getEquipmentDetailById(equipmentId);
+      const response = await apiClient.getEquipmentDetailById(equipmentId, {
+        forUserType: options?.forUserType || undefined,
+      });
       
       if (response.error) {
         const kind = classifyEquipmentAccessFailure(response);
@@ -2215,7 +2223,42 @@ const BookEquipment = () => {
     }
   }, [navigate]);
 
+  // Reload input fields / viewer profile type when book-for-user or charge-estimate user type changes.
+  const lastInputFieldsUserTypeRef = useRef<string>("__unset__");
+  useEffect(() => {
+    const equipmentId = selectedEquipment?.id ?? equipmentDetail?.equipment_id;
+    if (equipmentId == null) return;
+    let forUserType = "";
+    if (isCalculateChargesFlow && chargeEstimateUserType) {
+      forUserType = String(chargeEstimateUserType);
+    } else if (adminManageMode === "book" && adminBookForUserId) {
+      forUserType = String(
+        adminBookForUserInfo?.user_type ||
+          usersList.find((u) => String(u.id) === String(adminBookForUserId))?.user_type ||
+          "",
+      );
+      // Wait until we know the selected user's type so we don't flash admin fields.
+      if (!forUserType) return;
+    }
+    if (lastInputFieldsUserTypeRef.current === forUserType) return;
+    const prev = lastInputFieldsUserTypeRef.current;
+    lastInputFieldsUserTypeRef.current = forUserType;
+    // Initial unset → empty: equipment just loaded for the logged-in user; skip duplicate fetch.
+    if (prev === "__unset__" && !forUserType) return;
+    fetchEquipmentDetail(equipmentId, { forUserType: forUserType || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    chargeEstimateUserType,
+    isCalculateChargesFlow,
+    adminManageMode,
+    adminBookForUserId,
+    adminBookForUserInfo?.user_type,
+    selectedEquipment?.id,
+    equipmentDetail?.equipment_id,
+  ]);
+
   const handleEquipmentSelect = useCallback((equipmentId: number | string) => {
+    lastInputFieldsUserTypeRef.current = "";
     fetchEquipmentDetail(equipmentId);
   }, [fetchEquipmentDetail]);
 
