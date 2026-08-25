@@ -296,15 +296,17 @@ export default function AnalysisWorkspacePage() {
   );
 
   const hasDataSource = Boolean(dataSourceConfirmed || dataSelectionLabel);
+  // PC already held for check-in / live session: do not block Start on R13 data pick.
+  const dataGateExempt = started || sessionReadyToOpen || awaitingCheckin;
   const startDisabled =
     busy ||
     queued ||
     analysisEnded ||
-    // Already have a live/tokenized session — allow Open without re-picking data.
-    (!started && !sessionReadyToOpen && !hasDataSource) ||
+    // Already have a live/tokenized session or check-in hold — allow Open without re-picking data.
+    (!dataGateExempt && !hasDataSource) ||
     (!canAnalyze && !started && !sessionReadyToOpen && !envReady && !awaitingCheckin) ||
     (inputMode === "booking_raw" &&
-      !sessionReadyToOpen &&
+      !dataGateExempt &&
       !dataSelectionLabel &&
       Number(bookingRaw.file_count || 0) === 0 &&
       !(summary as any)?.raw_ready);
@@ -315,14 +317,15 @@ export default function AnalysisWorkspacePage() {
       navigate(`/analysis-launch/${bookingPk}${session.id ? `?session=${session.id}` : ""}`);
       return;
     }
+    // Check-in timer is running — go straight to launch/start (data sync can continue).
+    if (awaitingCheckin) {
+      navigate(`/analysis-launch/${bookingPk}`);
+      return;
+    }
     if (!hasDataSource) {
       toast.message("Select your input data first", {
         description: "Choose Current Booking Data, Previous Booking Data, or Upload Data.",
       });
-      return;
-    }
-    if (awaitingCheckin) {
-      navigate(`/analysis-launch/${bookingPk}`);
       return;
     }
     setBusy(true);
