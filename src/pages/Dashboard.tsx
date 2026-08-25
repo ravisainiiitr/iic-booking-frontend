@@ -21,6 +21,7 @@ import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import { MigrationPortalBanner } from "@/components/MigrationPortalBanner";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import { formatUserDisplayName } from "@/lib/displayName";
@@ -1245,6 +1246,7 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-page page-shell">
+      <MigrationPortalBanner />
       <DashboardHeader />
 
       <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-8 sm:px-6 lg:px-8">

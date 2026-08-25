@@ -3716,6 +3716,177 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+  async getLegacyEquipmentMappings(params?: Record<string, string | number | undefined>) {
+    const q = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && String(v) !== "") q.set(k, String(v));
+    });
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/equipment-mappings/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getLegacyMigrationOverview(params?: Record<string, string | number | undefined>) {
+    const q = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && String(v) !== "") q.set(k, String(v));
+    });
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/legacy-overview/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getPortalMigrationSummary(params?: Record<string, string | undefined>) {
+    const q = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v) q.set(k, v);
+    });
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/migration-summary/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async createLegacyEquipmentMapping(data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/equipment-mappings/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+  async patchLegacyEquipmentMapping(id: number, data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(`/portal-migration/admin/equipment-mappings/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+  async exportLegacyEquipmentMappings() {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/equipment-mappings/export/");
+  }
+  async getLegacyBookings(
+    params?: Record<string, string | undefined>,
+    legacyRows?: unknown[],
+  ) {
+    const q = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v) q.set(k, v);
+    });
+    const qs = q.toString();
+    if (legacyRows && legacyRows.length > 0) {
+      return this.request<Record<string, unknown>>(
+        `/portal-migration/admin/legacy-bookings/${qs ? `?${qs}` : ""}`,
+        { method: "POST", body: JSON.stringify({ legacy_rows: legacyRows }) },
+      );
+    }
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/legacy-bookings/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getLegacyBookingDetail(legacyBookingId: number) {
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/legacy-bookings/${legacyBookingId}/`,
+    );
+  }
+  async runLegacyMigrationDryRun(legacyRows: unknown[] = []) {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/legacy-dry-run/", {
+      method: "POST",
+      body: JSON.stringify({ legacy_rows: legacyRows }),
+    });
+  }
+  async approveDatetimeContract(body: {
+    confirm: boolean;
+    approval_reason: string;
+    approved_strategy?: string;
+    approved_by?: string;
+  }) {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/datetime-contract/", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+  async getDatetimeContract() {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/datetime-contract/");
+  }
+  async getPhase10gGoNoGo(params?: { backup_verified?: boolean; conflicts_resolved?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.backup_verified) q.set("backup_verified", "1");
+    if (params?.conflicts_resolved) q.set("conflicts_resolved", "1");
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/phase10g-go-no-go/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getPhase10iGoNoGo(params?: { backup_verified?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.backup_verified) q.set("backup_verified", "1");
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/phase10i-go-no-go/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getPhase10jGoNoGo(params?: { backup_verified?: boolean; finance_reviewed?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.backup_verified) q.set("backup_verified", "1");
+    if (params?.finance_reviewed) q.set("finance_reviewed", "1");
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/phase10j-go-no-go/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getPhase10kGoNoGo(params?: { backup_verified?: boolean; finance_reviewed?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.backup_verified) q.set("backup_verified", "1");
+    if (params?.finance_reviewed) q.set("finance_reviewed", "1");
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/phase10k-go-no-go/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getPhase10lGoNoGo(params?: { backup_verified?: boolean; finance_reviewed?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.backup_verified) q.set("backup_verified", "1");
+    if (params?.finance_reviewed) q.set("finance_reviewed", "1");
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/phase10l-go-no-go/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getPhase10mGoNoGo(params?: { backup_verified?: boolean; finance_reviewed?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.backup_verified) q.set("backup_verified", "1");
+    if (params?.finance_reviewed) q.set("finance_reviewed", "1");
+    const qs = q.toString();
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/phase10m-go-no-go/${qs ? `?${qs}` : ""}`,
+    );
+  }
+  async getTestAccountDryRun() {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/test-account-dry-run/");
+  }
+  async previewEquipmentMappingImport(mappings: unknown[]) {
+    return this.request<Record<string, unknown>>("/portal-migration/admin/equipment-mappings/import-preview/", {
+      method: "POST",
+      body: JSON.stringify({ mappings }),
+    });
+  }
+  async getLegacyConflictAnalysis(legacyRows?: unknown[]) {
+    if (legacyRows && legacyRows.length) {
+      return this.request<Record<string, unknown>>("/portal-migration/admin/conflict-analysis/", {
+        method: "POST",
+        body: JSON.stringify({ legacy_rows: legacyRows }),
+      });
+    }
+    return this.request<Record<string, unknown>>("/portal-migration/admin/conflict-analysis/");
+  }
+  async getPortalBookingStatus() {
+    return this.request<{
+      booking_migration_mode?: string;
+      new_portal_url?: string;
+      legacy_portal_migration_banner?: string;
+      legacy_portal_new_booking_disabled?: boolean;
+      legacy_portal_booking_disabled_code?: string;
+      end_user_booking_enabled?: boolean;
+      message?: string;
+    }>("/portal-migration/booking-status/");
+  }
   async getMyHod() {
     return this.request<{
       classification: string;
@@ -3968,6 +4139,60 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ notes }),
     });
+  }
+
+  async getBookingMigrationSettlement(bookingId: number) {
+    return this.request<{
+      booking_id?: number;
+      booking_status?: string;
+      settlement_type?: string;
+      eligibility?: string;
+      original_amount?: string;
+      refundable_amount?: string;
+      status?: string | null;
+      reference?: string | null;
+      refund_amount?: string | null;
+      processed_by?: string | null;
+      processed_by_role?: string | null;
+      processed_at?: string | null;
+      can_issue?: boolean;
+      migration_window_open?: boolean;
+      end_user_booking_enabled?: boolean;
+      error?: string;
+    }>(`/bookings/${bookingId}/migration-settlement/`);
+  }
+
+  async issueBookingMigrationRefund(bookingId: number, opts?: { reason?: string; confirm?: boolean }) {
+    return this.request<{
+      message: string;
+      settlement: any;
+      safety?: Record<string, boolean>;
+      error?: string;
+      error_code?: string;
+    }>(`/bookings/${bookingId}/migration-refund/`, {
+      method: 'POST',
+      body: JSON.stringify({
+        confirm: opts?.confirm !== false,
+        reason: opts?.reason || '',
+      }),
+    });
+  }
+
+  async getPortalMigrationSettlementsReport(params?: Record<string, string | number | undefined>) {
+    const q = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && String(v) !== '') q.set(k, String(v));
+      });
+    }
+    const qs = q.toString();
+    return this.request<{
+      migration_window_open: boolean;
+      counts: Record<string, number>;
+      count: number;
+      results: any[];
+      scope: string;
+    }>(`/portal-migration/admin/settlements/${qs ? `?${qs}` : ''}`);
   }
 
   async markBookingNotUtilized(bookingId: number, sendEmailToWalletOwner: boolean = true) {

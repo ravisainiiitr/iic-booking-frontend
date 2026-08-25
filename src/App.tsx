@@ -43,6 +43,9 @@ import WalletCreditFacilityRequest from "./pages/WalletCreditFacilityRequest";
 import AdminWalletCreditManagement from "./pages/AdminWalletCreditManagement";
 import IdentityAdministration from "./pages/IdentityAdministration";
 import AdminPortalMigration from "./pages/AdminPortalMigration";
+import LegacyEquipmentMapping from "./pages/LegacyEquipmentMapping";
+import LegacyBookingMapping from "./pages/LegacyBookingMapping";
+import MigrationBookingDetail from "./pages/MigrationBookingDetail";
 import Reports from "./pages/Reports";
 import ReportBookingsList from "./pages/ReportBookingsList";
 import AdminPanel from "./pages/AdminPanel";
@@ -181,6 +184,12 @@ const App = () => (
                 <Route path="/admin/wallet-credit/:facilityId" element={<AdminWalletCreditManagement />} />
                 <Route path="/admin/identity" element={<IdentityAdministration />} />
                 <Route path="/admin/portal-migration" element={<AdminPortalMigration />} />
+                <Route path="/admin/portal-migration/equipment-mapping" element={<LegacyEquipmentMapping />} />
+                <Route path="/admin/portal-migration/legacy-bookings" element={<LegacyBookingMapping />} />
+                <Route
+                  path="/admin/portal-migration/legacy-bookings/:legacyBookingId"
+                  element={<MigrationBookingDetail />}
+                />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/reports/bookings" element={<ReportBookingsList />} />
                 <Route path="/proforma-invoice" element={<ProformaInvoice />} />

@@ -566,6 +566,22 @@ export function BookingDetailCard({
   onAutoOpenEditInputsConsumed,
 }: BookingDetailCardProps) {
   const [booking, setBooking] = useState<BookingDetailCardBooking>(initialBooking);
+  const [migrationSettlement, setMigrationSettlement] = useState<{
+    eligibility?: string;
+    original_amount?: string;
+    refundable_amount?: string;
+    status?: string | null;
+    reference?: string | null;
+    refund_amount?: string | null;
+    processed_by?: string | null;
+    processed_by_role?: string | null;
+    processed_at?: string | null;
+    can_issue?: boolean;
+    migration_window_open?: boolean;
+  } | null>(null);
+  const [migrationRefundLoading, setMigrationRefundLoading] = useState(false);
+  const [migrationRefundConfirmOpen, setMigrationRefundConfirmOpen] = useState(false);
+  const [migrationRefundReason, setMigrationRefundReason] = useState("");
   const isWaitlistedEntry =
     booking.status?.toUpperCase() === "WAITLISTED" || (booking as any).is_waitlist_entry === true;
   const waitlistRequestedDurationMinutes = (() => {
@@ -720,6 +736,29 @@ export function BookingDetailCard({
       onUpdated();
     } finally {
       setAtmosphereSaving(false);
+    }
+  };
+
+  const handleIssueMigrationRefund = async () => {
+    if (bookingPk == null || migrationRefundLoading) return;
+    setMigrationRefundLoading(true);
+    try {
+      const res = await apiClient.issueBookingMigrationRefund(bookingPk, {
+        confirm: true,
+        reason: migrationRefundReason.trim(),
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.data?.message || "Migration refund completed.");
+      setMigrationRefundConfirmOpen(false);
+      setMigrationRefundReason("");
+      const refreshed = await apiClient.getBookingMigrationSettlement(bookingPk);
+      if (!refreshed.error && refreshed.data) setMigrationSettlement(refreshed.data);
+      onUpdated();
+    } finally {
+      setMigrationRefundLoading(false);
     }
   };
 
@@ -938,6 +977,28 @@ export function BookingDetailCard({
       setRepeatEligibility(null);
     }
   }, [booking.booking_id, booking.user, booking.status, booking.repeat_sample_enabled, isOperator, currentUserId, bookingPk]);
+
+  useEffect(() => {
+    const ut = String(currentUserType || "").toLowerCase();
+    const canSeeMigrationSettlement =
+      Boolean(isManagerOrAdmin) && (ut === "admin" || ut === "manager" || ut === "");
+    if (!canSeeMigrationSettlement || bookingPk == null || isWaitlistedEntry) {
+      setMigrationSettlement(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient.getBookingMigrationSettlement(bookingPk).then((res) => {
+      if (cancelled) return;
+      if (res.error || !res.data) {
+        setMigrationSettlement(null);
+        return;
+      }
+      setMigrationSettlement(res.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingPk, isManagerOrAdmin, currentUserType, isWaitlistedEntry, booking.booking_id]);
 
   useEffect(() => {
     const externalSelf =
@@ -2434,6 +2495,43 @@ export function BookingDetailCard({
                   Refund
                 </Button>
               )}
+              {migrationSettlement && isManagerOrAdmin && !isLabInchargeUser && !isExternalSelfView && (
+                <div className="w-full rounded-md border border-amber-200 bg-amber-50/60 p-3 space-y-2 text-sm">
+                  <div className="font-medium text-amber-950">Migration Settlement</div>
+                  <div className="grid gap-1 text-xs text-muted-foreground">
+                    <div>Original / refundable: ₹{migrationSettlement.original_amount ?? "—"} / ₹{migrationSettlement.refundable_amount ?? "—"}</div>
+                    <div>Status: {migrationSettlement.status || migrationSettlement.eligibility || "—"}</div>
+                    {migrationSettlement.reference ? <div>Reference: {migrationSettlement.reference}</div> : null}
+                    {migrationSettlement.processed_by ? (
+                      <div>
+                        Processed by: {migrationSettlement.processed_by_role || "authorized operator"}
+                        {migrationSettlement.processed_at ? ` · ${migrationSettlement.processed_at}` : ""}
+                      </div>
+                    ) : null}
+                    {migrationSettlement.migration_window_open === false ? (
+                      <div className="text-destructive">Migration settlement window is closed.</div>
+                    ) : null}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={
+                      migrationRefundLoading ||
+                      !migrationSettlement.can_issue ||
+                      migrationSettlement.status === "COMPLETED" ||
+                      migrationSettlement.migration_window_open === false
+                    }
+                    onClick={() => setMigrationRefundConfirmOpen(true)}
+                  >
+                    {migrationRefundLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                    )}
+                    Issue One-Time Refund
+                  </Button>
+                </div>
+              )}
               {!isHold && isOperatorOrManager && !isLabInchargeUser && canPerformAction(booking, "absent", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("absent", booking)}>
                   <XCircle className="h-4 w-4 mr-2" />
@@ -2754,6 +2852,39 @@ export function BookingDetailCard({
                 </Button>
               )}
             </div>
+            <AlertDialog open={migrationRefundConfirmOpen} onOpenChange={setMigrationRefundConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Issue one-time migration refund?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This credits the wallet via the existing ledger for a migration settlement only.
+                    It does not unlock old-portal booking freeze and does not free slots for a new booking.
+                    Amount: ₹{migrationSettlement?.refundable_amount ?? migrationSettlement?.original_amount ?? "—"}.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-2 py-1">
+                  <Label htmlFor="migration-refund-reason">Reason (optional)</Label>
+                  <Input
+                    id="migration-refund-reason"
+                    value={migrationRefundReason}
+                    onChange={(e) => setMigrationRefundReason(e.target.value)}
+                    placeholder="Migration settlement note"
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={migrationRefundLoading}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={migrationRefundLoading}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void handleIssueMigrationRefund();
+                    }}
+                  >
+                    {migrationRefundLoading ? "Processing…" : "Confirm refund"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Dialog
               open={sampleRejectDialogOpen}
               onOpenChange={(open) => {
