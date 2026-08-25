@@ -829,6 +829,24 @@ class ApiClient {
             this.onUnauthorized();
           }
         }
+        // Portal-migration SCHEMA_PENDING (503): keep full JSON payload for UI banners.
+        // Do not treat schema/results/table as "field errors".
+        const schemaPendingBody = data as { code?: unknown; message?: unknown; error?: unknown };
+        if (
+          response.status === 503 &&
+          typeof schemaPendingBody?.code === "string" &&
+          schemaPendingBody.code === "SCHEMA_PENDING"
+        ) {
+          return {
+            error:
+              (typeof schemaPendingBody.message === "string" && schemaPendingBody.message) ||
+              (typeof schemaPendingBody.error === "string" && schemaPendingBody.error) ||
+              "SCHEMA_PENDING",
+            status: response.status,
+            errorCode: "SCHEMA_PENDING",
+            data: data as T,
+          };
+        }
         // Handle field-specific errors (e.g., {"email": ["A user with this email already exists."]})
         const fieldErrors: Record<string, string[] | string> = {};
         let hasFieldErrors = false;

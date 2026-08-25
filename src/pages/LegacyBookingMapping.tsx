@@ -69,9 +69,11 @@ export default function LegacyBookingMapping() {
   const [search, setSearch] = useState("");
   const [previewJson, setPreviewJson] = useState("");
   const [conflictCount, setConflictCount] = useState(0);
+  const [schemaPending, setSchemaPending] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setSchemaPending(null);
     try {
       const params: Record<string, string> = {};
       if (eligibility !== "all") params.eligibility = eligibility;
@@ -88,10 +90,18 @@ export default function LegacyBookingMapping() {
       }
 
       const res = await apiClient.getLegacyBookings(params, legacyRows);
+      const body = (res.data || {}) as Record<string, unknown>;
+      if (res.errorCode === "SCHEMA_PENDING" || body.code === "SCHEMA_PENDING" || res.status === 503) {
+        setSchemaPending(body.code ? body : { code: "SCHEMA_PENDING", message: res.error, ...(body || {}) });
+        setRows([]);
+        setCounts({});
+        setConflictCount(0);
+        return;
+      }
       if (res.error) throw new Error(res.error);
-      setRows((res.data?.results || []) as LegacyBookingRow[]);
-      setCounts((res.data?.discovery_counts || {}) as Record<string, number>);
-      setConflictCount(Number((res.data?.conflict_report as Record<string, unknown>)?.conflict_count || 0));
+      setRows((body.results || []) as LegacyBookingRow[]);
+      setCounts((body.discovery_counts || {}) as Record<string, number>);
+      setConflictCount(Number((body.conflict_report as Record<string, unknown>)?.conflict_count || 0));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load legacy bookings");
     } finally {
@@ -131,6 +141,43 @@ export default function LegacyBookingMapping() {
           Refresh
         </Button>
       </div>
+
+      {schemaPending ? (
+        <Card className="border-amber-400 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-base">SCHEMA_PENDING — legacy bookings unavailable</CardTitle>
+            <CardDescription>
+              HTTP 503 is expected until <strong>users.0101–0104</strong> are applied on production. Approving
+              the datetime contract alone does <strong>not</strong> unlock this page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>
+              {String(
+                schemaPending.message ||
+                  (schemaPending.schema as Record<string, unknown> | undefined)?.detail ||
+                  "Discovery/mapping tables and migration_start_at are not on the database yet.",
+              )}
+            </p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>
+                Optional now: approve datetime on{" "}
+                <Link className="underline" to="/admin/portal-migration">
+                  Portal Migration
+                </Link>
+                .
+              </li>
+              <li>
+                Required for this page: authorize <strong>Migrate Production</strong> 0101–0104 (not T0).
+              </li>
+              <li>Set migration window dates → then discovery / booking list will load.</li>
+            </ol>
+            <Button asChild variant="secondary">
+              <Link to="/admin/portal-migration">Back to Portal Migration</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-4">
         {Object.entries(counts).map(([k, v]) => (

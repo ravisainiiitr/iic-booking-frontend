@@ -67,21 +67,32 @@ export default function LegacyEquipmentMapping() {
   const [drafts, setDrafts] = useState<Record<number, number | "">>({});
   const [windowStats, setWindowStats] = useState<Record<string, number>>({});
   const [datetimeContract, setDatetimeContract] = useState<Record<string, unknown> | null>(null);
+  const [schemaPending, setSchemaPending] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setSchemaPending(null);
     try {
       const params: Record<string, string> = {};
       if (mappedFilter === "mapped") params.mapped = "mapped";
       if (mappedFilter === "unmapped") params.mapped = "unmapped";
       if (search.trim()) params.search = search.trim();
       const res = await apiClient.getLegacyEquipmentMappings(params);
+      const body = (res.data || {}) as Record<string, unknown>;
+      if (res.errorCode === "SCHEMA_PENDING" || body.code === "SCHEMA_PENDING" || res.status === 503) {
+        setSchemaPending(body.code ? body : { code: "SCHEMA_PENDING", message: res.error, ...(body || {}) });
+        setRows([]);
+        setOptions([]);
+        setWindowStats({});
+        setDatetimeContract(null);
+        return;
+      }
       if (res.error) throw new Error(res.error);
-      const table = (res.data?.table || []) as EquipmentRow[];
+      const table = (body.table || []) as EquipmentRow[];
       setRows(table);
-      setOptions((res.data?.new_equipment_options || []) as NewEquipmentOption[]);
-      setWindowStats((res.data?.equipment_window_stats || {}) as Record<string, number>);
-      setDatetimeContract((res.data?.datetime_contract || null) as Record<string, unknown> | null);
+      setOptions((body.new_equipment_options || []) as NewEquipmentOption[]);
+      setWindowStats((body.equipment_window_stats || {}) as Record<string, number>);
+      setDatetimeContract((body.datetime_contract || null) as Record<string, unknown> | null);
       const nextDrafts: Record<number, number | ""> = {};
       table.forEach((r) => {
         nextDrafts[r.old_equipment_id] = r.new_equipment_id ?? "";
@@ -193,7 +204,54 @@ export default function LegacyEquipmentMapping() {
         </div>
       </div>
 
-      {datetimeContract ? (
+      {schemaPending ? (
+        <Card className="border-amber-400 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-base">SCHEMA_PENDING — equipment mapping unavailable</CardTitle>
+            <CardDescription>
+              HTTP 503 is expected until production schema migrations <strong>users.0101–0104</strong> are
+              applied. This is <strong>not</strong> the datetime-contract approval gate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>
+              {String(
+                schemaPending.message ||
+                  (schemaPending.schema as Record<string, unknown> | undefined)?.detail ||
+                  "Mapping tables / migration_start_at are not on the database yet.",
+              )}
+            </p>
+            <p>
+              Pending:{" "}
+              <code>
+                {JSON.stringify(
+                  (schemaPending.schema as Record<string, unknown> | undefined)?.pending_migrations ||
+                    ["0101", "0102", "0103", "0104"],
+                )}
+              </code>
+            </p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>
+                Approve datetime on{" "}
+                <Link className="underline" to="/admin/portal-migration">
+                  Portal Migration
+                </Link>{" "}
+                (works now; does not unlock this page).
+              </li>
+              <li>
+                Authorize <strong>Migrate Production</strong> for 0101–0104 (
+                <code>confirm_migrate=MIGRATE</code>) — separate from T0.
+              </li>
+              <li>Then set migration window dates and use equipment mapping / discovery.</li>
+            </ol>
+            <Button asChild variant="secondary">
+              <Link to="/admin/portal-migration">Back to Portal Migration</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {datetimeContract && !schemaPending ? (
         <Card className="border-amber-300 bg-amber-50/50">
           <CardHeader>
             <CardTitle className="text-base">Booking datetime contract</CardTitle>
