@@ -224,6 +224,18 @@ export default function AnalysisWorkspacePage() {
   const queued = Boolean(queue.is_queued);
   const sessionStatus = String(session.status || sessionExp.status || "");
   const started = ["LAUNCHED", "CONNECTING", "CONNECTED", "ACTIVE", "IDLE"].includes(sessionStatus);
+  // Session token already issued — connect without re-selecting data (R13 gate was for pre-start only).
+  const sessionReadyToOpen = [
+    "CREATED",
+    "PREPARING",
+    "READY",
+    "TOKEN_GENERATED",
+    "LAUNCHED",
+    "CONNECTING",
+    "CONNECTED",
+    "ACTIVE",
+    "IDLE",
+  ].includes(sessionStatus);
   const envReady =
     Boolean(reservation.allocated || awaitingCheckin) &&
     !queued &&
@@ -288,23 +300,25 @@ export default function AnalysisWorkspacePage() {
     busy ||
     queued ||
     analysisEnded ||
-    (!started && !hasDataSource) ||
-    (!canAnalyze && !started && !envReady && !awaitingCheckin) ||
+    // Already have a live/tokenized session — allow Open without re-picking data.
+    (!started && !sessionReadyToOpen && !hasDataSource) ||
+    (!canAnalyze && !started && !sessionReadyToOpen && !envReady && !awaitingCheckin) ||
     (inputMode === "booking_raw" &&
+      !sessionReadyToOpen &&
       !dataSelectionLabel &&
       Number(bookingRaw.file_count || 0) === 0 &&
       !(summary as any)?.raw_ready);
 
   const openOrStart = async () => {
     if (!Number.isFinite(bookingPk)) return;
-    if (!started && !hasDataSource) {
+    if (started || sessionReadyToOpen) {
+      navigate(`/analysis-launch/${bookingPk}${session.id ? `?session=${session.id}` : ""}`);
+      return;
+    }
+    if (!hasDataSource) {
       toast.message("Select your input data first", {
         description: "Choose Current Booking Data, Previous Booking Data, or Upload Data.",
       });
-      return;
-    }
-    if (started) {
-      navigate(`/analysis-launch/${bookingPk}${session.id ? `?session=${session.id}` : ""}`);
       return;
     }
     if (awaitingCheckin) {
@@ -490,13 +504,17 @@ export default function AnalysisWorkspacePage() {
                         ? "Waiting in queue…"
                         : busy
                           ? "Starting…"
-                          : awaitingCheckin
-                            ? "Start Analysis"
-                            : "Open Analysis Environment"}
+                          : started || sessionReadyToOpen
+                            ? "Open Analysis Environment"
+                            : awaitingCheckin
+                              ? "Start Analysis"
+                              : "Open Analysis Environment"}
                     </span>
                     {!queued && !busy ? (
                   <span className="text-[10px] font-normal text-white/80">
-                        {!hasDataSource && !started
+                        {started || sessionReadyToOpen
+                          ? "Connect to your reserved Analysis PC"
+                          : !hasDataSource && !started
                           ? "Select Current / Previous / Upload data first"
                           : awaitingCheckin
                             ? "Your Analysis PC is reserved — start before the timer expires"
@@ -572,7 +590,7 @@ export default function AnalysisWorkspacePage() {
             />
 
             {/* R13 — data selection comes first; allocation may continue in parallel */}
-            {!started && !dataSourceConfirmed && !dataSelectionLabel ? (
+            {!started && !sessionReadyToOpen && !dataSourceConfirmed && !dataSelectionLabel ? (
               <Card className="border-sky-500/25 bg-gradient-to-br from-sky-50/80 to-white shadow-sm dark:from-sky-950/20 dark:to-background">
                 <CardHeader>
                   <CardTitle className="text-xl">What data would you like to analyze?</CardTitle>

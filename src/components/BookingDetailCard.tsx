@@ -1550,8 +1550,15 @@ export function BookingDetailCard({
     "DISCONNECTING",
   ]);
   const hasOpenAnalysisSession = openAnalysisSessionStatuses.has(analysisSessionStatus);
+  const reservationStatusForCta = String(
+    ((analysisSummary?.reservation as Record<string, unknown>) || {}).status || ""
+  ).toUpperCase();
+  const awaitingCheckinReservation = ["AWAITING_CHECKIN", "RESERVED"].includes(reservationStatusForCta);
   const canOpenAnalysisWorkspace =
-    Boolean((analysisSummary as any)?.can_analyze) || hasOpenAnalysisSession;
+    Boolean((analysisSummary as any)?.can_analyze) ||
+    hasOpenAnalysisSession ||
+    awaitingCheckinReservation ||
+    Boolean((analysisSummary as any)?.experience?.awaiting_checkin);
   const analysisEndedForBooking =
     Boolean((analysisSummary as any)?.analysis_ended) ||
     Boolean((analysisSummary as any)?.analyze?.analysis_ended) ||
