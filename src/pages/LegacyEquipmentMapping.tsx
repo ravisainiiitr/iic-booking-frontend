@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Check, ChevronsUpDown, Download, Link2Off, RefreshCw, Save, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronsUpDown,
+  Download,
+  Link2Off,
+  RefreshCw,
+  Save,
+  Split,
+  Trash2,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +46,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+type CapacitySplit = {
+  id: number;
+  old_equipment_id: number;
+  old_equipment_code?: string;
+  old_equipment_name?: string;
+  target_a_id: number;
+  target_a_code?: string;
+  target_a_name?: string;
+  target_b_id: number;
+  target_b_code?: string;
+  target_b_name?: string;
+  policy?: string;
+  policy_label?: string;
+  status?: string;
+  notes?: string;
+  slot_scheme?: Array<{ old_start: string; band: string; new_start: string }>;
+  updated_at?: string | null;
+};
+
 type EquipmentRow = {
   old_equipment_id: number;
   old_equipment_name?: string;
@@ -47,6 +76,7 @@ type EquipmentRow = {
   mapping_status?: string;
   conflict_count?: number;
   last_updated?: string | null;
+  capacity_split?: CapacitySplit | null;
 };
 
 type NewEquipmentOption = {
@@ -62,9 +92,11 @@ function optionLabel(o: NewEquipmentOption) {
 function statusBadge(status?: string) {
   const s = (status || "UNMAPPED").toUpperCase();
   if (s === "ACTIVE") return <Badge className="bg-emerald-600">Mapped</Badge>;
+  if (s === "CAPACITY_SPLIT") return <Badge className="bg-violet-700">Capacity split</Badge>;
   if (s === "CONFLICT") return <Badge variant="destructive">Conflict</Badge>;
   if (s === "RETIRED") return <Badge variant="secondary">Not required</Badge>;
   if (s === "DISABLED") return <Badge variant="secondary">Disabled</Badge>;
+  if (s === "DRAFT") return <Badge variant="outline">Draft split</Badge>;
   return <Badge variant="outline">Unmapped</Badge>;
 }
 
@@ -74,11 +106,13 @@ function NewEquipmentCombobox({
   value,
   onChange,
   disabled,
+  placeholder = "Search new equipment…",
 }: {
   options: NewEquipmentOption[];
   value: number | "";
   onChange: (next: number | "") => void;
   disabled?: boolean;
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -114,9 +148,7 @@ function NewEquipmentCombobox({
           disabled={disabled}
           className="h-9 w-full min-w-[220px] justify-between font-normal"
         >
-          <span className="truncate text-left">
-            {selected ? optionLabel(selected) : "Search new equipment…"}
-          </span>
+          <span className="truncate text-left">{selected ? optionLabel(selected) : placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -176,6 +208,7 @@ export default function LegacyEquipmentMapping() {
 
   const [rows, setRows] = useState<EquipmentRow[]>([]);
   const [options, setOptions] = useState<NewEquipmentOption[]>([]);
+  const [capacitySplits, setCapacitySplits] = useState<CapacitySplit[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -185,6 +218,11 @@ export default function LegacyEquipmentMapping() {
   const [datetimeContract, setDatetimeContract] = useState<Record<string, unknown> | null>(null);
   const [schemaPending, setSchemaPending] = useState<Record<string, unknown> | null>(null);
 
+  const [splitOldId, setSplitOldId] = useState<number | "">("");
+  const [splitTargetA, setSplitTargetA] = useState<number | "">("");
+  const [splitTargetB, setSplitTargetB] = useState<number | "">("");
+  const [previewText, setPreviewText] = useState<string>("");
+
   const load = useCallback(async () => {
     setLoading(true);
     setSchemaPending(null);
@@ -192,6 +230,7 @@ export default function LegacyEquipmentMapping() {
       const params: Record<string, string> = {};
       if (mappedFilter === "mapped") params.mapped = "mapped";
       if (mappedFilter === "unmapped") params.mapped = "unmapped";
+      if (mappedFilter === "not_required") params.mapped = "not_required";
       if (search.trim()) params.search = search.trim();
       const res = await apiClient.getLegacyEquipmentMappings(params);
       const body = (res.data || {}) as Record<string, unknown>;
@@ -199,6 +238,7 @@ export default function LegacyEquipmentMapping() {
         setSchemaPending(body.code ? body : { code: "SCHEMA_PENDING", message: res.error, ...(body || {}) });
         setRows([]);
         setOptions([]);
+        setCapacitySplits([]);
         setWindowStats({});
         setDatetimeContract(null);
         return;
@@ -207,6 +247,7 @@ export default function LegacyEquipmentMapping() {
       const table = (body.table || []) as EquipmentRow[];
       setRows(table);
       setOptions((body.new_equipment_options || []) as NewEquipmentOption[]);
+      setCapacitySplits((body.capacity_splits || []) as CapacitySplit[]);
       setWindowStats((body.equipment_window_stats || {}) as Record<string, number>);
       setDatetimeContract((body.datetime_contract || null) as Record<string, unknown> | null);
       const nextDrafts: Record<number, number | ""> = {};
@@ -235,6 +276,10 @@ export default function LegacyEquipmentMapping() {
   }, [rows]);
 
   const saveMapping = async (row: EquipmentRow) => {
+    if (String(row.mapping_status || "").toUpperCase() === "CAPACITY_SPLIT") {
+      toast.error("This legacy ID uses a capacity split — edit the split instead of 1:1 mapping.");
+      return;
+    }
     const newId = drafts[row.old_equipment_id];
     if (!newId) {
       toast.error("Select new equipment before saving");
@@ -269,6 +314,10 @@ export default function LegacyEquipmentMapping() {
 
   const unmapRow = async (row: EquipmentRow) => {
     const status = String(row.mapping_status || "UNMAPPED").toUpperCase();
+    if (status === "CAPACITY_SPLIT") {
+      toast.error("Disable or delete the capacity split to unmap this legacy ID.");
+      return;
+    }
     if (!row.mapping_id && status === "UNMAPPED" && !drafts[row.old_equipment_id]) {
       toast.message("Already unmapped");
       return;
@@ -303,6 +352,10 @@ export default function LegacyEquipmentMapping() {
 
   /** Mark legacy equipment as not required in the new portal (RETIRED). */
   const markNotRequired = async (row: EquipmentRow) => {
+    if (String(row.mapping_status || "").toUpperCase() === "CAPACITY_SPLIT") {
+      toast.error("Disable/delete the capacity split before marking not required.");
+      return;
+    }
     if (
       !window.confirm(
         `Mark legacy equipment ${row.old_equipment_id} (${row.old_equipment_name || "unnamed"}) as not required?\n\n` +
@@ -369,6 +422,108 @@ export default function LegacyEquipmentMapping() {
     }
   };
 
+  const createCapacitySplit = async () => {
+    if (!splitOldId || !splitTargetA || !splitTargetB) {
+      toast.error("Select legacy ID, target A (daytime), and target B (overnight fold).");
+      return;
+    }
+    if (Number(splitTargetA) === Number(splitTargetB)) {
+      toast.error("Target A and Target B must be different equipment.");
+      return;
+    }
+    const row = rows.find((r) => r.old_equipment_id === Number(splitOldId));
+    if (
+      !window.confirm(
+        `Create ACTIVE capacity split for legacy ${splitOldId}?\n\n` +
+          `A (daytime same clock): equipment ${splitTargetA}\n` +
+          `B (overnight → daytime): equipment ${splitTargetB}\n\n` +
+          "Policy: TIME_BAND_FOLD (TG/DTA scheme).\n" +
+          "Any ACTIVE 1:1 mapping for this legacy ID will be DISABLED.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiClient.createLegacyEquipmentCapacitySplit({
+        old_equipment_id: Number(splitOldId),
+        old_equipment_name: row?.old_equipment_name || "",
+        target_a_id: Number(splitTargetA),
+        target_b_id: Number(splitTargetB),
+        policy: "TIME_BAND_FOLD",
+        status: "ACTIVE",
+        notes: "TG/DTA capacity split — overnight→B, daytime→A",
+      });
+      if (res.error) throw new Error(res.error);
+      toast.success(`Capacity split created for legacy ${splitOldId}`);
+      setSplitOldId("");
+      setSplitTargetA("");
+      setSplitTargetB("");
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Create capacity split failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setSplitStatus = async (split: CapacitySplit, status: string) => {
+    setBusy(true);
+    try {
+      const res = await apiClient.patchLegacyEquipmentCapacitySplit(split.id, { status });
+      if (res.error) throw new Error(res.error);
+      toast.success(`Capacity split #${split.id} → ${status}`);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Update split failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteSplit = async (split: CapacitySplit) => {
+    if (
+      !window.confirm(
+        `Delete capacity split #${split.id} for legacy ${split.old_equipment_id}?\n` +
+          "Discovery will fall back to 1:1 mapping (if any).",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiClient.deleteLegacyEquipmentCapacitySplit(split.id);
+      if (res.error) throw new Error(res.error);
+      toast.success(`Deleted capacity split for legacy ${split.old_equipment_id}`);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete split failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const previewSplit = async (split: CapacitySplit) => {
+    setBusy(true);
+    setPreviewText("");
+    try {
+      const res = await apiClient.previewLegacyEquipmentCapacitySplit(split.id);
+      if (res.error) throw new Error(res.error);
+      const counts = (res.data as Record<string, unknown>)?.counts || {};
+      setPreviewText(
+        `Split #${split.id} preview — assigned=${(counts as Record<string, unknown>).assigned ?? "?"} ` +
+          `A=${(counts as Record<string, unknown>).band_a ?? "?"} ` +
+          `B=${(counts as Record<string, unknown>).band_b ?? "?"} ` +
+          `needs_review=${(counts as Record<string, unknown>).needs_review ?? "?"}`,
+      );
+      toast.success("Preview complete (read-only)");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const exportReport = async () => {
     setBusy(true);
     try {
@@ -406,7 +561,7 @@ export default function LegacyEquipmentMapping() {
           <div>
             <h1 className="text-2xl font-semibold">Equipment Mapping</h1>
             <p className="text-sm text-muted-foreground">
-              Explicit legacy → new equipment mapping. No fuzzy auto-mapping.
+              Explicit legacy → new equipment mapping. TG/DTA uses capacity-split (1→A+B).
             </p>
           </div>
         </div>
@@ -427,7 +582,7 @@ export default function LegacyEquipmentMapping() {
           <CardHeader>
             <CardTitle className="text-base">SCHEMA_PENDING — equipment mapping unavailable</CardTitle>
             <CardDescription>
-              HTTP 503 is expected until production schema migrations <strong>users.0101–0104</strong> are
+              HTTP 503 is expected until production schema migrations <strong>users.0101–0105</strong> are
               applied. This is <strong>not</strong> the datetime-contract approval gate.
             </CardDescription>
           </CardHeader>
@@ -444,7 +599,7 @@ export default function LegacyEquipmentMapping() {
               <code>
                 {JSON.stringify(
                   (schemaPending.schema as Record<string, unknown> | undefined)?.pending_migrations ||
-                    ["0101", "0102", "0103", "0104"],
+                    ["0101", "0102", "0103", "0104", "0105"],
                 )}
               </code>
             </p>
@@ -457,10 +612,10 @@ export default function LegacyEquipmentMapping() {
                 (works now; does not unlock this page).
               </li>
               <li>
-                Authorize <strong>Migrate Production</strong> for 0101–0104 (
+                Authorize <strong>Migrate Production</strong> for 0101–0105 (
                 <code>confirm_migrate=MIGRATE</code>) — separate from T0.
               </li>
-              <li>Then set migration window dates and use equipment mapping / discovery.</li>
+              <li>Then set migration window dates and use equipment mapping / capacity-split / discovery.</li>
             </ol>
             <Button asChild variant="secondary">
               <Link to="/admin/portal-migration">Back to Portal Migration</Link>
@@ -515,6 +670,130 @@ export default function LegacyEquipmentMapping() {
         </div>
       ) : null}
 
+      {!schemaPending ? (
+        <Card className="border-violet-300">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Split className="h-4 w-4" />
+              Capacity split (TG/DTA)
+            </CardTitle>
+            <CardDescription>
+              One legacy calendar → two new machines. Scheme: overnight{" "}
+              <code>00:00 / 02:15 / 04:30 / 06:45</code> → <strong>B</strong> at{" "}
+              <code>09:00 / 11:15 / 13:30 / 15:45</code>; daytime slots → <strong>A</strong> same wall-clock.
+              Prefer DTA/TGA[A] as target A and DTA/TGA[B] as target B.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Legacy equipment ID</Label>
+                <Input
+                  type="number"
+                  value={splitOldId === "" ? "" : String(splitOldId)}
+                  onChange={(e) =>
+                    setSplitOldId(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  placeholder="e.g. old TG/DTA id"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Target A (daytime)</Label>
+                <NewEquipmentCombobox
+                  options={options}
+                  value={splitTargetA}
+                  onChange={setSplitTargetA}
+                  disabled={busy}
+                  placeholder="DTA/TGA[A]…"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Target B (overnight fold)</Label>
+                <NewEquipmentCombobox
+                  options={options}
+                  value={splitTargetB}
+                  onChange={setSplitTargetB}
+                  disabled={busy}
+                  placeholder="DTA/TGA[B]…"
+                />
+              </div>
+            </div>
+            <Button disabled={busy} onClick={() => void createCapacitySplit()}>
+              <Split className="mr-2 h-4 w-4" />
+              Create ACTIVE capacity split
+            </Button>
+
+            {capacitySplits.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No capacity splits configured yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Legacy</TableHead>
+                    <TableHead>A</TableHead>
+                    <TableHead>B</TableHead>
+                    <TableHead>Policy</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {capacitySplits.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-mono">
+                        {s.old_equipment_id}
+                        <div className="text-xs text-muted-foreground">{s.old_equipment_name || ""}</div>
+                      </TableCell>
+                      <TableCell>
+                        {s.target_a_code || s.target_a_id}
+                        <div className="text-xs text-muted-foreground">{s.target_a_name}</div>
+                      </TableCell>
+                      <TableCell>
+                        {s.target_b_code || s.target_b_id}
+                        <div className="text-xs text-muted-foreground">{s.target_b_name}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">{s.policy || "TIME_BAND_FOLD"}</TableCell>
+                      <TableCell>{statusBadge(s.status === "ACTIVE" ? "CAPACITY_SPLIT" : s.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {String(s.status).toUpperCase() !== "ACTIVE" ? (
+                            <Button size="sm" disabled={busy} onClick={() => void setSplitStatus(s, "ACTIVE")}>
+                              Activate
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() => void setSplitStatus(s, "DISABLED")}
+                            >
+                              Disable
+                            </Button>
+                          )}
+                          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void previewSplit(s)}>
+                            Preview
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() => void deleteSplit(s)}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            {previewText ? <p className="text-sm text-muted-foreground">{previewText}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
@@ -532,7 +811,7 @@ export default function LegacyEquipmentMapping() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                <SelectItem value="mapped">Mapped</SelectItem>
+                <SelectItem value="mapped">Mapped (+ capacity split)</SelectItem>
                 <SelectItem value="unmapped">Unmapped</SelectItem>
                 <SelectItem value="not_required">Not required</SelectItem>
               </SelectContent>
@@ -551,8 +830,8 @@ export default function LegacyEquipmentMapping() {
           <CardTitle>Legacy equipment</CardTitle>
           <CardDescription>
             Confirm each mapping explicitly. Use the searchable New equipment picker (code, name, or
-            ID). <strong>Unmap</strong> clears a link; <strong>Not required</strong> marks legacy gear
-            that no longer exists; <strong>Delete record</strong> removes the DB mapping row.
+            ID). For TG/DTA use <strong>Capacity split</strong> above. <strong>Unmap</strong> clears a
+            1:1 link; <strong>Not required</strong> marks legacy gear that no longer exists.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -579,67 +858,116 @@ export default function LegacyEquipmentMapping() {
                   <TableCell colSpan={8}>No legacy equipment discovered yet.</TableCell>
                 </TableRow>
               ) : (
-                sortedRows.map((row) => (
-                  <TableRow key={row.old_equipment_id}>
-                    <TableCell className="font-mono">{row.old_equipment_id}</TableCell>
-                    <TableCell>{row.old_equipment_name || "—"}</TableCell>
-                    <TableCell>{row.legacy_booking_count ?? 0}</TableCell>
-                    <TableCell className="min-w-[260px]">
-                      <NewEquipmentCombobox
-                        options={options}
-                        value={drafts[row.old_equipment_id] ?? ""}
-                        disabled={busy}
-                        onChange={(next) =>
-                          setDrafts((d) => ({ ...d, [row.old_equipment_id]: next }))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>{statusBadge(row.mapping_status)}</TableCell>
-                    <TableCell>{row.conflict_count ?? 0}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {row.last_updated ? new Date(row.last_updated).toLocaleString() : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        <Button size="sm" disabled={busy} onClick={() => void saveMapping(row)}>
-                          <Save className="mr-1 h-3 w-3" />
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          title="Clear new-equipment link (UNMAPPED)"
-                          onClick={() => void unmapRow(row)}
-                        >
-                          <Link2Off className="mr-1 h-3 w-3" />
-                          Unmap
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={busy || String(row.mapping_status || "").toUpperCase() === "RETIRED"}
-                          title="Legacy equipment no longer exists / not needed in new portal"
-                          onClick={() => void markNotRequired(row)}
-                        >
-                          Not required
-                        </Button>
-                        {row.mapping_id ? (
-                          <Button
-                            size="sm"
-                            variant="destructive"
+                sortedRows.map((row) => {
+                  const isSplit = String(row.mapping_status || "").toUpperCase() === "CAPACITY_SPLIT";
+                  const split = row.capacity_split;
+                  return (
+                    <TableRow key={row.old_equipment_id}>
+                      <TableCell className="font-mono">{row.old_equipment_id}</TableCell>
+                      <TableCell>{row.old_equipment_name || "—"}</TableCell>
+                      <TableCell>{row.legacy_booking_count ?? 0}</TableCell>
+                      <TableCell className="min-w-[260px]">
+                        {isSplit && split ? (
+                          <div className="space-y-1 text-sm">
+                            <div>
+                              <Badge variant="outline" className="mr-1">
+                                A
+                              </Badge>
+                              {split.target_a_code || split.target_a_id}
+                            </div>
+                            <div>
+                              <Badge variant="outline" className="mr-1">
+                                B
+                              </Badge>
+                              {split.target_b_code || split.target_b_id}
+                            </div>
+                          </div>
+                        ) : (
+                          <NewEquipmentCombobox
+                            options={options}
+                            value={drafts[row.old_equipment_id] ?? ""}
                             disabled={busy}
-                            title="Permanently delete the mapping DB row"
-                            onClick={() => void deleteMappingRecord(row)}
-                          >
-                            <Trash2 className="mr-1 h-3 w-3" />
-                            Delete
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                            onChange={(next) =>
+                              setDrafts((d) => ({ ...d, [row.old_equipment_id]: next }))
+                            }
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>{statusBadge(row.mapping_status)}</TableCell>
+                      <TableCell>{row.conflict_count ?? 0}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {row.last_updated ? new Date(row.last_updated).toLocaleString() : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {!isSplit ? (
+                            <>
+                              <Button size="sm" disabled={busy} onClick={() => void saveMapping(row)}>
+                                <Save className="mr-1 h-3 w-3" />
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                title="Clear new-equipment link (UNMAPPED)"
+                                onClick={() => void unmapRow(row)}
+                              >
+                                <Link2Off className="mr-1 h-3 w-3" />
+                                Unmap
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={busy || String(row.mapping_status || "").toUpperCase() === "RETIRED"}
+                                title="Legacy equipment no longer exists / not needed in new portal"
+                                onClick={() => void markNotRequired(row)}
+                              >
+                                Not required
+                              </Button>
+                              {row.mapping_id ? (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={busy}
+                                  title="Permanently delete the mapping DB row"
+                                  onClick={() => void deleteMappingRecord(row)}
+                                >
+                                  <Trash2 className="mr-1 h-3 w-3" />
+                                  Delete
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                title="Prefill capacity-split form with this legacy ID"
+                                onClick={() => setSplitOldId(row.old_equipment_id)}
+                              >
+                                <Split className="mr-1 h-3 w-3" />
+                                Split…
+                              </Button>
+                            </>
+                          ) : split ? (
+                            <>
+                              <Button size="sm" variant="secondary" disabled={busy} onClick={() => void previewSplit(split)}>
+                                Preview
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() => void setSplitStatus(split, "DISABLED")}
+                              >
+                                Disable split
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

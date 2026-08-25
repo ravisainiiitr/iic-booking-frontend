@@ -3784,6 +3784,38 @@ class ApiClient {
   async exportLegacyEquipmentMappings() {
     return this.request<Record<string, unknown>>("/portal-migration/admin/equipment-mappings/export/");
   }
+  async getLegacyEquipmentCapacitySplits() {
+    return this.request<Record<string, unknown>>(
+      "/portal-migration/admin/equipment-mappings/capacity-splits/",
+    );
+  }
+  async createLegacyEquipmentCapacitySplit(data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(
+      "/portal-migration/admin/equipment-mappings/capacity-splits/",
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  }
+  async patchLegacyEquipmentCapacitySplit(id: number, data: Record<string, unknown>) {
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/equipment-mappings/capacity-splits/${id}/`,
+      { method: "PATCH", body: JSON.stringify(data) },
+    );
+  }
+  async deleteLegacyEquipmentCapacitySplit(id: number) {
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/equipment-mappings/capacity-splits/${id}/`,
+      { method: "DELETE" },
+    );
+  }
+  async previewLegacyEquipmentCapacitySplit(id: number, rows?: unknown[]) {
+    return this.request<Record<string, unknown>>(
+      `/portal-migration/admin/equipment-mappings/capacity-splits/${id}/preview/`,
+      {
+        method: "POST",
+        body: JSON.stringify(rows && rows.length ? { rows } : {}),
+      },
+    );
+  }
   async getLegacyBookings(
     params?: Record<string, string | undefined>,
     legacyRows?: unknown[],
