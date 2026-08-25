@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Download, RefreshCw, Save } from "lucide-react";
+import { ArrowLeft, Check, ChevronsUpDown, Download, RefreshCw, Save } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -25,6 +34,7 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type EquipmentRow = {
   old_equipment_id: number;
@@ -45,12 +55,117 @@ type NewEquipmentOption = {
   name?: string;
 };
 
+function optionLabel(o: NewEquipmentOption) {
+  return `${o.code || o.equipment_id} — ${o.name || "Equipment"}`;
+}
+
 function statusBadge(status?: string) {
   const s = (status || "UNMAPPED").toUpperCase();
   if (s === "ACTIVE") return <Badge className="bg-emerald-600">Mapped</Badge>;
   if (s === "CONFLICT") return <Badge variant="destructive">Conflict</Badge>;
   if (s === "DISABLED" || s === "RETIRED") return <Badge variant="secondary">{s}</Badge>;
   return <Badge variant="outline">Unmapped</Badge>;
+}
+
+/** Searchable new-equipment picker for quick explicit mapping. */
+function NewEquipmentCombobox({
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  options: NewEquipmentOption[];
+  value: number | "";
+  onChange: (next: number | "") => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selected = useMemo(
+    () => (value === "" ? undefined : options.find((o) => o.equipment_id === Number(value))),
+    [options, value],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => {
+      const hay = `${o.equipment_id} ${o.code || ""} ${o.name || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [options, query]);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="h-9 w-full min-w-[220px] justify-between font-normal"
+        >
+          <span className="truncate text-left">
+            {selected ? optionLabel(selected) : "Search new equipment…"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[min(28rem,var(--radix-popover-trigger-width))] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search by code, name, or ID…"
+            value={query}
+            onValueChange={setQuery}
+          />
+          <CommandList>
+            <CommandEmpty>{options.length === 0 ? "No equipment loaded." : "No match."}</CommandEmpty>
+            <CommandGroup>
+              {value !== "" ? (
+                <CommandItem
+                  value="__clear__"
+                  onSelect={() => {
+                    onChange("");
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <span className="text-muted-foreground">Clear selection</span>
+                </CommandItem>
+              ) : null}
+              {filtered.map((o) => (
+                <CommandItem
+                  key={o.equipment_id}
+                  value={String(o.equipment_id)}
+                  onSelect={() => {
+                    onChange(o.equipment_id);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      Number(value) === o.equipment_id ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <span className="truncate">{optionLabel(o)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function LegacyEquipmentMapping() {
@@ -331,7 +446,8 @@ export default function LegacyEquipmentMapping() {
         <CardHeader>
           <CardTitle>Legacy equipment</CardTitle>
           <CardDescription>
-            Confirm each mapping explicitly. Many-to-one mappings show a server-side warning.
+            Confirm each mapping explicitly. Use the searchable New equipment picker (code, name, or
+            ID). Many-to-one mappings show a server-side warning.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -363,24 +479,15 @@ export default function LegacyEquipmentMapping() {
                     <TableCell className="font-mono">{row.old_equipment_id}</TableCell>
                     <TableCell>{row.old_equipment_name || "—"}</TableCell>
                     <TableCell>{row.legacy_booking_count ?? 0}</TableCell>
-                    <TableCell className="min-w-[220px]">
-                      <Select
-                        value={String(drafts[row.old_equipment_id] ?? "")}
-                        onValueChange={(v) =>
-                          setDrafts((d) => ({ ...d, [row.old_equipment_id]: v ? Number(v) : "" }))
+                    <TableCell className="min-w-[260px]">
+                      <NewEquipmentCombobox
+                        options={options}
+                        value={drafts[row.old_equipment_id] ?? ""}
+                        disabled={busy}
+                        onChange={(next) =>
+                          setDrafts((d) => ({ ...d, [row.old_equipment_id]: next }))
                         }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select new equipment" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.map((o) => (
-                            <SelectItem key={o.equipment_id} value={String(o.equipment_id)}>
-                              {o.code || o.equipment_id} — {o.name || "Equipment"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </TableCell>
                     <TableCell>{statusBadge(row.mapping_status)}</TableCell>
                     <TableCell>{row.conflict_count ?? 0}</TableCell>
