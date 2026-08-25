@@ -3776,6 +3776,11 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+  async deleteLegacyEquipmentMapping(id: number) {
+    return this.request<Record<string, unknown>>(`/portal-migration/admin/equipment-mappings/${id}/`, {
+      method: "DELETE",
+    });
+  }
   async exportLegacyEquipmentMappings() {
     return this.request<Record<string, unknown>>("/portal-migration/admin/equipment-mappings/export/");
   }

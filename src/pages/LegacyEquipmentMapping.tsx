@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Check, ChevronsUpDown, Download, RefreshCw, Save } from "lucide-react";
+import { ArrowLeft, Check, ChevronsUpDown, Download, Link2Off, RefreshCw, Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,8 @@ function statusBadge(status?: string) {
   const s = (status || "UNMAPPED").toUpperCase();
   if (s === "ACTIVE") return <Badge className="bg-emerald-600">Mapped</Badge>;
   if (s === "CONFLICT") return <Badge variant="destructive">Conflict</Badge>;
-  if (s === "DISABLED" || s === "RETIRED") return <Badge variant="secondary">{s}</Badge>;
+  if (s === "RETIRED") return <Badge variant="secondary">Not required</Badge>;
+  if (s === "DISABLED") return <Badge variant="secondary">Disabled</Badge>;
   return <Badge variant="outline">Unmapped</Badge>;
 }
 
@@ -266,6 +267,108 @@ export default function LegacyEquipmentMapping() {
     }
   };
 
+  const unmapRow = async (row: EquipmentRow) => {
+    const status = String(row.mapping_status || "UNMAPPED").toUpperCase();
+    if (!row.mapping_id && status === "UNMAPPED" && !drafts[row.old_equipment_id]) {
+      toast.message("Already unmapped");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Unmap legacy equipment ${row.old_equipment_id}? This clears the new-portal link (status → UNMAPPED).`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      if (row.mapping_id) {
+        const res = await apiClient.patchLegacyEquipmentMapping(row.mapping_id, {
+          status: "UNMAPPED",
+          new_equipment_id: null,
+          old_equipment_name: row.old_equipment_name || "",
+          mapping_reason: "Unmapped by administrator",
+        });
+        if (res.error) throw new Error(res.error);
+      }
+      setDrafts((d) => ({ ...d, [row.old_equipment_id]: "" }));
+      toast.success(`Unmapped legacy ${row.old_equipment_id}`);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Unmap failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Mark legacy equipment as not required in the new portal (RETIRED). */
+  const markNotRequired = async (row: EquipmentRow) => {
+    if (
+      !window.confirm(
+        `Mark legacy equipment ${row.old_equipment_id} (${row.old_equipment_name || "unnamed"}) as not required?\n\n` +
+          "Use this when the instrument no longer exists / will not be mapped in the new portal. " +
+          "Status becomes RETIRED (Not required).",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const reason = "Not required — legacy equipment no longer exists / not in new portal";
+      if (row.mapping_id) {
+        const res = await apiClient.patchLegacyEquipmentMapping(row.mapping_id, {
+          status: "RETIRED",
+          new_equipment_id: null,
+          old_equipment_name: row.old_equipment_name || "",
+          mapping_reason: reason,
+        });
+        if (res.error) throw new Error(res.error);
+      } else {
+        const res = await apiClient.createLegacyEquipmentMapping({
+          old_equipment_id: row.old_equipment_id,
+          old_equipment_name: row.old_equipment_name || "",
+          status: "RETIRED",
+          mapping_reason: reason,
+        });
+        if (res.error) throw new Error(res.error);
+      }
+      setDrafts((d) => ({ ...d, [row.old_equipment_id]: "" }));
+      toast.success(`Legacy ${row.old_equipment_id} marked not required`);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Hard-delete the mapping DB row (row may reappear as Unmapped from inventory). */
+  const deleteMappingRecord = async (row: EquipmentRow) => {
+    if (!row.mapping_id) {
+      toast.message("No mapping record to delete — use Not required to exclude inventory rows.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Permanently delete mapping record #${row.mapping_id} for legacy ${row.old_equipment_id}?\n\n` +
+          "If the legacy ID is still in inventory/discovery, it will show again as Unmapped.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiClient.deleteLegacyEquipmentMapping(row.mapping_id);
+      if (res.error) throw new Error(res.error);
+      toast.success(`Deleted mapping record for legacy ${row.old_equipment_id}`);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const exportReport = async () => {
     setBusy(true);
     try {
@@ -431,6 +534,7 @@ export default function LegacyEquipmentMapping() {
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="mapped">Mapped</SelectItem>
                 <SelectItem value="unmapped">Unmapped</SelectItem>
+                <SelectItem value="not_required">Not required</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -447,7 +551,8 @@ export default function LegacyEquipmentMapping() {
           <CardTitle>Legacy equipment</CardTitle>
           <CardDescription>
             Confirm each mapping explicitly. Use the searchable New equipment picker (code, name, or
-            ID). Many-to-one mappings show a server-side warning.
+            ID). <strong>Unmap</strong> clears a link; <strong>Not required</strong> marks legacy gear
+            that no longer exists; <strong>Delete record</strong> removes the DB mapping row.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -495,10 +600,43 @@ export default function LegacyEquipmentMapping() {
                       {row.last_updated ? new Date(row.last_updated).toLocaleString() : "—"}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" disabled={busy} onClick={() => void saveMapping(row)}>
-                        <Save className="mr-1 h-3 w-3" />
-                        Save
-                      </Button>
+                      <div className="flex flex-wrap gap-1">
+                        <Button size="sm" disabled={busy} onClick={() => void saveMapping(row)}>
+                          <Save className="mr-1 h-3 w-3" />
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          title="Clear new-equipment link (UNMAPPED)"
+                          onClick={() => void unmapRow(row)}
+                        >
+                          <Link2Off className="mr-1 h-3 w-3" />
+                          Unmap
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busy || String(row.mapping_status || "").toUpperCase() === "RETIRED"}
+                          title="Legacy equipment no longer exists / not needed in new portal"
+                          onClick={() => void markNotRequired(row)}
+                        >
+                          Not required
+                        </Button>
+                        {row.mapping_id ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={busy}
+                            title="Permanently delete the mapping DB row"
+                            onClick={() => void deleteMappingRecord(row)}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                          </Button>
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
