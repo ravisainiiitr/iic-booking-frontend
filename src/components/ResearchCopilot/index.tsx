@@ -41,6 +41,13 @@ type CopilotCard = {
   estimated_amount?: number | string | null;
   wallet_balance?: number | string | null;
   approx_balance_after?: number | string | null;
+  expected_balance_after?: number | string | null;
+  amount?: number | string | null;
+  requested_amount?: number | string | null;
+  outstanding?: number | string | null;
+  outstanding_credit?: number | string | null;
+  purpose?: string;
+  sufficient?: boolean | null;
   cancellation_policy_note?: string;
   portal_href?: string;
   error?: string;
@@ -257,6 +264,32 @@ function CopilotCards({
             </div>
           );
         }
+        if (card.type === "transactions") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Recent transactions
+              </div>
+              <ul className="space-y-1 text-xs">
+                {(card.items || []).slice(0, 6).map((item, i) => (
+                  <li key={i}>
+                    {String(item.type || "")} {item.amount != null ? `₹${String(item.amount)}` : ""} —{" "}
+                    {String(item.description || "").slice(0, 80)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+        if (card.type === "credit_status") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Credit status</div>
+              <div className="mt-1 text-xs">Outstanding: {card.outstanding != null ? `₹${String(card.outstanding)}` : "—"}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Main Admin approves all credit. Copilot cannot approve.</div>
+            </div>
+          );
+        }
         if (card.type === "estimate") {
           return (
             <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
@@ -264,6 +297,12 @@ function CopilotCards({
               <div className="mt-1 font-semibold">
                 {card.currency || "INR"} {card.estimate ?? "—"}
               </div>
+              {card.wallet_balance != null ? (
+                <div className="mt-1 text-xs">Wallet: ₹{String(card.wallet_balance)}</div>
+              ) : null}
+              {card.sufficient === false ? (
+                <div className="mt-1 text-xs text-amber-800 dark:text-amber-200">Balance may be insufficient.</div>
+              ) : null}
               <div className="mt-1 text-[11px] text-muted-foreground">Portal calculate remains authoritative.</div>
             </div>
           );
@@ -271,7 +310,9 @@ function CopilotCards({
         if (
           card.type === "booking_proposal" ||
           card.type === "cancellation_proposal" ||
-          card.type === "reschedule_proposal"
+          card.type === "reschedule_proposal" ||
+          card.type === "recharge_proposal" ||
+          card.type === "credit_proposal"
         ) {
           return (
             <div key={idx} className="rounded-xl border border-amber-300/60 bg-amber-50/50 p-3 dark:bg-amber-950/20">
@@ -287,6 +328,16 @@ function CopilotCards({
                 {card.booking_id ? (
                   <li>
                     <strong>Booking:</strong> {String(card.booking_id)}
+                  </li>
+                ) : null}
+                {card.amount != null || card.requested_amount != null ? (
+                  <li>
+                    <strong>Amount:</strong> ₹{String(card.amount ?? card.requested_amount)}
+                  </li>
+                ) : null}
+                {card.purpose ? (
+                  <li>
+                    <strong>Purpose:</strong> {String(card.purpose)}
                   </li>
                 ) : null}
                 {card.date ? (
@@ -325,12 +376,22 @@ function CopilotCards({
                     <strong>After booking (approx):</strong> ₹{String(card.approx_balance_after)}
                   </li>
                 ) : null}
+                {card.expected_balance_after != null ? (
+                  <li>
+                    <strong>After recharge (approx):</strong> ₹{String(card.expected_balance_after)}
+                  </li>
+                ) : null}
+                {card.outstanding_credit != null ? (
+                  <li>
+                    <strong>Outstanding credit:</strong> ₹{String(card.outstanding_credit)}
+                  </li>
+                ) : null}
                 {card.cancellation_policy_note ? <li>{card.cancellation_policy_note}</li> : null}
               </ul>
               {!card.executable ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Mutation execute is currently OFF. Confirm will not change bookings until an administrator enables Phase B
-                  flags after controlled E2E.
+                  Mutation execute is currently OFF. Confirm will not move money or change bookings until an administrator
+                  enables the matching flag after controlled E2E.
                 </p>
               ) : null}
             </div>
