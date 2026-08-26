@@ -6,12 +6,16 @@ set -e
 
 # Default API URL if not set (production API)
 API_URL="${VITE_API_URL:-/api}"
+# Soft gate for Research Copilot FAB (backend RESEARCH_COPILOT_ENABLED remains authoritative).
+# Default true so a missing build-time Vite flag does not hide Copilot while ChatWidget still shows.
+COPILOT_ENABLED="${VITE_RESEARCH_COPILOT_ENABLED:-true}"
 
 # Create a config.js file that can be loaded at runtime
 # This allows changing the API URL without rebuilding the Docker image
 cat > /usr/share/nginx/html/config.js <<EOF
 window.__RUNTIME_CONFIG__ = {
-  VITE_API_URL: '${API_URL}'
+  VITE_API_URL: '${API_URL}',
+  VITE_RESEARCH_COPILOT_ENABLED: '${COPILOT_ENABLED}'
 };
 EOF
 

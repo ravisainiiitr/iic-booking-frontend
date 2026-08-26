@@ -11,6 +11,7 @@ services:
       - ./.envs/.production/.frontend
     environment:
       - VITE_API_URL=${VITE_API_URL:-/api}
+      - VITE_RESEARCH_COPILOT_ENABLED=${VITE_RESEARCH_COPILOT_ENABLED:-true}
     ports:
       - '8000:80'
     restart: unless-stopped
