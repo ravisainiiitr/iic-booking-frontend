@@ -188,6 +188,7 @@ export default function AnalysisLaunchPage() {
       }
       return;
     } else if (data.launch_pending && data.detail) {
+      // Soft wait (e.g. reverse tunnel joining) — keep polling, do not freeze the UI as a hard failure.
       setError(String(data.detail));
     }
     if (typeof data.status === "string" && data.status === "FAILED") {
@@ -211,7 +212,13 @@ export default function AnalysisLaunchPage() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to open Analysis Environment";
         setError(message);
-        if (/credentials/i.test(message)) {
+        // Tunnel-not-ready / transient connect failures: keep polling for a fresh launch URL.
+        if (
+          /tunnel|secure link|not ready|try again|credentials/i.test(message) &&
+          !/credentials are not configured/i.test(message)
+        ) {
+          // leave desktopResolved false so pollLaunch retries
+        } else if (/credentials/i.test(message)) {
           desktopResolved.current = true;
         }
       }
@@ -284,20 +291,36 @@ export default function AnalysisLaunchPage() {
     return () => window.clearTimeout(t);
   }, [desktopUrl, phase, summary, sessionExp.status]);
 
-  // Keep branded overlay until session is interactive (hides underlying connection chrome).
+  // Keep branded overlay until iframe has loaded + a short settle, not only portal ACTIVE.
+  // Portal marks ACTIVE when Guacamole auth is issued — RDP paint can still be mid-flight.
   useEffect(() => {
     if (phase !== "desktop") return;
-    const status = String(
-      (summary?.session as any)?.status || sessionExp.status || ""
-    );
-    if (["CONNECTED", "ACTIVE", "IDLE"].includes(status)) {
-      setDesktopReady(true);
-      return;
-    }
     if (desktopReady) return;
-    const t = window.setTimeout(() => setDesktopReady(true), 18000);
+    const t = window.setTimeout(() => setDesktopReady(true), 12000);
     return () => window.clearTimeout(t);
-  }, [phase, desktopReady, summary, sessionExp.status]);
+  }, [phase, desktopReady]);
+
+  const reconnectDesktop = useCallback(async () => {
+    desktopResolved.current = false;
+    setDesktopUrl(null);
+    setDesktopReady(false);
+    setPhase("prepare");
+    setError("Reconnecting Analysis Environment…");
+    await pollLaunch();
+  }, [pollLaunch]);
+
+  const requestDesktopFullscreen = useCallback(() => {
+    const el = iframeRef.current;
+    if (!el) return;
+    const req =
+      el.requestFullscreen ||
+      (el as HTMLIFrameElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+    try {
+      void req?.call(el);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // Live remaining timer from experience
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -462,7 +485,7 @@ export default function AnalysisLaunchPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950">
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950">
       {/* Fixed chrome during desktop */}
       {phase === "desktop" && (
         <AnalysisWorkspaceChrome
@@ -560,7 +583,7 @@ export default function AnalysisLaunchPage() {
       )}
 
       {phase === "desktop" && (
-        <div className="relative flex h-[calc(100vh-9.5rem)] flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col" style={{ height: "calc(100dvh - 9.5rem)" }}>
           {!desktopReady && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/75 backdrop-blur-md">
               <div className="mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-card sm:p-7">
@@ -580,13 +603,40 @@ export default function AnalysisLaunchPage() {
             </div>
           )}
           {desktopUrl ? (
-            <iframe
-              ref={iframeRef}
-              title="Analysis Environment"
-              src={desktopUrl}
-              className="h-full w-full border-0 bg-black"
-              allow="clipboard-read; clipboard-write; fullscreen"
-            />
+            <>
+              <iframe
+                ref={iframeRef}
+                title="Analysis Environment"
+                src={desktopUrl}
+                className="min-h-0 h-full w-full flex-1 border-0 bg-black"
+                style={{ touchAction: "none" }}
+                allow="clipboard-read; clipboard-write; fullscreen"
+                onLoad={() => {
+                  // Give Guacamole a moment to paint before hiding the overlay.
+                  window.setTimeout(() => setDesktopReady(true), 1500);
+                }}
+              />
+              <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex gap-2 sm:bottom-4 sm:right-4">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="pointer-events-auto h-8 shadow-lg"
+                  onClick={() => void requestDesktopFullscreen()}
+                >
+                  Fullscreen
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="pointer-events-auto h-8 shadow-lg"
+                  onClick={() => void reconnectDesktop()}
+                >
+                  Reconnect
+                </Button>
+              </div>
+            </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-muted-foreground">
               Preparing Analysis Environment…
