@@ -17,6 +17,17 @@ import {
   X,
 } from "lucide-react";
 
+type CopilotCard = {
+  type?: string;
+  title?: string;
+  window?: string;
+  equipment_id?: number;
+  balance?: number | string | null;
+  estimate?: number | string | null;
+  currency?: string;
+  items?: Array<Record<string, unknown>>;
+};
+
 type CopilotMessage = {
   id: string;
   role: "user" | "assistant";
@@ -36,10 +47,13 @@ type CopilotMessage = {
     id: string;
     label: string;
     href?: string;
+    prompt?: string;
     enabled?: boolean;
     hint?: string;
     requires_confirmation?: boolean;
   }>;
+  cards?: CopilotCard[];
+  response_kind?: string;
 };
 
 type ConversationSummary = {
@@ -86,6 +100,7 @@ const DEFAULT_COMMANDS: CommandAction[] = [
   { id: "search_slots", label: "Search available slots", prompt: "Search available slots for FESEM this week." },
   { id: "estimate_cost", label: "Estimate booking cost", prompt: "Estimate the cost of booking FESEM for 2 hours." },
   { id: "wallet", label: "Wallet / recharge", href: "/wallet", prompt: "What is my wallet balance?" },
+  { id: "pending", label: "Pending actions", prompt: "What are my pending actions?" },
   { id: "software", label: "Find Analysis Software", href: "/remote-analysis/software-catalog" },
   { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
 ];
@@ -106,7 +121,7 @@ function copilotErrorMessage(res: { error?: string | null; status?: number | nul
     return "Your session expired or you are not signed in. Sign in again to continue with personal bookings and wallet, or ask a general question while signed out.";
   }
   if (status === 429 || raw.includes("throttl") || raw.includes("rate")) {
-    return "Research Copilot rate limit reached. Please wait a bit, or continue using the normal booking portal.";
+    return "Research Copilot AI replies are temporarily rate-limited. Wait a moment and Retry — live lookups (slots, wallet, bookings) usually still work. You do not need to abandon the Copilot for those questions.";
   }
   if (status === 503 || raw.includes("disabled") || raw.includes("not enabled")) {
     return "Research Copilot is not enabled on this environment right now.";
@@ -141,6 +156,112 @@ function SimpleMarkdown({ text }: { text: string }) {
           );
         }
         return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+      })}
+    </div>
+  );
+}
+
+function CopilotCards({
+  cards,
+  onNavigate,
+  onPrompt,
+}: {
+  cards?: CopilotCard[];
+  onNavigate: (href: string) => void;
+  onPrompt?: (prompt: string) => void;
+}) {
+  if (!cards?.length) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {cards.map((card, idx) => {
+        const title = card.title || card.type || "Result";
+        if (card.type === "equipment_choice" && card.items?.length) {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+              <div className="flex flex-wrap gap-2">
+                {card.items.slice(0, 8).map((item, i) => {
+                  const name = String(item.name || item.label || `Option ${i + 1}`);
+                  const href = typeof item.href === "string" ? item.href : undefined;
+                  const prompt = typeof item.prompt === "string" ? item.prompt : `Search available slots for ${name}`;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className="rounded-full border px-3 py-1 text-xs hover:bg-muted"
+                      onClick={() => {
+                        if (onPrompt) onPrompt(prompt);
+                        else if (href) onNavigate(href);
+                      }}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        if (card.type === "slots" && card.items?.length) {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {title}
+                {card.window ? ` · ${card.window}` : ""}
+              </div>
+              <ul className="space-y-1 text-xs">
+                {card.items.slice(0, 8).map((item, i) => {
+                  const day = String(item.date || "");
+                  const start = String(item.start || "").slice(11, 16);
+                  const end = String(item.end || "").slice(11, 16);
+                  return (
+                    <li key={i} className="flex justify-between gap-2 border-b border-border/40 py-1 last:border-0">
+                      <span>{day}</span>
+                      <span className="text-muted-foreground">
+                        {start}
+                        {end ? `–${end}` : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        }
+        if (card.type === "wallet") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Wallet</div>
+              <div className="mt-1 font-semibold">
+                {card.currency || "INR"} {card.balance ?? "—"}
+              </div>
+            </div>
+          );
+        }
+        if (card.type === "estimate") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Estimate</div>
+              <div className="mt-1 font-semibold">
+                {card.currency || "INR"} {card.estimate ?? "—"}
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Portal calculate remains authoritative.</div>
+            </div>
+          );
+        }
+        if (card.items?.length) {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+              <ul className="space-y-1 text-xs">
+                {card.items.slice(0, 6).map((item, i) => (
+                  <li key={i}>{String(item.name || item.label || item.equipment || item.booking_id || JSON.stringify(item).slice(0, 80))}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+        return null;
       })}
     </div>
   );
@@ -272,6 +393,7 @@ export default function ResearchCopilot() {
             escalate_hint: m.escalate_hint,
             citations: m.citations,
             suggested_actions: m.suggested_actions,
+            cards: ((m.metadata as { cards?: CopilotCard[] } | undefined)?.cards ?? []) as CopilotCard[],
           })),
         );
       }
@@ -314,6 +436,9 @@ export default function ResearchCopilot() {
           return;
         }
         const msg = res.data.message;
+        const publicCards =
+          ((res.data as { cards?: CopilotCard[] }).cards as CopilotCard[] | undefined) ||
+          ((msg.metadata as { cards?: CopilotCard[] } | undefined)?.cards ?? []);
         setMessages((m) => [
           ...m,
           {
@@ -323,6 +448,8 @@ export default function ResearchCopilot() {
             escalate_hint: Boolean(msg.escalate_hint),
             citations: (msg.citations || []) as CopilotMessage["citations"],
             suggested_actions: (msg.suggested_actions || []) as CopilotMessage["suggested_actions"],
+            cards: publicCards,
+            response_kind: (res.data as { response_kind?: string }).response_kind,
           },
         ]);
         return;
@@ -343,6 +470,9 @@ export default function ResearchCopilot() {
         return;
       }
       const msg = res.data.message;
+      const authCards =
+        ((res.data as { cards?: CopilotCard[] }).cards as CopilotCard[] | undefined) ||
+        ((msg.metadata as { cards?: CopilotCard[] } | undefined)?.cards ?? []);
       setMessages((m) => [
         ...m,
         {
@@ -353,6 +483,8 @@ export default function ResearchCopilot() {
           escalate_hint: Boolean(msg.escalate_hint),
           citations: msg.citations as CopilotMessage["citations"],
           suggested_actions: msg.suggested_actions as CopilotMessage["suggested_actions"],
+          cards: authCards,
+          response_kind: (res.data as { response_kind?: string }).response_kind,
         },
       ]);
       if (res.data.suggested_prompts) setSuggested(res.data.suggested_prompts);
@@ -506,6 +638,16 @@ export default function ResearchCopilot() {
                           ) : (
                             <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                           )}
+                          {msg.role === "assistant" && (
+                            <CopilotCards
+                              cards={msg.cards}
+                              onNavigate={(href) => {
+                                setOpen(false);
+                                navigate(href);
+                              }}
+                              onPrompt={(prompt) => void send(prompt)}
+                            />
+                          )}
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                             <div className="mt-3 border-t border-border/60 pt-2">
                               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -589,7 +731,7 @@ export default function ResearchCopilot() {
                                           ? "outline"
                                           : "secondary"
                                     }
-                                    disabled={a.enabled === false || !a.href}
+                                    disabled={a.enabled === false || (!a.href && !a.prompt)}
                                     title={
                                       a.requires_confirmation
                                         ? `${a.hint || a.label} — you must confirm in the portal before anything changes.`
@@ -597,6 +739,10 @@ export default function ResearchCopilot() {
                                     }
                                     className="h-8 text-xs"
                                     onClick={() => {
+                                      if (a.prompt) {
+                                        void send(a.prompt);
+                                        return;
+                                      }
                                       if (a.href) {
                                         setOpen(false);
                                         navigate(a.href);
@@ -610,8 +756,8 @@ export default function ResearchCopilot() {
                             </div>
                           )}
                           {msg.escalate_hint && (
-                            <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                              Low confidence or human help requested — use Support Tickets for escalation.
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              If this doesn&apos;t answer your question, open Support Tickets or try a more specific prompt.
                             </p>
                           )}
                         </div>
@@ -640,11 +786,15 @@ export default function ResearchCopilot() {
                           type="button"
                           disabled={loading}
                           onClick={() => {
+                            // Prefer prompt so quick actions run Copilot (slots/wallet/etc.)
+                            // instead of navigating away when both href and prompt exist.
+                            if (c.prompt) {
+                              void send(c.prompt);
+                              return;
+                            }
                             if (c.href) {
                               setOpen(false);
                               navigate(c.href);
-                            } else if (c.prompt) {
-                              void send(c.prompt);
                             }
                           }}
                           className="rounded-full border bg-background px-3 py-1 text-left text-xs font-medium text-foreground hover:bg-muted"
