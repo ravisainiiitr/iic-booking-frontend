@@ -87,8 +87,28 @@ const EQUIPMENT_SECTION_NAV: Array<{ id: string; label: string }> = [
   { id: "eq-sec-accessories", label: "Accessories" },
   { id: "eq-sec-slot-masters", label: "Slot masters" },
   { id: "eq-sec-charges", label: "Charges" },
-  { id: "eq-sec-pi-charges", label: "PI Charges" },
 ];
+
+/** UI alias for faculty + pricing_profile=pi (API still uses separate pi_charge_profiles). */
+const PI_IIT_FACULTY_ALIAS = "__pi__:faculty";
+
+function isPiChargeRow(cp: { pricing_profile?: string | null }) {
+  return String(cp.pricing_profile || "").toLowerCase() === "pi";
+}
+
+function chargeProfileDisplayLabel(
+  cp: { user_type: string; pricing_profile?: string | null },
+  userTypeChoices: Array<{ value: string; label: string }>,
+) {
+  if (isPiChargeRow(cp) && cp.user_type === "faculty") return "PI IIT Faculty";
+  const base = userTypeChoices.find((c) => c.value === cp.user_type)?.label || cp.user_type;
+  if (isPiChargeRow(cp)) return `PI — ${base}`;
+  return base;
+}
+
+function chargeProfileRowKey(cp: { user_type: string; pricing_profile?: string | null }, idx: number) {
+  return `${isPiChargeRow(cp) ? "pi" : "std"}:${cp.user_type}:${idx}`;
+}
 
 export type EquipmentFormData = {
   name?: string;
@@ -188,6 +208,8 @@ export type EquipmentFormData = {
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
   charge_profiles?: Array<{
     user_type: string;
+    /** standard (default) or pi — UI-only until save splits to pi_charge_profiles. */
+    pricing_profile?: "standard" | "pi";
     profile_type?: string | null;
     is_active?: boolean;
     require_istem_fbr?: boolean;
@@ -197,6 +219,7 @@ export type EquipmentFormData = {
     breakpoint?: string | number | null;
     time_formula?: string | null;
   }>;
+  /** @deprecated Prefer unified charge_profiles with pricing_profile=pi; still sent on save. */
   pi_charge_profiles?: Array<{
     user_type: string;
     profile_type?: string | null;
@@ -536,6 +559,22 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         const k = String(i.field_key ?? "").trim().toUpperCase();
         return k.length === 1 && /^[A-Z]$/.test(k);
       });
+      const mapChargeRow = (p: Record<string, unknown>, pricing: "standard" | "pi") => ({
+        user_type: String(p.user_type ?? ""),
+        pricing_profile: pricing,
+        profile_type: (p.profile_type as string | null) ?? null,
+        is_active: p.is_active !== false,
+        require_istem_fbr: Boolean(p.require_istem_fbr),
+        show_charge_breakdown: p.show_charge_breakdown !== false,
+        primary_unit_charge: p.primary_unit_charge ?? 0,
+        secondary_unit_charge: p.secondary_unit_charge ?? 0,
+        breakpoint: p.breakpoint ?? null,
+        time_formula: p.time_formula ?? null,
+      });
+      const mergedChargeProfiles = [
+        ...(Array.isArray(profiles) ? profiles.map((p) => mapChargeRow(p, "standard")) : []),
+        ...(Array.isArray(piProfiles) ? piProfiles.map((p) => mapChargeRow(p, "pi")) : []),
+      ];
       setFormData((prev) => ({
         ...prev,
         name: (d.name as string) ?? "",
@@ -627,28 +666,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_accessories ?? [],
         equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_additional_accessories ?? [],
         slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? s.close_time : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
-        charge_profiles: Array.isArray(profiles) ? profiles.map((p) => ({
-          user_type: String(p.user_type ?? ""),
-          profile_type: (p.profile_type as string | null) ?? null,
-          is_active: p.is_active !== false,
-          require_istem_fbr: Boolean(p.require_istem_fbr),
-          show_charge_breakdown: p.show_charge_breakdown !== false,
-          primary_unit_charge: p.primary_unit_charge ?? 0,
-          secondary_unit_charge: p.secondary_unit_charge ?? 0,
-          breakpoint: p.breakpoint ?? null,
-          time_formula: p.time_formula ?? null,
-        })) : prev.charge_profiles ?? [],
-        pi_charge_profiles: Array.isArray(piProfiles) ? piProfiles.map((p) => ({
-          user_type: String(p.user_type ?? ""),
-          profile_type: (p.profile_type as string | null) ?? null,
-          is_active: p.is_active !== false,
-          require_istem_fbr: Boolean(p.require_istem_fbr),
-          show_charge_breakdown: p.show_charge_breakdown !== false,
-          primary_unit_charge: p.primary_unit_charge ?? 0,
-          secondary_unit_charge: p.secondary_unit_charge ?? 0,
-          breakpoint: p.breakpoint ?? null,
-          time_formula: p.time_formula ?? null,
-        })) : prev.pi_charge_profiles ?? [],
+        charge_profiles: mergedChargeProfiles.length ? mergedChargeProfiles : prev.charge_profiles ?? [],
+        pi_charge_profiles: [],
         input_fields: Array.isArray(inputs) ? inputs.map((i) => {
           const rawOpts = i.options;
           const optsObj =
@@ -857,8 +876,12 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       equipment_accessories: formData.equipment_accessories ?? [],
       equipment_additional_accessories: formData.equipment_additional_accessories ?? [],
       slot_masters: formData.slot_masters ?? [],
-      charge_profiles: formData.charge_profiles ?? [],
-      pi_charge_profiles: formData.pi_charge_profiles ?? [],
+      charge_profiles: (formData.charge_profiles ?? [])
+        .filter((cp) => !isPiChargeRow(cp))
+        .map(({ pricing_profile: _pp, ...rest }) => rest),
+      pi_charge_profiles: (formData.charge_profiles ?? [])
+        .filter((cp) => isPiChargeRow(cp))
+        .map(({ pricing_profile: _pp, ...rest }) => rest),
       input_fields: (formData.input_fields ?? []).map((f) => {
         const fieldType = String(f.field_type || "").toUpperCase();
         const field_key = String(f.field_key || "").trim().toUpperCase().slice(0, 1);
@@ -1438,7 +1461,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
 
       {((formData.charge_profiles ?? []).some((cp) => cp.profile_type === "MULTI_PARAM")
-        || (formData.pi_charge_profiles ?? []).some((cp) => cp.profile_type === "MULTI_PARAM")) && (
+        || (formData.charge_profiles ?? []).some((cp) => cp.profile_type === "MULTI_PARAM")) && (
         <div className="rounded-lg border p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1595,7 +1618,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       )}
 
       {((formData.charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")
-        || (formData.pi_charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")) && (
+        || (formData.charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")) && (
         <div className="rounded-lg border p-4 space-y-4">
           <div className="space-y-2 max-w-xl">
             <Label htmlFor="print-3d-stl-notification-email">STL notification email</Label>
@@ -2062,10 +2085,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
       </FormSection>
 
-      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing, calculation profile type, and dynamic input fields (SAMPLE / HOUR / …)." defaultOpen>
+      <FormSection id="eq-sec-charges" title="Charge profiles" description="Per user-type pricing (including PI IIT Faculty), calculation profile type, and dynamic input fields (SAMPLE / HOUR / …)." defaultOpen>
       <p className="text-muted-foreground text-xs">
         Select a <strong>Profile type</strong> for each user type — time and amount use that row’s type.
-        Configure <strong>Dynamic input fields</strong> under each user type (different types may need different fields).
+        Configure <strong>Dynamic input fields</strong> under each standard user type (PI rates share the matching user type’s fields).
+        Add <strong>PI IIT Faculty</strong> for PI facility rates (applied when the wallet owner is an equipment PI).
         Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
         <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
@@ -2074,10 +2098,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="p-3 text-sm text-muted-foreground">No charge profiles yet. Add rows below or save equipment first in Django admin.</p>
         ) : (
           (formData.charge_profiles ?? []).map((cp, idx) => {
-            const label =
-              (choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type;
+            const label = chargeProfileDisplayLabel(cp, choices.user_type_choices ?? []);
+            const piRow = isPiChargeRow(cp);
             return (
-              <div key={`${cp.user_type}-${idx}`} className="p-3 space-y-3">
+              <div key={chargeProfileRowKey(cp, idx)} className="p-3 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
                   <div className="space-y-1">
                     <Label>User type</Label>
@@ -2184,7 +2208,21 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     </p>
                   ) : null}
                 </div>
-                {renderDynamicFieldsForUserType(cp.user_type, `cp-${idx}`)}
+                {piRow ? (
+                  (formData.charge_profiles ?? []).some(
+                    (scp) => !isPiChargeRow(scp) && scp.user_type === cp.user_type,
+                  ) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Dynamic input fields are shared with the matching standard user type
+                      ({(choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type}).
+                      Edit them on that standard charge profile row.
+                    </p>
+                  ) : (
+                    renderDynamicFieldsForUserType(cp.user_type, `cp-pi-${idx}`)
+                  )
+                ) : (
+                  renderDynamicFieldsForUserType(cp.user_type, `cp-${idx}`)
+                )}
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -2228,6 +2266,20 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     />
                     <Label htmlFor={`cp-breakdown-${idx}`} className="text-sm font-normal">Show charge breakdown</Label>
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        charge_profiles: (p.charge_profiles ?? []).filter((_, i) => i !== idx),
+                      }))
+                    }
+                  >
+                    Remove
+                  </Button>
                 </div>
               </div>
             );
@@ -2240,13 +2292,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             value="__add__"
             onValueChange={(v) => {
               if (!v || v === "__add__") return;
-              if ((formData.charge_profiles ?? []).some((cp) => cp.user_type === v)) return;
+              const isPiAlias = v === PI_IIT_FACULTY_ALIAS;
+              const userType = isPiAlias ? "faculty" : v;
+              const pricingProfile = isPiAlias ? "pi" as const : "standard" as const;
+              if ((formData.charge_profiles ?? []).some(
+                (cp) => cp.user_type === userType && (isPiChargeRow(cp) === isPiAlias),
+              )) return;
               setFormData((p) => ({
                 ...p,
                 charge_profiles: [
                   ...(p.charge_profiles ?? []),
                   {
-                    user_type: v,
+                    user_type: userType,
+                    pricing_profile: pricingProfile,
                     profile_type: null,
                     is_active: true,
                     require_istem_fbr: false,
@@ -2266,207 +2324,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             <SelectContent>
               <SelectItem value="__add__" disabled>Add charge profile</SelectItem>
               {(choices.user_type_choices ?? [])
-                .filter((c) => !(formData.charge_profiles ?? []).some((cp) => cp.user_type === c.value))
+                .filter((c) => !(formData.charge_profiles ?? []).some(
+                  (cp) => !isPiChargeRow(cp) && cp.user_type === c.value,
+                ))
                 .map((c) => (
                   <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                 ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-      </FormSection>
-
-      <FormSection
-        id="eq-sec-pi-charges"
-        title="PI Charge profiles"
-        description="Discounted facility rates for assigned Faculty PIs (and wallet owners who are PIs). Each row has its own profile type."
-        defaultOpen={false}
-      >
-      <div className="rounded border divide-y">
-        {(formData.pi_charge_profiles ?? []).length === 0 ? (
-          <p className="p-3 text-sm text-muted-foreground">No PI charge profiles yet. Add user-type rows below.</p>
-        ) : (
-          (formData.pi_charge_profiles ?? []).map((cp, idx) => {
-            const label =
-              (choices.user_type_choices ?? []).find((c) => c.value === cp.user_type)?.label || cp.user_type;
-            return (
-              <div key={`pi-${cp.user_type}-${idx}`} className="p-3 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-                  <div className="space-y-1">
-                    <Label>User type</Label>
-                    <p className="text-sm font-medium">{label}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Profile type</Label>
-                    <Select
-                      value={cp.profile_type ?? "none"}
-                      onValueChange={(v) =>
-                        setFormData((p) => {
-                          const arr = [...(p.pi_charge_profiles ?? [])];
-                          arr[idx] = { ...arr[idx], profile_type: v === "none" ? null : v };
-                          return { ...p, pi_charge_profiles: arr };
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Profile type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— None —</SelectItem>
-                        {choices.profile_type_choices.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`pi-cp-primary-${idx}`}>Primary charge</Label>
-                    <Input
-                      id={`pi-cp-primary-${idx}`}
-                      type="number"
-                      step="0.01"
-                      value={String(cp.primary_unit_charge ?? "")}
-                      onChange={(e) =>
-                        setFormData((p) => {
-                          const arr = [...(p.pi_charge_profiles ?? [])];
-                          arr[idx] = { ...arr[idx], primary_unit_charge: e.target.value };
-                          return { ...p, pi_charge_profiles: arr };
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`pi-cp-secondary-${idx}`}>Secondary charge</Label>
-                    <Input
-                      id={`pi-cp-secondary-${idx}`}
-                      type="number"
-                      step="0.01"
-                      value={String(cp.secondary_unit_charge ?? "")}
-                      onChange={(e) =>
-                        setFormData((p) => {
-                          const arr = [...(p.pi_charge_profiles ?? [])];
-                          arr[idx] = { ...arr[idx], secondary_unit_charge: e.target.value };
-                          return { ...p, pi_charge_profiles: arr };
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-                  <div className="space-y-1">
-                    <Label htmlFor={`pi-cp-breakpoint-${idx}`}>Breakpoint</Label>
-                    <Input
-                      id={`pi-cp-breakpoint-${idx}`}
-                      type="number"
-                      step="0.01"
-                      value={cp.breakpoint === null || cp.breakpoint === undefined ? "" : String(cp.breakpoint)}
-                      onChange={(e) =>
-                        setFormData((p) => {
-                          const arr = [...(p.pi_charge_profiles ?? [])];
-                          arr[idx] = { ...arr[idx], breakpoint: e.target.value === "" ? null : e.target.value };
-                          return { ...p, pi_charge_profiles: arr };
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`pi-cp-formula-${idx}`}>Time formula</Label>
-                  <Input
-                    id={`pi-cp-formula-${idx}`}
-                    placeholder={
-                      cp.profile_type === "HOUR"
-                        ? 'e.g. ((((C-B)/D)*E)*A)/60 — blank or B = legacy slots'
-                        : 'e.g. (A * C) + B'
-                    }
-                    value={cp.time_formula ?? ""}
-                    onChange={(e) =>
-                      setFormData((p) => {
-                        const arr = [...(p.pi_charge_profiles ?? [])];
-                        arr[idx] = { ...arr[idx], time_formula: e.target.value === "" ? null : e.target.value };
-                        return { ...p, pi_charge_profiles: arr };
-                      })
-                    }
-                  />
-                </div>
-                {(formData.charge_profiles ?? []).some((scp) => scp.user_type === cp.user_type) ? (
-                  <p className="text-xs text-muted-foreground">
-                    Dynamic input fields for this user type are edited under the standard Charge profiles row above
-                    (shared for STANDARD and PI pricing).
-                  </p>
-                ) : (
-                  renderDynamicFieldsForUserType(cp.user_type, `pi-${idx}`)
-                )}
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={cp.is_active !== false}
-                      onCheckedChange={(checked) =>
-                        setFormData((p) => {
-                          const arr = [...(p.pi_charge_profiles ?? [])];
-                          arr[idx] = { ...arr[idx], is_active: checked === true };
-                          return { ...p, pi_charge_profiles: arr };
-                        })
-                      }
-                    />
-                    Active
-                  </label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        pi_charge_profiles: (p.pi_charge_profiles ?? []).filter((_, i) => i !== idx),
-                      }))
-                    }
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-      {(choices.user_type_choices ?? []).length > 0 ? (
-        <div className="flex flex-wrap gap-2 mt-2">
-          <Select
-            value="__add__"
-            onValueChange={(v) => {
-              if (!v || v === "__add__") return;
-              if ((formData.pi_charge_profiles ?? []).some((cp) => cp.user_type === v)) return;
-              setFormData((p) => ({
-                ...p,
-                pi_charge_profiles: [
-                  ...(p.pi_charge_profiles ?? []),
-                  {
-                    user_type: v,
-                    profile_type: null,
-                    is_active: true,
-                    require_istem_fbr: false,
-                    show_charge_breakdown: true,
-                    primary_unit_charge: 0,
-                    secondary_unit_charge: 0,
-                    breakpoint: null,
-                    time_formula: null,
-                  },
-                ],
-              }));
-            }}
-          >
-            <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="Add PI charge profile" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__add__" disabled>Add PI charge profile</SelectItem>
-              {(choices.user_type_choices ?? [])
-                .filter((c) => !(formData.pi_charge_profiles ?? []).some((cp) => cp.user_type === c.value))
-                .map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
+              {!(formData.charge_profiles ?? []).some(
+                (cp) => isPiChargeRow(cp) && cp.user_type === "faculty",
+              ) ? (
+                <SelectItem value={PI_IIT_FACULTY_ALIAS}>PI IIT Faculty</SelectItem>
+              ) : null}
             </SelectContent>
           </Select>
         </div>
