@@ -7225,9 +7225,23 @@ class ApiClient {
       message: Record<string, unknown>;
       suggested_prompts?: string[];
       tools_available?: Array<Record<string, unknown>>;
+      cards?: Array<Record<string, unknown>>;
+      response_kind?: string;
     }>(`/v1/research-copilot/conversations/${conversationId}/messages/`, {
       method: 'POST',
       body: JSON.stringify({ content }),
+    });
+  }
+
+  async researchCopilotConfirmMutation(payload: {
+    proposal_id: string;
+    confirmation_token: string;
+    action?: string;
+    idempotency_key?: string;
+  }) {
+    return this.request<Record<string, unknown>>('/v1/research-copilot/mutations/confirm/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 

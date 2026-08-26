@@ -26,6 +26,24 @@ type CopilotCard = {
   estimate?: number | string | null;
   currency?: string;
   items?: Array<Record<string, unknown>>;
+  action?: string;
+  proposal_id?: string;
+  confirmation_token?: string;
+  executable?: boolean;
+  expires_at?: string;
+  equipment_name?: string;
+  booking_id?: number | string;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
+  duration_minutes?: number;
+  sample_count?: number;
+  estimated_amount?: number | string | null;
+  wallet_balance?: number | string | null;
+  approx_balance_after?: number | string | null;
+  cancellation_policy_note?: string;
+  portal_href?: string;
+  error?: string;
 };
 
 type CopilotMessage = {
@@ -51,6 +69,9 @@ type CopilotMessage = {
     enabled?: boolean;
     hint?: string;
     requires_confirmation?: boolean;
+    proposal_id?: string;
+    confirmation_token?: string;
+    mutation_action?: string;
   }>;
   cards?: CopilotCard[];
   response_kind?: string;
@@ -91,17 +112,15 @@ function readCopilotSoftGate(): boolean {
 const isViteCopilotEnabled = readCopilotSoftGate();
 
 const DEFAULT_COMMANDS: CommandAction[] = [
-  { id: "next_booking", label: "My next booking", prompt: "What is my next booking?" },
-  { id: "my_bookings", label: "My bookings", href: "/my-bookings", prompt: "List my recent bookings." },
-  { id: "booking_status", label: "Check booking status", prompt: "What is the status of my latest booking?" },
-  { id: "sample_status", label: "Check sample status", prompt: "What is the sample status of my latest booking?" },
-  { id: "results", label: "Check results", prompt: "Are results available for my latest completed booking?" },
-  { id: "find_equipment", label: "Find equipment", href: "/equipments", prompt: "Help me find suitable equipment for my sample." },
-  { id: "search_slots", label: "Search available slots", prompt: "Search available slots for FESEM this week." },
-  { id: "estimate_cost", label: "Estimate booking cost", prompt: "Estimate the cost of booking FESEM for 2 hours." },
-  { id: "wallet", label: "Wallet / recharge", href: "/wallet", prompt: "What is my wallet balance?" },
-  { id: "pending", label: "Pending actions", prompt: "What are my pending actions?" },
-  { id: "software", label: "Find Analysis Software", href: "/remote-analysis/software-catalog" },
+  { id: "find_equipment", label: "Find equipment", prompt: "Help me find suitable equipment for my sample." },
+  { id: "search_slots", label: "Find available slots", prompt: "Search available slots for FESEM this week." },
+  { id: "estimate_cost", label: "Estimate cost", prompt: "Estimate the cost of booking FESEM for 2 hours." },
+  { id: "my_bookings", label: "My bookings", prompt: "List my recent bookings." },
+  { id: "next_booking", label: "Next booking", prompt: "What is my next booking?" },
+  { id: "reschedule", label: "Reschedule booking", prompt: "Reschedule my next booking." },
+  { id: "cancel_booking", label: "Cancel booking", prompt: "Cancel my next booking." },
+  { id: "wallet", label: "Wallet balance", prompt: "What is my wallet balance?" },
+  { id: "ra_status", label: "Remote Analysis", prompt: "What is my Remote Analysis status?" },
   { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
 ];
 
@@ -246,6 +265,94 @@ function CopilotCards({
                 {card.currency || "INR"} {card.estimate ?? "—"}
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Portal calculate remains authoritative.</div>
+            </div>
+          );
+        }
+        if (
+          card.type === "booking_proposal" ||
+          card.type === "cancellation_proposal" ||
+          card.type === "reschedule_proposal"
+        ) {
+          return (
+            <div key={idx} className="rounded-xl border border-amber-300/60 bg-amber-50/50 p-3 dark:bg-amber-950/20">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-100">
+                {title}
+              </div>
+              <ul className="space-y-1 text-xs">
+                {card.equipment_name ? (
+                  <li>
+                    <strong>Equipment:</strong> {card.equipment_name}
+                  </li>
+                ) : null}
+                {card.booking_id ? (
+                  <li>
+                    <strong>Booking:</strong> {String(card.booking_id)}
+                  </li>
+                ) : null}
+                {card.date ? (
+                  <li>
+                    <strong>Date:</strong> {card.date}
+                  </li>
+                ) : null}
+                {card.start_time || card.end_time ? (
+                  <li>
+                    <strong>Time:</strong> {String(card.start_time || "").slice(11, 16)}
+                    {card.end_time ? `–${String(card.end_time).slice(11, 16)}` : ""}
+                  </li>
+                ) : null}
+                {card.duration_minutes ? (
+                  <li>
+                    <strong>Duration:</strong> {card.duration_minutes} min
+                  </li>
+                ) : null}
+                {card.sample_count ? (
+                  <li>
+                    <strong>Samples:</strong> {card.sample_count}
+                  </li>
+                ) : null}
+                {card.estimated_amount != null ? (
+                  <li>
+                    <strong>Estimated charge:</strong> ₹{String(card.estimated_amount)}
+                  </li>
+                ) : null}
+                {card.wallet_balance != null ? (
+                  <li>
+                    <strong>Wallet:</strong> ₹{String(card.wallet_balance)}
+                  </li>
+                ) : null}
+                {card.approx_balance_after != null ? (
+                  <li>
+                    <strong>After booking (approx):</strong> ₹{String(card.approx_balance_after)}
+                  </li>
+                ) : null}
+                {card.cancellation_policy_note ? <li>{card.cancellation_policy_note}</li> : null}
+              </ul>
+              {!card.executable ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Mutation execute is currently OFF. Confirm will not change bookings until an administrator enables Phase B
+                  flags after controlled E2E.
+                </p>
+              ) : null}
+            </div>
+          );
+        }
+        if (card.type === "booking_success") {
+          return (
+            <div key={idx} className="rounded-xl border border-emerald-300/50 bg-emerald-50/40 p-3 text-sm dark:bg-emerald-950/20">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-100">
+                Booking success
+              </div>
+              <div className="mt-1">Booking ID: {String(card.booking_id || "—")}</div>
+            </div>
+          );
+        }
+        if (card.type === "booking_error") {
+          return (
+            <div key={idx} className="rounded-xl border border-red-300/50 bg-red-50/40 p-3 text-sm dark:bg-red-950/20">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-red-800 dark:text-red-100">
+                Action could not complete
+              </div>
+              <div className="mt-1 text-xs">{String(card.error || "Please try again or use the portal.")}</div>
             </div>
           );
         }
@@ -739,6 +846,36 @@ export default function ResearchCopilot() {
                                     }
                                     className="h-8 text-xs"
                                     onClick={() => {
+                                      if (a.proposal_id && a.confirmation_token) {
+                                        void (async () => {
+                                          setLoading(true);
+                                          try {
+                                            const res = await apiClient.researchCopilotConfirmMutation({
+                                              proposal_id: a.proposal_id!,
+                                              confirmation_token: a.confirmation_token!,
+                                              action: a.mutation_action,
+                                            });
+                                            const envelope = (res.data as { response?: { content?: string; cards?: CopilotCard[]; suggested_actions?: CopilotMessage["suggested_actions"] } } | undefined)?.response;
+                                            const content =
+                                              envelope?.content ||
+                                              String((res.data as { message?: string } | undefined)?.message || res.error || "Confirmation processed.");
+                                            setMessages((m) => [
+                                              ...m,
+                                              {
+                                                id: `a-${Date.now()}`,
+                                                role: "assistant",
+                                                content,
+                                                cards: (envelope?.cards as CopilotCard[]) || [],
+                                                suggested_actions: envelope?.suggested_actions,
+                                                escalate_hint: Boolean(res.error),
+                                              },
+                                            ]);
+                                          } finally {
+                                            setLoading(false);
+                                          }
+                                        })();
+                                        return;
+                                      }
                                       if (a.prompt) {
                                         void send(a.prompt);
                                         return;
@@ -749,7 +886,7 @@ export default function ResearchCopilot() {
                                       }
                                     }}
                                   >
-                                    {a.requires_confirmation ? `Review & confirm: ${a.label}` : a.label}
+                                    {a.id === "confirm_proposal" ? a.label : a.requires_confirmation ? `Review & confirm: ${a.label}` : a.label}
                                   </Button>
                                 ))}
                               </div>
