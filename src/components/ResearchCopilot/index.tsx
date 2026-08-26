@@ -483,7 +483,9 @@ function CopilotCards({
               <div className="text-[11px] font-semibold uppercase tracking-wide text-red-800 dark:text-red-100">
                 Action could not complete
               </div>
-              <div className="mt-1 text-xs">{String(card.error || "Please try again or use the portal.")}</div>
+              <div className="mt-1 text-xs whitespace-pre-wrap">
+                {String(card.message || card.error || "Please try again or use the portal.")}
+              </div>
             </div>
           );
         }
