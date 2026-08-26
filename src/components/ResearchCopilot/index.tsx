@@ -51,6 +51,8 @@ type CopilotCard = {
   cancellation_policy_note?: string;
   portal_href?: string;
   error?: string;
+  department?: string;
+  user_type?: string | number;
 };
 
 type CopilotMessage = {
@@ -201,30 +203,98 @@ function CopilotCards({
     <div className="mt-3 space-y-2">
       {cards.map((card, idx) => {
         const title = card.title || card.type || "Result";
-        if (card.type === "equipment_choice" && card.items?.length) {
+        if (
+          (card.type === "equipment_choice" ||
+            card.type === "equipment_list" ||
+            card.type === "equipment_compare") &&
+          card.items?.length
+        ) {
+          const isCompare = card.type === "equipment_compare";
           return (
             <div key={idx} className="rounded-xl border bg-background/70 p-3">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
-              <div className="flex flex-wrap gap-2">
-                {card.items.slice(0, 8).map((item, i) => {
-                  const name = String(item.name || item.label || `Option ${i + 1}`);
-                  const href = typeof item.href === "string" ? item.href : undefined;
-                  const prompt = typeof item.prompt === "string" ? item.prompt : `Search available slots for ${name}`;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      className="rounded-full border px-3 py-1 text-xs hover:bg-muted"
-                      onClick={() => {
-                        if (onPrompt) onPrompt(prompt);
-                        else if (href) onNavigate(href);
-                      }}
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {title}
+                {isCompare ? " · comparison" : ""}
               </div>
+              {isCompare ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[420px] text-left text-xs">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-1 pr-2 font-medium">Equipment</th>
+                        <th className="py-1 pr-2 font-medium">Dept</th>
+                        <th className="py-1 pr-2 font-medium">Location</th>
+                        <th className="py-1 font-medium">Mode</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {card.items.slice(0, 6).map((item, i) => {
+                        const name = String(item.name || item.label || `Option ${i + 1}`);
+                        const prompt =
+                          typeof item.prompt === "string"
+                            ? item.prompt
+                            : `Search available slots for ${name}`;
+                        return (
+                          <tr key={i} className="border-b border-border/50">
+                            <td className="py-1.5 pr-2">
+                              <button
+                                type="button"
+                                className="font-medium text-primary underline-offset-2 hover:underline"
+                                onClick={() => onPrompt?.(prompt)}
+                              >
+                                {name}
+                              </button>
+                            </td>
+                            <td className="py-1.5 pr-2">{String(item.department || "—")}</td>
+                            <td className="py-1.5 pr-2">{String(item.location || "—")}</td>
+                            <td className="py-1.5">{String(item.mode || "—")}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {card.items.slice(0, 8).map((item, i) => {
+                    const name = String(item.name || item.label || `Option ${i + 1}`);
+                    const href = typeof item.href === "string" ? item.href : undefined;
+                    const prompt =
+                      typeof item.prompt === "string"
+                        ? item.prompt
+                        : `Search available slots for ${name}`;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        className="rounded-full border px-3 py-1 text-xs hover:bg-muted"
+                        onClick={() => {
+                          if (onPrompt) onPrompt(prompt);
+                          else if (href) onNavigate(href);
+                        }}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+        if (card.type === "daily_dashboard") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-xs text-muted-foreground">
+              Research dashboard · live portal data
+            </div>
+          );
+        }
+        if (card.type === "user_profile") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-xs">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Profile</div>
+              <div>Department: {String(card.department || "—")}</div>
+              <div>User type: {String(card.user_type || "—")}</div>
             </div>
           );
         }
