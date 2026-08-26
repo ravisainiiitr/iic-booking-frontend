@@ -485,8 +485,13 @@ export default function AnalysisLaunchPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950">
-      {/* Fixed chrome during desktop */}
+    <div
+      className={cn(
+        "flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950",
+        phase === "desktop" && "h-[100dvh] overflow-hidden",
+      )}
+    >
+      {/* Fixed chrome during desktop — keep compact; desktop iframe is fullscreen below */}
       {phase === "desktop" && (
         <AnalysisWorkspaceChrome
           compact
@@ -514,12 +519,12 @@ export default function AnalysisLaunchPage() {
           {" · Save results to the Output folder"}
         </div>
       ) : null}
-      {/* R9: keep Input/Output paths visible during prepare + live desktop (not only after Guacamole paints). */}
-      {(phase === "prepare" || phase === "desktop") && (
+      {/* Paths during prepare only — during desktop they steal height and collapse Guacamole paint */}
+      {phase === "prepare" && (
         <div className="border-b border-slate-200/80 bg-white/95 px-4 py-2 dark:border-border dark:bg-background/95">
-          <div className={cn("mx-auto", phase === "prepare" ? "max-w-5xl" : "max-w-[1800px]")}>
+          <div className="mx-auto max-w-5xl">
             <DataWorkspaceBanner
-              compact={phase === "desktop"}
+              compact={false}
               showDataRoot={false}
               data={(experience as any)?.data_workspace || null}
             />
@@ -530,7 +535,7 @@ export default function AnalysisLaunchPage() {
       {phase === "prepare" && (
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-3xl flex-col justify-center gap-6 p-6">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
+            <div className="min-h-0 min-w-0">
               <p className="text-sm font-medium text-slate-600 dark:text-muted-foreground">
                 {equipment} · Booking {virtualId}
               </p>
@@ -583,7 +588,7 @@ export default function AnalysisLaunchPage() {
       )}
 
       {phase === "desktop" && (
-        <div className="relative flex min-h-0 flex-1 flex-col" style={{ height: "calc(100dvh - 9.5rem)" }}>
+        <div className="relative min-h-0 flex-1 bg-black">
           {!desktopReady && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/75 backdrop-blur-md">
               <div className="mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-card sm:p-7">
@@ -608,37 +613,51 @@ export default function AnalysisLaunchPage() {
                 ref={iframeRef}
                 title="Analysis Environment"
                 src={desktopUrl}
-                className="min-h-0 h-full w-full flex-1 border-0 bg-black"
+                className="absolute inset-0 h-full w-full border-0 bg-black"
                 style={{ touchAction: "none" }}
                 allow="clipboard-read; clipboard-write; fullscreen"
                 onLoad={() => {
-                  // Give Guacamole a moment to paint before hiding the overlay.
-                  window.setTimeout(() => setDesktopReady(true), 1500);
+                  window.setTimeout(() => {
+                    setDesktopReady(true);
+                    // Nudge Guacamole to measure a real viewport after paint.
+                    try {
+                      window.dispatchEvent(new Event("resize"));
+                      iframeRef.current?.contentWindow?.dispatchEvent(new Event("resize"));
+                    } catch {
+                      /* cross-origin Guacamole — ignore */
+                    }
+                  }, 800);
                 }}
               />
-              <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex gap-2 sm:bottom-4 sm:right-4">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="pointer-events-auto h-8 shadow-lg"
-                  onClick={() => void requestDesktopFullscreen()}
-                >
-                  Fullscreen
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="pointer-events-auto h-8 shadow-lg"
-                  onClick={() => void reconnectDesktop()}
-                >
-                  Reconnect
-                </Button>
+              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
+                <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/70 px-2 py-1 text-[10px] text-amber-50 backdrop-blur sm:text-xs">
+                  Input/Output folders are on the Analysis PC under ProgramData\RemoteAnalysisAgent. Use
+                  Fullscreen if the desktop looks cropped.
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="pointer-events-auto h-8 shadow-lg"
+                    onClick={() => void requestDesktopFullscreen()}
+                  >
+                    Fullscreen
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="pointer-events-auto h-8 shadow-lg"
+                    onClick={() => void reconnectDesktop()}
+                  >
+                    Reconnect
+                  </Button>
+                </div>
               </div>
             </>
           ) : (
-            <div className="flex flex-1 items-center justify-center p-8 text-muted-foreground">
+            <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
               Preparing Analysis Environment…
             </div>
           )}
