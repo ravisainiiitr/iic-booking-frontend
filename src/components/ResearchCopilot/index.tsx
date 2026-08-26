@@ -85,28 +85,40 @@ const DEFAULT_COMMANDS: CommandAction[] = [
   { id: "find_equipment", label: "Find equipment", href: "/equipments", prompt: "Help me find suitable equipment for my sample." },
   { id: "search_slots", label: "Search available slots", prompt: "Search available slots for FESEM this week." },
   { id: "estimate_cost", label: "Estimate booking cost", prompt: "Estimate the cost of booking FESEM for 2 hours." },
+  { id: "wallet", label: "Wallet / recharge", href: "/wallet", prompt: "What is my wallet balance?" },
   { id: "software", label: "Find Analysis Software", href: "/remote-analysis/software-catalog" },
+  { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
+];
+
+const PUBLIC_DEFAULT_COMMANDS: CommandAction[] = [
+  { id: "hold_meaning", label: "What is HOLD?", prompt: "What does HOLD mean on a booking?" },
+  { id: "find_equipment", label: "Find equipment", href: "/equipments", prompt: "Help me find suitable equipment for my sample." },
+  { id: "search_slots", label: "Search available slots", prompt: "Search available slots for FESEM this week." },
+  { id: "estimate_cost", label: "Estimate booking cost", prompt: "Estimate the cost of booking FESEM." },
+  { id: "sign_in", label: "Sign in to book", href: "/auth" },
   { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
 ];
 
 function copilotErrorMessage(res: { error?: string | null; status?: number | null }) {
   const status = res.status ?? 0;
   const raw = (res.error || "").toLowerCase();
+  if (status === 401 || status === 403) {
+    return "Your session expired or you are not signed in. Sign in again to continue with personal bookings and wallet, or ask a general question while signed out.";
+  }
   if (status === 429 || raw.includes("throttl") || raw.includes("rate")) {
     return "Research Copilot rate limit reached. Please wait a bit, or continue using the normal booking portal.";
   }
-  if (raw.includes("busy")) {
-    return "Research Copilot is temporarily busy. Your booking and other portal operations are unaffected.";
+  if (status === 503 || raw.includes("disabled") || raw.includes("not enabled")) {
+    return "Research Copilot is not enabled on this environment right now.";
   }
-  if (status === 503 || raw.includes("disabled") || raw.includes("unavailable")) {
-    return "Research Copilot is temporarily unavailable. You can continue using the normal booking portal.";
+  if (status === 0 || raw.includes("network") || raw.includes("failed to fetch")) {
+    return "Unable to reach Research Copilot. Check your network connection, then try again.";
   }
-  if (!status && res.error) {
-    return "Unable to reach Research Copilot. Check your network/session, or continue using the portal.";
+  if (raw.includes("busy") || status === 409) {
+    return "Research Copilot is busy. Please try again in a moment.";
   }
-  return res.error || "Something went wrong. Please try again or continue using the normal booking portal.";
+  return res.error || "Research Copilot could not complete that request. You can continue using the booking portal.";
 }
-
 function SimpleMarkdown({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
@@ -146,7 +158,9 @@ export default function ResearchCopilot() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [suggested, setSuggested] = useState<string[]>([]);
-  const [commands, setCommands] = useState<CommandAction[]>(DEFAULT_COMMANDS);
+  const [commands, setCommands] = useState<CommandAction[]>(
+    isAuthenticated ? DEFAULT_COMMANDS : PUBLIC_DEFAULT_COMMANDS,
+  );
   const [assistantName, setAssistantName] = useState("IIC Research Copilot");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
@@ -157,8 +171,10 @@ export default function ResearchCopilot() {
 
   const welcome = useMemo(
     () =>
-      `I am **${assistantName}** — your laboratory officer, booking assistant, and research guide for IIC IIT Roorkee.\n\nAsk about equipment selection, bookings, wallet, sample status, Remote Analysis, or DSA (admins). I will not invent live data or claim actions I cannot perform.`,
-    [assistantName],
+      isAuthenticated
+        ? `I am **${assistantName}** — your laboratory officer, booking assistant, and research guide for IIC IIT Roorkee.\n\nAsk about equipment selection, bookings, wallet, sample status, Remote Analysis, or DSA (admins). I will not invent live data or claim actions I cannot perform.`
+        : `I am **${assistantName}** (guest mode).\n\nAsk about equipment, free slots, rough charge estimates, HOLD meaning, sample acceptance, manuals, or Remote Analysis troubleshooting. Sign in to book, check wallet, or view your bookings.`,
+    [assistantName, isAuthenticated],
   );
 
   useEffect(() => {
@@ -166,15 +182,27 @@ export default function ResearchCopilot() {
   }, [messages, loading]);
 
   const refreshList = useCallback(async () => {
+    if (!isAuthenticated) {
+      setConversations([]);
+      return;
+    }
     const res = await apiClient.researchCopilotListConversations();
     if (res.data?.results) setConversations(res.data.results);
-  }, []);
+  }, [isAuthenticated]);
 
   const ensureConversation = useCallback(async () => {
     if (conversationId) return conversationId;
-    const res = await apiClient.researchCopilotCreateConversation();
+    let res = await apiClient.researchCopilotCreateConversation();
+    if (!res.data?.conversation?.id && (res.status === 0 || res.error)) {
+      // one retry for transient network blips
+      res = await apiClient.researchCopilotCreateConversation();
+    }
     const id = res.data?.conversation?.id;
-    if (!id) throw new Error(res.error || "Could not start conversation");
+    if (!id) {
+      const err = new Error(copilotErrorMessage(res));
+      (err as Error & { status?: number | null }).status = res.status;
+      throw err;
+    }
     setConversationId(id);
     if (res.data?.suggested_prompts) setSuggested(res.data.suggested_prompts);
     await refreshList();
@@ -182,10 +210,12 @@ export default function ResearchCopilot() {
   }, [conversationId, refreshList]);
 
   const bootstrap = useCallback(async () => {
-    if (!isAuthenticated || !isViteCopilotEnabled) return;
+    if (!isViteCopilotEnabled) return;
     setBootstrapping(true);
     try {
-      const res = await apiClient.researchCopilotBootstrap();
+      const res = isAuthenticated
+        ? await apiClient.researchCopilotBootstrap()
+        : await apiClient.researchCopilotPublicBootstrap();
       if (res.data) {
         const enabled = res.data.enabled !== false;
         setBackendEnabled(enabled);
@@ -197,13 +227,13 @@ export default function ResearchCopilot() {
         setSuggested(res.data.suggested_prompts || []);
         const ca = (res.data as { command_actions?: CommandAction[] }).command_actions;
         if (ca?.length) setCommands(ca);
+        else setCommands(isAuthenticated ? DEFAULT_COMMANDS : PUBLIC_DEFAULT_COMMANDS);
       } else if (res.error) {
-        // 503 / disabled → hide UI rather than show a broken panel
         setBackendEnabled(false);
         setOpen(false);
         return;
       }
-      await refreshList();
+      if (isAuthenticated) await refreshList();
       if (!messages.length) {
         setMessages([{ id: "welcome", role: "assistant", content: welcome }]);
       }
@@ -213,18 +243,19 @@ export default function ResearchCopilot() {
   }, [isAuthenticated, messages.length, refreshList, welcome]);
 
   useEffect(() => {
-    if (!isAuthenticated || !isViteCopilotEnabled) return;
-    // Probe backend flag once so FAB stays hidden when production Copilot is OFF
+    if (!isViteCopilotEnabled) return;
     void (async () => {
-      const res = await apiClient.researchCopilotBootstrap();
+      const res = isAuthenticated
+        ? await apiClient.researchCopilotBootstrap()
+        : await apiClient.researchCopilotPublicBootstrap();
       if (res.data) setBackendEnabled(res.data.enabled !== false);
       else setBackendEnabled(false);
     })();
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (open && isAuthenticated) void bootstrap();
-  }, [open, isAuthenticated, bootstrap]);
+    if (open) void bootstrap();
+  }, [open, bootstrap]);
 
   const loadConversation = async (id: string) => {
     setLoading(true);
@@ -252,6 +283,7 @@ export default function ResearchCopilot() {
   const startNew = async () => {
     setConversationId(null);
     setMessages([{ id: "welcome", role: "assistant", content: welcome }]);
+    if (!isAuthenticated) return;
     const res = await apiClient.researchCopilotCreateConversation();
     if (res.data?.conversation?.id) {
       setConversationId(res.data.conversation.id);
@@ -262,11 +294,40 @@ export default function ResearchCopilot() {
 
   const send = async (textOverride?: string) => {
     const text = (textOverride ?? input).trim();
-    if (!text || loading || !isAuthenticated) return;
+    if (!text || loading) return;
     setInput("");
     setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", content: text }]);
     setLoading(true);
     try {
+      if (!isAuthenticated) {
+        const res = await apiClient.researchCopilotPublicAsk(text);
+        if (res.error || !res.data?.message) {
+          setMessages((m) => [
+            ...m,
+            {
+              id: `e-${Date.now()}`,
+              role: "assistant",
+              content: copilotErrorMessage(res),
+              escalate_hint: true,
+            },
+          ]);
+          return;
+        }
+        const msg = res.data.message;
+        setMessages((m) => [
+          ...m,
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content: String(msg.content || ""),
+            escalate_hint: Boolean(msg.escalate_hint),
+            citations: (msg.citations || []) as CopilotMessage["citations"],
+            suggested_actions: (msg.suggested_actions || []) as CopilotMessage["suggested_actions"],
+          },
+        ]);
+        return;
+      }
+
       const id = await ensureConversation();
       const res = await apiClient.researchCopilotSendMessage(id, text);
       if (res.error || !res.data?.message) {
@@ -285,25 +346,27 @@ export default function ResearchCopilot() {
       setMessages((m) => [
         ...m,
         {
-          id: msg.id,
+          id: String(msg.id || `a-${Date.now()}`),
           role: "assistant",
-          content: msg.content,
-          confidence: msg.confidence,
-          escalate_hint: msg.escalate_hint,
-          citations: msg.citations,
-          suggested_actions: msg.suggested_actions,
+          content: String(msg.content || ""),
+          confidence: msg.confidence as number | null | undefined,
+          escalate_hint: Boolean(msg.escalate_hint),
+          citations: msg.citations as CopilotMessage["citations"],
+          suggested_actions: msg.suggested_actions as CopilotMessage["suggested_actions"],
         },
       ]);
       if (res.data.suggested_prompts) setSuggested(res.data.suggested_prompts);
       await refreshList();
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
       setMessages((m) => [
         ...m,
         {
           id: `e-${Date.now()}`,
           role: "assistant",
           content:
-            "Research Copilot is temporarily unavailable (network error). You can continue using the normal booking portal.",
+            msg ||
+            "Research Copilot is temporarily unavailable. You can continue using the normal booking portal.",
         },
       ]);
     } finally {
@@ -357,7 +420,8 @@ export default function ResearchCopilot() {
           className="fixed bottom-24 right-6 z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl"
           style={{ height: "min(640px, 78vh)" }}
         >
-          {/* History */}
+          {/* History (signed-in only) */}
+          {isAuthenticated ? (
           <aside className="hidden w-52 shrink-0 flex-col border-r bg-muted/30 sm:flex">
             <div className="flex items-center justify-between border-b px-3 py-3">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">History</span>
@@ -385,6 +449,7 @@ export default function ResearchCopilot() {
               </div>
             </ScrollArea>
           </aside>
+          ) : null}
 
           {/* Main */}
           <div className="flex min-w-0 flex-1 flex-col">
@@ -406,11 +471,22 @@ export default function ResearchCopilot() {
             </div>
 
             {!isAuthenticated ? (
-              <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Sign in to use IIC Research Copilot.
+              <div className="border-b bg-amber-50/80 px-4 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+                Guest mode: general FAQ, free slots, and rough estimates.{" "}
+                <button
+                  type="button"
+                  className="font-semibold underline underline-offset-2"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate("/auth");
+                  }}
+                >
+                  Sign in
+                </button>{" "}
+                for booking, wallet, and your bookings.
               </div>
-            ) : (
-              <>
+            ) : null}
+            <>
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4">
                     {bootstrapping && (
@@ -638,7 +714,6 @@ export default function ResearchCopilot() {
                   </Button>
                 </div>
               </>
-            )}
           </div>
         </div>
       )}

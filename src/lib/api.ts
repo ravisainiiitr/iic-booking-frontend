@@ -7163,6 +7163,37 @@ class ApiClient {
     }>('/v1/research-copilot/bootstrap/');
   }
 
+  async researchCopilotPublicBootstrap() {
+    return this.request<{
+      enabled: boolean;
+      assistant_name?: string;
+      role_bucket?: string;
+      suggested_prompts?: string[];
+      tools_available?: Array<Record<string, unknown>>;
+      capabilities?: string[] | Record<string, unknown>;
+      command_actions?: Array<{ id: string; label: string; href?: string; prompt?: string }>;
+      auth_required_for?: string[];
+    }>('/v1/research-copilot/public/bootstrap/');
+  }
+
+  async researchCopilotPublicAsk(content: string) {
+    return this.request<{
+      ok: boolean;
+      message?: {
+        role: string;
+        content: string;
+        citations?: Array<Record<string, unknown>>;
+        suggested_actions?: Array<Record<string, unknown>>;
+        escalate_hint?: boolean;
+        metadata?: Record<string, unknown>;
+      };
+      error?: { code?: string; message?: string };
+    }>('/v1/research-copilot/public/ask/', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
   async researchCopilotListConversations() {
     return this.request<{
       count: number;
