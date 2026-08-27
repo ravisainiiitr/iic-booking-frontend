@@ -130,12 +130,15 @@ export default function AnalysisLaunchPage() {
   const [sessionId, setSessionId] = useState<string | null>(search.get("session"));
   const [desktopUrl, setDesktopUrl] = useState<string | null>(null);
   const [desktopReady, setDesktopReady] = useState(false);
+  /** After overlay clears, offer recovery if the Guacamole canvas never paints (Welcome hang / dead RDP). */
+  const [blankDesktopHint, setBlankDesktopHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [closingStep, setClosingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const launchAttempted = useRef(false);
   const desktopResolved = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const desktopSurfaceRef = useRef<HTMLDivElement>(null);
 
   const [bookingLabel, setBookingLabel] = useState<string>("");
 
@@ -300,25 +303,63 @@ export default function AnalysisLaunchPage() {
     return () => window.clearTimeout(t);
   }, [phase, desktopReady]);
 
+  // If the canvas stays black after Welcome/overlay (common when Analysis PC console
+  // steals the RDP session or agent < 1.0.22), surface an explicit recovery panel.
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady || !desktopUrl) {
+      setBlankDesktopHint(false);
+      return;
+    }
+    setBlankDesktopHint(false);
+    const t = window.setTimeout(() => setBlankDesktopHint(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [phase, desktopReady, desktopUrl]);
+
   const reconnectDesktop = useCallback(async () => {
     desktopResolved.current = false;
     setDesktopUrl(null);
     setDesktopReady(false);
+    setBlankDesktopHint(false);
     setPhase("prepare");
     setError("Reconnecting Analysis Environment…");
     await pollLaunch();
   }, [pollLaunch]);
 
-  const requestDesktopFullscreen = useCallback(() => {
-    const el = iframeRef.current;
-    if (!el) return;
+  const requestDesktopFullscreen = useCallback(async () => {
+    const surface = desktopSurfaceRef.current;
+    const frame = iframeRef.current;
+    const target = surface || frame;
+    if (!target) {
+      toast.error("Desktop surface is not ready yet. Wait a moment, then try Fullscreen again.");
+      return;
+    }
     const req =
-      el.requestFullscreen ||
-      (el as HTMLIFrameElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+      target.requestFullscreen?.bind(target) ||
+      (
+        target as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void> | void;
+        }
+      ).webkitRequestFullscreen?.bind(target);
+    if (!req) {
+      toast.error("This browser does not support fullscreen for the Analysis Environment.");
+      return;
+    }
     try {
-      void req?.call(el);
-    } catch {
-      /* ignore */
+      await Promise.resolve(req());
+      // Guacamole measures from window size; nudge after fullscreen settles.
+      window.setTimeout(() => {
+        try {
+          window.dispatchEvent(new Event("resize"));
+          iframeRef.current?.contentWindow?.dispatchEvent(new Event("resize"));
+        } catch {
+          /* cross-origin Guacamole */
+        }
+      }, 250);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Fullscreen request was blocked.";
+      toast.error(
+        `${msg} Try the browser’s fullscreen (F11), or click Reconnect if the desktop is blank.`
+      );
     }
   }, []);
 
@@ -588,7 +629,7 @@ export default function AnalysisLaunchPage() {
       )}
 
       {phase === "desktop" && (
-        <div className="relative min-h-0 flex-1 bg-black">
+        <div ref={desktopSurfaceRef} className="relative min-h-0 flex-1 bg-black">
           {!desktopReady && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/75 backdrop-blur-md">
               <div className="mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-card sm:p-7">
@@ -607,6 +648,46 @@ export default function AnalysisLaunchPage() {
               </div>
             </div>
           )}
+          {desktopReady && blankDesktopHint ? (
+            <div className="absolute inset-x-0 top-3 z-[10050] flex justify-center px-3 pointer-events-none">
+              <div className="pointer-events-auto max-w-xl rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-xl dark:border-amber-500/30 dark:bg-amber-950/90 dark:text-amber-50">
+                <p className="font-semibold">Desktop looks blank?</p>
+                <p className="mt-1 text-xs opacity-90">
+                  This usually means the Analysis PC is stuck on Windows Welcome, or an older agent
+                  is installed. Click <strong>Reconnect</strong>, start Analysis from another
+                  computer (not the Analysis PC itself), and keep the Analysis PC console locked.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => void reconnectDesktop()}
+                  >
+                    Reconnect
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-8"
+                    onClick={() => void requestDesktopFullscreen()}
+                  >
+                    Fullscreen
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8"
+                    onClick={() => setBlankDesktopHint(false)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {desktopUrl ? (
             <>
               <iframe
@@ -616,6 +697,8 @@ export default function AnalysisLaunchPage() {
                 className="absolute inset-0 h-full w-full border-0 bg-black"
                 style={{ touchAction: "none" }}
                 allow="clipboard-read; clipboard-write; fullscreen"
+                // allowFullScreen helps some browsers honor iframe fullscreen requests
+                allowFullScreen
                 onLoad={() => {
                   window.setTimeout(() => {
                     setDesktopReady(true);
@@ -629,10 +712,10 @@ export default function AnalysisLaunchPage() {
                   }, 800);
                 }}
               />
-              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
+              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
                 <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/70 px-2 py-1 text-[10px] text-amber-50 backdrop-blur sm:text-xs">
                   Input/Output folders are on the Analysis PC under ProgramData\RemoteAnalysisAgent. Use
-                  Fullscreen if the desktop looks cropped.
+                  Fullscreen if the desktop looks cropped. If the screen stays black, use Reconnect.
                 </div>
                 <div className="flex gap-2">
                   <Button

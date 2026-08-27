@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -483,7 +483,9 @@ function CopilotCards({
               <div className="text-[11px] font-semibold uppercase tracking-wide text-red-800 dark:text-red-100">
                 Action could not complete
               </div>
-              <div className="mt-1 text-xs">{String(card.error || "Please try again or use the portal.")}</div>
+              <div className="mt-1 text-xs whitespace-pre-wrap">
+                {String(card.message || card.error || "Please try again or use the portal.")}
+              </div>
             </div>
           );
         }
@@ -507,7 +509,12 @@ function CopilotCards({
 
 export default function ResearchCopilot() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuth();
+  // Analysis desktop controls (Fullscreen/Reconnect) sit bottom-right; Copilot must not cover them.
+  const hideOnAnalysisDesktop =
+    location.pathname.startsWith("/analysis-launch") ||
+    location.pathname.startsWith("/analysis-workspace");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
@@ -772,6 +779,7 @@ export default function ResearchCopilot() {
   };
 
   if (!isCopilotEnabled) return null;
+  if (hideOnAnalysisDesktop) return null;
 
   return (
     <>
