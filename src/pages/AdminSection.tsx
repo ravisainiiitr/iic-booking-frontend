@@ -606,7 +606,7 @@ export default function AdminSection() {
     const isDeptAdmin = currentUserType === "dept_admin";
     setFormData(
       sectionKey === "departments"
-        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true, equipment_booking_enabled: false }
+        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true, equipment_booking_enabled: false, equipment_visibility_enabled: false }
         : sectionKey === "wallets"
         ? { user: "" }
         : sectionKey === "projects"
@@ -835,6 +835,8 @@ export default function AdminSection() {
         access_enabled: formData.access_enabled === true || formData.access_enabled === "true",
         equipment_booking_enabled:
           formData.equipment_booking_enabled === true || formData.equipment_booking_enabled === "true",
+        equipment_visibility_enabled:
+          formData.equipment_visibility_enabled === true || formData.equipment_visibility_enabled === "true",
       };
     }
     if (sectionKey === "projects") {
@@ -1792,6 +1794,7 @@ export default function AdminSection() {
                           <TableHead>Department Code</TableHead>
                           <TableHead>Department Type</TableHead>
                           <TableHead>Access</TableHead>
+                          <TableHead>Equipment Visibility</TableHead>
                           <TableHead>Equipment Booking</TableHead>
                           <TableHead>User Count</TableHead>
                           <TableHead>Equipment Count</TableHead>
@@ -1972,6 +1975,11 @@ export default function AdminSection() {
                               <TableCell>{row.code != null && row.code !== "" ? String(row.code) : "—"}</TableCell>
                               <TableCell>{row.department_type_display != null ? String(row.department_type_display) : (row.department_type != null ? String(row.department_type) : "—")}</TableCell>
                               <TableCell>{row.access_enabled === false || row.access_enabled === "false" ? "Disabled" : "Enabled"}</TableCell>
+                              <TableCell>
+                                {row.equipment_visibility_enabled === true || row.equipment_visibility_enabled === "true"
+                                  ? "Visible"
+                                  : "Hidden"}
+                              </TableCell>
                               <TableCell>
                                 {row.equipment_booking_enabled === true || row.equipment_booking_enabled === "true"
                                   ? "Enabled"
@@ -2931,6 +2939,24 @@ export default function AdminSection() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right" htmlFor="dept-visibility-enabled">Equipment visibility</Label>
+                    <div className="col-span-3 flex items-center gap-3">
+                      <Checkbox
+                        id="dept-visibility-enabled"
+                        checked={
+                          formData.equipment_visibility_enabled === true ||
+                          formData.equipment_visibility_enabled === "true"
+                        }
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({ ...prev, equipment_visibility_enabled: checked === true }))
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        When disabled (default), equipment linked to this department is hidden from all users except Main Administrator, this Department Administrator, and Officers-in-Charge of that equipment.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="dept-booking-enabled">Equipment booking</Label>
                     <div className="col-span-3 flex items-center gap-3">
                       <Checkbox
@@ -2944,7 +2970,7 @@ export default function AdminSection() {
                         }
                       />
                       <span className="text-sm text-muted-foreground">
-                        When disabled (default), equipment linked to this department cannot be booked. Main administrator control.
+                        When disabled (default), equipment linked to this department cannot be booked. Independent of visibility. Main administrator control.
                       </span>
                     </div>
                   </div>
