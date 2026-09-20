@@ -19,7 +19,7 @@ import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 
-const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
+const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
 const DashboardHeader = () => {
@@ -64,6 +64,10 @@ const DashboardHeader = () => {
         const newBalance = Number(event.detail.balance);
         setWalletBalance(newBalance);
         setHasWallet(true);
+        localStorage.setItem(
+          WALLET_BALANCE_CACHE_KEY,
+          JSON.stringify({ balance: newBalance, ts: Date.now() })
+        );
       }
     };
 

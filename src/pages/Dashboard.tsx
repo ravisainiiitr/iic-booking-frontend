@@ -107,7 +107,7 @@ function isAccountsInChargeRole(user: {
   );
 }
 
-const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v1";
+const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
 function addDaysIso(isoDate: string, days: number): string {
@@ -1246,7 +1246,6 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-page page-shell">
-      <MigrationPortalBanner />
       <DashboardHeader />
 
       <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-8 sm:px-6 lg:px-8">
@@ -2482,6 +2481,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+
+        <MigrationPortalBanner variant="notice" />
 
         <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
           {isAdmin ? "Quick access" : "Get started"}

@@ -2511,14 +2511,14 @@ class ApiClient {
     });
   }
 
-  async getWalletTransactions() {
+  async getWalletTransactions(limit = 5000, offset = 0) {
     return this.request<{
       transactions: any[];
       count: number;
-      total_count: number;
+      total_count?: number;
       limit: number;
       offset: number;
-    }>('/wallet/transactions/');
+    }>(`/wallet/transactions/?limit=${limit}&offset=${offset}`);
   }
 
   /** Get transactions for a specific sub-wallet (department). */
