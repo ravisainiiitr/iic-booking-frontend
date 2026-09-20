@@ -30,10 +30,10 @@ const Index = () => {
           </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 min-w-0">
             <EquipmentGrid />
           </div>
-          <aside className="lg:col-span-1 lg:sticky lg:top-24">
+          <aside className="lg:col-span-1 lg:sticky lg:top-24 w-full min-w-0">
             <NoticeBoard />
           </aside>
         </div>

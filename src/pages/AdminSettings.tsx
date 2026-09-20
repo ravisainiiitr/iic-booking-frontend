@@ -14,6 +14,7 @@ import {
   Star,
   KeyRound,
   BookOpen,
+  FolderTree,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -81,6 +82,14 @@ const AdminSettings = () => {
               title="User Management"
               description="Users, roles & permissions"
               onClick={() => navigate("/user-management")}
+            />
+          )}
+          {(isAdmin || can("user_management.departments")) && (
+            <SettingsTile
+              icon={<FolderTree className="h-5 w-5" />}
+              title="Departments"
+              description="Department list; equipment visibility and booking enable/disable"
+              onClick={() => navigate("/admin/section/departments")}
             />
           )}
           {can("admin_settings.auth") && (

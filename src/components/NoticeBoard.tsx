@@ -132,16 +132,16 @@ const NoticeBoard = () => {
   };
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex-shrink-0">
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-primary" />
+    <Card className="h-full flex flex-col min-w-0 overflow-hidden">
+      <CardHeader className="flex-shrink-0 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <Bell className="h-5 w-5 text-primary shrink-0" />
           Notice Board
         </CardTitle>
         <CardDescription>Latest updates and announcements</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col min-h-0">
-        <ScrollArea className="flex-1 pr-4">
+      <CardContent className="flex-1 flex flex-col min-h-0 min-w-0 pt-0">
+        <ScrollArea className="flex-1 max-h-[min(70vh,36rem)] pr-3">
           {loading ? (
             <div className="space-y-4">
               {[...Array(3)].map((_, i) => (
@@ -158,43 +158,42 @@ const NoticeBoard = () => {
               <p>No notices available</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {notices.map((notice) => (
                 <div
                   key={notice.id}
-                  className="p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                  className="p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors min-w-0"
                 >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {getTypeIcon(notice.type)}
-                      <h4 className="font-semibold text-sm line-clamp-2">{notice.title}</h4>
-                    </div>
-                    <Badge variant={getTypeColor(notice.type)} className={`shrink-0 text-xs ${getTypeColorClass(notice.type)}`}>
+                  <div className="flex items-start gap-2 mb-2 min-w-0">
+                    <span className="mt-0.5 shrink-0 text-muted-foreground">{getTypeIcon(notice.type)}</span>
+                    <h4 className="font-semibold text-sm leading-snug flex-1 min-w-0 break-words">{notice.title}</h4>
+                    <Badge variant={getTypeColor(notice.type)} className={`shrink-0 text-[10px] px-1.5 ${getTypeColorClass(notice.type)}`}>
                       {notice.type}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{notice.description}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
+                  <p className="text-sm text-muted-foreground mb-3 line-clamp-3 break-words">{notice.description}</p>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Calendar className="h-3 w-3 shrink-0" />
                         <span>{new Date(notice.created_at).toLocaleDateString()}</span>
                       </div>
                       {notice.expiry_date && (
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <Clock className="h-3 w-3 shrink-0" />
                           <span>Expires: {new Date(notice.expiry_date).toLocaleDateString()}</span>
                         </div>
                       )}
                     </div>
                     <button
+                      type="button"
                       onClick={() => {
                         setSelectedNotice(notice);
                         setDialogOpen(true);
                       }}
-                      className="text-xs text-primary hover:underline flex items-center gap-1 transition-colors"
+                      className="self-start text-xs text-primary hover:underline inline-flex items-center gap-1 transition-colors"
                     >
-                      <Info className="h-3 w-3" />
+                      <Info className="h-3 w-3 shrink-0" />
                       Show more info
                     </button>
                   </div>
