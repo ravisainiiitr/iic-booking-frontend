@@ -11,6 +11,12 @@ type MigrationPortalBannerProps = {
   className?: string;
 };
 
+function compactNoticeText(text: string): string {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Shows portal cutover / booking-lock notice for the current user.
  * Uses booking-status locked_for_this_user (all roles before booking_opens_at).
@@ -31,9 +37,11 @@ export function MigrationPortalBanner({
         const res = await apiClient.getPortalBookingStatus();
         if (cancelled || res.error || !res.data) return;
         const locked = Boolean(res.data.locked_for_this_user);
-        const lockMessage = String(res.data.message || "").trim();
+        const lockMessage = compactNoticeText(String(res.data.message || ""));
         const legacyDisabled = Boolean(res.data.legacy_portal_new_booking_disabled);
-        const legacyText = String(res.data.legacy_portal_migration_banner || "").trim();
+        const legacyText = compactNoticeText(
+          String(res.data.legacy_portal_migration_banner || "")
+        );
         const link = String(res.data.new_portal_url || "");
 
         if (locked && lockMessage) {
@@ -58,9 +66,9 @@ export function MigrationPortalBanner({
 
   if (variant === "bar") {
     return (
-      <div className={`border-b border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 ${className}`}>
-        <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm leading-relaxed whitespace-pre-line">{banner}</p>
+      <div className={`border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950 ${className}`}>
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-snug line-clamp-3">{banner}</p>
           {url ? (
             <Button asChild variant="default" size="sm" className="shrink-0">
               <a href={url} target="_blank" rel="noreferrer">
@@ -76,21 +84,23 @@ export function MigrationPortalBanner({
 
   return (
     <Card
-      className={`dashboard-notice-card dashboard-notice-warning mb-8 border-amber-400/70 bg-amber-50 text-amber-950 shadow-md dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-50 ${className}`}
+      className={`dashboard-notice-card dashboard-notice-warning mb-6 border-amber-400/70 bg-amber-50 text-amber-950 shadow-sm dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-50 ${className}`}
     >
-      <CardContent className="py-5 px-6">
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-200/80 text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
-            <AlertTriangle className="h-6 w-6" aria-hidden />
+      <CardContent className="py-3 px-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-200/80 text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
+            <AlertTriangle className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-amber-950 dark:text-amber-50">Important notice</p>
-            <p className="mt-1 text-sm leading-relaxed text-amber-900/90 dark:text-amber-100/90 whitespace-pre-line">
+            <p className="text-sm font-semibold leading-tight text-amber-950 dark:text-amber-50">
+              Important notice
+            </p>
+            <p className="mt-0.5 text-sm leading-snug text-amber-900/90 dark:text-amber-100/90 line-clamp-2">
               {banner}
             </p>
           </div>
           {url ? (
-            <Button asChild variant="default" size="sm" className="shrink-0">
+            <Button asChild variant="default" size="sm" className="shrink-0 self-center">
               <a href={url} target="_blank" rel="noreferrer">
                 Open new portal
                 <ExternalLink className="ml-2 h-4 w-4" />
