@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiClient } from "@/lib/api";
 import { getGuideForUser, shouldAutoShowUserGuide } from "@/guides";
 import type { UserGuideContent } from "@/guides";
 import UserGuideDialog from "@/components/UserGuide/UserGuideDialog";
@@ -27,7 +26,7 @@ interface UserGuideContextValue {
 const UserGuideContext = createContext<UserGuideContextValue | undefined>(undefined);
 
 export function UserGuideProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, updateUser } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   /** User id we already decided auto-show for (show or skip). Survives user-object refreshes. */
@@ -40,14 +39,9 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   }, [user?.id, user?.user_type, user?.user_type_alias]);
 
   const markGuideViewed = useCallback(async () => {
-    if (!user?.id || user.user_guide_viewed) return;
-    updateUser({ user_guide_viewed: true });
-    try {
-      await apiClient.updateProfile({ user_guide_viewed: true });
-    } catch {
-      // Local flag still set; next refresh may re-prompt if PATCH failed
-    }
-  }, [user?.id, user?.user_guide_viewed, updateUser]);
+    // Session-only acknowledgement — do not persist so the manual can open on every login.
+    return;
+  }, []);
 
   const openGuide = useCallback(
     (opts?: { force?: boolean }) => {
@@ -59,7 +53,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
 
   const closeGuide = useCallback(() => setOpen(false), []);
 
-  // Reset auto-show bookkeeping on logout
+  // Reset auto-show bookkeeping on logout so the next login can show the manual again
   useEffect(() => {
     if (isAuthenticated) return;
     autoShowHandledUserIdRef.current = null;
@@ -70,7 +64,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     setOpen(false);
   }, [isAuthenticated]);
 
-  // First successful login → first dashboard landing: show role guide once
+  // Every successful login → first dashboard landing: show role user manual
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
@@ -80,7 +74,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
       !shouldAutoShowUserGuide({
         userType: user.user_type,
         userTypeAlias: user.user_type_alias,
-        userGuideViewed: user.user_guide_viewed === true,
+        userGuideViewed: false,
       })
     ) {
       autoShowHandledUserIdRef.current = user.id;
@@ -105,7 +99,6 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     user?.id,
     user?.user_type,
     user?.user_type_alias,
-    user?.user_guide_viewed,
     location.pathname,
     guide,
   ]);

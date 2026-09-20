@@ -64,8 +64,8 @@ export function resolveGuideAudience(
 export function shouldAutoShowUserGuide(opts: {
   userType: string | number | null | undefined;
   userTypeAlias?: string | null;
+  /** Kept for callers; ignored — guide opens on every login. */
   userGuideViewed?: boolean | null;
 }): boolean {
-  if (opts.userGuideViewed) return false;
   return resolveGuideAudience(opts.userType, opts.userTypeAlias) != null;
 }
