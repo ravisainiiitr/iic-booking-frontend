@@ -14,6 +14,7 @@ type MigrationDashboard = {
   phase?: string;
   end_user_booking_enabled?: boolean;
   booking_opens_at?: string | null;
+  booking_lock_message?: string;
   incremental_sync_enabled?: boolean;
   legacy_ledger_frozen?: boolean;
   last_wallet_txn_watermark?: number;
@@ -45,6 +46,8 @@ export default function AdminPortalMigration() {
   const [windowStartDraft, setWindowStartDraft] = useState("");
   const [windowEndDraft, setWindowEndDraft] = useState("");
   const [newPortalUrlDraft, setNewPortalUrlDraft] = useState("");
+  const [bookingOpensDraft, setBookingOpensDraft] = useState("");
+  const [bookingLockMessageDraft, setBookingLockMessageDraft] = useState("");
   const [datetimeContract, setDatetimeContract] = useState<Record<string, unknown> | null>(null);
   const [approvalReason, setApprovalReason] = useState("");
   const [approveConfirm, setApproveConfirm] = useState(false);
@@ -130,6 +133,8 @@ export default function AdminPortalMigration() {
     setWindowStartDraft(dash.migration_start_at || "");
     setWindowEndDraft(dash.migration_window_end_at || "");
     setNewPortalUrlDraft(dash.new_portal_url || "");
+    setBookingOpensDraft(dash.booking_opens_at || "");
+    setBookingLockMessageDraft(dash.booking_lock_message || "");
   }, [dash]);
 
   if (!isAdmin) {
@@ -175,6 +180,23 @@ export default function AdminPortalMigration() {
       await load();
     } catch (e: any) {
       toast.error(e?.message || "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveBookingOpens = async () => {
+    setBusy(true);
+    try {
+      const res = await apiClient.patchPortalMigrationState({
+        booking_opens_at: bookingOpensDraft.trim() || null,
+        booking_lock_message: bookingLockMessageDraft,
+      });
+      if (res.error) throw new Error(res.error);
+      toast.success("Booking opens-at / lock message saved");
+      await load();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save booking opens settings");
     } finally {
       setBusy(false);
     }
@@ -439,6 +461,10 @@ export default function AdminPortalMigration() {
             <p className="font-mono text-sm">{String(dash?.end_user_booking_enabled)}</p>
           </div>
           <div>
+            <Label>Booking opens at</Label>
+            <p className="font-mono text-sm">{dash?.booking_opens_at || "—"}</p>
+          </div>
+          <div>
             <Label>Booking migration mode</Label>
             <p className="font-mono text-sm">{dash?.booking_migration_mode || "—"}</p>
           </div>
@@ -549,15 +575,42 @@ export default function AdminPortalMigration() {
       <Card>
         <CardHeader>
           <CardTitle>Booking gate</CardTitle>
-          <CardDescription>Backend-enforced. Frontend alone is not sufficient.</CardDescription>
+          <CardDescription>
+            Hard freeze locks all roles until booking opens at. After that date, end-user booking still
+            respects the enable toggle. Backend-enforced — frontend alone is not sufficient.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button variant="destructive" disabled={busy} onClick={() => void setBooking(false)}>
-            Block new booking
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="booking-opens-at">Booking opens at (ISO, Asia/Kolkata preferred)</Label>
+              <Input
+                id="booking-opens-at"
+                placeholder="2026-10-04T00:00:00+05:30"
+                value={bookingOpensDraft}
+                onChange={(e) => setBookingOpensDraft(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="booking-lock-message">Lock message (use {"{date}"} / {"{time}"})</Label>
+              <Input
+                id="booking-lock-message"
+                value={bookingLockMessageDraft}
+                onChange={(e) => setBookingLockMessageDraft(e.target.value)}
+              />
+            </div>
+          </div>
+          <Button disabled={busy} onClick={() => void saveBookingOpens()}>
+            Save opens-at / message
           </Button>
-          <Button disabled={busy} onClick={() => void setBooking(true)}>
-            Enable new booking
-          </Button>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button variant="destructive" disabled={busy} onClick={() => void setBooking(false)}>
+              Block new booking
+            </Button>
+            <Button disabled={busy} onClick={() => void setBooking(true)}>
+              Enable new booking
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

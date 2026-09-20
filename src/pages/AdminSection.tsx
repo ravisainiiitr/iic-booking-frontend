@@ -606,7 +606,7 @@ export default function AdminSection() {
     const isDeptAdmin = currentUserType === "dept_admin";
     setFormData(
       sectionKey === "departments"
-        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true }
+        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true, equipment_booking_enabled: false }
         : sectionKey === "wallets"
         ? { user: "" }
         : sectionKey === "projects"
@@ -833,6 +833,8 @@ export default function AdminSection() {
         department_type: String(formData.department_type ?? "internal"),
         description: String(formData.description ?? "").trim(),
         access_enabled: formData.access_enabled === true || formData.access_enabled === "true",
+        equipment_booking_enabled:
+          formData.equipment_booking_enabled === true || formData.equipment_booking_enabled === "true",
       };
     }
     if (sectionKey === "projects") {
@@ -1790,6 +1792,7 @@ export default function AdminSection() {
                           <TableHead>Department Code</TableHead>
                           <TableHead>Department Type</TableHead>
                           <TableHead>Access</TableHead>
+                          <TableHead>Equipment Booking</TableHead>
                           <TableHead>User Count</TableHead>
                           <TableHead>Equipment Count</TableHead>
                           <TableHead className="w-[100px]">Actions</TableHead>
@@ -1969,6 +1972,11 @@ export default function AdminSection() {
                               <TableCell>{row.code != null && row.code !== "" ? String(row.code) : "—"}</TableCell>
                               <TableCell>{row.department_type_display != null ? String(row.department_type_display) : (row.department_type != null ? String(row.department_type) : "—")}</TableCell>
                               <TableCell>{row.access_enabled === false || row.access_enabled === "false" ? "Disabled" : "Enabled"}</TableCell>
+                              <TableCell>
+                                {row.equipment_booking_enabled === true || row.equipment_booking_enabled === "true"
+                                  ? "Enabled"
+                                  : "Disabled"}
+                              </TableCell>
                               <TableCell>{row.user_count != null ? String(row.user_count) : "—"}</TableCell>
                               <TableCell>{row.equipment_count != null ? String(row.equipment_count) : "—"}</TableCell>
                               <TableCell>
@@ -2919,6 +2927,24 @@ export default function AdminSection() {
                       />
                       <span className="text-sm text-muted-foreground">
                         When disabled, departmental admin-panel access is blocked for this internal department.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right" htmlFor="dept-booking-enabled">Equipment booking</Label>
+                    <div className="col-span-3 flex items-center gap-3">
+                      <Checkbox
+                        id="dept-booking-enabled"
+                        checked={
+                          formData.equipment_booking_enabled === true ||
+                          formData.equipment_booking_enabled === "true"
+                        }
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({ ...prev, equipment_booking_enabled: checked === true }))
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        When disabled (default), equipment linked to this department cannot be booked. Main administrator control.
                       </span>
                     </div>
                   </div>

@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
 
 /**
- * Shows migration notice when booking_migration_mode indicates freeze/active.
- * NEW_PORTAL_URL is never hard-coded — comes from PortalMigrationState.
- * This app is the new portal; the CTA is still useful if URL points to a public entry.
+ * Shows portal cutover / booking-lock notice for the current user.
+ * Uses booking-status locked_for_this_user (all roles before booking_opens_at).
+ * Also surfaces legacy-portal migration banner fields when present.
  */
 export function MigrationPortalBanner() {
   const [banner, setBanner] = useState("");
@@ -20,11 +20,20 @@ export function MigrationPortalBanner() {
       try {
         const res = await apiClient.getPortalBookingStatus();
         if (cancelled || res.error || !res.data) return;
-        const disabled = Boolean(res.data.legacy_portal_new_booking_disabled);
-        const text = String(res.data.legacy_portal_migration_banner || "");
+        const locked = Boolean(res.data.locked_for_this_user);
+        const lockMessage = String(res.data.message || "").trim();
+        const legacyDisabled = Boolean(res.data.legacy_portal_new_booking_disabled);
+        const legacyText = String(res.data.legacy_portal_migration_banner || "").trim();
         const link = String(res.data.new_portal_url || "");
-        setShow(disabled && Boolean(text));
-        setBanner(text);
+
+        if (locked && lockMessage) {
+          setShow(true);
+          setBanner(lockMessage);
+          setUrl("");
+          return;
+        }
+        setShow(legacyDisabled && Boolean(legacyText));
+        setBanner(legacyText);
         setUrl(link);
       } catch {
         /* ignore */
@@ -40,7 +49,7 @@ export function MigrationPortalBanner() {
   return (
     <div className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm leading-relaxed">{banner}</p>
+        <p className="text-sm leading-relaxed whitespace-pre-line">{banner}</p>
         {url ? (
           <Button asChild variant="default" size="sm" className="shrink-0">
             <a href={url} target="_blank" rel="noreferrer">

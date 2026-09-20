@@ -3947,7 +3947,11 @@ class ApiClient {
       legacy_portal_new_booking_disabled?: boolean;
       legacy_portal_booking_disabled_code?: string;
       end_user_booking_enabled?: boolean;
+      locked_for_this_user?: boolean;
       message?: string;
+      booking_opens_at?: string | null;
+      hard_freeze_active?: boolean;
+      code?: string;
     }>("/portal-migration/booking-status/");
   }
   async getMyHod() {
