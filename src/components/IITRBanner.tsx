@@ -22,7 +22,7 @@ const SIZE = {
     wrap: "truncate",
   },
   lg: {
-    logo: "h-14 w-14 sm:h-16 sm:w-16 md:h-[4.25rem] md:w-[4.25rem]",
+    logo: "h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem] md:h-20 md:w-20",
     gap: "gap-3.5 sm:gap-4",
     hindi: "text-[1.05rem] sm:text-xl md:text-[1.35rem] font-semibold tracking-wide",
     english: "text-[0.8rem] sm:text-base md:text-[1.05rem] font-semibold tracking-[0.03em]",

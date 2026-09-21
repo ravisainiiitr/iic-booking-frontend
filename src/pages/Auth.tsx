@@ -869,7 +869,7 @@ const Auth = () => {
               <img
                 src="https://en.wikipedia.org/wiki/Special:FilePath/Indian_Institute_of_Technology_Roorkee_Logo.svg"
                 alt="IIT Roorkee logo"
-                className="h-14 w-auto mx-auto object-contain"
+                className="h-24 w-auto mx-auto object-contain sm:h-28"
               />
             </a>
             <p className="mt-3 text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
