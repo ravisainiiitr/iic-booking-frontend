@@ -29,6 +29,7 @@ import {
   roundToStepPrecision,
 } from "@/lib/numericFieldLimits";
 import { formatINR } from "@/lib/money";
+import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import {
   slotsNeededForAnalysisTime,
 } from "@/lib/slotAllocation";
@@ -283,6 +284,7 @@ function buildChargeCategorySummaryRows(eq: {
   label: string;
   primary: string;
   secondary: string;
+  breakpoint: string;
   notes: string;
 }> {
   if (!eq) return [];
@@ -303,6 +305,7 @@ function buildChargeCategorySummaryRows(eq: {
     label: string;
     primary: string;
     secondary: string;
+    breakpoint: string;
     notes: string;
   }>();
 
@@ -319,16 +322,22 @@ function buildChargeCategorySummaryRows(eq: {
       secRaw != null && String(secRaw).trim() !== "" && Number(secRaw) !== 0
         ? String(secRaw)
         : "";
+    const bpRaw = cp.breakpoint;
+    const breakpoint =
+      bpRaw != null && String(bpRaw).trim() !== "" && Number(bpRaw) !== 0
+        ? String(bpRaw)
+        : "";
     const noteParts: string[] = [];
     if (defaultBasis) noteParts.push(defaultBasis);
-    if (cp.breakpoint != null && String(cp.breakpoint).trim() !== "" && Number(cp.breakpoint) !== 0) {
-      noteParts.push(`Applies after ${String(cp.breakpoint)} units`);
+    if (breakpoint) {
+      noteParts.push(`Applies after ${breakpoint} units`);
     }
     byType.set(code, {
       userType: code,
       label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
       primary,
       secondary,
+      breakpoint,
       notes: noteParts.join(" · "),
     });
   }
@@ -344,6 +353,7 @@ function buildChargeCategorySummaryRows(eq: {
       secondary: row.secondary_unit_charge != null && String(row.secondary_unit_charge).trim() !== ""
         ? String(row.secondary_unit_charge)
         : "",
+      breakpoint: "",
       notes: row.profile_type_display || defaultBasis,
     });
   }
@@ -7110,6 +7120,44 @@ const BookEquipment = () => {
 
                 {isCalculateChargesFlow && chargeCategorySummaryRows.length > 0 && (() => {
                   const unitLabels = getChargeUnitColumnLabels(equipmentDetail?.profile_type);
+                  const presentation = buildChargeCategoryPresentation(
+                    equipmentDetail?.profile_type,
+                    chargeCategorySummaryRows
+                  );
+                  if (presentation.simplified) {
+                    return (
+                      <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
+                        <h3 className="text-lg font-semibold md:text-xl">Charges by user category</h3>
+                        <p className="text-base text-muted-foreground">{presentation.subtitle}</p>
+                        <div className="rounded-md border overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-base">User category</TableHead>
+                                <TableHead className="text-base">Charge</TableHead>
+                                <TableHead className="text-base">GST</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {presentation.rows.map((row) => (
+                                <TableRow key={row.userType}>
+                                  <TableCell className="font-medium text-base whitespace-nowrap">
+                                    {row.label}
+                                  </TableCell>
+                                  <TableCell className="text-base font-semibold leading-snug">
+                                    {row.chargeLine}
+                                  </TableCell>
+                                  <TableCell className="text-sm md:text-base text-muted-foreground whitespace-nowrap">
+                                    {row.gstLine}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    );
+                  }
                   const showSecondary = chargeCategorySummaryRows.some((row) => !!row.secondary);
                   return (
                   <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
