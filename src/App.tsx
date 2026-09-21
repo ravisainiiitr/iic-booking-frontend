@@ -25,6 +25,8 @@ import BookingManagement from "./pages/BookingManagement";
 import UrgentRequests from "./pages/UrgentRequests";
 import UrgentRequestsWallet from "./pages/UrgentRequestsWallet";
 import MyUrgentRequests from "./pages/MyUrgentRequests";
+import MyPublications from "./pages/MyPublications";
+import PublicationClaimsReview from "./pages/PublicationClaimsReview";
 import StudentManagement from "./pages/StudentManagement";
 import BookingAttemptLogs from "./pages/BookingAttemptLogs";
 import EquipmentWaitlist from "./pages/EquipmentWaitlist";
@@ -163,6 +165,8 @@ const App = () => (
                 <Route path="/urgent-requests" element={<UrgentRequests />} />
                 <Route path="/urgent-requests-wallet" element={<UrgentRequestsWallet />} />
                 <Route path="/my-urgent-requests" element={<MyUrgentRequests />} />
+                <Route path="/my-publications" element={<MyPublications />} />
+                <Route path="/publication-claims" element={<PublicationClaimsReview />} />
                 <Route path="/student-management" element={<StudentManagement />} />
                 <Route path="/booking-attempt-logs" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
                 <Route path="/booking-attempt-logs/" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />

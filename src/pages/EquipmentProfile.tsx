@@ -119,6 +119,7 @@ interface EquipmentProfile {
     title: string;
     citation?: string;
     url?: string;
+    doi?: string;
     year?: number | null;
     display_order?: number;
     created_at?: string;
@@ -810,7 +811,7 @@ const EquipmentProfile = () => {
                     </p>
                   </div>
                   {publicationList.map((pub) => {
-                    const href = (pub.url || "").trim();
+                    const href = (pub.url || (pub.doi ? `https://doi.org/${pub.doi}` : "") || "").trim();
                     const link =
                       href && !/^https?:\/\//i.test(href) ? `https://${href}` : href;
                     return (
@@ -836,7 +837,7 @@ const EquipmentProfile = () => {
                             rel="noreferrer"
                             className="inline-flex items-center gap-2 text-base sm:text-lg text-primary hover:underline break-all"
                           >
-                            {pub.url}
+                            {pub.url || (pub.doi ? `https://doi.org/${pub.doi}` : link)}
                             <ExternalLink className="h-4 w-4 shrink-0" />
                           </a>
                         ) : null}
@@ -846,7 +847,7 @@ const EquipmentProfile = () => {
                 </div>
               ) : (
                 emptyPanel(
-                  "No publications have been listed for this instrument yet. Main Administrator or Officer in Charge can add them in Equipment settings."
+                  "No publications listed yet. Users can submit references from Dashboard → My Publications; after OIC or Admin approval they appear here. Administrators can also add them in Equipment settings."
                 )
               );
           }

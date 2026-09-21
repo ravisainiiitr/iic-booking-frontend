@@ -5976,6 +5976,107 @@ class ApiClient {
     }>(q ? `/urgent-booking-requests/my/?${q}` : '/urgent-booking-requests/my/');
   }
 
+  // --- Publication claims (facility acknowledgment) ---
+
+  async lookupPublicationDoi(doi: string) {
+    const sp = new URLSearchParams({ doi: doi.trim() });
+    return this.request<{
+      doi: string;
+      title: string;
+      authors: string;
+      journal: string;
+      year: number | null;
+      volume_pages: string;
+      url: string;
+      citation: string;
+    }>(`/publication-claims/doi-lookup/?${sp.toString()}`);
+  }
+
+  async listMyPublicationClaims() {
+    return this.request<{
+      results: Array<{
+        id: number;
+        title: string;
+        authors: string;
+        journal: string;
+        year: number | null;
+        volume_pages: string;
+        doi: string;
+        url: string;
+        facility_note: string;
+        citation: string;
+        status: string;
+        rejection_reason: string;
+        created_at: string | null;
+        reviewed_at: string | null;
+        equipments: Array<{ id: number; code: string; name: string }>;
+      }>;
+    }>('/publication-claims/my/');
+  }
+
+  async submitPublicationClaim(payload: {
+    title: string;
+    authors?: string;
+    journal?: string;
+    year?: number | null;
+    volume_pages?: string;
+    doi?: string;
+    url?: string;
+    facility_note?: string;
+    citation?: string;
+    equipment_ids: number[];
+  }) {
+    return this.request<{
+      id: number;
+      title: string;
+      status: string;
+    }>('/publication-claims/my/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async listPublicationClaimsForReview(params?: { status?: string }) {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.append('status', params.status);
+    const q = sp.toString();
+    return this.request<{
+      results: Array<{
+        id: number;
+        title: string;
+        authors: string;
+        journal: string;
+        year: number | null;
+        volume_pages: string;
+        doi: string;
+        url: string;
+        facility_note: string;
+        citation: string;
+        status: string;
+        rejection_reason: string;
+        created_at: string | null;
+        equipments: Array<{ id: number; code: string; name: string }>;
+        submitted_by: { id: number; name: string; email: string; department?: string | null } | null;
+      }>;
+      pending_count: number;
+    }>(q ? `/publication-claims/review/?${q}` : '/publication-claims/review/');
+  }
+
+  async getPublicationClaimsPendingCount() {
+    return this.request<{ pending_count: number }>('/publication-claims/pending-count/');
+  }
+
+  async approvePublicationClaim(claimId: number) {
+    return this.request(`/publication-claims/${claimId}/approve/`, { method: 'POST', body: '{}' });
+  }
+
+  async rejectPublicationClaim(claimId: number, rejectionReason?: string) {
+    return this.request(`/publication-claims/${claimId}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify({ rejection_reason: rejectionReason || '' }),
+    });
+  }
+
   /** List urgent requests pending supervisor approval (supervisor only). */
   async listUrgentRequestsWalletPending(params?: { limit?: number; offset?: number }) {
     const sp = new URLSearchParams();

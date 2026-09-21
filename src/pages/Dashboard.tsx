@@ -281,6 +281,8 @@ const Dashboard = () => {
   const [loadingFacultyUrgentCount, setLoadingFacultyUrgentCount] = useState(false);
   const [myUrgentRequestsCount, setMyUrgentRequestsCount] = useState<number>(0);
   const [loadingMyUrgentCount, setLoadingMyUrgentCount] = useState(false);
+  const [publicationClaimsPendingCount, setPublicationClaimsPendingCount] = useState<number>(0);
+  const [loadingPublicationClaimsCount, setLoadingPublicationClaimsCount] = useState(false);
   const [externalProfileNeedsAddress, setExternalProfileNeedsAddress] = useState(false);
   const [showWalletLinkPrompt, setShowWalletLinkPrompt] = useState(false);
   const [labOperatorDashLoading, setLabOperatorDashLoading] = useState(false);
@@ -662,6 +664,9 @@ const Dashboard = () => {
         }
         if (isCurrentUserOperatorOrManager && currentUserTypeStr !== "operator") {
           tasks.push(fetchUrgentRequestsPendingCount().then(() => {}));
+        }
+        if (isCurrentUserOperatorOrManager || currentUserTypeStr === "admin") {
+          tasks.push(fetchPublicationClaimsPendingCount().then(() => {}));
         }
         const facultyDeptInternal =
           String(user?.department_type ?? "").toLowerCase() === "internal";
@@ -1068,6 +1073,22 @@ const Dashboard = () => {
       setMyUrgentRequestsCount(0);
     } finally {
       setLoadingMyUrgentCount(false);
+    }
+  };
+
+  const fetchPublicationClaimsPendingCount = async () => {
+    setLoadingPublicationClaimsCount(true);
+    try {
+      const res = await apiClient.getPublicationClaimsPendingCount();
+      if (res.data && typeof res.data.pending_count === "number") {
+        setPublicationClaimsPendingCount(res.data.pending_count);
+      } else {
+        setPublicationClaimsPendingCount(0);
+      }
+    } catch {
+      setPublicationClaimsPendingCount(0);
+    } finally {
+      setLoadingPublicationClaimsCount(false);
     }
   };
 
@@ -2841,6 +2862,39 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {(userTypeStr === "student" ||
+            userTypeStr === "individual_student" ||
+            userTypeStr === "faculty" ||
+            userTypeStr === "external" ||
+            userTypeStr === "rnd" ||
+            userTypeStr === "institute" ||
+            userTypeStr === "startup_incubated_iitr" ||
+            userTypeStr === "external_startup_msme" ||
+            userTypeStr === "other") && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => navigate("/my-publications")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My Publications</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit journal references that used IIC instruments; approved entries appear on equipment Publications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {(userTypeStr === "student" || userTypeStr === "individual_student") && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
@@ -3040,6 +3094,39 @@ const Dashboard = () => {
                   </p>
                 ) : null}
                 <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isOicUser) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => navigate("/publication-claims")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Publication claims</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review user-submitted journal references for your instruments
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingPublicationClaimsCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : publicationClaimsPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
+                    {publicationClaimsPendingCount} pending claim
+                    {publicationClaimsPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Review publication claims</Button>
               </CardContent>
             </Card>
           )}
