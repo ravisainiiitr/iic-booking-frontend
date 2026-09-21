@@ -26,6 +26,8 @@ interface DepartmentFilterProps {
   disabled?: boolean;
   /** When set, auto-select this department once after the catalog loads (if still on "all"). */
   defaultDepartmentName?: string;
+  /** Fires once after departments load (and optional default applied). Use to gate first fetch. */
+  onResolved?: (value: DepartmentFilterValue) => void;
 }
 
 function findPreferredDepartment(
@@ -38,7 +40,6 @@ function findPreferredDepartment(
   if (byName) return byName;
   const byContains = departments.find((d) => d.name.toLowerCase().includes(needle));
   if (byContains) return byContains;
-  // Common short code for Institute Instrumentation Centre
   if (needle.includes("instrumentation") || needle === "iic") {
     return departments.find((d) => String(d.code || "").toLowerCase() === "iic");
   }
@@ -52,10 +53,12 @@ const DepartmentFilter = ({
   triggerClassName,
   disabled = false,
   defaultDepartmentName,
+  onResolved,
 }: DepartmentFilterProps) => {
   const [departments, setDepartments] = useState<CatalogDepartment[]>([]);
   const [loading, setLoading] = useState(true);
   const appliedDefaultRef = useRef(false);
+  const resolvedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,11 +70,16 @@ const DepartmentFilter = ({
         if (cancelled) return;
         if (response.error || !response.data) {
           setDepartments([]);
+          if (!resolvedRef.current) {
+            resolvedRef.current = true;
+            onResolved?.(value);
+          }
           return;
         }
         const list = response.data.departments ?? [];
         setDepartments(list);
 
+        let nextValue: DepartmentFilterValue = value;
         if (
           defaultDepartmentName &&
           !appliedDefaultRef.current &&
@@ -80,8 +88,13 @@ const DepartmentFilter = ({
           const match = findPreferredDepartment(list, defaultDepartmentName);
           if (match) {
             appliedDefaultRef.current = true;
+            nextValue = match.id;
             onChange(match.id);
           }
+        }
+        if (!resolvedRef.current) {
+          resolvedRef.current = true;
+          onResolved?.(nextValue);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -92,7 +105,6 @@ const DepartmentFilter = ({
     return () => {
       cancelled = true;
     };
-    // Intentionally run once on mount to load departments + apply default.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

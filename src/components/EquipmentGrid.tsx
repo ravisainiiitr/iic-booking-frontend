@@ -3,12 +3,13 @@ import DepartmentFilter, { type DepartmentFilterValue } from "@/components/Depar
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import {
   filterCatalogEquipmentForDisplay,
-  isExpandableParent,
+  isCatalogFamilyParent,
 } from "@/lib/equipmentCatalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,8 +55,11 @@ interface ApiEquipment {
 
 const EquipmentGrid = () => {
   const { user, loading: authLoading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
+  /** Block first catalog fetch until IIC default (or DA dept) is resolved — avoids flash of all departments. */
+  const [departmentReady, setDepartmentReady] = useState(false);
   const [equipment, setEquipment] = useState<ApiEquipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
@@ -64,9 +68,34 @@ const EquipmentGrid = () => {
     equipmentName: string;
     newStatus: "ACTIVE" | "REPAIR";
   } | null>(null);
-  const [expandedParentId, setExpandedParentId] = useState<number | null>(null);
   /** OIC: default managed instruments; toggle to browse full catalog. */
   const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
+
+  const familyRaw = searchParams.get("family");
+  const expandedParentId = (() => {
+    if (!familyRaw) return null;
+    const n = Number(familyRaw);
+    return Number.isFinite(n) ? n : null;
+  })();
+
+  const openFamilyView = useCallback(
+    (parentId: number) => {
+      setSearchQuery("");
+      const next = new URLSearchParams(searchParams);
+      next.set("family", String(parentId));
+      setSearchParams(next, { replace: false });
+      window.requestAnimationFrame(() => {
+        document.getElementById("equipment")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const clearFamilyView = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("family");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   // Admin / OIC only — Lab In-charge (operator) cannot change operational status.
@@ -113,12 +142,8 @@ const EquipmentGrid = () => {
           );
         }
         setEquipment(filteredEquipment);
-        setExpandedParentId((prev) =>
-          prev != null && isExpandableParent(filteredEquipment, prev) ? prev : null,
-        );
       } else {
         setEquipment([]);
-        setExpandedParentId(null);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to load equipment";
@@ -133,18 +158,20 @@ const EquipmentGrid = () => {
   useEffect(() => {
     if (isDeptAdmin && daDepartmentId != null) {
       setSelectedDepartmentId(daDepartmentId);
+      setDepartmentReady(true);
     }
   }, [isDeptAdmin, daDepartmentId]);
 
   useEffect(() => {
-    // Wait for auth hydrate so DA department is known before the first fetch.
+    // Wait for auth + department default so we never flash "all departments" equipment.
     if (authLoading) return;
+    if (!departmentReady) return;
     const timeoutId = setTimeout(() => {
       fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
     }, searchQuery.trim() ? 500 : 0);
 
     return () => clearTimeout(timeoutId);
-  }, [authLoading, searchQuery, selectedDepartmentId, fetchEquipment]);
+  }, [authLoading, departmentReady, searchQuery, selectedDepartmentId, fetchEquipment]);
 
   const transformEquipment = (eqList: ApiEquipment[]) => {
     return eqList.map((eq) => ({
@@ -229,8 +256,8 @@ const EquipmentGrid = () => {
         ) : null}
         {expandedParentId != null ? (
           <div className="max-w-3xl mx-auto mb-3 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-            <span>Showing parent and child modes for this instrument family.</span>
-            <Button type="button" size="sm" variant="outline" onClick={() => setExpandedParentId(null)}>
+            <span>Select a mode to continue — showing parent and child instruments.</span>
+            <Button type="button" size="sm" variant="outline" onClick={clearFamilyView}>
               Back to all
             </Button>
           </div>
@@ -250,10 +277,18 @@ const EquipmentGrid = () => {
           ) : (
             <DepartmentFilter
               value={selectedDepartmentId}
-              onChange={setSelectedDepartmentId}
+              onChange={(v) => {
+                setSelectedDepartmentId(v);
+                setDepartmentReady(true);
+              }}
+              onResolved={(v) => {
+                setSelectedDepartmentId(v);
+                setDepartmentReady(true);
+              }}
               className="sm:w-72 shrink-0"
               triggerClassName="h-12 text-base w-full"
               defaultDepartmentName="Institute Instrumentation Centre"
+              disabled={!departmentReady && !isDeptAdmin}
             />
           )}
           <div className="relative flex-1">
@@ -272,7 +307,7 @@ const EquipmentGrid = () => {
         </div>
       </div>
 
-      {loading && equipment.length === 0 ? (
+      {(!departmentReady || (loading && equipment.length === 0)) ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="space-y-4">
@@ -304,8 +339,8 @@ const EquipmentGrid = () => {
               statusUpdatingId={statusUpdatingId}
               onRequestStatusChange={(next) => setPendingStatusChange(next)}
               onOpenEquipment={(id) => {
-                if (expandedParentId == null && isExpandableParent(equipment, id)) {
-                  setExpandedParentId(id);
+                if (expandedParentId == null && isCatalogFamilyParent(equipment, id)) {
+                  openFamilyView(id);
                   return true;
                 }
                 return false;

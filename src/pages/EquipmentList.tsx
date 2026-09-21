@@ -24,6 +24,7 @@ import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/component
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import {
   filterCatalogEquipmentForDisplay,
+  isCatalogFamilyParent,
   isExpandableParent,
 } from "@/lib/equipmentCatalog";
 
@@ -376,7 +377,8 @@ const EquipmentList = () => {
                 statusUpdatingId={statusUpdatingId}
                 onRequestStatusChange={(next) => setPendingStatusChange(next)}
                 onOpenEquipment={(id) => {
-                  if (expandedParentId == null && isExpandableParent(rawEquipment, id)) {
+                  if (expandedParentId == null && isCatalogFamilyParent(rawEquipment, id)) {
+                    setSearchQuery("");
                     setExpandedParentId(id);
                     return true;
                   }
