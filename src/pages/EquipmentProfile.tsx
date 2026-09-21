@@ -939,21 +939,21 @@ const EquipmentProfile = () => {
                           variant: "action",
                           onClick: handleCalculateChargesClick,
                         })}
-                      {navBtn("support", "Raise Support Request", {
-                        icon: <LifeBuoy className="h-4 w-4" />,
-                        variant: "action",
-                        onClick: () => setSupportOpen(true),
-                      })}
                       <div className="h-px bg-border my-2" />
+                      {navBtn("managers", "Officer in Charge", {
+                        icon: <UserCog className="h-4 w-4" />,
+                        active: activePanel === "managers",
+                        onClick: () => setActivePanel("managers"),
+                      })}
                       {navBtn("operators", "Lab Operator", {
                         icon: <Users className="h-4 w-4" />,
                         active: activePanel === "operators",
                         onClick: () => setActivePanel("operators"),
                       })}
-                      {navBtn("managers", "Officer in Charge", {
-                        icon: <UserCog className="h-4 w-4" />,
-                        active: activePanel === "managers",
-                        onClick: () => setActivePanel("managers"),
+                      {navBtn("general", "General Information", {
+                        icon: <ClipboardList className="h-4 w-4" />,
+                        active: activePanel === "general",
+                        onClick: () => setActivePanel("general"),
                       })}
                       {navBtn("specifications", "Specifications", {
                         icon: <FileText className="h-4 w-4" />,
@@ -964,11 +964,6 @@ const EquipmentProfile = () => {
                         icon: <FlaskConical className="h-4 w-4" />,
                         active: activePanel === "sample_requirements",
                         onClick: () => setActivePanel("sample_requirements"),
-                      })}
-                      {navBtn("general", "General Information", {
-                        icon: <ClipboardList className="h-4 w-4" />,
-                        active: activePanel === "general",
-                        onClick: () => setActivePanel("general"),
                       })}
                       {navBtn(
                         "publications",
@@ -981,6 +976,12 @@ const EquipmentProfile = () => {
                           onClick: () => setActivePanel("publications"),
                         }
                       )}
+                      <div className="h-px bg-border my-2" />
+                      {navBtn("support", "Raise Support Request", {
+                        icon: <LifeBuoy className="h-4 w-4" />,
+                        variant: "action",
+                        onClick: () => setSupportOpen(true),
+                      })}
                       {shouldShowBookingCard() && !isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
                         <p className="text-sm text-amber-600 font-medium pt-1">
                           Booking is disabled while equipment is{" "}
