@@ -249,8 +249,9 @@ const EquipmentGrid = () => {
             <DepartmentFilter
               value={selectedDepartmentId}
               onChange={setSelectedDepartmentId}
-              className="sm:w-64 shrink-0"
+              className="sm:w-72 shrink-0"
               triggerClassName="h-12 text-base w-full"
+              defaultDepartmentName="Institute Instrumentation Centre"
             />
           )}
           <div className="relative flex-1">

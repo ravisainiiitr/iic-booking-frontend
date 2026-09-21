@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
+import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 
 export interface User {
   id: number;
@@ -241,11 +242,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = useCallback(async () => {
+    let uid: number | null = null;
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.id != null) uid = Number(parsed.id);
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       await apiClient.signOut();
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {
+      if (uid != null && Number.isFinite(uid)) {
+        clearUserGuideAutoShownThisLogin(uid);
+      }
       // Clear local state regardless of API response
       apiClient.setToken(null);
       localStorage.removeItem("user");

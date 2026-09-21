@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import {
@@ -24,6 +24,25 @@ interface DepartmentFilterProps {
   className?: string;
   triggerClassName?: string;
   disabled?: boolean;
+  /** When set, auto-select this department once after the catalog loads (if still on "all"). */
+  defaultDepartmentName?: string;
+}
+
+function findPreferredDepartment(
+  departments: CatalogDepartment[],
+  preferredName: string,
+): CatalogDepartment | undefined {
+  const needle = preferredName.trim().toLowerCase();
+  if (!needle) return undefined;
+  const byName = departments.find((d) => d.name.toLowerCase() === needle);
+  if (byName) return byName;
+  const byContains = departments.find((d) => d.name.toLowerCase().includes(needle));
+  if (byContains) return byContains;
+  // Common short code for Institute Instrumentation Centre
+  if (needle.includes("instrumentation") || needle === "iic") {
+    return departments.find((d) => String(d.code || "").toLowerCase() === "iic");
+  }
+  return undefined;
 }
 
 const DepartmentFilter = ({
@@ -32,9 +51,11 @@ const DepartmentFilter = ({
   className,
   triggerClassName,
   disabled = false,
+  defaultDepartmentName,
 }: DepartmentFilterProps) => {
   const [departments, setDepartments] = useState<CatalogDepartment[]>([]);
   const [loading, setLoading] = useState(true);
+  const appliedDefaultRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +69,20 @@ const DepartmentFilter = ({
           setDepartments([]);
           return;
         }
-        setDepartments(response.data.departments ?? []);
+        const list = response.data.departments ?? [];
+        setDepartments(list);
+
+        if (
+          defaultDepartmentName &&
+          !appliedDefaultRef.current &&
+          value === "all"
+        ) {
+          const match = findPreferredDepartment(list, defaultDepartmentName);
+          if (match) {
+            appliedDefaultRef.current = true;
+            onChange(match.id);
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -58,6 +92,8 @@ const DepartmentFilter = ({
     return () => {
       cancelled = true;
     };
+    // Intentionally run once on mount to load departments + apply default.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectValue = value === "all" ? "all" : String(value);

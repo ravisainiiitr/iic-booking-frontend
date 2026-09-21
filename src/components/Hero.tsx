@@ -31,7 +31,7 @@ const DEFAULT_HOME = {
 };
 
 const primaryCtaClass =
-  "h-11 gap-2 bg-primary px-5 text-base text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-12 sm:px-6 sm:text-lg";
+  "h-10 shrink-0 gap-1.5 whitespace-nowrap bg-primary px-3.5 text-sm text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-11 sm:gap-2 sm:px-4 sm:text-base";
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -140,14 +140,15 @@ const Hero = () => {
       </div>
 
       <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
-        <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[4.75rem] sm:pb-5 sm:pt-[5.25rem] md:pt-20">
-          <div className="max-w-3xl space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-sm font-medium tracking-wide text-white/95 backdrop-blur-sm">
+        {/* pt clears fixed header (lg IITR banner); keep badge fully below the bar */}
+        <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-28 sm:pb-5 sm:pt-32 md:pt-36">
+          <div className="max-w-5xl space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5 shrink-0" />
-              IIT Roorkee · Online Equipment Booking
+              <span className="truncate">IIT Roorkee · Online Equipment Booking</span>
             </div>
 
-            <div className="space-y-2 sm:space-y-2.5">
+            <div className="max-w-3xl space-y-2 sm:space-y-2.5">
               <h1
                 className="text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
@@ -168,7 +169,7 @@ const Hero = () => {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2.5 pt-0.5 sm:gap-3">
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 sm:gap-2.5">
               {!isAuthenticated && (
                 <Button
                   size="lg"

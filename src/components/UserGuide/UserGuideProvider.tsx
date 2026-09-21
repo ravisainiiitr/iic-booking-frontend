@@ -14,6 +14,10 @@ import { getGuideForUser, shouldAutoShowUserGuide } from "@/guides";
 import type { UserGuideContent } from "@/guides";
 import UserGuideDialog from "@/components/UserGuide/UserGuideDialog";
 import { formatUserDisplayName } from "@/lib/displayName";
+import {
+  hasUserGuideAutoShownThisLogin,
+  markUserGuideAutoShownThisLogin,
+} from "@/components/UserGuide/userGuideSession";
 
 interface UserGuideContextValue {
   openGuide: (opts?: { force?: boolean }) => void;
@@ -29,7 +33,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  /** User id we already decided auto-show for (show or skip). Survives user-object refreshes. */
+  /** In-memory mirror — survives user-object refreshes within this mount. */
   const autoShowHandledUserIdRef = useRef<number | null>(null);
   const autoShowTimeoutRef = useRef<number | null>(null);
 
@@ -39,9 +43,11 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   }, [user?.id, user?.user_type, user?.user_type_alias]);
 
   const markGuideViewed = useCallback(async () => {
-    // Session-only acknowledgement — do not persist so the manual can open on every login.
-    return;
-  }, []);
+    if (user?.id != null) {
+      markUserGuideAutoShownThisLogin(user.id);
+      autoShowHandledUserIdRef.current = user.id;
+    }
+  }, [user?.id]);
 
   const openGuide = useCallback(
     (opts?: { force?: boolean }) => {
@@ -53,7 +59,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
 
   const closeGuide = useCallback(() => setOpen(false), []);
 
-  // Reset auto-show bookkeeping on logout so the next login can show the manual again
+  // Close dialog UI on logout; session flag is cleared in AuthContext.logout.
   useEffect(() => {
     if (isAuthenticated) return;
     autoShowHandledUserIdRef.current = null;
@@ -64,29 +70,36 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     setOpen(false);
   }, [isAuthenticated]);
 
-  // Every successful login → first dashboard landing: show role user manual
+  // First /dashboard visit after this login only (sessionStorage survives remounts / auth flicker).
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
-    if (autoShowHandledUserIdRef.current === user.id) return;
 
     if (
-      !shouldAutoShowUserGuide({
-        userType: user.user_type,
-        userTypeAlias: user.user_type_alias,
-        userGuideViewed: false,
-      })
+      autoShowHandledUserIdRef.current === user.id ||
+      hasUserGuideAutoShownThisLogin(user.id)
     ) {
       autoShowHandledUserIdRef.current = user.id;
       return;
     }
 
-    // Wait until guide content is available (do not mark handled yet)
+    if (
+      !shouldAutoShowUserGuide({
+        userType: user.user_type,
+        userTypeAlias: user.user_type_alias,
+        userGuideViewed: user.user_guide_viewed,
+      })
+    ) {
+      autoShowHandledUserIdRef.current = user.id;
+      markUserGuideAutoShownThisLogin(user.id);
+      return;
+    }
+
     if (!guide) return;
 
     autoShowHandledUserIdRef.current = user.id;
+    markUserGuideAutoShownThisLogin(user.id);
 
-    // Do not clear this timeout on later user refreshes — that was cancelling the first-login prompt
     if (autoShowTimeoutRef.current != null) {
       window.clearTimeout(autoShowTimeoutRef.current);
     }
@@ -99,6 +112,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     user?.id,
     user?.user_type,
     user?.user_type_alias,
+    user?.user_guide_viewed,
     location.pathname,
     guide,
   ]);
