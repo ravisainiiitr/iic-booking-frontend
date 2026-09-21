@@ -1312,8 +1312,13 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
-        {/* Profile hero — layered gradient, glass contact strip, status-tinted instrument card for Lab Incharge & OIC */}
-        <div className="dashboard-hero-card relative mb-10 overflow-hidden rounded-3xl border border-white/25 bg-gradient-to-br from-primary via-primary to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20">
+        {/* Profile hero — compact for standard users; Lab Incharge & OIC keep richer instrument layout */}
+        <div
+          className={cn(
+            "dashboard-hero-card relative overflow-hidden border border-white/25 bg-gradient-to-br from-primary via-primary to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20",
+            showsLabStyleDashboard ? "mb-10 rounded-3xl" : "mb-6 rounded-2xl"
+          )}
+        >
           <div
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_110%_90%_at_0%_-30%,rgba(255,255,255,0.2),transparent_55%)]"
             aria-hidden
@@ -1322,30 +1327,25 @@ const Dashboard = () => {
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_100%_100%,rgba(29,111,163,0.32),transparent_55%)]"
             aria-hidden
           />
-          <div
-            className={cn(
-              "relative flex flex-col lg:flex-row",
-              showsLabStyleDashboard ? "lg:items-center" : "lg:items-stretch"
-            )}
-          >
+          <div className="relative flex flex-col lg:flex-row lg:items-center">
             {!showsLabStyleDashboard && (
-              <div className="flex justify-center border-b border-white/15 bg-white/[0.07] px-6 py-8 backdrop-blur-sm lg:w-[12rem] lg:shrink-0 lg:flex-col lg:items-center lg:justify-center lg:border-b-0 lg:border-r lg:border-white/15 lg:py-10">
+              <div className="flex justify-center border-b border-white/15 bg-white/[0.07] px-4 py-3 backdrop-blur-sm lg:w-[6.75rem] lg:shrink-0 lg:flex-col lg:items-center lg:justify-center lg:border-b-0 lg:border-r lg:border-white/15 lg:px-3 lg:py-3">
                 <ClickableProfileAvatar
                   userId={user?.id}
                   userName={user?.name}
                   userEmail={user?.email}
                   hasProfilePicture={Boolean(user?.profile_picture)}
                   onUploaded={handleProfileAvatarUploaded}
-                  avatarClassName="h-28 w-28 shrink-0 rounded-2xl border-[3px] border-white/55 shadow-xl shadow-black/25 ring-4 ring-white/15"
-                  fallbackClassName="rounded-2xl bg-white/25 text-3xl font-bold text-white"
-                  overlayRoundedClassName="rounded-2xl"
+                  avatarClassName="h-14 w-14 shrink-0 rounded-xl border-2 border-white/55 shadow-lg shadow-black/25 ring-2 ring-white/15 sm:h-16 sm:w-16"
+                  fallbackClassName="rounded-xl bg-white/25 text-lg font-bold text-white sm:text-xl"
+                  overlayRoundedClassName="rounded-xl"
                 />
               </div>
             )}
             <div
               className={cn(
                 "flex min-w-0 flex-1 flex-col",
-                showsLabStyleDashboard ? "px-4 py-4 sm:px-5 sm:py-4" : "px-5 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-8"
+                showsLabStyleDashboard ? "px-4 py-4 sm:px-5 sm:py-4" : "px-4 py-3 sm:px-5 sm:py-3.5"
               )}
             >
               {showsLabStyleDashboard ? (
@@ -1485,87 +1485,85 @@ const Dashboard = () => {
                   </div>
                 </div>
               ) : (
-                <>
-                  <div className="min-w-0">
-                    <h2 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm sm:text-4xl">
-                      {formatUserDisplayName(user) || "—"}
-                    </h2>
-                    <div className="mt-3">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/20 px-4 py-1.5 text-sm font-medium shadow-inner shadow-black/10 backdrop-blur-md">
-                        <BadgeCheck className="h-4 w-4 shrink-0 opacity-95" />
-                        {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
-                      </span>
-                    </div>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold tracking-tight text-white drop-shadow-sm sm:text-2xl">
+                    {formatUserDisplayName(user) || "—"}
+                  </h2>
+                  <div className="mt-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/20 px-2.5 py-0.5 text-xs font-medium shadow-inner shadow-black/10 backdrop-blur-md">
+                      <BadgeCheck className="h-3 w-3 shrink-0 opacity-95" />
+                      {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
+                    </span>
                   </div>
-                </>
+                </div>
               )}
               {!showsLabStyleDashboard && (
               <dl
                 className={cn(
-                  "mt-8 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-black/20 p-4 shadow-inner backdrop-blur-md sm:gap-4",
+                  "mt-2.5 grid grid-cols-1 gap-2 rounded-xl border border-white/15 bg-black/20 px-3 py-2 shadow-inner backdrop-blur-md sm:gap-x-3 sm:gap-y-1.5 sm:py-2",
                   userTypeStr === "student" || userTypeStr === "individual_student" || userTypeStr === "faculty"
                     ? "sm:grid-cols-2 lg:grid-cols-4"
                     : "sm:grid-cols-2 lg:grid-cols-3"
                 )}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                    <Building2 className="h-4 w-4 text-white" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+                    <Building2 className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Department</dt>
-                    <dd className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Department</dt>
+                    <dd className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
                       {user?.department_name || "—"}
                     </dd>
                   </div>
                 </div>
                 {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                      <IdCard className="h-4 w-4 text-white" />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+                      <IdCard className="h-3.5 w-3.5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Enrollment Number</dt>
-                      <dd className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Enrollment Number</dt>
+                      <dd className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
                         {user?.emp_id || "—"}
                       </dd>
                     </div>
                   </div>
                 )}
                 {userTypeStr === "faculty" && (
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                      <IdCard className="h-4 w-4 text-white" />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+                      <IdCard className="h-3.5 w-3.5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Employee Number</dt>
-                      <dd className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Employee Number</dt>
+                      <dd className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
                         {user?.emp_id || "—"}
                       </dd>
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                    <Phone className="h-4 w-4 text-white" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+                    <Phone className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Mobile</dt>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Mobile</dt>
                     <dd
-                      className="mt-0.5 font-semibold text-white [overflow-wrap:anywhere]"
+                      className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]"
                       title={user?.phone_number || user?.secondary_phone_number || undefined}
                     >
                       {user?.phone_number || user?.secondary_phone_number || "—"}
                     </dd>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                    <Mail className="h-4 w-4 text-white" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+                    <Mail className="h-3.5 w-3.5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-white/65">Email</dt>
-                    <dd className="mt-0.5 font-semibold text-white break-all [overflow-wrap:anywhere]" title={user?.email || undefined}>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Email</dt>
+                    <dd className="mt-0.5 text-sm font-semibold leading-snug text-white break-all [overflow-wrap:anywhere]" title={user?.email || undefined}>
                       {user?.email || "—"}
                     </dd>
                   </div>
