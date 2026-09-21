@@ -203,6 +203,13 @@ export type EquipmentFormData = {
   equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY' }>;
   equipment_pis?: Array<{ faculty: number; is_active?: boolean }>;
   equipment_specifications?: Array<{ spec_key: string; spec_value?: string }>;
+  equipment_publications?: Array<{
+    title: string;
+    citation?: string;
+    url?: string;
+    year?: number | null;
+    display_order?: number;
+  }>;
   equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
   equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
   slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
@@ -374,6 +381,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     equipment_operators: [],
     equipment_pis: [],
     equipment_specifications: [],
+    equipment_publications: [],
     equipment_accessories: [],
     equipment_additional_accessories: [],
     slot_masters: [],
@@ -549,6 +557,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string }>;
       const pis = (d.equipment_pis || d.pis || []) as Array<{ faculty?: number; faculty_id?: number; is_active?: boolean }>;
       const specs = (d.specifications || d.equipment_specifications || []) as Array<{ spec_key: string; spec_value?: string }>;
+      const publications = (d.publications || d.equipment_publications || []) as Array<{
+        title?: string;
+        citation?: string;
+        url?: string;
+        year?: number | null;
+        display_order?: number;
+      }>;
       const accessories = (d.accessories || d.equipment_accessories || []) as Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
       const addAccessories = (d.additional_accessories || d.equipment_additional_accessories || []) as Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
       const slots = (d.slot_masters || []) as Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
@@ -663,6 +678,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               .filter((p) => Number.isFinite(p.faculty) && p.faculty > 0)
           : prev.equipment_pis ?? [],
         equipment_specifications: Array.isArray(specs) ? specs.map((s) => ({ spec_key: s.spec_key ?? "", spec_value: s.spec_value ?? "" })) : prev.equipment_specifications ?? [],
+        equipment_publications: Array.isArray(publications)
+          ? publications
+              .map((p, idx) => ({
+                title: String(p.title ?? "").trim(),
+                citation: String(p.citation ?? ""),
+                url: String(p.url ?? ""),
+                year: p.year != null && p.year !== ("" as unknown) ? Number(p.year) || null : null,
+                display_order: Number(p.display_order ?? idx) || 0,
+              }))
+              .filter((p) => p.title)
+          : prev.equipment_publications ?? [],
         equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_accessories ?? [],
         equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_additional_accessories ?? [],
         slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? s.close_time : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
@@ -873,6 +899,15 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       equipment_operators: formData.equipment_operators ?? [],
       equipment_pis: formData.equipment_pis ?? [],
       equipment_specifications: formData.equipment_specifications ?? [],
+      equipment_publications: (formData.equipment_publications ?? [])
+        .map((p, idx) => ({
+          title: String(p.title || "").trim(),
+          citation: String(p.citation || "").trim(),
+          url: String(p.url || "").trim(),
+          year: p.year != null && String(p.year).trim() !== "" ? Number(p.year) : null,
+          display_order: Number(p.display_order ?? idx) || 0,
+        }))
+        .filter((p) => p.title),
       equipment_accessories: formData.equipment_accessories ?? [],
       equipment_additional_accessories: formData.equipment_additional_accessories ?? [],
       slot_masters: formData.slot_masters ?? [],
@@ -3025,6 +3060,96 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ))}
         </div>
       </div>
+      </FormSection>
+
+      <FormSection
+        id="eq-sec-publications"
+        title="Publications"
+        description="List publications that reference this instrument. Shown on the equipment page with a total count. Editable by Main Administrator and Officer in Charge."
+        defaultOpen
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Input placeholder="Title *" id="pub-title-new" />
+            <Input placeholder="Year (e.g. 2024)" id="pub-year-new" inputMode="numeric" />
+            <Input placeholder="URL / DOI (optional)" id="pub-url-new" className="sm:col-span-2" />
+            <Textarea placeholder="Full citation (optional)" id="pub-citation-new" rows={2} className="sm:col-span-2" />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              const title = (document.getElementById("pub-title-new") as HTMLInputElement)?.value?.trim();
+              if (!title) return;
+              const yearRaw = (document.getElementById("pub-year-new") as HTMLInputElement)?.value?.trim();
+              const year = yearRaw ? Number(yearRaw) : null;
+              const url = (document.getElementById("pub-url-new") as HTMLInputElement)?.value?.trim() || "";
+              const citation = (document.getElementById("pub-citation-new") as HTMLTextAreaElement)?.value?.trim() || "";
+              setFormData((p) => ({
+                ...p,
+                equipment_publications: [
+                  ...(p.equipment_publications ?? []),
+                  {
+                    title,
+                    citation,
+                    url,
+                    year: Number.isFinite(year as number) ? year : null,
+                    display_order: (p.equipment_publications ?? []).length,
+                  },
+                ],
+              }));
+              (document.getElementById("pub-title-new") as HTMLInputElement).value = "";
+              (document.getElementById("pub-year-new") as HTMLInputElement).value = "";
+              (document.getElementById("pub-url-new") as HTMLInputElement).value = "";
+              (document.getElementById("pub-citation-new") as HTMLTextAreaElement).value = "";
+            }}
+          >
+            Add publication
+          </Button>
+          <div className="rounded border divide-y">
+            {(formData.equipment_publications ?? []).length === 0 ? (
+              <p className="p-2 text-sm text-muted-foreground">No publications listed yet.</p>
+            ) : (
+              (formData.equipment_publications ?? []).map((pub, idx) => (
+                <div key={idx} className="flex items-start justify-between gap-2 p-3">
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-sm font-medium">
+                      {pub.title}
+                      {pub.year != null ? <span className="text-muted-foreground font-normal"> ({pub.year})</span> : null}
+                    </p>
+                    {pub.citation ? (
+                      <p className="text-xs text-muted-foreground whitespace-pre-line line-clamp-3">{pub.citation}</p>
+                    ) : null}
+                    {pub.url ? (
+                      <p className="text-xs text-primary truncate">{pub.url}</p>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive shrink-0"
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        equipment_publications: (p.equipment_publications ?? []).filter((_, i) => i !== idx),
+                      }))
+                    }
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          {(formData.equipment_publications ?? []).length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {(formData.equipment_publications ?? []).length} publication
+              {(formData.equipment_publications ?? []).length === 1 ? "" : "s"} will be shown on the equipment details page.
+            </p>
+          ) : null}
+        </div>
       </FormSection>
 
       <FormSection id="eq-sec-accessories" title="Accessories / Additional accessories" description="Standard and additional equipment accessories." defaultOpen>

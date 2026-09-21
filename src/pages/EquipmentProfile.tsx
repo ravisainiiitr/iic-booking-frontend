@@ -9,7 +9,23 @@ import {
 } from "@/lib/equipmentAccess";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, LifeBuoy, MapPin, Info, Calendar, Wrench, Users, UserCog, FileText, IndianRupee, ExternalLink } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  LifeBuoy,
+  MapPin,
+  Info,
+  Calendar,
+  Wrench,
+  Users,
+  UserCog,
+  FileText,
+  IndianRupee,
+  ExternalLink,
+  BookOpen,
+  FlaskConical,
+  ClipboardList,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
@@ -19,7 +35,6 @@ import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import EquipmentImage from "@/components/EquipmentImage";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
-import { TruncatableText } from "@/components/TruncatableText";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import TicketForm from "@/components/TicketForm";
 import { cn } from "@/lib/utils";
@@ -99,8 +114,47 @@ interface EquipmentProfile {
     manager_profile_picture?: string | null;
     created_at: string;
   }>;
+  publications?: Array<{
+    equipment_publication_id: number;
+    title: string;
+    citation?: string;
+    url?: string;
+    year?: number | null;
+    display_order?: number;
+    created_at?: string;
+  }>;
+  publication_count?: number;
   /** When 'SLOT_ID', weekly grid shows slot number/name on vertical axis; when 'TIME', shows time. Admin/OIC always see TIME. */
   weekly_view_display?: 'TIME' | 'SLOT_ID';
+}
+
+type ContentPanel =
+  | "general"
+  | "operators"
+  | "managers"
+  | "specifications"
+  | "sample_requirements"
+  | "publications";
+
+type SpecItem = {
+  equipment_specification_id: number;
+  spec_key: string;
+  spec_value: string;
+  created_at: string;
+};
+
+function matchesSpecKey(specKey: string, patterns: string[]): boolean {
+  const key = (specKey || "").trim().toLowerCase();
+  return patterns.some((p) => key.includes(p));
+}
+
+function partitionSpecifications(specs: SpecItem[] | undefined | null) {
+  const list = Array.isArray(specs) ? specs : [];
+  const samplePatterns = ["sample requirement", "sample requirements", "sample prep", "sample preparation"];
+  const sample = list.filter((s) => matchesSpecKey(s.spec_key, samplePatterns));
+  const claimed = new Set(sample.map((s) => s.equipment_specification_id));
+  const general = list.filter((s) => !claimed.has(s.equipment_specification_id));
+  return { sample, general };
 }
 
 const EquipmentProfile = () => {
@@ -109,6 +163,8 @@ const EquipmentProfile = () => {
   const { isAuthenticated, user } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activePanel, setActivePanel] = useState<ContentPanel>("general");
+  const [supportOpen, setSupportOpen] = useState(false);
   const userType = user?.user_type ?? null;
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [apiSlots, setApiSlots] = useState<Array<{
@@ -143,7 +199,6 @@ const EquipmentProfile = () => {
   }>({ slot_start_time: null, slot_end_time: null, slot_duration_minutes: 60 });
   const [slotMasterTimes, setSlotMasterTimes] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [supportOpen, setSupportOpen] = useState(false);
   const [lastFetchedWeek, setLastFetchedWeek] = useState<string | null>(null);
   const fetchingSlotsRef = useRef(false);
   const equipmentAccessBlockedRef = useRef(false);
@@ -533,15 +588,275 @@ const EquipmentProfile = () => {
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Left Section - Equipment Details */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Equipment Header */}
-            <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
-              <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
+        {(() => {
+          const { sample: sampleSpecs, general: generalSpecs } =
+            partitionSpecifications(equipment.specifications);
+          const publicationList = Array.isArray(equipment.publications) ? equipment.publications : [];
+          const publicationCount =
+            typeof equipment.publication_count === "number"
+              ? equipment.publication_count
+              : publicationList.length;
+          const panelMeta: Record<ContentPanel, { title: string; icon: JSX.Element }> = {
+            general: { title: "General Information", icon: <Info className="h-5 w-5" /> },
+            operators: { title: "Lab Operator", icon: <Users className="h-5 w-5" /> },
+            managers: { title: "Officer in Charge", icon: <UserCog className="h-5 w-5" /> },
+            specifications: { title: "Specifications", icon: <FileText className="h-5 w-5" /> },
+            sample_requirements: { title: "Sample Requirements", icon: <FlaskConical className="h-5 w-5" /> },
+            publications: {
+              title:
+                publicationCount > 0
+                  ? `Publications (${publicationCount})`
+                  : "Publications",
+              icon: <BookOpen className="h-5 w-5" />,
+            },
+          };
+
+          const navBtn = (
+            key: string,
+            label: string,
+            opts: {
+              icon: JSX.Element;
+              onClick: () => void;
+              active?: boolean;
+              variant?: "action" | "panel";
+              disabled?: boolean;
+            }
+          ) => (
+            <Button
+              key={key}
+              type="button"
+              variant={opts.active ? "default" : "outline"}
+              disabled={opts.disabled}
+              className={cn(
+                "w-full justify-start gap-2.5 h-auto py-3 px-3.5 text-sm font-semibold whitespace-normal text-left",
+                opts.active && "shadow-sm",
+                opts.variant === "action" && !opts.active && "border-primary/30 bg-primary/5 hover:bg-primary/10"
+              )}
+              onClick={opts.onClick}
+            >
+              <span className="shrink-0 opacity-90">{opts.icon}</span>
+              <span className="leading-snug">{label}</span>
+            </Button>
+          );
+
+          const emptyPanel = (message: string) => (
+            <div className="rounded-xl border border-dashed bg-muted/30 px-6 py-12 text-center">
+              <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">{message}</p>
+            </div>
+          );
+
+          const renderSpecBlocks = (specs: SpecItem[]) => (
+            <div className="space-y-6">
+              {specs.map((spec) => (
+                <div
+                  key={spec.equipment_specification_id}
+                  className="rounded-xl border bg-muted/20 px-5 py-5 sm:px-7 sm:py-6"
+                >
+                  <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground mb-3">
+                    {spec.spec_key}
+                  </h3>
+                  <p className="text-lg sm:text-xl text-foreground/90 whitespace-pre-line leading-relaxed">
+                    {spec.spec_value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          );
+
+          const renderContactCards = (
+            entries: Array<{
+              key: number;
+              name?: string | null;
+              email?: string | null;
+              phone?: string | null;
+              profilePicture?: string | null;
+              userId?: number | null;
+            }>
+          ) => (
+            <div className="space-y-5">
+              {entries.map((entry) => (
+                <div
+                  key={entry.key}
+                  className="rounded-xl border bg-muted/20 px-5 py-5 sm:px-7 sm:py-6"
+                >
+                  <UserProfile
+                    name={entry.name}
+                    email={entry.email}
+                    phone={entry.phone}
+                    profilePicture={
+                      entry.profilePicture && entry.userId != null
+                        ? apiClient.getProfilePictureUrl(entry.userId)
+                        : undefined
+                    }
+                    size="lg"
+                    className="[&_p]:text-xl sm:[&_p]:text-2xl [&_span]:text-base sm:[&_span]:text-lg gap-4"
+                  />
+                </div>
+              ))}
+            </div>
+          );
+
+          let panelBody: JSX.Element | null = null;
+          if (activePanel === "general") {
+            panelBody = (
+              <div className="space-y-6">
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-muted ring-1 ring-border/50">
+                  <EquipmentImage
+                    equipmentId={equipment.equipment_id}
+                    enabled
+                    alt={equipment.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                {equipment.important_instruction ? (
+                  <div className="rounded-xl border-2 border-amber-500/70 bg-gradient-to-br from-amber-50 to-orange-50/80 dark:from-amber-950/40 dark:to-orange-950/20 dark:border-amber-500/50 p-5 sm:p-6">
+                    <p className="text-lg sm:text-xl font-semibold text-amber-900 dark:text-amber-200 mb-2 flex items-center gap-2">
+                      <Info className="h-5 w-5 shrink-0" />
+                      Important instruction
+                    </p>
+                    <p className="text-base sm:text-lg text-amber-950/90 dark:text-amber-100/90 whitespace-pre-line leading-relaxed">
+                      {equipment.important_instruction}
+                    </p>
+                  </div>
+                ) : null}
+                {equipment.description ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      About this instrument
+                    </p>
+                    <p className="text-lg sm:text-xl text-foreground/90 whitespace-pre-line leading-relaxed">
+                      {equipment.description}
+                    </p>
+                  </div>
+                ) : (
+                  emptyPanel("No general description has been published for this instrument yet.")
+                )}
+                <div className="rounded-xl ring-1 ring-border/60 bg-card overflow-hidden">
+                  <div className="px-5 pt-4 pb-1 flex items-center gap-2 text-base font-semibold text-foreground">
+                    <Wrench className="h-4 w-4 text-primary" />
+                    Accessories
+                  </div>
+                  <div className="px-2 pb-2">
+                    <EquipmentAccessoriesSection
+                      accessories={(equipment.accessories || []).map((accessory: any, index: number) => ({
+                        id: accessory.equipment_accessory_id ?? `acc-${index}`,
+                        name:
+                          accessory.accessory_name ||
+                          accessory.name ||
+                          `Accessory ${index + 1}`,
+                        description: accessory.notes || accessory.description || accessory.accessory_description || null,
+                        isEnabled: accessory.is_enabled !== false,
+                      }))}
+                      additionalAccessories={(equipment.additional_accessories || []).map((accessory) => ({
+                        id: accessory.equipment_additional_accessory_id,
+                        name: accessory.additional_accessory_name,
+                        description: accessory.additional_accessory_description,
+                        isEnabled: (accessory as { is_enabled?: boolean }).is_enabled !== false,
+                      }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          } else if (activePanel === "operators") {
+            panelBody =
+              equipment.operators && equipment.operators.length > 0
+                ? renderContactCards(
+                    equipment.operators.map((op) => ({
+                      key: op.equipment_operator_id,
+                      name: op.operator_name,
+                      email: op.operator_email,
+                      phone: op.operator_phone,
+                      profilePicture: op.operator_profile_picture,
+                      userId: op.operator,
+                    }))
+                  )
+                : emptyPanel("No lab operator has been assigned to this instrument yet.");
+          } else if (activePanel === "managers") {
+            panelBody =
+              equipment.managers && equipment.managers.length > 0
+                ? renderContactCards(
+                    equipment.managers.map((mgr) => ({
+                      key: mgr.equipment_manager_id,
+                      name: mgr.manager_name,
+                      email: mgr.manager_email,
+                      phone: mgr.manager_phone,
+                      profilePicture: mgr.manager_profile_picture,
+                      userId: mgr.manager,
+                    }))
+                  )
+                : emptyPanel("No officer in charge has been assigned to this instrument yet.");
+          } else if (activePanel === "specifications") {
+            panelBody =
+              generalSpecs.length > 0
+                ? renderSpecBlocks(generalSpecs)
+                : emptyPanel("Specifications have not been published for this instrument yet.");
+          } else if (activePanel === "sample_requirements") {
+            panelBody =
+              sampleSpecs.length > 0
+                ? renderSpecBlocks(sampleSpecs)
+                : emptyPanel(
+                    'Sample requirements have not been published yet. Add a specification named "Sample Requirements" in equipment admin to show it here.'
+                  );
+          } else if (activePanel === "publications") {
+            panelBody =
+              publicationList.length > 0 ? (
+                <div className="space-y-6">
+                  <div className="rounded-xl border bg-primary/5 px-5 py-4 sm:px-7">
+                    <p className="text-lg sm:text-xl text-foreground leading-relaxed">
+                      This instrument is referenced in{" "}
+                      <span className="font-semibold tabular-nums">{publicationCount}</span>{" "}
+                      publication{publicationCount === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+                  {publicationList.map((pub) => {
+                    const href = (pub.url || "").trim();
+                    const link =
+                      href && !/^https?:\/\//i.test(href) ? `https://${href}` : href;
+                    return (
+                      <div
+                        key={pub.equipment_publication_id}
+                        className="rounded-xl border bg-muted/20 px-5 py-5 sm:px-7 sm:py-6 space-y-2"
+                      >
+                        <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+                          {pub.title}
+                          {pub.year != null ? (
+                            <span className="text-muted-foreground font-normal"> ({pub.year})</span>
+                          ) : null}
+                        </h3>
+                        {pub.citation ? (
+                          <p className="text-lg sm:text-xl text-foreground/90 whitespace-pre-line leading-relaxed">
+                            {pub.citation}
+                          </p>
+                        ) : null}
+                        {link ? (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 text-base sm:text-lg text-primary hover:underline break-all"
+                          >
+                            {pub.url}
+                            <ExternalLink className="h-4 w-4 shrink-0" />
+                          </a>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                emptyPanel(
+                  "No publications have been listed for this instrument yet. Main Administrator or Officer in Charge can add them in Equipment settings."
+                )
+              );
+          }
+
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+              <div className="lg:col-span-8 space-y-5 min-w-0">
+                <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
+                  <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
+                  <CardHeader className="pb-3">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       {equipment.code ? (
                         <Badge variant="outline" className="font-mono text-xs tracking-wide">
@@ -562,326 +877,127 @@ const EquipmentProfile = () => {
                       {equipment.name}
                     </CardTitle>
                     <div className="mt-3">
-                      <EquipmentDepartmentLabel
-                        name={equipment.internal_department_name}
-                      />
+                      <EquipmentDepartmentLabel name={equipment.internal_department_name} />
                     </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {equipment.location ? (
-                  <div className="flex items-start gap-2.5 rounded-xl bg-muted/50 border px-3.5 py-2.5">
-                    <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
-                    <div className="min-w-0">
-                      {equipment.google_maps_url ? (
-                        <a
-                          href={equipment.google_maps_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-start gap-2 text-base font-medium leading-snug text-foreground hover:text-primary"
-                        >
-                          <span className="whitespace-pre-line">{equipment.location}</span>
-                          <ExternalLink className="mt-0.5 h-4 w-4 shrink-0" />
-                        </a>
-                      ) : (
-                        <span className="text-base font-medium whitespace-pre-line leading-snug">
-                          {equipment.location}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-muted ring-1 ring-border/50">
-                  <EquipmentImage
-                    equipmentId={equipment.equipment_id}
-                    enabled
-                    alt={equipment.name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                {equipment.description ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5" />
-                      About this instrument
-                    </p>
-                    <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
-                      {equipment.description}
-                    </p>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            {/* Slot Display - Weekly Calendar */}
-            {false && (
-            <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Available Time Slots
-                  </CardTitle>
-                  <CardDescription>
-                    {getSlotDuration()} minutes per slot - Weekly View
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Week Navigation */}
-                  <div className="flex justify-between items-center mb-6">
-                    <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
-                      <ChevronLeft className="h-4 w-4 mr-2" />
-                      Previous Week
-                    </Button>
-                    <span className="font-semibold">
-                      {format(startOfWeek(currentWeekStart, { weekStartsOn: 1 }), "MMM dd")} - {format(endOfWeek(currentWeekStart, { weekStartsOn: 1 }), "MMM dd, yyyy")}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={goToNextWeek}>
-                      Next Week
-                      <ChevronRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </div>
-
-                  {(() => {
-                    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-                    const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
-                    const currentWeekKey = `${format(weekStart, "yyyy-MM-dd")}_${format(weekEnd, "yyyy-MM-dd")}`;
-                    const isLoadingThisWeek = loadingSlots && (lastFetchedWeek === null || currentWeekKey !== lastFetchedWeek);
-                    return (
-                  <div className="overflow-x-auto relative">
-                    {isLoadingThisWeek && (
-                      <div className="absolute inset-0 bg-background/80 z-10 flex items-center justify-center rounded-md min-h-[200px]">
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                          <p className="text-sm text-muted-foreground">Loading weekly slots…</p>
+                    {equipment.location ? (
+                      <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-muted/50 border px-3.5 py-2.5">
+                        <MapPin className="h-5 w-5 shrink-0 mt-0.5 text-primary" />
+                        <div className="min-w-0">
+                          {equipment.google_maps_url ? (
+                            <a
+                              href={equipment.google_maps_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-start gap-2 text-base font-medium leading-snug text-foreground hover:text-primary"
+                            >
+                              <span className="whitespace-pre-line">{equipment.location}</span>
+                              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0" />
+                            </a>
+                          ) : (
+                            <span className="text-base font-medium whitespace-pre-line leading-snug">
+                              {equipment.location}
+                            </span>
+                          )}
                         </div>
                       </div>
-                    )}
-                    <div className="min-w-[800px]">
-                      {/* Header with days */}
-                      <div className="grid grid-cols-8 gap-2 mb-2">
-                        <div className="font-semibold text-sm p-2">{getEffectiveWeeklyViewDisplay() === "SLOT_ID" ? "Slot position" : "Time"}</div>
-                        {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                          const weekStartMonday = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-                          const day = addDays(weekStartMonday, dayOffset);
-                          return (
-                            <div key={dayOffset} className="font-semibold text-sm p-2 text-center">
-                              <div>{format(day, "EEE")}</div>
-                              <div className="text-muted-foreground">{format(day, "MMM dd")}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Time slots - use row keys/labels from effective weekly view display (Admin/OIC always see Time) */}
-                      {getWeeklyRowKeysAndLabels().length > 0 &&
-                        getWeeklyRowKeysAndLabels().map(({ key: rowKey, label: rowLabel }) => (
-                          <div key={rowKey} className="grid grid-cols-8 gap-2 mb-2">
-                            <div className="text-sm p-2 font-medium flex items-center">
-                              {rowLabel}
-                            </div>
-                            {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                              const weekStartMonday = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-                              const day = addDays(weekStartMonday, dayOffset);
-                              const slotData = getSlotData(day, rowKey);
-                              const slotExists = slotData !== undefined;
-                              const dateStr = format(day, "yyyy-MM-dd");
-                              const isPast = slotData?.start_datetime
-                                ? parseISO(slotData.start_datetime) < new Date()
-                                : rowKey.includes(":")
-                                  ? (() => {
-                                      const [h, m] = rowKey.split(":").map(Number);
-                                      const d = new Date(day);
-                                      d.setHours(h ?? 0, m ?? 0, 0, 0);
-                                      return d < new Date();
-                                    })()
-                                  : false;
-                              const isAvailable = slotExists && slotData?.status === "AVAILABLE" && !isPast;
-                              const bookingStatusDisplay = slotData?.booking_status_display ?? null;
-                              const bookingId = slotData?.booking_id ?? null;
-                              const blockedLabel = slotData?.blocked_label ?? null;
-                              const slotStatus = slotData?.status ?? "";
-                              
-                              // Build status label with special handling for BLOCKED and BOOKED
-                              let slotStatusLabel = slotData?.status_display || "";
-                              if (!slotStatusLabel && slotStatus) {
-                                const statusMap: Record<string, string> = {
-                                  "AVAILABLE": "Available",
-                                  "NOT_AVAILABLE": "Not Available",
-                                  "BOOKED": "Booked",
-                                  "BLOCKED": "Blocked",
-                                  "UNDER_MAINTENANCE": "Under Maintenance",
-                                  "OPERATOR_ABSENT": "Operator Absent",
-                                  "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
-                                };
-                                slotStatusLabel = statusMap[slotStatus] || slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
-                              }
-                              
-                              // For BOOKED status, append booking ID if available
-                              if (slotStatus === "BOOKED" && bookingId) {
-                                slotStatusLabel = `${slotStatusLabel} #${bookingId}`;
-                              }
-                              
-                              // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
-                              if (slotStatus === "BLOCKED") {
-                                slotStatusLabel = blockedLabel || "Blocked";
-                              }
-                              
-                              const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
-                              // If slot exists on holiday/Saturday/Sunday and has booking, show BOOKED status
-                              // Priority: booking status > slot status > holiday name
-                              const hasBooking = bookingId || slotData?.status === "BOOKED";
-                              const rawHoliday = weeklyHolidays[dateStr];
-                              const holidayLabel = typeof rawHoliday === "string" ? rawHoliday : (rawHoliday && typeof rawHoliday === "object" && "label" in rawHoliday ? (rawHoliday as { label: string }).label : undefined);
-                              const holidayColorProfile = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday && (rawHoliday as { color?: string }).color
-                                ? (rawHoliday as { color: string }).color
-                                : undefined;
-                              const displayStatus = slotExists
-                                ? (hasBooking || slotData?.status !== "AVAILABLE"
-                                    ? (slotDisplayLabel || slotStatusLabel || "Unavailable")
-                                    : isPast
-                                      ? "No Booking"
-                                      : "Available")
-                                : (holidayLabel || "—");
-
-                              // Resolve background and text color from admin-configured calendar colors (pronounced styling)
-                              const slotColors = calendarColors?.slot_colors ?? {
-                                AVAILABLE: "#22c55e",
-                                BOOKED: "#ef4444",
-                                COMPLETED: "#059669",
-                                BLOCKED: "#64748b",
-                                UNDER_MAINTENANCE: "#f97316",
-                                OPERATOR_ABSENT: "#eab308",
-                                BOOKING_NOT_UTILIZED: "#a855f7",
-                                HOLD: "#f59e0b",
-                                NOT_AVAILABLE: "#e2e8f0",
-                              };
-                              const holidayDefault = calendarColors?.holiday_default || "#f59e0b";
-                              const saturdayColor = calendarColors?.saturday_color || "#c7d2fe";
-                              const sundayColor = calendarColors?.sunday_color || "#fbcfe8";
-                              let cellBg: string | undefined;
-                              let cellText: string | undefined;
-                              if (!slotExists) {
-                                const dayOfWeek = day.getDay();
-                                if (dayOfWeek === 6) cellBg = saturdayColor;
-                                else if (dayOfWeek === 0) cellBg = sundayColor;
-                                else cellBg = holidayColorProfile ?? holidayDefault;
-                                cellText = cellBg ? getContrastTextColor(cellBg) : undefined;
-                              } else {
-                                let statusForColor = (slotData?.status === "BOOKED" && slotData?.booking_status)
-                                  ? String(slotData.booking_status).toUpperCase()
-                                  : (slotData?.status ?? "AVAILABLE");
-                                if (slotData?.status === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
-                                cellBg =
-                                  slotColors[statusForColor] ??
-                                  (slotData?.status === "BOOKED" ? slotColors.BOOKED : slotColors.AVAILABLE);
-                                cellText = getContrastTextColor(cellBg);
-                                if (isPast && statusForColor === "AVAILABLE") {
-                                  cellBg = "#94a3b8"; // muted past slot
-                                  cellText = "#ffffff";
-                                }
-                              }
-
-                              return (
-                                <div
-                                  key={dayOffset}
-                                  className="p-3 rounded-md text-sm min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm"
-                                  style={
-                                    cellBg
-                                      ? { backgroundColor: cellBg, color: cellText ?? getContrastTextColor(cellBg) }
-                                      : undefined
-                                  }
-                                >
-                                  {displayStatus}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Right Section - Actions & info */}
-          <div className="lg:col-span-1 space-y-5">
-            <div className="sticky top-6 space-y-5">
-              {(shouldShowBookingCard()) && (
-                <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
-                  <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
-                  <CardHeader className="pb-2 pt-4">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      Booking & charges
-                    </CardTitle>
-                    <CardDescription>
-                      Reserve this instrument or estimate costs for your user category.
-                    </CardDescription>
+                    ) : null}
                   </CardHeader>
-                  <CardContent className="space-y-3 pb-5">
-                    {!isLabInchargeUser() && (
-                      <Button
-                        className="w-full bg-primary hover:bg-primary/90"
-                        size="lg"
-                        disabled={!canManageEquipment() && !isEquipmentOperational()}
-                        onClick={handleBookOrManageClick}
-                      >
-                        {canManageEquipment() ? "Manage this Equipment" : "Book This Equipment"}
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      size="lg"
-                      onClick={handleCalculateChargesClick}
-                    >
-                      <IndianRupee className="h-4 w-4 mr-1.5" />
-                      View and Calculate Charges
-                    </Button>
-                    {!isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
-                      <p className="text-sm text-amber-600 font-medium">
-                        Booking is disabled while equipment is {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
-                      </p>
-                    )}
-                    {canManageEquipment() && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        size="lg"
-                        onClick={() => navigate("/equipments")}
-                      >
-                        Manage another equipment
-                      </Button>
-                    )}
+                  <CardContent className="space-y-5 pt-0">
+                    <div className="flex items-center gap-2.5 border-b pb-3">
+                      <span className="text-primary">{panelMeta[activePanel].icon}</span>
+                      <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">
+                        {panelMeta[activePanel].title}
+                      </h2>
+                    </div>
+                    {panelBody}
                   </CardContent>
                 </Card>
-              )}
+              </div>
 
-              <Card className="overflow-hidden border-primary/25 shadow-md ring-1 ring-primary/10 dark:border-primary/40">
-                <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <LifeBuoy className="h-5 w-5 text-primary" />
-                    Need help with this equipment?
-                  </CardTitle>
-                  <CardDescription>
-                    Raise a support request linked to this instrument. No login required.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    type="button"
-                    className="w-full bg-primary hover:bg-primary/90"
-                    size="lg"
-                    onClick={() => setSupportOpen(true)}
-                  >
-                    <LifeBuoy className="h-4 w-4 mr-2" />
-                    Raise Support Request
-                  </Button>
+              <div className="lg:col-span-4">
+                <div className="sticky top-6 space-y-3">
+                  <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
+                    <CardHeader className="pb-2 pt-4">
+                      <CardTitle className="text-base">Equipment menu</CardTitle>
+                      <CardDescription>
+                        Book, get help, or open a section on the left.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 pb-5">
+                      {shouldShowBookingCard() && !isLabInchargeUser() && (
+                        navBtn("book", canManageEquipment() ? "Manage this Equipment" : "Book This Equipment", {
+                          icon: <Calendar className="h-4 w-4" />,
+                          variant: "action",
+                          disabled: !canManageEquipment() && !isEquipmentOperational(),
+                          onClick: handleBookOrManageClick,
+                        })
+                      )}
+                      {shouldShowBookingCard() &&
+                        navBtn("charges", "View and Calculate Charges", {
+                          icon: <IndianRupee className="h-4 w-4" />,
+                          variant: "action",
+                          onClick: handleCalculateChargesClick,
+                        })}
+                      {navBtn("support", "Raise Support Request", {
+                        icon: <LifeBuoy className="h-4 w-4" />,
+                        variant: "action",
+                        onClick: () => setSupportOpen(true),
+                      })}
+                      <div className="h-px bg-border my-2" />
+                      {navBtn("operators", "Lab Operator", {
+                        icon: <Users className="h-4 w-4" />,
+                        active: activePanel === "operators",
+                        onClick: () => setActivePanel("operators"),
+                      })}
+                      {navBtn("managers", "Officer in Charge", {
+                        icon: <UserCog className="h-4 w-4" />,
+                        active: activePanel === "managers",
+                        onClick: () => setActivePanel("managers"),
+                      })}
+                      {navBtn("specifications", "Specifications", {
+                        icon: <FileText className="h-4 w-4" />,
+                        active: activePanel === "specifications",
+                        onClick: () => setActivePanel("specifications"),
+                      })}
+                      {navBtn("sample", "Sample Requirements", {
+                        icon: <FlaskConical className="h-4 w-4" />,
+                        active: activePanel === "sample_requirements",
+                        onClick: () => setActivePanel("sample_requirements"),
+                      })}
+                      {navBtn("general", "General Information", {
+                        icon: <ClipboardList className="h-4 w-4" />,
+                        active: activePanel === "general",
+                        onClick: () => setActivePanel("general"),
+                      })}
+                      {navBtn(
+                        "publications",
+                        publicationCount > 0
+                          ? `Publications (${publicationCount})`
+                          : "Publications",
+                        {
+                          icon: <BookOpen className="h-4 w-4" />,
+                          active: activePanel === "publications",
+                          onClick: () => setActivePanel("publications"),
+                        }
+                      )}
+                      {shouldShowBookingCard() && !isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
+                        <p className="text-sm text-amber-600 font-medium pt-1">
+                          Booking is disabled while equipment is{" "}
+                          {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
+                        </p>
+                      )}
+                      {canManageEquipment() && (
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start text-muted-foreground"
+                          onClick={() => navigate("/equipments")}
+                        >
+                          Manage another equipment
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
                   <TicketForm
                     open={supportOpen}
                     onOpenChange={setSupportOpen}
@@ -896,132 +1012,12 @@ const EquipmentProfile = () => {
                       setSupportOpen(false);
                     }}
                   />
-                </CardContent>
-              </Card>
-
-              {equipment.important_instruction && (
-                <div className="rounded-xl border-2 border-amber-500/70 bg-gradient-to-br from-amber-50 to-orange-50/80 dark:from-amber-950/40 dark:to-orange-950/20 dark:border-amber-500/50 p-4 shadow-sm">
-                  <div className="flex items-start gap-2.5">
-                    <Info className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
-                        Important instruction
-                      </p>
-                      <TruncatableText
-                        text={equipment.important_instruction}
-                        className="text-sm text-amber-950/90 dark:text-amber-100/90"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-xl ring-1 ring-border/60 bg-card shadow-sm overflow-hidden">
-                <div className="px-4 pt-4 pb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Wrench className="h-4 w-4 text-primary" />
-                  Accessories
-                </div>
-                <div className="px-2 pb-2">
-                  <EquipmentAccessoriesSection
-                    accessories={(equipment.accessories || []).map((accessory: any, index: number) => ({
-                      id: accessory.equipment_accessory_id ?? `acc-${index}`,
-                      name:
-                        accessory.accessory_name ||
-                        accessory.name ||
-                        `Accessory ${index + 1}`,
-                      description: accessory.notes || accessory.description || accessory.accessory_description || null,
-                      isEnabled: accessory.is_enabled !== false,
-                    }))}
-                    additionalAccessories={(equipment.additional_accessories || []).map((accessory) => ({
-                      id: accessory.equipment_additional_accessory_id,
-                      name: accessory.additional_accessory_name,
-                      description: accessory.additional_accessory_description,
-                      isEnabled: (accessory as { is_enabled?: boolean }).is_enabled !== false,
-                    }))}
-                  />
                 </div>
               </div>
-
-              {equipment.operators && equipment.operators.length > 0 && (
-                <Card className="border-0 shadow-sm ring-1 ring-border/60">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Users className="h-4 w-4 text-primary" />
-                      Lab operators
-                    </CardTitle>
-                    <CardDescription>Contact for day-to-day instrument operation</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {equipment.operators.map((operator) => (
-                        <div key={operator.equipment_operator_id} className="rounded-lg border bg-muted/30 p-2.5">
-                          <UserProfile
-                            name={operator.operator_name}
-                            email={operator.operator_email}
-                            phone={operator.operator_phone}
-                            profilePicture={operator.operator_profile_picture && operator.operator != null ? apiClient.getProfilePictureUrl(operator.operator) : undefined}
-                            size="md"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {equipment.managers && equipment.managers.length > 0 && (
-                <Card className="border-0 shadow-sm ring-1 ring-border/60">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <UserCog className="h-4 w-4 text-primary" />
-                      Officer in-charge
-                    </CardTitle>
-                    <CardDescription>Scientific / administrative ownership</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {equipment.managers.map((manager) => (
-                        <div key={manager.equipment_manager_id} className="rounded-lg border bg-muted/30 p-2.5">
-                          <UserProfile
-                            name={manager.manager_name}
-                            email={manager.manager_email}
-                            phone={manager.manager_phone}
-                            profilePicture={manager.manager_profile_picture && manager.manager != null ? apiClient.getProfilePictureUrl(manager.manager) : undefined}
-                            size="md"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {equipment.specifications && equipment.specifications.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-0.5">
-                    Specifications
-                  </p>
-                  {equipment.specifications.map((spec) => (
-                    <Card key={spec.equipment_specification_id} className="border-0 shadow-sm ring-1 ring-border/60">
-                      <CardHeader className="pb-2 pt-4">
-                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5 text-primary" />
-                          {spec.spec_key}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0 pb-4">
-                        <TruncatableText
-                          text={spec.spec_value}
-                          className="text-sm text-muted-foreground"
-                        />
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
             </div>
-          </div>
-        </div>
+          );
+        })()}
+
       </main>
       <Footer />
     </div>
