@@ -178,9 +178,8 @@ const EquipmentCard = ({
   const equipmentIdForImage = id != null && isEquipmentProxyImage(image) ? Number(id) : null;
   const displayImage =
     equipmentIdForImage != null
-      ? user
-        ? apiClient.getEquipmentImageUrl(equipmentIdForImage)
-        : apiClient.getEquipmentImageProxyPath(equipmentIdForImage)
+      ? // Always go through proxy helper so ?v= cache-bust is applied after catalog image replacements.
+        apiClient.getEquipmentImageProxyPath(equipmentIdForImage)
       : image;
 
   const ratingSummaryCount = Number(ratingCount ?? 0);

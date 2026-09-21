@@ -8762,7 +8762,8 @@ class ApiClient {
   /** Path for the equipment image proxy (stable; streams bytes — does not expire). */
   getEquipmentImageProxyPath(equipmentId: number): string {
     const base = this.baseURL.replace(/\/$/, '');
-    return `${base}/equipments/${equipmentId}/image/`;
+    // Cache-bust epoch: bump when catalog images are replaced so browsers drop cached dark studio shots.
+    return `${base}/equipments/${equipmentId}/image/?v=bg20260921`;
   }
 
   /** Stable API URL for equipment images. Prefer proxy path without auth token (images are public). */

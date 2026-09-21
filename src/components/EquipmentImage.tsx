@@ -35,7 +35,7 @@ export default function EquipmentImage({
     // Public proxy — equipment photos are AllowAny; avoid sticking an auth token
     // on the URL (stale tokens caused false “expired image” failures).
     const base = apiClient.getEquipmentImageProxyPath(equipmentId);
-    const src = retryTick > 0 ? `${base}?t=${Date.now()}` : base;
+    const src = retryTick > 0 ? `${base}${base.includes("?") ? "&" : "?"}t=${Date.now()}` : base;
     setDisplaySrc(src);
   }, [equipmentId, enabled, user?.id, fallback, retryTick]);
 
