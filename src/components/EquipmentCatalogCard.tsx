@@ -82,6 +82,12 @@ export default function EquipmentCatalogCard({
   const status = (item.status || "").toString();
   const isOperational = status === "ACTIVE";
 
+  const openEquipment = () => {
+    const id = Number(item.id);
+    if (onOpenEquipment?.(id)) return;
+    navigate(`/equipment/${id}`);
+  };
+
   const avg = item.avgRating != null ? Number(item.avgRating) : null;
   const count = Number(item.ratingCount ?? 0);
   const full = avg != null ? Math.floor(avg) : 0;
@@ -102,11 +108,7 @@ export default function EquipmentCatalogCard({
         "transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/10",
         accent.border
       )}
-      onClick={() => {
-        const id = Number(item.id);
-        if (onOpenEquipment?.(id)) return;
-        navigate(`/equipment/${id}`);
-      }}
+      onClick={openEquipment}
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
         {playingVideo && item.video ? (
@@ -251,11 +253,14 @@ export default function EquipmentCatalogCard({
                   toast.error("This equipment is not operational and cannot be booked.");
                   return;
                 }
+                const id = Number(item.id);
+                // Expand parent → show parent + child cards before booking a specific mode.
+                if (onOpenEquipment?.(id)) return;
                 if (canBookForOtherUsers || canChangeSlotStatus) {
-                  navigate(`/book-equipment?equipment_id=${item.id}&mode=book`);
+                  navigate(`/book-equipment?equipment_id=${id}&mode=book`);
                   return;
                 }
-                navigate(`/equipment/${item.id}`);
+                navigate(`/equipment/${id}`);
               }}
             >
               Book now
@@ -281,7 +286,7 @@ export default function EquipmentCatalogCard({
             className="w-full text-muted-foreground hover:bg-primary/5 hover:text-primary"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/equipment/${item.id}`);
+              openEquipment();
             }}
           >
             View Details and Charges

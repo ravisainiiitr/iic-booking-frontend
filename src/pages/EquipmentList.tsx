@@ -193,8 +193,10 @@ const EquipmentList = () => {
           selectedDepartmentId,
         );
         if (!cancelled) {
-          setExpandedParentId(null);
           setRawEquipment(list);
+          setExpandedParentId((prev) =>
+            prev != null && isExpandableParent(list, prev) ? prev : null,
+          );
         }
       } catch (error: unknown) {
         if (!cancelled) {
@@ -226,8 +228,10 @@ const EquipmentList = () => {
       const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
       const list = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
-      setExpandedParentId(null);
       setRawEquipment(list);
+      setExpandedParentId((prev) =>
+        prev != null && isExpandableParent(list, prev) ? prev : null,
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
     } finally {
@@ -371,6 +375,13 @@ const EquipmentList = () => {
                 canBookForOtherUsers={canBookForOtherUsers}
                 statusUpdatingId={statusUpdatingId}
                 onRequestStatusChange={(next) => setPendingStatusChange(next)}
+                onOpenEquipment={(id) => {
+                  if (expandedParentId == null && isExpandableParent(rawEquipment, id)) {
+                    setExpandedParentId(id);
+                    return true;
+                  }
+                  return false;
+                }}
               />
             ))}
           </div>

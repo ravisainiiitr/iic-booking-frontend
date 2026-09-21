@@ -113,7 +113,9 @@ const EquipmentGrid = () => {
           );
         }
         setEquipment(filteredEquipment);
-        setExpandedParentId(null);
+        setExpandedParentId((prev) =>
+          prev != null && isExpandableParent(filteredEquipment, prev) ? prev : null,
+        );
       } else {
         setEquipment([]);
         setExpandedParentId(null);
