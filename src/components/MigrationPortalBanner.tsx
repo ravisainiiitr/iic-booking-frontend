@@ -11,9 +11,11 @@ type MigrationPortalBannerProps = {
   className?: string;
 };
 
-function compactNoticeText(text: string): string {
+function normalizeNoticeText(text: string): string {
   return String(text || "")
-    .replace(/\s+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -37,9 +39,9 @@ export function MigrationPortalBanner({
         const res = await apiClient.getPortalBookingStatus();
         if (cancelled || res.error || !res.data) return;
         const locked = Boolean(res.data.locked_for_this_user);
-        const lockMessage = compactNoticeText(String(res.data.message || ""));
+        const lockMessage = normalizeNoticeText(String(res.data.message || ""));
         const legacyDisabled = Boolean(res.data.legacy_portal_new_booking_disabled);
-        const legacyText = compactNoticeText(
+        const legacyText = normalizeNoticeText(
           String(res.data.legacy_portal_migration_banner || "")
         );
         const link = String(res.data.new_portal_url || "");
@@ -68,7 +70,7 @@ export function MigrationPortalBanner({
     return (
       <div className={`border-b border-amber-300 bg-amber-50 px-3 py-2 text-amber-950 ${className}`}>
         <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm leading-snug line-clamp-3">{banner}</p>
+          <p className="text-sm leading-snug whitespace-pre-line">{banner}</p>
           {url ? (
             <Button asChild variant="default" size="sm" className="shrink-0">
               <a href={url} target="_blank" rel="noreferrer">
@@ -93,9 +95,9 @@ export function MigrationPortalBanner({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold leading-tight text-amber-950 dark:text-amber-50">
-              Important notice
+              Important Notice
             </p>
-            <p className="mt-0.5 text-sm leading-snug text-amber-900/90 dark:text-amber-100/90 line-clamp-2">
+            <p className="mt-1 text-sm leading-snug whitespace-pre-line text-amber-900/90 dark:text-amber-100/90">
               {banner}
             </p>
           </div>
