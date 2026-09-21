@@ -3553,7 +3553,7 @@ export function BookingDetailCard({
               status={booking.status}
               enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation && !booking.source_booking_id}
               sampleTrace={isWaitlistedEntry ? undefined : (booking.sample_trace ?? undefined)}
-              isAdminUser={true}
+              isAdminUser={Boolean(isManagerOrAdmin)}
               disabled={!!booking.source_booking_id}
               atmosphereSensitiveSample={!!booking.atmosphere_sensitive_sample}
               autoOpenEdit={autoOpenEditInputs}

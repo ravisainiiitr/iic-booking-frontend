@@ -853,7 +853,7 @@ const EquipmentProfile = () => {
 
           return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-              <div className="lg:col-span-8 space-y-5 min-w-0">
+              <div className="lg:col-span-8 space-y-5 min-w-0 order-2 lg:order-2">
                 <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                   <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                   <CardHeader className="pb-3">
@@ -914,7 +914,7 @@ const EquipmentProfile = () => {
                 </Card>
               </div>
 
-              <div className="lg:col-span-4">
+              <div className="lg:col-span-4 order-1 lg:order-1">
                 <div className="sticky top-6 space-y-3">
                   <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
                     <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />

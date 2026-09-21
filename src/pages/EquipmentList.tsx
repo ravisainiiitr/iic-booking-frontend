@@ -22,6 +22,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
+import {
+  filterCatalogEquipmentForDisplay,
+  isExpandableParent,
+} from "@/lib/equipmentCatalog";
 
 interface Equipment extends EquipmentData, EquipmentCatalogCardItem {
   status?: string;
@@ -46,6 +50,8 @@ interface ApiEquipment {
   show_make_on_card?: boolean;
   model_information?: string | null;
   show_model_on_card?: boolean;
+  parent_equipment?: number | null;
+  enable_multi_mode?: boolean;
   avg_rating?: number | null;
   rating_count?: number | null;
   created_at: string;
@@ -84,7 +90,10 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
 const EquipmentList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [rawEquipment, setRawEquipment] = useState<ApiEquipment[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [expandedParentId, setExpandedParentId] = useState<number | null>(null);
+  const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
@@ -99,6 +108,7 @@ const EquipmentList = () => {
   // Admin / OIC only — Lab In-charge (operator) cannot change operational status.
   const canChangeEquipmentStatus = ["admin", "manager"].includes(userTypeStr);
   const canBookForOtherUsers = ["admin", "manager", "dept_admin"].includes(userTypeStr);
+  const isOic = userTypeStr === "manager";
   const isDeptAdmin = userTypeStr === "dept_admin";
   const daDepartmentId = (() => {
     const raw =
@@ -112,11 +122,18 @@ const EquipmentList = () => {
 
   const [authReady, setAuthReady] = useState(false);
 
+  useEffect(() => {
+    setEquipment(
+      transformApiEquipment(filterCatalogEquipmentForDisplay(rawEquipment, expandedParentId)),
+    );
+  }, [rawEquipment, expandedParentId]);
+
+
   const fetchEquipment = useCallback(
     async (search?: string, departmentId: DepartmentFilterValue = "all") => {
       const effectiveDept: DepartmentFilterValue =
         isDeptAdmin && daDepartmentId != null ? daDepartmentId : departmentId;
-      const response = await apiClient.getEquipments(search, undefined, undefined, true, effectiveDept);
+      const response = await apiClient.getEquipments(search, undefined, undefined, true, effectiveDept, isOic ? oicCatalogScope : null);
       if (response.error) {
         throw new Error(response.error || "Failed to load equipment");
       }
@@ -125,9 +142,9 @@ const EquipmentList = () => {
       if (isDeptAdmin && daDepartmentId != null) {
         list = list.filter((eq) => Number(eq.internal_department) === Number(daDepartmentId));
       }
-      return transformApiEquipment(list);
+      return list as ApiEquipment[];
     },
-    [isDeptAdmin, daDepartmentId],
+    [isDeptAdmin, daDepartmentId, isOic, oicCatalogScope],
   );
 
   useEffect(() => {
@@ -171,14 +188,18 @@ const EquipmentList = () => {
     const reload = async () => {
       try {
         setLoading(true);
-        const transformed = await fetchEquipment(
+        const list = await fetchEquipment(
           searchQuery.trim() || undefined,
           selectedDepartmentId,
         );
-        if (!cancelled) setEquipment(transformed);
+        if (!cancelled) {
+          setExpandedParentId(null);
+          setRawEquipment(list);
+        }
       } catch (error: unknown) {
         if (!cancelled) {
           toast.error(error instanceof Error ? error.message : "Failed to load equipment");
+          setRawEquipment([]);
           setEquipment([]);
         }
       } finally {
@@ -204,8 +225,9 @@ const EquipmentList = () => {
       }
       const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
-      const transformed = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
-      setEquipment(transformed);
+      const list = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
+      setExpandedParentId(null);
+      setRawEquipment(list);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
     } finally {
@@ -238,23 +260,40 @@ const EquipmentList = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-10 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-8 text-white shadow-xl">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-              <Package className="h-6 w-6" />
+        <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+              <Package className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Browse Equipment</h1>
-              <p className="text-white/90 mt-0.5">Explore and book laboratory equipment</p>
+              <h1 className="text-2xl font-bold">Browse Equipment</h1>
+              <p className="text-white/90 text-sm">Explore and book laboratory equipment</p>
             </div>
           </div>
         </div>
 
-        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
+        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
           Equipment catalog
         </p>
 
-        <div className="mb-6 flex flex-col sm:flex-row gap-3 max-w-3xl">
+        {isOic ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant={oicCatalogScope === "managed" ? "default" : "outline"} onClick={() => setOicCatalogScope("managed")}>
+              My equipment
+            </Button>
+            <Button type="button" size="sm" variant={oicCatalogScope === "all" ? "default" : "outline"} onClick={() => setOicCatalogScope("all")}>
+              All equipment
+            </Button>
+          </div>
+        ) : null}
+        {expandedParentId != null ? (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm max-w-3xl">
+            <span>Showing parent and child modes for this instrument family.</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => setExpandedParentId(null)}>Back to all</Button>
+          </div>
+        ) : null}
+
+        <div className="mb-5 flex flex-col sm:flex-row gap-3 max-w-3xl">
           {isDeptAdmin ? (
             <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</p>

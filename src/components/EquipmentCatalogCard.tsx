@@ -46,6 +46,8 @@ type Props = {
   canBookForOtherUsers?: boolean;
   statusUpdatingId?: number | null;
   onRequestStatusChange?: (next: { equipmentId: number; equipmentName: string; newStatus: "ACTIVE" | "REPAIR" }) => void;
+  /** Return true to prevent default navigation to equipment detail. */
+  onOpenEquipment?: (equipmentId: number) => boolean | void;
 };
 
 function MetaField({ label, value }: { label: string; value: string }) {
@@ -66,6 +68,7 @@ export default function EquipmentCatalogCard({
   canBookForOtherUsers = false,
   statusUpdatingId,
   onRequestStatusChange,
+  onOpenEquipment,
 }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -99,7 +102,11 @@ export default function EquipmentCatalogCard({
         "transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/10",
         accent.border
       )}
-      onClick={() => navigate(`/equipment/${item.id}`)}
+      onClick={() => {
+        const id = Number(item.id);
+        if (onOpenEquipment?.(id)) return;
+        navigate(`/equipment/${id}`);
+      }}
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
         {playingVideo && item.video ? (

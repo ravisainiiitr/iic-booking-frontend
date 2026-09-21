@@ -1792,6 +1792,7 @@ class ApiClient {
     scope?: string,
     includeRatings?: boolean,
     internalDepartmentId?: number | 'all',
+    catalogScope?: 'all' | 'managed' | null,
   ) {
     const params = new URLSearchParams();
     if (search) {
@@ -1808,6 +1809,9 @@ class ApiClient {
     }
     if (internalDepartmentId != null && internalDepartmentId !== 'all') {
       params.append('internal_department_id', String(internalDepartmentId));
+    }
+    if (catalogScope) {
+      params.append('catalog_scope', catalogScope);
     }
     const queryString = params.toString();
     const endpoint = queryString ? `/equipments/?${queryString}` : '/equipments/';
@@ -1830,6 +1834,8 @@ class ApiClient {
         internal_department?: number | null;
         internal_department_name?: string | null;
         internal_department_code?: string | null;
+        parent_equipment?: number | null;
+        enable_multi_mode?: boolean;
         created_at: string;
         updated_at: string;
       }>;

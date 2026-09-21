@@ -190,10 +190,14 @@ export function BookingUserInputs({
             ({ field_key: key, field_label: key, field_type: "", options: undefined, editing_required: false } as InputFieldDef)
         );
 
+  // Admin/OIC: prefer API editable_input_fields (all keys) or fall back to every input field.
+  // End users: only editing_required (or API-provided editable subset).
   const editableFields =
-    editableInputFields && editableInputFields.length > 0
-      ? editableInputFields
-      : fields.filter((f) => f.editing_required);
+    isAdminUser
+      ? (editableInputFields && editableInputFields.length > 0 ? editableInputFields : fields)
+      : editableInputFields && editableInputFields.length > 0
+        ? editableInputFields
+        : fields.filter((f) => f.editing_required);
   const hasEditableFields = canEdit && editableFields.length > 0;
   const hasPeriodicTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"

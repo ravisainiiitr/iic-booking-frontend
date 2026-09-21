@@ -77,6 +77,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Table,
   TableBody,
   TableCell,
@@ -260,6 +265,192 @@ function parseTimeToMinutes(timeStr: string): number {
 /** Convert HH:mm:ss to HH:mm for display. */
 function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
+}
+
+/** Build charge-by-user-category rows for Calculate Charges summary (includes student & faculty). */
+function buildChargeCategorySummaryRows(eq: {
+  charge_profiles?: Array<Record<string, unknown>>;
+  base_charges_by_user_type?: Array<{
+    user_type: string;
+    user_type_display?: string;
+    profile_type_display?: string | null;
+    primary_unit_charge?: string;
+    secondary_unit_charge?: string;
+  }>;
+  profile_type?: string;
+} | null | undefined): Array<{
+  userType: string;
+  label: string;
+  primary: string;
+  secondary: string;
+  notes: string;
+}> {
+  if (!eq) return [];
+  const profileType = String(eq.profile_type || "").toUpperCase();
+  const defaultBasis =
+    profileType === "HOUR"
+      ? "Per hour"
+      : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
+        ? "Per sample"
+        : profileType === "PRINT_3D"
+          ? "Per print (see profile)"
+          : profileType
+            ? `Profile: ${profileType}`
+            : "";
+
+  const byType = new Map<string, {
+    userType: string;
+    label: string;
+    primary: string;
+    secondary: string;
+    notes: string;
+  }>();
+
+  const profiles = Array.isArray(eq.charge_profiles) ? eq.charge_profiles : [];
+  for (const cp of profiles) {
+    if (cp && cp.is_active === false) continue;
+    const code = normalizeUserTypeCode(String(cp.user_type ?? "")) || String(cp.user_type ?? "");
+    if (!code) continue;
+    const primary = cp.primary_unit_charge != null && String(cp.primary_unit_charge) !== ""
+      ? String(cp.primary_unit_charge)
+      : "—";
+    const secRaw = cp.secondary_unit_charge;
+    const secondary =
+      secRaw != null && String(secRaw).trim() !== "" && Number(secRaw) !== 0
+        ? String(secRaw)
+        : "";
+    const noteParts: string[] = [];
+    if (cp.time_formula) noteParts.push(`Formula: ${String(cp.time_formula)}`);
+    if (cp.breakpoint != null && String(cp.breakpoint).trim() !== "" && Number(cp.breakpoint) !== 0) {
+      noteParts.push(`Breakpoint: ${String(cp.breakpoint)}`);
+    }
+    if (!noteParts.length && defaultBasis) noteParts.push(defaultBasis);
+    byType.set(code, {
+      userType: code,
+      label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
+      primary,
+      secondary,
+      notes: noteParts.join(" · "),
+    });
+  }
+
+  const baseRows = Array.isArray(eq.base_charges_by_user_type) ? eq.base_charges_by_user_type : [];
+  for (const row of baseRows) {
+    const code = normalizeUserTypeCode(String(row.user_type ?? "")) || String(row.user_type ?? "");
+    if (!code || byType.has(code)) continue;
+    byType.set(code, {
+      userType: code,
+      label: row.user_type_display || getUserTypeDisplayName(code) || code,
+      primary: row.primary_unit_charge != null ? String(row.primary_unit_charge) : "—",
+      secondary: row.secondary_unit_charge != null && String(row.secondary_unit_charge).trim() !== ""
+        ? String(row.secondary_unit_charge)
+        : "",
+      notes: row.profile_type_display || defaultBasis,
+    });
+  }
+
+  // Prefer estimate-option order, then any remaining (ensures student & faculty appear when present).
+  const preferred = CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((o) => o.code);
+  const ordered: typeof preferred = [];
+  for (const code of preferred) {
+    if (byType.has(code)) ordered.push(code);
+  }
+  for (const code of byType.keys()) {
+    if (!ordered.includes(code)) ordered.push(code);
+  }
+  return ordered.map((c) => byType.get(c)!);
+}
+
+/** Tooltip text for non-bookable Step 3 booking grid cells. */
+function unavailableBookingSlotReason(opts: {
+  slotExists: boolean;
+  isDisabled: boolean;
+  isSelected: boolean;
+  isPast: boolean;
+  considerBooked: boolean;
+  holidayName?: string;
+  isSaturdayCol: boolean;
+  isSundayCol: boolean;
+  slotStatusUpper: string;
+  slotStatusLabel: string;
+  blockedLabel?: string | null;
+  bookingId?: number | string | null;
+  deptBlockedForUser: boolean;
+  statusDisplay?: string | null;
+  notConsecutive: boolean;
+  limitReached: boolean;
+  wouldExceedLimit: boolean;
+  chargeNotCalculated: boolean;
+  isAdminOrOic: boolean;
+}): string | null {
+  const {
+    slotExists,
+    isDisabled,
+    isSelected,
+    isPast,
+    considerBooked,
+    holidayName,
+    isSaturdayCol,
+    isSundayCol,
+    slotStatusUpper,
+    slotStatusLabel,
+    blockedLabel,
+    bookingId,
+    deptBlockedForUser,
+    statusDisplay,
+    notConsecutive,
+    limitReached,
+    wouldExceedLimit,
+    chargeNotCalculated,
+    isAdminOrOic,
+  } = opts;
+  if (!isDisabled || isSelected) return null;
+  if (!slotExists) {
+    if (holidayName) return `Holiday (${holidayName}). This day has no bookable slots.`;
+    if (isSaturdayCol) return "Saturday — no booking slots on this day.";
+    if (isSundayCol) return "Sunday — no booking slots on this day.";
+    return "This slot is not available for booking.";
+  }
+  if (isPast && !isAdminOrOic) {
+    return "This slot time has expired and is no longer available for booking.";
+  }
+  if (considerBooked) {
+    return bookingId
+      ? `This slot is already booked (#${bookingId}).`
+      : "This slot is already booked.";
+  }
+  if (deptBlockedForUser) {
+    return statusDisplay || "This slot is not available for your department.";
+  }
+  if (slotStatusUpper === "BLOCKED") {
+    return blockedLabel
+      ? `Blocked: ${blockedLabel}`
+      : "This slot is blocked and cannot be booked.";
+  }
+  if (slotStatusUpper === "UNDER_MAINTENANCE") {
+    return "Equipment is under maintenance for this slot.";
+  }
+  if (slotStatusUpper === "OPERATOR_ABSENT") {
+    return "Operator is absent for this slot.";
+  }
+  if (slotStatusUpper === "NOT_AVAILABLE") {
+    if (holidayName) return `Holiday (${holidayName}). This slot is not available for booking.`;
+    if (isSaturdayCol || isSundayCol) return "Weekend — this slot is not available for booking.";
+    return slotStatusLabel || "This slot is marked as Not Available.";
+  }
+  if (chargeNotCalculated) {
+    return "Calculate charges before selecting slots.";
+  }
+  if (notConsecutive) {
+    return "Please select consecutive slots only (immediately before or after your current selection).";
+  }
+  if (limitReached || wouldExceedLimit) {
+    return "You have reached the maximum allowed time for this booking.";
+  }
+  if (slotStatusUpper && slotStatusUpper !== "AVAILABLE") {
+    return slotStatusLabel || `This slot is not bookable (${slotStatusUpper}).`;
+  }
+  return "This slot is not available for booking.";
 }
 
 /** Hover lines for booked slots on Change slot status week view (staff). */
@@ -790,6 +981,9 @@ const BookEquipment = () => {
   );
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
   const [chargeEstimateUserType, setChargeEstimateUserType] = useState<string>("");
+  /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
+  const [sampleInfoExpanded, setSampleInfoExpanded] = useState(true);
+  const [chargeCalcExpanded, setChargeCalcExpanded] = useState(true);
   const [exportingChargePdf, setExportingChargePdf] = useState(false);
   const [autoSlotSelection, setAutoSlotSelection] = useState<boolean>(true);
   const [userAutoSlotSelectionPref, setUserAutoSlotSelectionPref] = useState<boolean>(true);
@@ -2411,6 +2605,20 @@ const BookEquipment = () => {
       loggedInType && codes.includes(loggedInType) ? loggedInType : codes[0];
     setChargeEstimateUserType((prev) => (prev && codes.includes(prev) ? prev : initial));
   }, [isCalculateChargesFlow, equipmentDetail, userType]);
+
+  const chargeCategorySummaryRows = useMemo(
+    () => (isCalculateChargesFlow ? buildChargeCategorySummaryRows(equipmentDetail) : []),
+    [isCalculateChargesFlow, equipmentDetail]
+  );
+
+  // Collapse Sample Information + Charge Calculation once charges are ready (and when slots appear).
+  useEffect(() => {
+    if (!chargeCalculated) return;
+    if (showSlots || isCalculateChargesFlow || isProformaFlow) {
+      setSampleInfoExpanded(false);
+      setChargeCalcExpanded(false);
+    }
+  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow]);
 
   // Calculate charge based on input fields
   const calculateCharge = useCallback(async () => {
@@ -6868,9 +7076,45 @@ const BookEquipment = () => {
                   </div>
                 )}
 
+                {isCalculateChargesFlow && chargeCategorySummaryRows.length > 0 && (
+                  <div className="mb-4 p-3 rounded-lg border bg-muted/30 space-y-2">
+                    <h3 className="text-base font-semibold">Charges by user category</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Standard unit charges from this equipment&apos;s charge profiles (including student and faculty).
+                    </p>
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User category</TableHead>
+                            <TableHead className="text-right">Primary unit charge</TableHead>
+                            <TableHead className="text-right">Secondary</TableHead>
+                            <TableHead>Notes / basis</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {chargeCategorySummaryRows.map((row) => (
+                            <TableRow key={row.userType}>
+                              <TableCell className="font-medium">{row.label}</TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.primary !== "—" ? formatINR(row.primary) : "—"}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.secondary ? formatINR(row.secondary) : "—"}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">{row.notes || "—"}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Charges are exclusive of GST @ 18% unless noted otherwise.</p>
+                  </div>
+                )}
+
                 {isCalculateChargesFlow && (
-                  <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-3">
-                    <h3 className="text-lg font-semibold">Select User Type</h3>
+                  <div className="mb-4 p-3 rounded-lg border bg-muted/30 space-y-2">
+                    <h3 className="text-base font-semibold">Select User Type</h3>
                     <p className="text-sm text-muted-foreground">
                       Charges are estimated using the standard rate for the selected user type.
                     </p>
@@ -6929,16 +7173,34 @@ const BookEquipment = () => {
                 )}
 
                 {/* Step 1: Input Fields Section */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-4">Step 1: Sample Information</h3>
+                <Collapsible open={sampleInfoExpanded} onOpenChange={setSampleInfoExpanded} className="mb-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h3 className="text-base font-semibold">Step 1: Sample Information</h3>
+                    <CollapsibleTrigger asChild>
+                      <Button type="button" variant="ghost" size="sm" className="shrink-0 gap-1 text-sm">
+                        {sampleInfoExpanded ? (
+                          <>
+                            <ChevronUp className="h-4 w-4" />
+                            Collapse
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4" />
+                            Expand
+                          </>
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent className="space-y-2">
                   {repeatSourceBooking && (
-                    <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
+                    <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
                       Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
                     </div>
                   )}
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
-                    <div className="mb-4 p-4 rounded-lg">
-                      <div className="grid grid-cols-1 gap-4">
+                    <div className="mb-2 p-2 rounded-lg">
+                      <div className="grid grid-cols-1 gap-3">
                         {equipmentDetail.input_fields
                           .filter((field: any) => {
                             if (equipmentDetail?.profile_type !== "PRINT_3D") return true;
@@ -7544,12 +7806,14 @@ const BookEquipment = () => {
                           };
                           
                           return (
-                            <div key={field.field_key} className="space-y-2">
-                              <Label htmlFor={field.field_key}>
+                            <div key={field.field_key} className="space-y-1.5">
+                              <Label htmlFor={field.field_key} className="text-base">
                                 {field.field_label}
                                 {field.is_required && <span className="text-destructive ml-1">*</span>}
                               </Label>
+                              <div className="text-base [&_input]:text-base [&_textarea]:text-base [&_button]:text-base">
                               {renderInputField()}
+                              </div>
                               {bookingAsExternalTarget &&
                                 !repeatSourceBooking &&
                                 String(field.field_label || "").toLowerCase().includes("any other requirements") && (
@@ -7759,8 +8023,8 @@ const BookEquipment = () => {
                   
                   {/* Charge calculation failed — show for everyone (staff previously had silent failures) */}
                   {chargeCalculationFailed && !loadingCharge && (
-                    <div className="mt-6 p-6 bg-muted rounded-lg border-2 border-dashed text-center">
-                      <h3 className="text-lg font-semibold mb-2">
+                    <div className="mt-3 p-4 bg-muted rounded-lg border-2 border-dashed text-center">
+                      <h3 className="text-base font-semibold mb-1">
                         {isAdminOrOIC() ? "Charge calculation failed" : "Coming Soon"}
                       </h3>
                       <p className="text-sm text-muted-foreground">
@@ -7770,21 +8034,46 @@ const BookEquipment = () => {
                       </p>
                     </div>
                   )}
-                </div>
+                  </CollapsibleContent>
+                </Collapsible>
 
                 {/* Step 2: Calculated Charge Display (repeat sample: complimentary only) */}
                 {chargeCalculated && calculatedCharge && !chargeCalculationFailed && (
-                  <div className="mb-6 p-6 bg-primary/10 rounded-lg border-2 border-primary">
-                    <h3 className="text-lg font-semibold mb-4">
-                      {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
-                    </h3>
+                  <Collapsible open={chargeCalcExpanded} onOpenChange={setChargeCalcExpanded} className="mb-3">
+                  <div className="p-3 bg-primary/10 rounded-lg border-2 border-primary">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h3 className="text-base font-semibold">
+                        {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
+                        {!chargeCalcExpanded && (
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">
+                            ({formatINR(calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge)})
+                          </span>
+                        )}
+                      </h3>
+                      <CollapsibleTrigger asChild>
+                        <Button type="button" variant="ghost" size="sm" className="shrink-0 gap-1 text-sm">
+                          {chargeCalcExpanded ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Collapse
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4" />
+                              Expand
+                            </>
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
+                    <CollapsibleContent>
                     {equipmentDetail?.profile_type === "PRINT_3D" && (
-                      <p className="text-sm font-bold text-amber-900 mb-4">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
+                      <p className="text-sm font-bold text-amber-900 mb-2">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
                     )}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5 text-base">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Total Time:</span>
-                        <span className="text-sm">
+                        <span className="font-medium">Total Time:</span>
+                        <span>
                           {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
                         </span>
                       </div>
@@ -7856,18 +8145,20 @@ const BookEquipment = () => {
                           )}
                         </div>
                       )}
-                      <div className="flex justify-between items-center pt-4 border-t">
-                        <span className="text-lg font-semibold">Total Charge:</span>
-                        <span className="text-2xl font-bold text-primary">
+                      <div className="flex justify-between items-center pt-3 border-t">
+                        <span className="text-base font-semibold">Total Charge:</span>
+                        <span className="text-xl font-bold text-primary">
                           ₹{calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge}
                         </span>
                       </div>
                     </div>
+                    </CollapsibleContent>
                   </div>
+                  </Collapsible>
                 )}
 
                 {isProformaFlow && chargeCalculated && calculatedCharge && !chargeCalculationFailed && (
-                  <div className="mb-6 flex flex-wrap gap-3 items-center rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <div className="mb-3 flex flex-wrap gap-3 items-center rounded-lg border border-primary/30 bg-primary/5 p-3">
                     <p className="text-sm text-muted-foreground w-full sm:w-auto sm:flex-1">
                       {proformaEditLineIndex != null
                         ? "Update parameters below, then save to refresh this line in your proforma summary."
@@ -7883,7 +8174,7 @@ const BookEquipment = () => {
                 )}
 
                 {isCalculateChargesFlow && chargeCalculated && calculatedCharge && !chargeCalculationFailed && (
-                  <div className="mb-6 flex flex-wrap gap-3 items-center rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <div className="mb-3 flex flex-wrap gap-3 items-center rounded-lg border border-primary/30 bg-primary/5 p-3">
                     <p className="text-sm text-muted-foreground w-full sm:w-auto sm:flex-1">
                       Charge estimate for{" "}
                       <span className="font-medium text-foreground">
@@ -7922,9 +8213,9 @@ const BookEquipment = () => {
                 {/* Step 3: Slot Selection (only shown after charge calculation) */}
                 {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && (
                   <>
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold">Step 3: Select Time Slots</h3>
+                    <div className="mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-base font-semibold">Step 3: Select Time Slots</h3>
                         <div className="flex items-center gap-3">
                           <Label htmlFor="auto-slot-selection" className="text-sm font-normal cursor-pointer">
                             Auto-select all required slots
@@ -7953,7 +8244,8 @@ const BookEquipment = () => {
                     </div>
 
                 {/* Week nav + grid: full overlay until API data matches visible week (avoids misleading stale grid when changing weeks, e.g. urgent extension). */}
-                <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-4 sm:p-6 min-h-[min(520px,70vh)]">
+                <TooltipProvider delayDuration={200}>
+                <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-3 sm:p-4 min-h-[min(520px,70vh)]">
                   {isSlotsWeekViewLoading && (
                     <div
                       className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 rounded-lg bg-background/95 dark:bg-background/95 backdrop-blur-sm px-6 py-10"
@@ -7999,7 +8291,7 @@ const BookEquipment = () => {
                 )}
 
                 {/* Week Navigation */}
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-3">
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -8503,9 +8795,31 @@ const BookEquipment = () => {
                             cellStyle = { backgroundColor: naBg, color: getContrastTextColor(naBg) };
                           }
 
-                          return (
+                          const unavailableReason = unavailableBookingSlotReason({
+                            slotExists,
+                            isDisabled,
+                            isSelected,
+                            isPast,
+                            considerBooked,
+                            holidayName,
+                            isSaturdayCol,
+                            isSundayCol,
+                            slotStatusUpper,
+                            slotStatusLabel,
+                            blockedLabel,
+                            bookingId,
+                            deptBlockedForUser,
+                            statusDisplay: slotData?.status_display,
+                            notConsecutive,
+                            limitReached,
+                            wouldExceedLimit,
+                            chargeNotCalculated,
+                            isAdminOrOic: isAdminOrOIC(),
+                          });
+
+                          const cellButton = (
                             <button
-                              key={dayOffset}
+                              type="button"
                               onClick={() => {
                                 // Double-check disabled state before allowing toggle
                                 if (isDisabled) {
@@ -8522,8 +8836,9 @@ const BookEquipment = () => {
                                 toggleSlot(day, time);
                               }}
                               disabled={isDisabled}
+                              title={unavailableReason || undefined}
                               className={`
-                                p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
+                                w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                 ${!slotExists ? 'cursor-not-allowed' : ''}
                                 ${considerBooked ? 'cursor-not-allowed' : ''}
                                 ${isPast && !considerBooked && slotExists && !isAdminOrOIC() ? 'cursor-not-allowed' : ''}
@@ -8535,6 +8850,24 @@ const BookEquipment = () => {
                             >
                               {displayStatus}
                             </button>
+                          );
+
+                          if (!unavailableReason) {
+                            return <div key={dayOffset}>{cellButton}</div>;
+                          }
+
+                          return (
+                            <Tooltip key={dayOffset}>
+                              <TooltipTrigger asChild>
+                                <div className="w-full h-full">{cellButton}</div>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                className="z-[120] max-w-xs text-left px-3 py-2"
+                              >
+                                {unavailableReason}
+                              </TooltipContent>
+                            </Tooltip>
                           );
                         })}
                         </div>
@@ -8555,6 +8888,7 @@ const BookEquipment = () => {
                   );
                 })()}
                 </div>
+                </TooltipProvider>
 
                     {/* Booking Summary */}
                     {selectedSlots.length > 0 && (

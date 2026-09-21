@@ -1,6 +1,11 @@
 import EquipmentCatalogCard from "@/components/EquipmentCatalogCard";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
+import {
+  filterCatalogEquipmentForDisplay,
+  isExpandableParent,
+} from "@/lib/equipmentCatalog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -40,6 +45,8 @@ interface ApiEquipment {
   show_make_on_card?: boolean;
   model_information?: string | null;
   show_model_on_card?: boolean;
+  parent_equipment?: number | null;
+  enable_multi_mode?: boolean;
   avg_rating?: number | null;
   rating_count?: number | null;
   rating_dist?: Record<string, number> | null;
@@ -57,11 +64,15 @@ const EquipmentGrid = () => {
     equipmentName: string;
     newStatus: "ACTIVE" | "REPAIR";
   } | null>(null);
+  const [expandedParentId, setExpandedParentId] = useState<number | null>(null);
+  /** OIC: default managed instruments; toggle to browse full catalog. */
+  const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   // Admin / OIC only — Lab In-charge (operator) cannot change operational status.
   const canChangeEquipmentStatus = ["admin", "manager"].includes(userTypeStr);
   const canBookForOtherUsers = ["admin", "manager", "dept_admin"].includes(userTypeStr);
+  const isOic = userTypeStr === "manager";
   const isDeptAdmin = userTypeStr === "dept_admin";
   const daDepartmentId = (() => {
     const raw =
@@ -84,6 +95,7 @@ const EquipmentGrid = () => {
         undefined,
         true,
         effectiveDept,
+        isOic ? oicCatalogScope : null,
       );
 
       if (response.error) {
@@ -101,8 +113,10 @@ const EquipmentGrid = () => {
           );
         }
         setEquipment(filteredEquipment);
+        setExpandedParentId(null);
       } else {
         setEquipment([]);
+        setExpandedParentId(null);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to load equipment";
@@ -112,7 +126,7 @@ const EquipmentGrid = () => {
     } finally {
       setLoading(false);
     }
-  }, [isDeptAdmin, daDepartmentId]);
+  }, [isDeptAdmin, daDepartmentId, isOic, oicCatalogScope]);
 
   useEffect(() => {
     if (isDeptAdmin && daDepartmentId != null) {
@@ -176,17 +190,50 @@ const EquipmentGrid = () => {
     }
   };
 
+  const visibleEquipment = useMemo(
+    () => filterCatalogEquipmentForDisplay(equipment, expandedParentId),
+    [equipment, expandedParentId],
+  );
+
   const displayEquipment = useMemo(() => {
-    return transformEquipment(equipment);
-  }, [equipment, statusUpdatingId, canChangeEquipmentStatus]);
+    return transformEquipment(visibleEquipment);
+  }, [visibleEquipment, statusUpdatingId, canChangeEquipmentStatus]);
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 || (!isDeptAdmin && selectedDepartmentId !== "all");
 
   return (
     <section id="equipment" className="py-2">
-      <div className="mb-8">
-        <div className="max-w-3xl mx-auto mb-6 flex flex-col sm:flex-row gap-3">
+      <div className="mb-4">
+        {isOic ? (
+          <div className="max-w-3xl mx-auto mb-3 flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={oicCatalogScope === "managed" ? "default" : "outline"}
+              onClick={() => setOicCatalogScope("managed")}
+            >
+              My equipment
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={oicCatalogScope === "all" ? "default" : "outline"}
+              onClick={() => setOicCatalogScope("all")}
+            >
+              All equipment
+            </Button>
+          </div>
+        ) : null}
+        {expandedParentId != null ? (
+          <div className="max-w-3xl mx-auto mb-3 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+            <span>Showing parent and child modes for this instrument family.</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => setExpandedParentId(null)}>
+              Back to all
+            </Button>
+          </div>
+        ) : null}
+        <div className="max-w-3xl mx-auto mb-4 flex flex-col sm:flex-row gap-3">
           {isDeptAdmin ? (
             <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</p>
@@ -223,7 +270,7 @@ const EquipmentGrid = () => {
       </div>
 
       {loading && equipment.length === 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="space-y-4">
               <Skeleton className="aspect-square w-full" />
@@ -243,7 +290,7 @@ const EquipmentGrid = () => {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {displayEquipment.map((equipmentItem) => (
             <EquipmentCatalogCard
               key={equipmentItem.id}
@@ -253,6 +300,13 @@ const EquipmentGrid = () => {
               canBookForOtherUsers={canBookForOtherUsers}
               statusUpdatingId={statusUpdatingId}
               onRequestStatusChange={(next) => setPendingStatusChange(next)}
+              onOpenEquipment={(id) => {
+                if (expandedParentId == null && isExpandableParent(equipment, id)) {
+                  setExpandedParentId(id);
+                  return true;
+                }
+                return false;
+              }}
             />
           ))}
         </div>
