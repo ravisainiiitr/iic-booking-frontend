@@ -320,11 +320,10 @@ function buildChargeCategorySummaryRows(eq: {
         ? String(secRaw)
         : "";
     const noteParts: string[] = [];
-    if (cp.time_formula) noteParts.push(`Formula: ${String(cp.time_formula)}`);
+    if (defaultBasis) noteParts.push(defaultBasis);
     if (cp.breakpoint != null && String(cp.breakpoint).trim() !== "" && Number(cp.breakpoint) !== 0) {
-      noteParts.push(`Breakpoint: ${String(cp.breakpoint)}`);
+      noteParts.push(`Applies after ${String(cp.breakpoint)} units`);
     }
-    if (!noteParts.length && defaultBasis) noteParts.push(defaultBasis);
     byType.set(code, {
       userType: code,
       label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
@@ -502,12 +501,42 @@ function normalizeSlotGridTimeKey(raw: string): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-/** Format slot-window reference: weekday 0-6 + time HH:mm -> "Wednesday at 21:00" */
-function formatSlotWindowReference(weekday: number, timeStr: string): string {
+/** Format HH:mm / HH:mm:ss as a friendly 12-hour clock, e.g. "9 PM" or "9:30 PM". */
+function formatClock12h(timeStr: string): string {
+  const raw = (timeStr || "").trim();
+  const [hPart, mPart = "0"] = raw.split(":");
+  let h = parseInt(hPart || "0", 10);
+  const m = parseInt(String(mPart).substring(0, 2) || "0", 10) || 0;
+  if (Number.isNaN(h)) h = 0;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return m === 0 ? `${h12} ${ampm}` : `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+/** Weekday 0–6 (Mon–Sun) + time → "every Wednesday from 9 PM". */
+function formatSlotReleaseSchedule(weekday: number, timeStr: string): string {
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const day = days[Math.max(0, Math.min(6, weekday))] ?? "";
-  const time = (timeStr || "").trim().substring(0, 5) || "";
-  return `${day} at ${time}`;
+  return `every ${day} from ${formatClock12h(timeStr)}`;
+}
+
+/** Human-readable charge column labels from equipment profile_type. */
+function getChargeUnitColumnLabels(profileType?: string | null): {
+  primary: string;
+  secondary: string;
+  rateSuffix: string;
+} {
+  const t = String(profileType || "").toUpperCase();
+  if (t === "HOUR") {
+    return { primary: "Per hour", secondary: "Per hour (after breakpoint)", rateSuffix: "/hour" };
+  }
+  if (t === "SAMPLE" || t === "SAMPLE_ELEMENT" || t === "MULTI_PARAM") {
+    return { primary: "Per sample", secondary: "Additional per sample", rateSuffix: "/sample" };
+  }
+  if (t === "PRINT_3D") {
+    return { primary: "Base charge", secondary: "Additional charge", rateSuffix: "" };
+  }
+  return { primary: "Unit charge", secondary: "Additional charge", rateSuffix: "" };
 }
 
 /** Monday-start weeks that overlap [minDateStr, maxDateStr] from the slots API. */
@@ -5429,16 +5458,16 @@ const BookEquipment = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-2xl flex flex-col items-center gap-4 shadow-xl border">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <p className="text-sm text-muted-foreground">{repeatSourceLoading ? "Loading repeat booking..." : "Loading equipment details..."}</p>
+            <p className="text-base text-muted-foreground">{repeatSourceLoading ? "Loading repeat booking..." : "Loading equipment details..."}</p>
           </div>
         </div>
       )}
       <DashboardHeader />
-      <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8">
+      <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8 text-base md:text-lg leading-relaxed">
         <div className="max-w-6xl mx-auto mb-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-3xl font-semibold tracking-tight">
+              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 {isCalculateChargesFlow
                   ? `Calculate Charges — ${selectedEquipment.name}`
                   : canAccessManageEquipmentModes()
@@ -6801,14 +6830,17 @@ const BookEquipment = () => {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>{selectedEquipment.name}</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-xl md:text-2xl">{selectedEquipment.name}</CardTitle>
+                    <CardDescription className="text-base md:text-lg">
                       {isCalculateChargesFlow ? (
                         <>Select user type and parameters to estimate charges. No time slots are required.</>
                       ) : (
                         <>
                           {Number(selectedEquipment.internalRate) > 0 && (
-                            <>₹{Number(selectedEquipment.internalRate).toFixed(2)}/hour</>
+                            <>
+                              ₹{Number(selectedEquipment.internalRate).toFixed(2)}
+                              {getChargeUnitColumnLabels(equipmentDetail?.profile_type).rateSuffix}
+                            </>
                           )}
                           {equipmentDetail?.slot_duration_minutes && (
                             <>
@@ -6823,7 +6855,7 @@ const BookEquipment = () => {
                               )}
                             </>
                           )}
-                          {' - Select your preferred time slots'}
+                          {' — Select your preferred time slots'}
                         </>
                       )}
                     </CardDescription>
@@ -7076,46 +7108,54 @@ const BookEquipment = () => {
                   </div>
                 )}
 
-                {isCalculateChargesFlow && chargeCategorySummaryRows.length > 0 && (
-                  <div className="mb-4 p-3 rounded-lg border bg-muted/30 space-y-2">
-                    <h3 className="text-base font-semibold">Charges by user category</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Standard unit charges from this equipment&apos;s charge profiles (including student and faculty).
+                {isCalculateChargesFlow && chargeCategorySummaryRows.length > 0 && (() => {
+                  const unitLabels = getChargeUnitColumnLabels(equipmentDetail?.profile_type);
+                  const showSecondary = chargeCategorySummaryRows.some((row) => !!row.secondary);
+                  return (
+                  <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
+                    <h3 className="text-lg font-semibold md:text-xl">Charges by user category</h3>
+                    <p className="text-base text-muted-foreground">
+                      Standard rates for this equipment{unitLabels.rateSuffix ? ` (${unitLabels.primary.toLowerCase()})` : ""}, including student and faculty categories.
                     </p>
                     <div className="rounded-md border overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>User category</TableHead>
-                            <TableHead className="text-right">Primary unit charge</TableHead>
-                            <TableHead className="text-right">Secondary</TableHead>
-                            <TableHead>Notes / basis</TableHead>
+                            <TableHead className="text-base">User category</TableHead>
+                            <TableHead className="text-right text-base">{unitLabels.primary}</TableHead>
+                            {showSecondary && (
+                              <TableHead className="text-right text-base">{unitLabels.secondary}</TableHead>
+                            )}
+                            <TableHead className="text-base">Notes</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {chargeCategorySummaryRows.map((row) => (
                             <TableRow key={row.userType}>
-                              <TableCell className="font-medium">{row.label}</TableCell>
-                              <TableCell className="text-right tabular-nums">
+                              <TableCell className="font-medium text-base">{row.label}</TableCell>
+                              <TableCell className="text-right tabular-nums text-base font-semibold">
                                 {row.primary !== "—" ? formatINR(row.primary) : "—"}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {row.secondary ? formatINR(row.secondary) : "—"}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">{row.notes || "—"}</TableCell>
+                              {showSecondary && (
+                                <TableCell className="text-right tabular-nums text-base">
+                                  {row.secondary ? formatINR(row.secondary) : "—"}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-muted-foreground text-sm md:text-base">{row.notes || "—"}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </div>
-                    <p className="text-xs text-muted-foreground">Charges are exclusive of GST @ 18% unless noted otherwise.</p>
+                    <p className="text-sm text-muted-foreground">Charges are exclusive of GST @ 18% unless noted otherwise.</p>
                   </div>
-                )}
+                  );
+                })()}
 
                 {isCalculateChargesFlow && (
-                  <div className="mb-4 p-3 rounded-lg border bg-muted/30 space-y-2">
-                    <h3 className="text-base font-semibold">Select User Type</h3>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-2">
+                    <h3 className="text-lg font-semibold md:text-xl">Select User Type</h3>
+                    <p className="text-base text-muted-foreground">
                       Charges are estimated using the standard rate for the selected user type.
                     </p>
                     <div className="max-w-md space-y-2">
@@ -8318,16 +8358,16 @@ const BookEquipment = () => {
                       const refWeekday = equipmentDetail?.slot_window_reference_weekday;
                       const refTime = equipmentDetail?.slot_window_reference_time;
                       if (!nextWeekAvailable && refWeekday != null && refTime != null) {
-                        const refText = formatSlotWindowReference(Number(refWeekday), String(refTime));
+                        const schedule = formatSlotReleaseSchedule(Number(refWeekday), String(refTime));
                         return (
-                          <p className="text-sm font-semibold text-primary mt-1 bg-primary/10 px-2 py-1.5 rounded-md">
-                            Available: Current week only. New slots after {refText}.
+                          <p className="text-base font-semibold text-primary mt-1 bg-primary/10 px-3 py-2 rounded-md">
+                            Current week only — new slots open {schedule}.
                           </p>
                         );
                       }
                       return (
-                        <p className="text-sm font-semibold text-primary mt-1 bg-primary/10 px-2 py-1.5 rounded-md">
-                          Available: {nextWeekAvailable ? "Current week and next week only" : "Current week only"}
+                        <p className="text-base font-semibold text-primary mt-1 bg-primary/10 px-3 py-2 rounded-md">
+                          Available: {nextWeekAvailable ? "Current week and next week" : "Current week only"}
                         </p>
                       );
                     })()}
@@ -8420,19 +8460,19 @@ const BookEquipment = () => {
                         const showStayTuned = !nextWeekAvailable && refWeekday != null && refTime != null;
 
                         if (showStayTuned) {
-                          const refText = formatSlotWindowReference(Number(refWeekday), String(refTime));
+                          const schedule = formatSlotReleaseSchedule(Number(refWeekday), String(refTime));
                           return (
                             <div className="col-span-8 flex flex-col items-center justify-center py-12 px-4 text-center">
                               <div className="max-w-md space-y-4">
-                                <p className="text-muted-foreground text-sm leading-relaxed">
+                                <p className="text-muted-foreground text-base leading-relaxed">
                                   No slots available for this week.
                                 </p>
                                 <div className="rounded-lg border bg-muted/40 px-5 py-4">
-                                  <p className="text-sm font-medium text-foreground">
-                                    New slots will be available after {refText}.
+                                  <p className="text-base font-medium text-foreground">
+                                    New slots open {schedule}.
                                   </p>
-                                  <p className="text-muted-foreground text-sm mt-1">
-                                    Till then, stay tuned.
+                                  <p className="text-muted-foreground text-base mt-1">
+                                    Please check back then.
                                   </p>
                                 </div>
                                 {waitlistDepth > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && (

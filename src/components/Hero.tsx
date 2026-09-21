@@ -31,7 +31,7 @@ const DEFAULT_HOME = {
 };
 
 const primaryCtaClass =
-  "h-11 gap-2 bg-primary px-5 text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-12 sm:px-6";
+  "h-11 gap-2 bg-primary px-5 text-base text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-12 sm:px-6 sm:text-lg";
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -127,7 +127,7 @@ const Hero = () => {
   };
 
   return (
-    <section className="relative flex min-h-[70svh] max-h-[85svh] flex-col overflow-hidden sm:min-h-[75svh]">
+    <section className="relative flex min-h-[58svh] max-h-[78svh] flex-col overflow-hidden sm:min-h-[62svh]">
       <div className="absolute inset-0 z-0">
         <img
           src={iitrMainBuilding}
@@ -135,43 +135,40 @@ const Hero = () => {
           className="h-full w-full object-cover object-center"
           loading="eager"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.92)] via-[hsl(215_50%_14%/0.55)] to-[hsl(210_45%_12%/0.35)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(215_65%_40%/0.28),transparent_50%)]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_55%_8%/0.88)] via-[hsl(215_50%_14%/0.55)] to-[hsl(210_45%_12%/0.25)]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.75)] via-transparent to-[hsl(210_45%_12%/0.2)]" />
       </div>
 
-      <div className="relative z-10 flex h-full min-h-0 flex-col">
-        <div className="container mx-auto flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-4 pb-3 pt-[5rem] sm:pb-4 sm:pt-[5.5rem] md:pt-24">
-          <div className="max-w-5xl space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white/95 backdrop-blur-sm">
-              <FlaskConical className="h-3.5 w-3.5" />
+      <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
+        <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[4.75rem] sm:pb-5 sm:pt-[5.25rem] md:pt-20">
+          <div className="max-w-3xl space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-sm font-medium tracking-wide text-white/95 backdrop-blur-sm">
+              <FlaskConical className="h-3.5 w-3.5 shrink-0" />
               IIT Roorkee · Online Equipment Booking
             </div>
 
-            <div className="space-y-2.5 sm:space-y-3">
+            <div className="space-y-2 sm:space-y-2.5">
               <h1
-                className="text-2xl font-semibold tracking-tight text-white whitespace-nowrap overflow-hidden text-ellipsis sm:text-4xl md:text-5xl lg:text-[2.75rem]"
+                className="text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
-                title={home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
               >
                 {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
               </h1>
               <p
-                className="text-base font-normal text-primary-foreground/95 sm:text-xl md:text-2xl whitespace-nowrap overflow-hidden text-ellipsis"
+                className="text-lg font-medium text-white/95 sm:text-xl md:text-2xl"
                 style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
-                title={home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               >
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </p>
               <p
-                className="max-w-4xl text-sm leading-snug text-white/85 sm:text-base md:text-lg whitespace-nowrap overflow-hidden text-ellipsis"
+                className="max-w-2xl text-base leading-snug text-white/80 sm:text-lg"
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
-                title={home.hero_subtitle || DEFAULT_HOME.hero_subtitle}
               >
                 {home.hero_subtitle || DEFAULT_HOME.hero_subtitle}
               </p>
             </div>
 
-            <div className="flex flex-col flex-wrap gap-2.5 sm:flex-row sm:gap-3">
+            <div className="flex flex-wrap gap-2.5 pt-0.5 sm:gap-3">
               {!isAuthenticated && (
                 <Button
                   size="lg"
@@ -224,8 +221,8 @@ const Hero = () => {
           </div>
         </div>
 
-        <div className="container mx-auto w-full shrink-0 px-4 pb-3 pt-1 sm:pb-4">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/80 bg-card/95 p-2.5 shadow-[var(--shadow-elegant)] backdrop-blur-md sm:gap-3 sm:p-4 lg:grid-cols-4">
+        <div className="container mx-auto w-full shrink-0 px-4 pb-4 sm:pb-5">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/25 bg-white/20 p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_10%/0.35)] backdrop-blur-md sm:gap-3 sm:p-4 lg:grid-cols-4">
             {[
               { value: stat1Display, label: home.stat1_label ?? "Instruments", fsV: fontSizes.stat1_value, fsL: fontSizes.stat1_label },
               { value: stat2BookingsDisplay, label: home.stat4_label ?? "Bookings", fsV: fontSizes.stat4_value, fsL: fontSizes.stat4_label },
@@ -234,13 +231,13 @@ const Hero = () => {
             ].map((s) => (
               <div key={s.label} className="px-2 py-1 text-center">
                 <div
-                  className="text-lg font-semibold tabular-nums text-primary dark:text-sky-200 sm:text-2xl"
+                  className="text-xl font-semibold tabular-nums text-white sm:text-2xl md:text-3xl"
                   style={s.fsV ? { fontSize: s.fsV } : undefined}
                 >
                   {s.value}
                 </div>
                 <div
-                  className="mt-0.5 text-[11px] text-muted-foreground sm:text-sm"
+                  className="mt-0.5 text-xs font-medium uppercase tracking-wide text-white/75 sm:text-sm"
                   style={s.fsL ? { fontSize: s.fsL } : undefined}
                 >
                   {s.label}

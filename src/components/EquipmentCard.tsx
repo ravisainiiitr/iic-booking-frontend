@@ -507,11 +507,17 @@ const EquipmentCard = ({
                         Charges
                       </h4>
                       <div className="rounded-md border overflow-hidden">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-base">
                           <thead>
                             <tr className="bg-muted/50 border-b">
                               <th className="text-left font-semibold p-3">User type</th>
-                              <th className="text-right font-semibold p-3">Charge (₹)</th>
+                              <th className="text-right font-semibold p-3">
+                                {profileType === "HOUR"
+                                  ? "Per hour (₹)"
+                                  : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
+                                    ? "Per sample (₹)"
+                                    : "Charge (₹)"}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>

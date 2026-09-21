@@ -119,7 +119,6 @@ import ExternalUserManagement from "./pages/ExternalUserManagement";
 import OrganizationUsersManagement from "./pages/OrganizationUsersManagement";
 import ExternalDepartmentAdditionVerification from "./pages/ExternalDepartmentAdditionVerification";
 import ChatWidget from "./components/ChatWidget";
-import ResearchCopilot from "./components/ResearchCopilot";
 import UserGuidePreview from "./pages/UserGuidePreview";
 import AdminSettingsKnowledge from "./pages/AdminSettingsKnowledge";
 
@@ -146,7 +145,6 @@ const App = () => (
               <Toaster />
               <Sonner />
               <ChatWidget />
-              <ResearchCopilot />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />

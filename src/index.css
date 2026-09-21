@@ -137,10 +137,17 @@
     @apply border-border;
   }
 
+  html {
+    /* Slightly larger base type across the portal */
+    font-size: 106.25%;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01" on, "cv02" on;
     color-scheme: light;
+    font-size: 1rem;
+    line-height: 1.55;
   }
 
   .dark body,
