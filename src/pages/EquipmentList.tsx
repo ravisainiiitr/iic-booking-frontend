@@ -99,6 +99,8 @@ const EquipmentList = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
+  /** Gate first catalog fetch until IIC (or DA dept) is resolved — avoid flashing all-departments list. */
+  const [departmentReady, setDepartmentReady] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
@@ -156,6 +158,7 @@ const EquipmentList = () => {
   useEffect(() => {
     if (isDeptAdmin && daDepartmentId != null) {
       setSelectedDepartmentId(daDepartmentId);
+      setDepartmentReady(true);
     }
   }, [isDeptAdmin, daDepartmentId]);
 
@@ -188,6 +191,7 @@ const EquipmentList = () => {
 
   useEffect(() => {
     if (!authReady) return;
+    if (!departmentReady && !isDeptAdmin) return;
 
     let cancelled = false;
 
@@ -220,7 +224,7 @@ const EquipmentList = () => {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [authReady, searchQuery, selectedDepartmentId, fetchEquipment]);
+  }, [authReady, departmentReady, isDeptAdmin, searchQuery, selectedDepartmentId, fetchEquipment]);
 
   const handleStatusToggle = async (
     equipmentId: number,
@@ -334,10 +338,18 @@ const EquipmentList = () => {
           ) : (
             <DepartmentFilter
               value={selectedDepartmentId}
-              onChange={setSelectedDepartmentId}
+              onChange={(v) => {
+                setSelectedDepartmentId(v);
+                setDepartmentReady(true);
+              }}
+              onResolved={(v) => {
+                setSelectedDepartmentId(v);
+                setDepartmentReady(true);
+              }}
               className="min-w-0 flex-1"
               triggerClassName="h-11 rounded-xl w-full text-sm font-semibold"
-              disabled={loading}
+              defaultDepartmentName="Institute Instrumentation Centre"
+              disabled={loading && !departmentReady}
             />
           )}
           <div className="relative w-full sm:w-72 md:w-80 shrink-0 sm:ml-auto">
