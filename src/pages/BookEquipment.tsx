@@ -7192,7 +7192,7 @@ const BookEquipment = () => {
                               <TableRow>
                                 <TableHead className="text-base">User category</TableHead>
                                 {optionColumns.map((opt) => (
-                                  <TableHead key={opt} className="text-base text-right whitespace-nowrap">
+                                  <TableHead key={opt} className="text-base text-center whitespace-nowrap">
                                     {opt}
                                   </TableHead>
                                 ))}
@@ -7208,7 +7208,7 @@ const BookEquipment = () => {
                                   {optionColumns.map((opt) => (
                                     <TableCell
                                       key={`${row.userType}-${opt}`}
-                                      className="text-right tabular-nums text-base font-semibold whitespace-nowrap"
+                                      className="text-center tabular-nums text-base font-semibold whitespace-nowrap"
                                     >
                                       {row.chargesByOption[opt] ?? "—"}
                                     </TableCell>
