@@ -41,33 +41,33 @@ const features = [
 
 const Features = () => {
   return (
-    <section id="features" className="py-20 sm:py-28 relative overflow-hidden">
+    <section id="features" className="py-10 sm:py-14 relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(215_40%_90%/0.5),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom,hsl(215_30%_20%/0.25),transparent_55%)]" />
-      <div className="container relative mx-auto px-4">
-        <div className="text-center mb-14 max-w-2xl mx-auto space-y-3">
+      <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6">
+        <div className="mb-8 max-w-3xl space-y-2 sm:mb-10">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary dark:text-sky-300">
             Why book here
           </p>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-foreground">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
             Built for scientific workflows
           </h2>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
             A modern institute-wide portal for students, faculty, project staff, and external researchers across departments, centres, and laboratories — from slot selection to online results.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 w-full">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
               <div
                 key={feature.title}
-                className="group p-6 rounded-2xl bg-card/90 border border-border/80 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] hover:border-primary/50 dark:hover:border-primary/50 transition-all duration-300"
+                className="group p-5 sm:p-6 rounded-2xl bg-card/90 border border-border/80 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] hover:border-primary/50 dark:hover:border-primary/50 transition-all duration-300"
               >
-                <div className="mb-4 inline-flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 text-primary dark:text-sky-200 group-hover:bg-primary/90 group-hover:text-white transition-colors">
+                <div className="mb-3 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary dark:text-sky-200 group-hover:bg-primary/90 group-hover:text-white transition-colors">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 tracking-tight">{feature.title}</h3>
+                <h3 className="text-base sm:text-lg font-semibold mb-1.5 tracking-tight">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
               </div>
             );

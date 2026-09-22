@@ -19,8 +19,8 @@ const Footer = () => {
   }
 
   return (
-    <footer className="bg-card border-t border-border py-12">
-      <div className="container mx-auto px-4">
+    <footer className="bg-card border-t border-border py-8 sm:py-10">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="space-y-4">
             <div className="flex items-center gap-2">

@@ -262,7 +262,7 @@ const EquipmentGrid = () => {
             </Button>
           </div>
         ) : null}
-        <div className="max-w-5xl mx-auto mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+        <div className="w-full mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
           {isDeptAdmin ? (
             <div className="min-w-0 flex-1 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
