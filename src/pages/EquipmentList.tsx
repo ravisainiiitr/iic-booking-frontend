@@ -269,22 +269,8 @@ const EquipmentList = () => {
     searchQuery.trim().length > 0 ||
     (!isDeptAdmin && selectedDepartmentId !== "all");
 
-  if (loading && equipment.length === 0) {
-    return (
-      <div className="page-shell">
-        <DashboardHeader />
-        <main className="container mx-auto px-4 py-8">
-          <div className="flex flex-col items-center justify-center py-24">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg mb-6">
-              <Loader2 className="h-7 w-7 animate-spin" />
-            </div>
-            <p className="text-lg font-medium text-foreground">Loading equipment...</p>
-            <p className="text-sm text-muted-foreground mt-1">Fetching the latest catalog</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  const showCatalogLoading =
+    (!isDeptAdmin && !departmentReady) || (loading && equipment.length === 0);
 
   return (
     <div className="page-shell">
@@ -349,7 +335,7 @@ const EquipmentList = () => {
               className="min-w-0 flex-1"
               triggerClassName="h-11 rounded-xl w-full text-sm font-semibold"
               defaultDepartmentName="Institute Instrumentation Centre"
-              disabled={loading && !departmentReady}
+              disabled={!departmentReady}
             />
           )}
           <div className="relative w-full sm:w-72 md:w-80 shrink-0 sm:ml-auto">
@@ -360,14 +346,23 @@ const EquipmentList = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm text-sm"
+              disabled={showCatalogLoading && !departmentReady}
             />
-            {loading && (
+            {loading && departmentReady && (
               <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
             )}
           </div>
         </div>
 
-        {equipment.length === 0 ? (
+        {showCatalogLoading ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg mb-6">
+              <Loader2 className="h-7 w-7 animate-spin" />
+            </div>
+            <p className="text-lg font-medium text-foreground">Loading equipment...</p>
+            <p className="text-sm text-muted-foreground mt-1">Fetching the latest catalog</p>
+          </div>
+        ) : equipment.length === 0 ? (
           <Card className="overflow-hidden border-0 shadow-lg rounded-2xl max-w-md mx-auto">
             <CardContent className="flex flex-col items-center justify-center py-16 px-8 text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 text-primary dark:text-sky-300 mb-6">
