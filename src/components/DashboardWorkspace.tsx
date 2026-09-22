@@ -1,24 +1,56 @@
-import { useCallback, useEffect, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
-  MemoryRouter,
-  useLocation,
+  createPath,
+  parsePath,
+  resolvePath,
+  NavigationType,
   UNSAFE_NavigationContext as NavigationContext,
+  UNSAFE_LocationContext as LocationContext,
+  UNSAFE_RouteContext as RouteContext,
+  type Location,
+  type Navigator,
+  type To,
 } from "react-router-dom";
 import { EmbeddedModeProvider } from "@/contexts/EmbeddedModeContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 
 const AppRoutes = lazy(() => import("@/routes/AppRoutes"));
 
-function WorkspaceExitGuard({ onClose }: { onClose: () => void }) {
-  const location = useLocation();
+function toLocation(path: string, state: unknown = null): Location {
+  const parsed = parsePath(path.startsWith("/") ? path : `/${path}`);
+  return {
+    pathname: parsed.pathname || "/",
+    search: parsed.search || "",
+    hash: parsed.hash || "",
+    state,
+    key: Math.random().toString(36).slice(2, 10),
+  };
+}
 
+function resolveTo(to: To, fromPathname: string): { pathname: string; search: string; hash: string } {
+  if (typeof to === "number") {
+    return { pathname: fromPathname, search: "", hash: "" };
+  }
+  return resolvePath(typeof to === "string" ? parsePath(to) : to, fromPathname);
+}
+
+function isDashboardPath(pathname: string): boolean {
+  return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+}
+
+function WorkspaceExitGuard({
+  pathname,
+  onClose,
+}: {
+  pathname: string;
+  onClose: () => void;
+}) {
   useEffect(() => {
-    const path = location.pathname;
-    if (path === "/dashboard" || path.startsWith("/dashboard/")) {
+    if (isDashboardPath(pathname)) {
       onClose();
     }
-  }, [location.pathname, onClose]);
-
+  }, [pathname, onClose]);
   return null;
 }
 
@@ -28,11 +60,10 @@ type DashboardWorkspaceProps = {
 };
 
 /**
- * Renders dashboard menu destinations in-panel (same React tree) instead of an iframe.
- * Browser URL stays on /dashboard; navigations stay inside MemoryRouter.
- *
- * React Router 6 forbids nesting routers. We temporarily clear NavigationContext so
- * MemoryRouter can mount as an independent in-panel router.
+ * In-panel SPA host for dashboard menu destinations.
+ * Does not mount a nested <Router> (forbidden by React Router 6).
+ * Instead it supplies Navigation/Location context with an in-memory navigator
+ * so child pages keep using useNavigate/Link without leaving /dashboard.
  */
 export default function DashboardWorkspace({
   initialPath,
@@ -43,25 +74,120 @@ export default function DashboardWorkspace({
   }, [onClose]);
 
   const entry = initialPath.startsWith("/") ? initialPath : `/${initialPath}`;
+  const [location, setLocation] = useState<Location>(() => toLocation(entry));
+  const stackRef = useRef<Location[]>([toLocation(entry)]);
+  const indexRef = useRef(0);
+
+  // Remount path when parent passes a new initialPath via key=; keep state in sync if same instance reused
+  useEffect(() => {
+    const next = toLocation(entry);
+    stackRef.current = [next];
+    indexRef.current = 0;
+    setLocation(next);
+  }, [entry]);
+
+  const navigator = useMemo<Navigator>(() => {
+    const commit = (next: Location, replace: boolean) => {
+      if (isDashboardPath(next.pathname)) {
+        handleClose();
+        return;
+      }
+      if (replace) {
+        stackRef.current[indexRef.current] = next;
+      } else {
+        stackRef.current = stackRef.current.slice(0, indexRef.current + 1);
+        stackRef.current.push(next);
+        indexRef.current = stackRef.current.length - 1;
+      }
+      setLocation(next);
+    };
+
+    return {
+      createHref: (to) => {
+        const resolved = resolveTo(to, location.pathname);
+        return createPath(resolved);
+      },
+      push: (to, state) => {
+        const resolved = resolveTo(to, location.pathname);
+        commit(
+          {
+            pathname: resolved.pathname,
+            search: resolved.search || "",
+            hash: resolved.hash || "",
+            state: state ?? null,
+            key: Math.random().toString(36).slice(2, 10),
+          },
+          false,
+        );
+      },
+      replace: (to, state) => {
+        const resolved = resolveTo(to, location.pathname);
+        commit(
+          {
+            pathname: resolved.pathname,
+            search: resolved.search || "",
+            hash: resolved.hash || "",
+            state: state ?? null,
+            key: location.key,
+          },
+          true,
+        );
+      },
+      go: (delta) => {
+        const nextIndex = indexRef.current + delta;
+        if (nextIndex < 0 || nextIndex >= stackRef.current.length) return;
+        indexRef.current = nextIndex;
+        const next = stackRef.current[nextIndex];
+        if (isDashboardPath(next.pathname)) {
+          handleClose();
+          return;
+        }
+        setLocation(next);
+      },
+    };
+  }, [location.pathname, location.key, handleClose]);
+
+  const navigationContext = useMemo(
+    () => ({
+      basename: "/",
+      navigator,
+      static: false,
+      future: { v7_relativeSplatPath: false, v7_startTransition: false },
+    }),
+    [navigator],
+  );
+
+  const locationContext = useMemo(
+    () => ({ location, navigationType: NavigationType.Pop }),
+    [location],
+  );
+
+  const routeContext = useMemo(
+    () => ({ outlet: null, matches: [], isDataRoute: false as const }),
+    [],
+  );
 
   return (
     <EmbeddedModeProvider onClose={handleClose}>
-      {/* Detach from BrowserRouter so MemoryRouter is allowed */}
-      <NavigationContext.Provider value={null as never}>
-        <MemoryRouter initialEntries={[entry]}>
-          <WorkspaceExitGuard onClose={handleClose} />
-          <div className="embedded-workspace min-h-[70vh] max-h-[calc(100vh-10rem)] overflow-y-auto bg-background rounded-b-xl [&_.page-shell]:min-h-0 [&_.page-shell]:py-0 [&_.dashboard-page]:min-h-0">
-            <Suspense
-              fallback={
-                <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              }
-            >
-              <AppRoutes />
-            </Suspense>
-          </div>
-        </MemoryRouter>
+      <NavigationContext.Provider value={navigationContext}>
+        <LocationContext.Provider value={locationContext}>
+          <RouteContext.Provider value={routeContext}>
+            <WorkspaceExitGuard pathname={location.pathname} onClose={handleClose} />
+            <div className="embedded-workspace min-h-[70vh] max-h-[calc(100vh-10rem)] overflow-y-auto bg-background rounded-b-xl [&_.page-shell]:min-h-0 [&_.page-shell]:py-0 [&_.dashboard-page]:min-h-0">
+              <ErrorBoundary fallbackTitle="Workspace Error" backPath="/dashboard">
+                <Suspense
+                  fallback={
+                    <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  }
+                >
+                  <AppRoutes />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+          </RouteContext.Provider>
+        </LocationContext.Provider>
       </NavigationContext.Provider>
     </EmbeddedModeProvider>
   );

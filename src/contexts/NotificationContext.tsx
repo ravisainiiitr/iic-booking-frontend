@@ -46,13 +46,19 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     } else {
       apiBaseUrl = 'http://127.0.0.1:8000/api';
     }
-    
+
+    // Relative API (e.g. "/api") must use the page host + matching WS/WSS scheme
+    if (apiBaseUrl.startsWith("/")) {
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      return `${proto}://${window.location.host}/ws/notifications/`;
+    }
+
     // Remove /api suffix if present (WebSocket is at /ws/notifications/, not /api/ws/notifications/)
-    const baseUrl = apiBaseUrl.replace(/\/api\/?$/, '');
-    
+    const baseUrl = apiBaseUrl.replace(/\/api\/?$/, "");
+
     // Convert HTTP/HTTPS to WS/WSS
-    const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
-    const wsHost = baseUrl.replace(/^https?:\/\//, '');
+    const wsProtocol = baseUrl.startsWith("https") ? "wss" : "ws";
+    const wsHost = baseUrl.replace(/^https?:\/\//, "");
     return `${wsProtocol}://${wsHost}/ws/notifications/`;
   };
   
