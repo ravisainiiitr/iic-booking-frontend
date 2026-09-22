@@ -262,11 +262,11 @@ const EquipmentGrid = () => {
             </Button>
           </div>
         ) : null}
-        <div className="max-w-3xl mx-auto mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="max-w-5xl mx-auto mb-4 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
           {isDeptAdmin ? (
-            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</p>
-              <p className="font-medium truncate mt-0.5">
+            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
+              <p className="font-medium truncate">
                 {user?.department_name
                   ? `${user.department_name}${user.department_code ? ` (${user.department_code})` : ""}`
                   : daDepartmentId != null
@@ -285,23 +285,23 @@ const EquipmentGrid = () => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);
               }}
-              className="sm:w-72 shrink-0"
-              triggerClassName="h-12 text-base w-full"
+              className="sm:max-w-md sm:flex-1 min-w-0"
+              triggerClassName="h-11 text-sm w-full max-w-xs"
               defaultDepartmentName="Institute Instrumentation Centre"
               disabled={!departmentReady && !isDeptAdmin}
             />
           )}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <div className="relative sm:w-72 md:w-80 shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search equipment by name or code..."
+              placeholder="Search by name or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 text-base"
+              className="pl-9 h-11 text-sm"
             />
             {loading && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground animate-spin" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
             )}
           </div>
         </div>

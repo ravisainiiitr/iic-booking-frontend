@@ -298,11 +298,11 @@ const EquipmentList = () => {
           </div>
         ) : null}
 
-        <div className="mb-5 flex flex-col sm:flex-row gap-3 max-w-3xl">
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 max-w-5xl">
           {isDeptAdmin ? (
-            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</p>
-              <p className="font-medium truncate mt-0.5">
+            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
+              <p className="font-medium truncate">
                 {user?.department_name
                   ? `${user.department_name}${user.department_code ? ` (${user.department_code})` : ""}`
                   : daDepartmentId != null
@@ -314,19 +314,19 @@ const EquipmentList = () => {
             <DepartmentFilter
               value={selectedDepartmentId}
               onChange={setSelectedDepartmentId}
-              className="sm:w-64 shrink-0"
-              triggerClassName="h-11 rounded-xl w-full"
+              className="sm:max-w-md sm:flex-1 min-w-0"
+              triggerClassName="h-11 rounded-xl w-full max-w-xs text-sm"
               disabled={loading}
             />
           )}
-          <div className="relative flex-1">
+          <div className="relative sm:w-72 md:w-80 shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search by name or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm"
+              className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm text-sm"
             />
             {loading && (
               <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />

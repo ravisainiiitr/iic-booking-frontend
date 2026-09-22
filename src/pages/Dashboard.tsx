@@ -275,6 +275,9 @@ const Dashboard = () => {
   const [loadingStats, setLoadingStats] = useState(false);
   const [pendingRatingBookings, setPendingRatingBookings] = useState<Booking[]>([]);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  /** In-dashboard workspace: open menu destinations on the right without full page switch. */
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null);
+  const [workspaceTitle, setWorkspaceTitle] = useState<string>("");
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
@@ -1257,6 +1260,33 @@ const Dashboard = () => {
     navigate("/auth");
   };
 
+  const openWorkspace = useCallback((to: string, title?: string) => {
+    let path = String(to || "").trim();
+    if (!path) return;
+    if (/^https?:\/\//i.test(path)) {
+      try {
+        const u = new URL(path);
+        path = `${u.pathname}${u.search}`;
+      } catch {
+        return;
+      }
+    }
+    if (!path.startsWith("/")) path = `/${path}`;
+    setWorkspacePath(path);
+    setWorkspaceTitle(title || path.replace(/^\//, "").replace(/[-_/]/g, " "));
+  }, []);
+
+  useEffect(() => {
+    const onMsg = (event: MessageEvent) => {
+      if (event?.data?.type === "iic-close-dashboard-embed") {
+        setWorkspacePath(null);
+        setWorkspaceTitle("");
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1287,27 +1317,6 @@ const Dashboard = () => {
                 className="bg-primary hover:bg-primary/90 text-white"
               >
                 Go to Profile
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-        {showWalletLinkPrompt && userTypeStr === "student" && (
-          <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-primary dark:text-primary-foreground">
-                <AlertCircle className="h-5 w-5 text-primary dark:text-sky-200" />
-                Link your wallet to continue booking
-              </CardTitle>
-              <CardDescription className="text-sm font-medium text-primary/90 dark:text-primary-foreground/90">
-                Your IITR student account does not have a linked faculty wallet yet. Click below to go to Wallet and send a link request.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button
-                onClick={() => navigate("/wallet")}
-                className="bg-primary hover:bg-primary/90 text-white font-bold px-6 py-2.5 ring-2 ring-primary/40 dark:ring-primary/50"
-              >
-                Go to Wallet
               </Button>
             </CardContent>
           </Card>
@@ -1573,6 +1582,28 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {showWalletLinkPrompt && userTypeStr === "student" && (
+          <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-primary dark:text-primary-foreground">
+                <AlertCircle className="h-5 w-5 text-primary dark:text-sky-200" />
+                Link your wallet to continue booking
+              </CardTitle>
+              <CardDescription className="text-sm font-medium text-primary/90 dark:text-primary-foreground/90">
+                Your IITR student account does not have a linked faculty wallet yet. Click below to go to Wallet and send a link request.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button
+                onClick={() => openWorkspace("/wallet")}
+                className="bg-primary hover:bg-primary/90 text-white font-bold px-6 py-2.5 ring-2 ring-primary/40 dark:ring-primary/50"
+              >
+                Go to Wallet
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {false && showsLabStyleDashboard && (
           <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
@@ -2519,7 +2550,7 @@ const Dashboard = () => {
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
-            onClick={() => navigate("/admin-settings/wallet-recharge-requests")}
+            onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -2544,7 +2575,7 @@ const Dashboard = () => {
 
           <Card
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-            onClick={() => navigate("/my-bookings")}
+            onClick={() => openWorkspace("/my-bookings")}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -2571,8 +2602,8 @@ const Dashboard = () => {
             role="button"
             tabIndex={0}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { window.location.href = `${window.location.origin}/reports`; }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/reports`; } }}
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -2603,7 +2634,7 @@ const Dashboard = () => {
           {isLabInchargeUser && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => navigate("/leave-management")}
+              onClick={() => openWorkspace("/leave-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2624,7 +2655,7 @@ const Dashboard = () => {
                   className="w-full bg-primary hover:bg-primary/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/leave-management");
+                    openWorkspace("/leave-management");
                   }}
                 >
                   Intimate Unavailability
@@ -2635,7 +2666,7 @@ const Dashboard = () => {
           {canSeeOicLeaveManagement && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => navigate("/oic-leave-management")}
+              onClick={() => openWorkspace("/oic-leave-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2656,7 +2687,7 @@ const Dashboard = () => {
                   className="w-full bg-primary hover:bg-primary/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/oic-leave-management");
+                    openWorkspace("/oic-leave-management");
                   }}
                 >
                   Open leave management
@@ -2667,7 +2698,7 @@ const Dashboard = () => {
           {(isAdmin || isDeptAdmin) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => navigate("/team-calendar")}
+              onClick={() => openWorkspace("/team-calendar")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2688,7 +2719,7 @@ const Dashboard = () => {
                   className="w-full bg-primary hover:bg-primary/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/team-calendar");
+                    openWorkspace("/team-calendar");
                   }}
                 >
                   Open calendar
@@ -2700,8 +2731,8 @@ const Dashboard = () => {
             role="button"
             tabIndex={0}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-            onClick={() => { window.location.href = `${window.location.origin}/equipments`; }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/equipments`; } }}
+            onClick={() => { openWorkspace("/equipments"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -2727,7 +2758,7 @@ const Dashboard = () => {
           {!isOperatorOrManager && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/my-bookings")}
+              onClick={() => openWorkspace("/my-bookings")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2752,7 +2783,7 @@ const Dashboard = () => {
           {!isOperatorOrManager && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/proforma-invoice")}
+              onClick={() => openWorkspace("/proforma-invoice")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2777,7 +2808,7 @@ const Dashboard = () => {
           {!isOperatorOrManager && showWalletOption && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/wallet")}
+              onClick={() => openWorkspace("/wallet")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2804,7 +2835,7 @@ const Dashboard = () => {
           {showFacultyUrgentWalletCard && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => navigate("/urgent-requests-wallet")}
+              onClick={() => openWorkspace("/urgent-requests-wallet")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2836,7 +2867,7 @@ const Dashboard = () => {
           {(userTypeStr === "student" || userTypeStr === "individual_student") && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/my-urgent-requests")}
+              onClick={() => openWorkspace("/my-urgent-requests")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2860,7 +2891,7 @@ const Dashboard = () => {
                     {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
                   </p>
                 ) : null}
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); navigate("/my-urgent-requests"); }}>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
                   Open urgent booking request
                 </Button>
               </CardContent>
@@ -2878,7 +2909,7 @@ const Dashboard = () => {
             userTypeStr === "other") && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => navigate("/my-publications")}
+              onClick={() => openWorkspace("/my-publications")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2903,7 +2934,7 @@ const Dashboard = () => {
           {(userTypeStr === "student" || userTypeStr === "individual_student") && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/my-nomination-requests")}
+              onClick={() => openWorkspace("/my-nomination-requests")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2962,7 +2993,7 @@ const Dashboard = () => {
           {userTypeStr === "faculty" && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/student-management")}
+              onClick={() => openWorkspace("/student-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2981,7 +3012,7 @@ const Dashboard = () => {
               <CardContent>
                 <Button
                   className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => { e.stopPropagation(); navigate("/student-management"); }}
+                  onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
                 >
                   View students
                 </Button>
@@ -2995,8 +3026,8 @@ const Dashboard = () => {
             role="button"
             tabIndex={0}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { window.location.href = `${window.location.origin}/reports`; }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = `${window.location.origin}/reports`; } }}
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -3049,7 +3080,7 @@ const Dashboard = () => {
           {(isOperatorOrManager || isDeptAdmin) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/booking-management")}
+              onClick={() => openWorkspace("/booking-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3074,7 +3105,7 @@ const Dashboard = () => {
           {isOperatorOrManager && !isLabInchargeUser && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => navigate("/urgent-requests")}
+              onClick={() => openWorkspace("/urgent-requests")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3106,7 +3137,7 @@ const Dashboard = () => {
           {(isAdmin || isOicUser || userTypeStr === "faculty") && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => navigate("/publication-claims")}
+              onClick={() => openWorkspace("/publication-claims")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3141,7 +3172,7 @@ const Dashboard = () => {
           {canSeeOicTaNomination && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/ta-nomination-call")}
+              onClick={() => openWorkspace("/ta-nomination-call")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3166,7 +3197,7 @@ const Dashboard = () => {
           {canSeeTaDutyAssignmentsCard && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/ta-assignments")}
+              onClick={() => openWorkspace("/ta-assignments")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3193,7 +3224,7 @@ const Dashboard = () => {
           {canSeeOicRewardConfig && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/admin-settings/rewards")}
+              onClick={() => openWorkspace("/admin-settings/rewards")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3221,7 +3252,7 @@ const Dashboard = () => {
           {(isAdmin || isOicUser) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
-              onClick={() => navigate("/oic/accessories")}
+              onClick={() => openWorkspace("/oic/accessories")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3246,7 +3277,7 @@ const Dashboard = () => {
           {(isAdmin || isOicUser) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/oic/print-materials")}
+              onClick={() => openWorkspace("/oic/print-materials")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3271,7 +3302,7 @@ const Dashboard = () => {
           {(isAdmin || isOicUser) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/oic/quota-configurations")}
+              onClick={() => openWorkspace("/oic/quota-configurations")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3296,7 +3327,7 @@ const Dashboard = () => {
           {canSeeOicMultiMode && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/oic/multi-mode")}
+              onClick={() => openWorkspace("/oic/multi-mode")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3321,7 +3352,7 @@ const Dashboard = () => {
           {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/booking-attempt-logs")}
+              onClick={() => openWorkspace("/booking-attempt-logs")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3346,7 +3377,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => navigate("/manage/external-user-management")}
+              onClick={() => openWorkspace("/manage/external-user-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3373,7 +3404,7 @@ const Dashboard = () => {
           {canVerifyExternalOrgs && !isAdmin && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => navigate("/manage/external-user-management")}
+              onClick={() => openWorkspace("/manage/external-user-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3401,8 +3432,9 @@ const Dashboard = () => {
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
               onClick={() =>
-                navigate(
-                  isAdmin ? "/admin/department-administration" : "/manage/department-administration"
+                openWorkspace(
+                  isAdmin ? "/admin/department-administration" : "/manage/department-administration",
+                  "Department Administration"
                 )
               }
             >
@@ -3433,7 +3465,7 @@ const Dashboard = () => {
           {isOrgAdmin && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
-              onClick={() => navigate("/organization/users")}
+              onClick={() => openWorkspace("/organization/users")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3460,7 +3492,7 @@ const Dashboard = () => {
           {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => navigate("/equipment-waitlist")}
+              onClick={() => openWorkspace("/equipment-waitlist")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3485,7 +3517,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/equipment-lifecycle")}
+              onClick={() => openWorkspace("/equipment-lifecycle")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3510,7 +3542,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/procurement-workflow")}
+              onClick={() => openWorkspace("/procurement-workflow")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3535,7 +3567,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
-              onClick={() => navigate("/inventory-management")}
+              onClick={() => openWorkspace("/inventory-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3560,7 +3592,7 @@ const Dashboard = () => {
           {(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => navigate("/remote-analysis")}
+              onClick={() => openWorkspace("/remote-analysis")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3584,7 +3616,7 @@ const Dashboard = () => {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate("/remote-analysis/software-catalog");
+                      openWorkspace("/remote-analysis/software-catalog");
                     }}
                   >
                     Software catalog
@@ -3594,7 +3626,7 @@ const Dashboard = () => {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate("/remote-analysis/equipment-software");
+                      openWorkspace("/remote-analysis/equipment-software");
                     }}
                   >
                     Eq ↔ Software
@@ -3607,7 +3639,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-              onClick={() => navigate("/department-sync")}
+              onClick={() => openWorkspace("/department-sync")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3632,7 +3664,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-              onClick={() => navigate("/laboratory-infrastructure")}
+              onClick={() => openWorkspace("/laboratory-infrastructure")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3653,7 +3685,7 @@ const Dashboard = () => {
                   className="w-full bg-teal-600 hover:bg-teal-700 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/laboratory-infrastructure");
+                    openWorkspace("/laboratory-infrastructure");
                   }}
                 >
                   Open Fleet Dashboard
@@ -3665,7 +3697,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => navigate("/test-dashboard")}
+              onClick={() => openWorkspace("/test-dashboard")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3686,7 +3718,7 @@ const Dashboard = () => {
                   className="w-full bg-amber-600 hover:bg-amber-700 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/test-dashboard");
+                    openWorkspace("/test-dashboard");
                   }}
                 >
                   Open Test Dashboard
@@ -3716,7 +3748,7 @@ const Dashboard = () => {
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/deployment-center");
+                    openWorkspace("/deployment-center");
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -3726,7 +3758,7 @@ const Dashboard = () => {
                   className="w-full bg-sky-600 hover:bg-sky-700 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/remote-analysis/agent-installer");
+                    openWorkspace("/remote-analysis/agent-installer");
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -3736,7 +3768,7 @@ const Dashboard = () => {
                   className="w-full bg-teal-600 hover:bg-teal-700 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/department-sync/agent-installer");
+                    openWorkspace("/department-sync/agent-installer");
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -3746,7 +3778,7 @@ const Dashboard = () => {
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate("/device-provisioning");
+                    openWorkspace("/device-provisioning");
                   }}
                 >
                   <HardDrive className="mr-2 h-4 w-4" />
@@ -3759,7 +3791,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
-              onClick={() => navigate("/content-management")}
+              onClick={() => openWorkspace("/content-management")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3784,7 +3816,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/admin-settings/support")}
+              onClick={() => openWorkspace("/admin-settings/support")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3809,7 +3841,7 @@ const Dashboard = () => {
           {canSeeAdminSettingsCard && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
-              onClick={() => navigate("/admin-settings")}
+              onClick={() => openWorkspace("/admin-settings")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3835,7 +3867,7 @@ const Dashboard = () => {
           {isAdmin && (
             <Card 
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => navigate("/calendar-colors")}
+              onClick={() => openWorkspace("/calendar-colors")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3860,7 +3892,7 @@ const Dashboard = () => {
           {!isLabInchargeUser && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => navigate("/tickets")}
+              onClick={() => openWorkspace("/tickets")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3889,6 +3921,41 @@ const Dashboard = () => {
           </aside>
 
           <div className="lg:col-span-8 order-2 min-w-0 space-y-6">
+            {workspacePath ? (
+              <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
+                <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
+                <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
+                  <div className="min-w-0">
+                    <CardTitle className="text-xl sm:text-2xl font-semibold tracking-tight truncate capitalize">
+                      {workspaceTitle || "Workspace"}
+                    </CardTitle>
+                    <CardDescription>
+                      Opened here so you can stay on the dashboard. Use Overview to return.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => {
+                      setWorkspacePath(null);
+                      setWorkspaceTitle("");
+                    }}
+                  >
+                    Overview
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-0 sm:p-0">
+                  <iframe
+                    title={workspaceTitle || "Dashboard workspace"}
+                    src={`${workspacePath}${workspacePath.includes("?") ? "&" : "?"}embed=1`}
+                    className="w-full min-h-[70vh] border-0 bg-background rounded-b-xl"
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <>
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
               <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
               <CardHeader className="pb-3">
@@ -4905,6 +4972,8 @@ const Dashboard = () => {
             </div>
           </section>
         )}
+              </>
+            )}
           </div>
         </div>
 

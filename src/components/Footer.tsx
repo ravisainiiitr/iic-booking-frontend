@@ -7,6 +7,13 @@ import { Link } from "react-router-dom";
 const Footer = () => {
   const { isAuthenticated } = useAuth();
   const { openGuide } = useUserGuide();
+  const isEmbed =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("embed") === "1";
+
+  if (isEmbed) {
+    return null;
+  }
 
   return (
     <footer className="bg-card border-t border-border py-12">

@@ -460,3 +460,9 @@
     max-height: min(92vh, 100%);
   }
 }
+
+/* When pages load with ?embed=1 inside the dashboard workspace iframe */
+body:has([data-embed-chrome]),
+.dashboard-embed-iframe-body {
+  background: hsl(var(--background));
+}

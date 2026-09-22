@@ -27,6 +27,9 @@ const DashboardHeader = () => {
   const location = useLocation();
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
   const { openGuide } = useUserGuide();
+  const isEmbed =
+    typeof window !== "undefined" &&
+    new URLSearchParams(location.search).get("embed") === "1";
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [hasWallet, setHasWallet] = useState(false);
   const [showWalletOption, setShowWalletOption] = useState(false);
@@ -280,6 +283,10 @@ const DashboardHeader = () => {
       }
     }, 80);
   };
+
+  if (isEmbed) {
+    return null;
+  }
 
   return (
     <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-primary/5">

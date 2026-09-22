@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -112,8 +113,11 @@ const DepartmentFilter = ({
   const selectValue = value === "all" ? "all" : String(value);
 
   return (
-    <div className={className}>
-      <Label htmlFor="catalog-department-filter" className="mb-1.5 block text-sm font-medium text-foreground">
+    <div className={cn("flex flex-wrap items-center gap-2 min-w-0", className)}>
+      <Label
+        htmlFor="catalog-department-filter"
+        className="shrink-0 text-sm font-medium text-foreground whitespace-nowrap"
+      >
         Select Department/Centre
       </Label>
       <Select
@@ -128,7 +132,10 @@ const DepartmentFilter = ({
         }}
         disabled={disabled || loading}
       >
-        <SelectTrigger id="catalog-department-filter" className={triggerClassName ?? "h-12 text-base"}>
+        <SelectTrigger
+          id="catalog-department-filter"
+          className={cn("min-w-[12rem] flex-1", triggerClassName ?? "h-11 text-sm")}
+        >
           <div className="flex items-center gap-2 min-w-0">
             {loading ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />

@@ -32,13 +32,22 @@ export function BackToDashboardButton({
   label = "Return to Dashboard",
 }: Props) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const isEmbed = new URLSearchParams(search).get("embed") === "1";
 
-  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+  if (!isEmbed && (pathname === "/dashboard" || pathname.startsWith("/dashboard/"))) {
     return null;
   }
 
   const go = () => {
+    if (isEmbed) {
+      try {
+        window.parent.postMessage({ type: "iic-close-dashboard-embed" }, "*");
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
     if (pathname === to || pathname.startsWith(`${to}/`)) return;
     if (confirmMessage) {
       const ok = window.confirm(confirmMessage);
@@ -61,12 +70,12 @@ export function BackToDashboardButton({
           "gap-2 font-semibold shadow-sm shadow-primary/10 transition-all duration-200 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className
       )}
-      aria-label={label}
-      title={label}
+      aria-label={isEmbed ? "Back to overview" : label}
+      title={isEmbed ? "Back to overview" : label}
     >
       <LayoutDashboard className="h-4 w-4 shrink-0" />
-      <span className="hidden sm:inline">{label}</span>
-      <span className="sm:hidden">Dashboard</span>
+      <span className="hidden sm:inline">{isEmbed ? "Overview" : label}</span>
+      <span className="sm:hidden">{isEmbed ? "Overview" : "Dashboard"}</span>
     </Button>
   );
 }

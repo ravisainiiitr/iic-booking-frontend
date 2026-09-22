@@ -19,6 +19,9 @@ const WELCOME = "Hi! Ask me anything about booking equipment, slots, wallet, or 
 export default function ChatWidget() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const isEmbed =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("embed") === "1";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     { id: "welcome", role: "assistant", content: WELCOME },
@@ -66,6 +69,10 @@ export default function ChatWidget() {
       setLoading(false);
     }
   };
+
+  if (isEmbed) {
+    return null;
+  }
 
   return (
     <>
