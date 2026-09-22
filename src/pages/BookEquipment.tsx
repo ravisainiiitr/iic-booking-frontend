@@ -279,6 +279,8 @@ function buildChargeCategorySummaryRows(eq: {
     secondary_unit_charge?: string;
   }>;
   profile_type?: string;
+  slot_options?: Array<Record<string, unknown>>;
+  param_definitions?: Array<Record<string, unknown>>;
 } | null | undefined): Array<{
   userType: string;
   label: string;
@@ -356,6 +358,28 @@ function buildChargeCategorySummaryRows(eq: {
       breakpoint: "",
       notes: row.profile_type_display || defaultBasis,
     });
+  }
+
+  // MULTI_PARAM: ensure every user type with active slot options appears even if charge_profiles omit them.
+  if (profileType === "MULTI_PARAM") {
+    const slots = Array.isArray(eq.slot_options)
+      ? eq.slot_options
+      : Array.isArray(eq.param_definitions)
+        ? eq.param_definitions
+        : [];
+    for (const slot of slots) {
+      if (!slot || slot.is_active === false) continue;
+      const code = normalizeUserTypeCode(String(slot.user_type ?? "")) || String(slot.user_type ?? "");
+      if (!code || byType.has(code)) continue;
+      byType.set(code, {
+        userType: code,
+        label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
+        primary: "—",
+        secondary: "",
+        breakpoint: "",
+        notes: defaultBasis,
+      });
+    }
   }
 
   // Prefer estimate-option order, then any remaining (ensures student & faculty appear when present).
@@ -7145,8 +7169,61 @@ const BookEquipment = () => {
                   const unitLabels = getChargeUnitColumnLabels(equipmentDetail?.profile_type);
                   const presentation = buildChargeCategoryPresentation(
                     equipmentDetail?.profile_type,
-                    chargeCategorySummaryRows
+                    chargeCategorySummaryRows,
+                    {
+                      inputFields: equipmentDetail?.input_fields,
+                      slotOptions: Array.isArray(equipmentDetail?.slot_options)
+                        ? equipmentDetail.slot_options
+                        : Array.isArray(equipmentDetail?.param_definitions)
+                          ? equipmentDetail.param_definitions
+                          : [],
+                    }
                   );
+                  if (presentation.simplified && presentation.mode === "multi_param") {
+                    const optionColumns = presentation.optionColumns ?? [];
+                    const multiRows = presentation.multiParamRows ?? [];
+                    return (
+                      <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
+                        <h3 className="text-lg font-semibold md:text-xl">Charges by user category</h3>
+                        <p className="text-base text-muted-foreground">{presentation.subtitle}</p>
+                        <div className="rounded-md border overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-base">User category</TableHead>
+                                {optionColumns.map((opt) => (
+                                  <TableHead key={opt} className="text-base text-right whitespace-nowrap">
+                                    {opt}
+                                  </TableHead>
+                                ))}
+                                <TableHead className="text-base">GST</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {multiRows.map((row) => (
+                                <TableRow key={row.userType}>
+                                  <TableCell className="font-medium text-base whitespace-nowrap">
+                                    {row.label}
+                                  </TableCell>
+                                  {optionColumns.map((opt) => (
+                                    <TableCell
+                                      key={`${row.userType}-${opt}`}
+                                      className="text-right tabular-nums text-base font-semibold whitespace-nowrap"
+                                    >
+                                      {row.chargesByOption[opt] ?? "—"}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell className="text-sm md:text-base text-muted-foreground whitespace-nowrap">
+                                    {row.gstLine}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    );
+                  }
                   if (presentation.simplified) {
                     return (
                       <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
