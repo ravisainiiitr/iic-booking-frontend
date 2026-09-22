@@ -2255,28 +2255,54 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`cp-formula-${idx}`}>Time formula</Label>
-                  <Input
-                    id={`cp-formula-${idx}`}
-                    placeholder={
-                      isGeneric
-                        ? "e.g. A * SLOT_DURATION_MINUTES — uses A–Z inputs"
-                        : cp.profile_type === "HOUR"
+                  {isGeneric ? (
+                    <Textarea
+                      id={`cp-formula-${idx}`}
+                      rows={4}
+                      placeholder={"time = A * SLOT_DURATION_MINUTES\nif B > 1:\n    time = time + 15"}
+                      value={cp.time_formula ?? ""}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], time_formula: e.target.value === "" ? null : e.target.value };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                  ) : (
+                    <Input
+                      id={`cp-formula-${idx}`}
+                      placeholder={
+                        cp.profile_type === "HOUR"
                           ? 'e.g. ((((C-B)/D)*E)*A)/60 — blank or B = legacy slots'
                           : 'e.g. (A * C) + B'
-                    }
-                    value={cp.time_formula ?? ""}
-                    onChange={(e) =>
-                      setFormData((p) => {
-                        const arr = [...(p.charge_profiles ?? [])];
-                        arr[idx] = { ...arr[idx], time_formula: e.target.value === "" ? null : e.target.value };
-                        return { ...p, charge_profiles: arr };
-                      })
-                    }
-                  />
+                      }
+                      value={cp.time_formula ?? ""}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = { ...arr[idx], time_formula: e.target.value === "" ? null : e.target.value };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                  )}
                   {isGeneric ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      Restricted Python expression. Names: A–Z inputs, <code>SLOT_DURATION_MINUTES</code>. Result is minutes.
-                    </p>
+                    <div className="space-y-1 text-[11px] text-muted-foreground">
+                      <p>
+                        Assign <code>time</code> (minutes). Inputs: A–Z, <code>SLOT_DURATION_MINUTES</code>,{" "}
+                        <code>pc</code>/<code>sc</code>. Supports <code>if</code>/<code>else</code>,{" "}
+                        <code>for i in range(...)</code>, <code>while</code>, and <code>+=</code>.
+                      </p>
+                      <ul className="list-disc space-y-0.5 pl-4 font-mono text-[10px] leading-relaxed">
+                        <li>
+                          <code>time = A * SLOT_DURATION_MINUTES</code>
+                        </li>
+                        <li>
+                          <code>{"time = A * 30\nif B > 1:\n    time = time + 15"}</code>
+                        </li>
+                      </ul>
+                    </div>
                   ) : cp.profile_type === "HOUR" ? (
                     <p className="text-[11px] text-muted-foreground">
                       HOUR: generic formula returns minutes (same engine as SAMPLE). Blank or <code>B</code> keeps
@@ -2290,8 +2316,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     <Label htmlFor={`cp-charge-formula-${idx}`}>Charge formula</Label>
                     <Textarea
                       id={`cp-charge-formula-${idx}`}
-                      rows={3}
-                      placeholder="e.g. (pc * A + sc * max(0, B - 1)) if A > 0 else 0"
+                      rows={6}
+                      placeholder={"charge = pc * A\nif B > 1:\n    charge = charge + sc * (B - 1)"}
                       value={cp.charge_formula ?? ""}
                       onChange={(e) =>
                         setFormData((p) => {
@@ -2306,30 +2332,24 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     />
                     <div className="space-y-1 text-[11px] text-muted-foreground">
                       <p>
-                        Restricted expression for total ₹. Names: <code>pc</code>, <code>sc</code>, A–Z,{" "}
+                        Assign <code>charge</code> (₹). Inputs: <code>pc</code>, <code>sc</code>, A–Z,{" "}
                         <code>TIME</code> (minutes after time formula), <code>SLOT_DURATION_MINUTES</code>.
                         Helpers: <code>min</code>/<code>max</code>/<code>abs</code>/<code>round</code>/
-                        <code>ceil</code>/<code>floor</code>.
-                      </p>
-                      <p>
-                        Use Python <strong>expression</strong> if/else (not a multi-line <code>if</code> block):
+                        <code>ceil</code>/<code>floor</code>/<code>range</code>.
                       </p>
                       <ul className="list-disc space-y-0.5 pl-4 font-mono text-[10px] leading-relaxed">
                         <li>
+                          <code>{"charge = pc * A\nif A > 5:\n    charge = pc * 5 + sc * (A - 5)"}</code>
+                        </li>
+                        <li>
+                          <code>{"charge = 0\nfor i in range(int(A)):\n    charge = charge + pc"}</code>
+                        </li>
+                        <li>
+                          <code>{"charge = 100\nif TIME > 60:\n    charge = charge + sc * ceil((TIME - 60) / 30)"}</code>
+                        </li>
+                        <li>
+                          Legacy one-liner still works:{" "}
                           <code>pc * A if A &lt;= 5 else pc * 5 + sc * (A - 5)</code>
-                          {" — "}tiered sample pricing
-                        </li>
-                        <li>
-                          <code>(pc * A) if B == 1 else (pc * A * 2)</code>
-                          {" — "}branch on a flag / option field
-                        </li>
-                        <li>
-                          <code>pc * A + sc * max(0, C - 1) if A &gt; 0 else 0</code>
-                          {" — "}guard zero samples
-                        </li>
-                        <li>
-                          <code>100 if TIME &lt;= 60 else 100 + sc * ceil((TIME - 60) / 30)</code>
-                          {" — "}base + overtime from TIME
                         </li>
                       </ul>
                     </div>
