@@ -2538,18 +2538,18 @@ const Dashboard = () => {
 
         <MigrationPortalBanner variant="notice" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          <aside className="lg:col-span-4 order-1 min-w-0">
-            <div className="sticky top-6 space-y-3">
-              <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
-                <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
-                <CardHeader className="pb-2 pt-4">
-                  <CardTitle className="text-base">Dashboard menu</CardTitle>
-                  <CardDescription>
-                    Choose a section; content opens on the right.
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
+          <aside className="lg:col-span-3 xl:col-span-2 order-1 min-w-0 max-w-full lg:max-w-[16.5rem] xl:max-w-none">
+            <div className="sticky top-6 space-y-2">
+              <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
+                <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
+                <CardHeader className="pb-1.5 pt-3 px-3">
+                  <CardTitle className="text-sm font-semibold tracking-tight">Dashboard menu</CardTitle>
+                  <CardDescription className="text-xs leading-snug">
+                    Opens on the right
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2 pb-5 dashboard-menu-nav">
+                <CardContent className="space-y-1.5 px-2.5 pb-3 dashboard-menu-nav">
         {isAccountsInChargeUser ? (
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
@@ -3924,17 +3924,17 @@ const Dashboard = () => {
             </div>
           </aside>
 
-          <div className="lg:col-span-8 order-2 min-w-0 space-y-6">
+          <div className="lg:col-span-9 xl:col-span-10 order-2 min-w-0 space-y-6">
             {workspacePath ? (
               <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                 <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
-                <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
+                <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between gap-3 space-y-0 px-4">
                   <div className="min-w-0">
-                    <CardTitle className="text-xl sm:text-2xl font-semibold tracking-tight truncate capitalize">
+                    <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight truncate capitalize">
                       {workspaceTitle || "Workspace"}
                     </CardTitle>
-                    <CardDescription>
-                      Opened here so you can stay on the dashboard. Use Overview to return.
+                    <CardDescription className="text-xs sm:text-sm">
+                      Staying on the dashboard — use Overview to return.
                     </CardDescription>
                   </div>
                   <Button

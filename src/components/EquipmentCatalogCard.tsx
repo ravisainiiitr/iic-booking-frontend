@@ -256,11 +256,7 @@ export default function EquipmentCatalogCard({
                 const id = Number(item.id);
                 // Expand parent ? show parent + child cards before booking a specific mode.
                 if (onOpenEquipment?.(id)) return;
-                if (canBookForOtherUsers || canChangeSlotStatus) {
-                  navigate(`/book-equipment?equipment_id=${id}&mode=book`);
-                  return;
-                }
-                navigate(`/equipment/${id}`);
+                navigate(`/book-equipment?equipment_id=${id}&mode=book`);
               }}
             >
               Book now

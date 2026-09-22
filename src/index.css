@@ -223,22 +223,28 @@
 .dashboard-menu-nav .dashboard-uniform-cards {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer {
-  border-radius: 0.5rem !important;
+  border-radius: 0.45rem !important;
   box-shadow: none !important;
-  border: 1px solid hsl(var(--border)) !important;
-  background: hsl(var(--background)) !important;
+  border: 1px solid hsl(var(--border) / 0.85) !important;
+  background: hsl(var(--card)) !important;
   transform: none !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease !important;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer:hover {
-  border-color: hsl(var(--primary) / 0.35) !important;
-  background: hsl(var(--primary) / 0.06) !important;
+  border-color: hsl(var(--primary) / 0.4) !important;
+  background: hsl(var(--primary) / 0.05) !important;
   box-shadow: none !important;
   transform: none !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-1.w-16,
@@ -248,31 +254,33 @@
   display: none !important;
 }
 
-.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer [class*="CardHeader"] {
-  padding: 0.65rem 0.75rem !important;
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer [class*="CardHeader"],
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer > div:first-child {
+  padding: 0.4rem 0.55rem !important;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .flex.items-center.gap-4 {
-  gap: 0.65rem !important;
+  gap: 0.5rem !important;
   margin-bottom: 0 !important;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-12.w-12 {
-  height: 2rem !important;
-  width: 2rem !important;
-  border-radius: 0.5rem !important;
+  height: 1.65rem !important;
+  width: 1.65rem !important;
+  border-radius: 0.4rem !important;
   box-shadow: none !important;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-12.w-12 svg {
-  height: 1rem !important;
-  width: 1rem !important;
+  height: 0.85rem !important;
+  width: 0.85rem !important;
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .text-lg {
-  font-size: 0.875rem !important;
+  font-size: 0.78rem !important;
   font-weight: 600 !important;
-  line-height: 1.25rem !important;
+  line-height: 1.15rem !important;
+  letter-spacing: -0.01em;
 }
 
 .dashboard-uniform-cards .cursor-pointer:hover {
