@@ -31,6 +31,11 @@ import {
 import { formatINR } from "@/lib/money";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import {
+  ChargeCategoryLegacyTable,
+  ChargeCategoryMultiParamTable,
+  ChargeCategorySimplifiedTable,
+} from "@/components/ChargeCategoryRatesPanel";
+import {
   slotsNeededForAnalysisTime,
 } from "@/lib/slotAllocation";
 import {
@@ -7180,123 +7185,20 @@ const BookEquipment = () => {
                     }
                   );
                   if (presentation.simplified && presentation.mode === "multi_param") {
-                    const optionColumns = presentation.optionColumns ?? [];
-                    const multiRows = presentation.multiParamRows ?? [];
-                    return (
-                      <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
-                        <h3 className="text-lg font-semibold md:text-xl">Charges by user category</h3>
-                        <p className="text-base text-muted-foreground">{presentation.subtitle}</p>
-                        <div className="rounded-md border overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-base">User category</TableHead>
-                                {optionColumns.map((opt) => (
-                                  <TableHead key={opt} className="text-base text-center whitespace-nowrap">
-                                    {opt}
-                                  </TableHead>
-                                ))}
-                                <TableHead className="text-base">GST</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {multiRows.map((row) => (
-                                <TableRow key={row.userType}>
-                                  <TableCell className="font-medium text-base whitespace-nowrap">
-                                    {row.label}
-                                  </TableCell>
-                                  {optionColumns.map((opt) => (
-                                    <TableCell
-                                      key={`${row.userType}-${opt}`}
-                                      className="text-center tabular-nums text-base font-semibold whitespace-nowrap"
-                                    >
-                                      {row.chargesByOption[opt] ?? "—"}
-                                    </TableCell>
-                                  ))}
-                                  <TableCell className="text-sm md:text-base text-muted-foreground whitespace-nowrap">
-                                    {row.gstLine}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    );
+                    return <ChargeCategoryMultiParamTable presentation={presentation} />;
                   }
                   if (presentation.simplified) {
-                    return (
-                      <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
-                        <h3 className="text-lg font-semibold md:text-xl">Charges by user category</h3>
-                        <p className="text-base text-muted-foreground">{presentation.subtitle}</p>
-                        <div className="rounded-md border overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="text-base">User category</TableHead>
-                                <TableHead className="text-base">Charge</TableHead>
-                                <TableHead className="text-base">GST</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {presentation.rows.map((row) => (
-                                <TableRow key={row.userType}>
-                                  <TableCell className="font-medium text-base whitespace-nowrap">
-                                    {row.label}
-                                  </TableCell>
-                                  <TableCell className="text-base font-semibold leading-snug">
-                                    {row.chargeLine}
-                                  </TableCell>
-                                  <TableCell className="text-sm md:text-base text-muted-foreground whitespace-nowrap">
-                                    {row.gstLine}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    );
+                    return <ChargeCategorySimplifiedTable presentation={presentation} />;
                   }
                   const showSecondary = chargeCategorySummaryRows.some((row) => !!row.secondary);
                   return (
-                  <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-3">
-                    <h3 className="text-lg font-semibold md:text-xl">Charges by user category</h3>
-                    <p className="text-base text-muted-foreground">
-                      Standard rates for this equipment{unitLabels.rateSuffix ? ` (${unitLabels.primary.toLowerCase()})` : ""}, including student and faculty categories.
-                    </p>
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-base">User category</TableHead>
-                            <TableHead className="text-right text-base">{unitLabels.primary}</TableHead>
-                            {showSecondary && (
-                              <TableHead className="text-right text-base">{unitLabels.secondary}</TableHead>
-                            )}
-                            <TableHead className="text-base">Notes</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {chargeCategorySummaryRows.map((row) => (
-                            <TableRow key={row.userType}>
-                              <TableCell className="font-medium text-base">{row.label}</TableCell>
-                              <TableCell className="text-right tabular-nums text-base font-semibold">
-                                {row.primary !== "—" ? formatINR(row.primary) : "—"}
-                              </TableCell>
-                              {showSecondary && (
-                                <TableCell className="text-right tabular-nums text-base">
-                                  {row.secondary ? formatINR(row.secondary) : "—"}
-                                </TableCell>
-                              )}
-                              <TableCell className="text-muted-foreground text-sm md:text-base">{row.notes || "—"}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Charges are exclusive of GST @ 18% unless noted otherwise.</p>
-                  </div>
+                    <ChargeCategoryLegacyTable
+                      subtitle={`Standard rates for this equipment${unitLabels.rateSuffix ? ` (${unitLabels.primary.toLowerCase()})` : ""}, including student and faculty categories.`}
+                      unitLabels={unitLabels}
+                      showSecondary={showSecondary}
+                      rows={chargeCategorySummaryRows}
+                      formatAmount={formatINR}
+                    />
                   );
                 })()}
 
