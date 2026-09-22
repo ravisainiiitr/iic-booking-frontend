@@ -2503,12 +2503,20 @@ const Dashboard = () => {
 
         <MigrationPortalBanner variant="notice" />
 
-        <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
-          {isAdmin ? "Quick access" : "Get started"}
-        </p>
-
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          <aside className="lg:col-span-4 order-1 min-w-0">
+            <div className="sticky top-6 space-y-3">
+              <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
+                <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
+                <CardHeader className="pb-2 pt-4">
+                  <CardTitle className="text-base">Dashboard menu</CardTitle>
+                  <CardDescription>
+                    Choose a section; content opens on the right.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 pb-5 dashboard-menu-nav">
         {isAccountsInChargeUser ? (
-        <div className="dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
             onClick={() => navigate("/admin-settings/wallet-recharge-requests")}
@@ -2591,8 +2599,7 @@ const Dashboard = () => {
           </Card>
         </div>
         ) : (
-        <>
-        <div className={`dashboard-uniform-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isAdmin ? "gap-8" : "gap-6"}`}>
+        <div className="dashboard-uniform-cards flex flex-col gap-2">
           {isLabInchargeUser && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
@@ -3875,6 +3882,26 @@ const Dashboard = () => {
             </Card>
           )}
         </div>
+        )}
+                </CardContent>
+              </Card>
+            </div>
+          </aside>
+
+          <div className="lg:col-span-8 order-2 min-w-0 space-y-6">
+            <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
+              <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl sm:text-2xl font-semibold tracking-tight">Overview</CardTitle>
+                <CardDescription>
+                  {isAccountsInChargeUser
+                    ? "Accounts tools and reports are listed in the menu. Open an item to continue."
+                    : showsLabStyleDashboard
+                      ? "Lab counts, queues, and schedules appear below. Use the menu for day-to-day tools."
+                      : "Your bookings and usage appear below. Use the menu to book equipment, manage wallet, and more."}
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
         {showsLabStyleDashboard && (
           <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
@@ -4878,8 +4905,8 @@ const Dashboard = () => {
             </div>
           </section>
         )}
-        </>
-        )}
+          </div>
+        </div>
 
       </main>
       <PortalFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />

@@ -219,6 +219,62 @@
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
+/* Equipment-style left menu: compact nav rows for all user types */
+.dashboard-menu-nav .dashboard-uniform-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer {
+  border-radius: 0.5rem !important;
+  box-shadow: none !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--background)) !important;
+  transform: none !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer:hover {
+  border-color: hsl(var(--primary) / 0.35) !important;
+  background: hsl(var(--primary) / 0.06) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-1.w-16,
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer > div:last-child,
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .text-muted-foreground,
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer [class*="text-muted-foreground"] {
+  display: none !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer [class*="CardHeader"] {
+  padding: 0.65rem 0.75rem !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .flex.items-center.gap-4 {
+  gap: 0.65rem !important;
+  margin-bottom: 0 !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-12.w-12 {
+  height: 2rem !important;
+  width: 2rem !important;
+  border-radius: 0.5rem !important;
+  box-shadow: none !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-12.w-12 svg {
+  height: 1rem !important;
+  width: 1rem !important;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .text-lg {
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25rem !important;
+}
+
 .dashboard-uniform-cards .cursor-pointer:hover {
   border-color: hsl(var(--primary) / 0.35) !important;
   box-shadow: var(--shadow-elegant) !important;
