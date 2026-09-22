@@ -2288,9 +2288,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 {isGeneric ? (
                   <div className="space-y-1">
                     <Label htmlFor={`cp-charge-formula-${idx}`}>Charge formula</Label>
-                    <Input
+                    <Textarea
                       id={`cp-charge-formula-${idx}`}
-                      placeholder="e.g. pc * A + sc * max(0, B - 1)"
+                      rows={3}
+                      placeholder="e.g. (pc * A + sc * max(0, B - 1)) if A > 0 else 0"
                       value={cp.charge_formula ?? ""}
                       onChange={(e) =>
                         setFormData((p) => {
@@ -2303,12 +2304,35 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         })
                       }
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Restricted expression for total ₹. Names: <code>pc</code>, <code>sc</code>, A–Z,{" "}
-                      <code>TIME</code> (minutes after time formula), <code>SLOT_DURATION_MINUTES</code>.
-                      Supports <code>min</code>/<code>max</code>/<code>abs</code>/<code>round</code> and{" "}
-                      <code>a if cond else b</code>.
-                    </p>
+                    <div className="space-y-1 text-[11px] text-muted-foreground">
+                      <p>
+                        Restricted expression for total ₹. Names: <code>pc</code>, <code>sc</code>, A–Z,{" "}
+                        <code>TIME</code> (minutes after time formula), <code>SLOT_DURATION_MINUTES</code>.
+                        Helpers: <code>min</code>/<code>max</code>/<code>abs</code>/<code>round</code>/
+                        <code>ceil</code>/<code>floor</code>.
+                      </p>
+                      <p>
+                        Use Python <strong>expression</strong> if/else (not a multi-line <code>if</code> block):
+                      </p>
+                      <ul className="list-disc space-y-0.5 pl-4 font-mono text-[10px] leading-relaxed">
+                        <li>
+                          <code>pc * A if A &lt;= 5 else pc * 5 + sc * (A - 5)</code>
+                          {" — "}tiered sample pricing
+                        </li>
+                        <li>
+                          <code>(pc * A) if B == 1 else (pc * A * 2)</code>
+                          {" — "}branch on a flag / option field
+                        </li>
+                        <li>
+                          <code>pc * A + sc * max(0, C - 1) if A &gt; 0 else 0</code>
+                          {" — "}guard zero samples
+                        </li>
+                        <li>
+                          <code>100 if TIME &lt;= 60 else 100 + sc * ceil((TIME - 60) / 30)</code>
+                          {" — "}base + overtime from TIME
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 ) : null}
                 <div className="space-y-1">
