@@ -30,6 +30,7 @@ import {
 } from "@/lib/numericFieldLimits";
 import { formatINR } from "@/lib/money";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
+import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
   ChargeCategoryLegacyTable,
   ChargeCategoryMultiParamTable,
@@ -271,132 +272,6 @@ function parseTimeToMinutes(timeStr: string): number {
 /** Convert HH:mm:ss to HH:mm for display. */
 function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
-}
-
-/** Build charge-by-user-category rows for Calculate Charges summary (includes student & faculty). */
-function buildChargeCategorySummaryRows(eq: {
-  charge_profiles?: Array<Record<string, unknown>>;
-  base_charges_by_user_type?: Array<{
-    user_type: string;
-    user_type_display?: string;
-    profile_type_display?: string | null;
-    primary_unit_charge?: string;
-    secondary_unit_charge?: string;
-  }>;
-  profile_type?: string;
-  slot_options?: Array<Record<string, unknown>>;
-  param_definitions?: Array<Record<string, unknown>>;
-} | null | undefined): Array<{
-  userType: string;
-  label: string;
-  primary: string;
-  secondary: string;
-  breakpoint: string;
-  notes: string;
-}> {
-  if (!eq) return [];
-  const profileType = String(eq.profile_type || "").toUpperCase();
-  const defaultBasis =
-    profileType === "HOUR"
-      ? "Per hour"
-      : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
-        ? "Per sample"
-        : profileType === "PRINT_3D"
-          ? "Per print (see profile)"
-          : profileType
-            ? `Profile: ${profileType}`
-            : "";
-
-  const byType = new Map<string, {
-    userType: string;
-    label: string;
-    primary: string;
-    secondary: string;
-    breakpoint: string;
-    notes: string;
-  }>();
-
-  const profiles = Array.isArray(eq.charge_profiles) ? eq.charge_profiles : [];
-  for (const cp of profiles) {
-    if (cp && cp.is_active === false) continue;
-    const code = normalizeUserTypeCode(String(cp.user_type ?? "")) || String(cp.user_type ?? "");
-    if (!code) continue;
-    const primary = cp.primary_unit_charge != null && String(cp.primary_unit_charge) !== ""
-      ? String(cp.primary_unit_charge)
-      : "—";
-    const secRaw = cp.secondary_unit_charge;
-    const secondary =
-      secRaw != null && String(secRaw).trim() !== "" && Number(secRaw) !== 0
-        ? String(secRaw)
-        : "";
-    const bpRaw = cp.breakpoint;
-    const breakpoint =
-      bpRaw != null && String(bpRaw).trim() !== "" && Number(bpRaw) !== 0
-        ? String(bpRaw)
-        : "";
-    const noteParts: string[] = [];
-    if (defaultBasis) noteParts.push(defaultBasis);
-    if (breakpoint) {
-      noteParts.push(`Applies after ${breakpoint} units`);
-    }
-    byType.set(code, {
-      userType: code,
-      label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
-      primary,
-      secondary,
-      breakpoint,
-      notes: noteParts.join(" · "),
-    });
-  }
-
-  const baseRows = Array.isArray(eq.base_charges_by_user_type) ? eq.base_charges_by_user_type : [];
-  for (const row of baseRows) {
-    const code = normalizeUserTypeCode(String(row.user_type ?? "")) || String(row.user_type ?? "");
-    if (!code || byType.has(code)) continue;
-    byType.set(code, {
-      userType: code,
-      label: row.user_type_display || getUserTypeDisplayName(code) || code,
-      primary: row.primary_unit_charge != null ? String(row.primary_unit_charge) : "—",
-      secondary: row.secondary_unit_charge != null && String(row.secondary_unit_charge).trim() !== ""
-        ? String(row.secondary_unit_charge)
-        : "",
-      breakpoint: "",
-      notes: row.profile_type_display || defaultBasis,
-    });
-  }
-
-  // MULTI_PARAM: ensure every user type with active slot options appears even if charge_profiles omit them.
-  if (profileType === "MULTI_PARAM") {
-    const slots = Array.isArray(eq.slot_options)
-      ? eq.slot_options
-      : Array.isArray(eq.param_definitions)
-        ? eq.param_definitions
-        : [];
-    for (const slot of slots) {
-      if (!slot || slot.is_active === false) continue;
-      const code = normalizeUserTypeCode(String(slot.user_type ?? "")) || String(slot.user_type ?? "");
-      if (!code || byType.has(code)) continue;
-      byType.set(code, {
-        userType: code,
-        label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
-        primary: "—",
-        secondary: "",
-        breakpoint: "",
-        notes: defaultBasis,
-      });
-    }
-  }
-
-  // Prefer estimate-option order, then any remaining (ensures student & faculty appear when present).
-  const preferred = CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((o) => o.code);
-  const ordered: typeof preferred = [];
-  for (const code of preferred) {
-    if (byType.has(code)) ordered.push(code);
-  }
-  for (const code of byType.keys()) {
-    if (!ordered.includes(code)) ordered.push(code);
-  }
-  return ordered.map((c) => byType.get(c)!);
 }
 
 /** Tooltip text for non-bookable Step 3 booking grid cells. */
@@ -1049,8 +924,6 @@ const BookEquipment = () => {
   );
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
   const [chargeEstimateUserType, setChargeEstimateUserType] = useState<string>("");
-  /** Calculate-charges page: toggle rate card vs interactive estimate (fewer scrolls). */
-  const [calculateChargesPanel, setCalculateChargesPanel] = useState<"view" | "calculate">("view");
   /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
   const [sampleInfoExpanded, setSampleInfoExpanded] = useState(true);
   const [chargeCalcExpanded, setChargeCalcExpanded] = useState(true);
@@ -5510,29 +5383,11 @@ const BookEquipment = () => {
             <div className="min-w-0">
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 {isCalculateChargesFlow
-                  ? `Charges — ${selectedEquipment.name}`
+                  ? `Calculate charges — ${selectedEquipment.name}`
                   : canAccessManageEquipmentModes()
                     ? `Manage ${selectedEquipment.name}`
                     : selectedEquipment.name}
               </h1>
-              {isCalculateChargesFlow && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={calculateChargesPanel === "view" ? "default" : "outline"}
-                    onClick={() => setCalculateChargesPanel("view")}
-                  >
-                    View Charges
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={calculateChargesPanel === "calculate" ? "default" : "outline"}
-                    onClick={() => setCalculateChargesPanel("calculate")}
-                  >
-                    Calculate Charges
-                  </Button>
-                </div>
-              )}
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
                 <EquipmentDepartmentLabel
                   name={(equipmentDetail as any)?.internal_department_name}
@@ -7167,50 +7022,6 @@ const BookEquipment = () => {
                   </div>
                 )}
 
-                {isCalculateChargesFlow &&
-                  calculateChargesPanel === "view" &&
-                  chargeCategorySummaryRows.length > 0 &&
-                  (() => {
-                  const unitLabels = getChargeUnitColumnLabels(equipmentDetail?.profile_type);
-                  const presentation = buildChargeCategoryPresentation(
-                    equipmentDetail?.profile_type,
-                    chargeCategorySummaryRows,
-                    {
-                      inputFields: equipmentDetail?.input_fields,
-                      slotOptions: Array.isArray(equipmentDetail?.slot_options)
-                        ? equipmentDetail.slot_options
-                        : Array.isArray(equipmentDetail?.param_definitions)
-                          ? equipmentDetail.param_definitions
-                          : [],
-                    }
-                  );
-                  if (presentation.simplified && presentation.mode === "multi_param") {
-                    return <ChargeCategoryMultiParamTable presentation={presentation} />;
-                  }
-                  if (presentation.simplified) {
-                    return <ChargeCategorySimplifiedTable presentation={presentation} />;
-                  }
-                  const showSecondary = chargeCategorySummaryRows.some((row) => !!row.secondary);
-                  return (
-                    <ChargeCategoryLegacyTable
-                      subtitle={`Standard rates for this equipment${unitLabels.rateSuffix ? ` (${unitLabels.primary.toLowerCase()})` : ""}, including student and faculty categories.`}
-                      unitLabels={unitLabels}
-                      showSecondary={showSecondary}
-                      rows={chargeCategorySummaryRows}
-                      formatAmount={formatINR}
-                    />
-                  );
-                })()}
-
-                {isCalculateChargesFlow && calculateChargesPanel === "view" && chargeCategorySummaryRows.length === 0 && (
-                  <div className="mb-4 p-4 rounded-lg border bg-muted/30">
-                    <p className="text-base text-muted-foreground">
-                      Rate card is not available for this equipment. Use <span className="font-medium text-foreground">Calculate Charges</span> for an estimate.
-                    </p>
-                  </div>
-                )}
-
-                {(!isCalculateChargesFlow || calculateChargesPanel === "calculate") && (
                 <>
                 {isCalculateChargesFlow && (
                   <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-2">
@@ -8298,7 +8109,6 @@ const BookEquipment = () => {
                   </div>
                 )}
                 </>
-                )}
 
                 {/* Step 3: Slot Selection (only shown after charge calculation) */}
                 {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && (

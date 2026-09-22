@@ -22,6 +22,7 @@ type ReviewClaim = {
   url: string;
   citation: string;
   facility_note: string;
+  impact_factor?: string | null;
   status: string;
   created_at: string | null;
   equipments: Array<{ id: number; code: string; name: string }>;
@@ -145,6 +146,7 @@ export default function PublicationClaimsReview() {
                   {c.authors}
                   {c.journal ? ` · ${c.journal}` : ""}
                   {c.year ? ` (${c.year})` : ""}
+                  {c.impact_factor ? ` · IF ${c.impact_factor}` : ""}
                 </p>
                 {c.doi ? (
                   <p className="text-sm">

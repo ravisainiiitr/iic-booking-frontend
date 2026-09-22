@@ -202,7 +202,7 @@ export default function EquipmentCatalogCard({
         ) : null}
 
         {rateN > 0 ? (
-          <p className="text-base font-semibold tabular-nums text-primary">₹{rateN.toFixed(2)}/hour</p>
+          <p className="text-base font-semibold tabular-nums text-primary">?{rateN.toFixed(2)}/hour</p>
         ) : null}
       </CardHeader>
 
@@ -254,7 +254,7 @@ export default function EquipmentCatalogCard({
                   return;
                 }
                 const id = Number(item.id);
-                // Expand parent → show parent + child cards before booking a specific mode.
+                // Expand parent ? show parent + child cards before booking a specific mode.
                 if (onOpenEquipment?.(id)) return;
                 if (canBookForOtherUsers || canChangeSlotStatus) {
                   navigate(`/book-equipment?equipment_id=${id}&mode=book`);
@@ -280,17 +280,6 @@ export default function EquipmentCatalogCard({
               Change Slot Status
             </Button>
           ) : null}
-
-          <Button
-            variant="ghost"
-            className="w-full text-muted-foreground hover:bg-primary/5 hover:text-primary"
-            onClick={(e) => {
-              e.stopPropagation();
-              openEquipment();
-            }}
-          >
-            View Details and Charges
-          </Button>
         </div>
       </CardContent>
     </Card>

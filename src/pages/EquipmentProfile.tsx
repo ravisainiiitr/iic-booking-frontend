@@ -25,6 +25,7 @@ import {
   BookOpen,
   FlaskConical,
   ClipboardList,
+  LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import TicketForm from "@/components/TicketForm";
 import { cn } from "@/lib/utils";
+import { formatINR } from "@/lib/money";
+import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
+import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
+import {
+  ChargeCategoryLegacyTable,
+  ChargeCategoryMultiParamTable,
+  ChargeCategorySimplifiedTable,
+} from "@/components/ChargeCategoryRatesPanel";
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -131,11 +140,11 @@ interface EquipmentProfile {
 
 type ContentPanel =
   | "general"
-  | "operators"
-  | "managers"
   | "specifications"
   | "sample_requirements"
-  | "publications";
+  | "view_charges"
+  | "publications"
+  | "contact";
 
 type SpecItem = {
   equipment_specification_id: number;
@@ -598,17 +607,20 @@ const EquipmentProfile = () => {
               ? equipment.publication_count
               : publicationList.length;
           const panelMeta: Record<ContentPanel, { title: string; icon: JSX.Element }> = {
-            general: { title: "General Information", icon: <Info className="h-5 w-5" /> },
-            operators: { title: "Lab Operator", icon: <Users className="h-5 w-5" /> },
-            managers: { title: "Officer in Charge", icon: <UserCog className="h-5 w-5" /> },
-            specifications: { title: "Specifications", icon: <FileText className="h-5 w-5" /> },
-            sample_requirements: { title: "Sample Requirements", icon: <FlaskConical className="h-5 w-5" /> },
+            general: { title: "General information", icon: <Info className="h-5 w-5" /> },
+            specifications: { title: "Technical specifications", icon: <FileText className="h-5 w-5" /> },
+            sample_requirements: { title: "Sample requirements", icon: <FlaskConical className="h-5 w-5" /> },
+            view_charges: { title: "View charges", icon: <IndianRupee className="h-5 w-5" /> },
             publications: {
               title:
                 publicationCount > 0
                   ? `Publications (${publicationCount})`
                   : "Publications",
               icon: <BookOpen className="h-5 w-5" />,
+            },
+            contact: {
+              title: "Contact us (Officer in-charge, Lab operator)",
+              icon: <UserCog className="h-5 w-5" />,
             },
           };
 
@@ -759,34 +771,6 @@ const EquipmentProfile = () => {
                 </div>
               </div>
             );
-          } else if (activePanel === "operators") {
-            panelBody =
-              equipment.operators && equipment.operators.length > 0
-                ? renderContactCards(
-                    equipment.operators.map((op) => ({
-                      key: op.equipment_operator_id,
-                      name: op.operator_name,
-                      email: op.operator_email,
-                      phone: op.operator_phone,
-                      profilePicture: op.operator_profile_picture,
-                      userId: op.operator,
-                    }))
-                  )
-                : emptyPanel("No lab operator has been assigned to this instrument yet.");
-          } else if (activePanel === "managers") {
-            panelBody =
-              equipment.managers && equipment.managers.length > 0
-                ? renderContactCards(
-                    equipment.managers.map((mgr) => ({
-                      key: mgr.equipment_manager_id,
-                      name: mgr.manager_name,
-                      email: mgr.manager_email,
-                      phone: mgr.manager_phone,
-                      profilePicture: mgr.manager_profile_picture,
-                      userId: mgr.manager,
-                    }))
-                  )
-                : emptyPanel("No officer in charge has been assigned to this instrument yet.");
           } else if (activePanel === "specifications") {
             panelBody =
               generalSpecs.length > 0
@@ -799,6 +783,94 @@ const EquipmentProfile = () => {
                 : emptyPanel(
                     'Sample requirements have not been published yet. Add a specification named "Sample Requirements" in equipment admin to show it here.'
                   );
+          } else if (activePanel === "view_charges") {
+            const eqAny = equipment as EquipmentProfile & {
+              charge_profiles?: Array<Record<string, unknown>>;
+              base_charges_by_user_type?: Array<{
+                user_type: string;
+                user_type_display?: string;
+                profile_type_display?: string | null;
+                primary_unit_charge?: string;
+                secondary_unit_charge?: string;
+              }>;
+              slot_options?: Array<Record<string, unknown>>;
+              param_definitions?: Array<Record<string, unknown>>;
+              input_fields?: Array<{ field_key?: string | null; options?: unknown }>;
+            };
+            const chargeRows = buildChargeCategorySummaryRows(eqAny);
+            if (chargeRows.length === 0) {
+              panelBody = emptyPanel(
+                "Rate card is not available for this equipment yet. Use Calculate charges for an estimate."
+              );
+            } else {
+              const presentation = buildChargeCategoryPresentation(eqAny.profile_type, chargeRows, {
+                inputFields: eqAny.input_fields,
+                slotOptions: Array.isArray(eqAny.slot_options)
+                  ? eqAny.slot_options
+                  : Array.isArray(eqAny.param_definitions)
+                    ? eqAny.param_definitions
+                    : [],
+              });
+              if (presentation.simplified && presentation.mode === "multi_param") {
+                panelBody = <ChargeCategoryMultiParamTable presentation={presentation} />;
+              } else if (presentation.simplified) {
+                panelBody = <ChargeCategorySimplifiedTable presentation={presentation} />;
+              } else {
+                const showSecondary = chargeRows.some((row) => !!row.secondary);
+                panelBody = (
+                  <ChargeCategoryLegacyTable
+                    subtitle="Standard rates for this equipment, including student and faculty categories."
+                    unitLabels={{
+                      primary: "Unit charge",
+                      secondary: "Additional charge",
+                      rateSuffix: "",
+                    }}
+                    showSecondary={showSecondary}
+                    rows={chargeRows}
+                    formatAmount={formatINR}
+                  />
+                );
+              }
+            }
+          } else if (activePanel === "contact") {
+            const managerEntries =
+              equipment.managers && equipment.managers.length > 0
+                ? equipment.managers.map((mgr) => ({
+                    key: mgr.equipment_manager_id,
+                    name: mgr.manager_name,
+                    email: mgr.manager_email,
+                    phone: mgr.manager_phone,
+                    profilePicture: mgr.manager_profile_picture,
+                    userId: mgr.manager,
+                  }))
+                : [];
+            const operatorEntries =
+              equipment.operators && equipment.operators.length > 0
+                ? equipment.operators.map((op) => ({
+                    key: op.equipment_operator_id + 100000,
+                    name: op.operator_name,
+                    email: op.operator_email,
+                    phone: op.operator_phone,
+                    profilePicture: op.operator_profile_picture,
+                    userId: op.operator,
+                  }))
+                : [];
+            panelBody = (
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold text-foreground">Officer in-charge</h3>
+                  {managerEntries.length > 0
+                    ? renderContactCards(managerEntries)
+                    : emptyPanel("No officer in-charge has been assigned to this instrument yet.")}
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-base font-semibold text-foreground">Lab operator</h3>
+                  {operatorEntries.length > 0
+                    ? renderContactCards(operatorEntries)
+                    : emptyPanel("No lab operator has been assigned to this instrument yet.")}
+                </div>
+              </div>
+            );
           } else if (activePanel === "publications") {
             panelBody =
               publicationList.length > 0 ? (
@@ -922,49 +994,34 @@ const EquipmentProfile = () => {
                     <CardHeader className="pb-2 pt-4">
                       <CardTitle className="text-base">Equipment menu</CardTitle>
                       <CardDescription>
-                        Book, get help, or open a section on the left.
+                        Choose a section; content opens on the right.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2 pb-5">
-                      {shouldShowBookingCard() && !isLabInchargeUser() && (
-                        navBtn("book", canManageEquipment() ? "Manage this Equipment" : "Book This Equipment", {
-                          icon: <Calendar className="h-4 w-4" />,
-                          variant: "action",
-                          disabled: !canManageEquipment() && !isEquipmentOperational(),
-                          onClick: handleBookOrManageClick,
-                        })
-                      )}
-                      {shouldShowBookingCard() &&
-                        navBtn("charges", "View and Calculate Charges", {
-                          icon: <IndianRupee className="h-4 w-4" />,
-                          variant: "action",
-                          onClick: handleCalculateChargesClick,
-                        })}
-                      <div className="h-px bg-border my-2" />
-                      {navBtn("managers", "Officer in Charge", {
-                        icon: <UserCog className="h-4 w-4" />,
-                        active: activePanel === "managers",
-                        onClick: () => setActivePanel("managers"),
-                      })}
-                      {navBtn("operators", "Lab Operator", {
-                        icon: <Users className="h-4 w-4" />,
-                        active: activePanel === "operators",
-                        onClick: () => setActivePanel("operators"),
-                      })}
-                      {navBtn("general", "General Information", {
+                      {navBtn("general", "General information", {
                         icon: <ClipboardList className="h-4 w-4" />,
                         active: activePanel === "general",
                         onClick: () => setActivePanel("general"),
                       })}
-                      {navBtn("specifications", "Specifications", {
+                      {navBtn("specifications", "Technical specifications", {
                         icon: <FileText className="h-4 w-4" />,
                         active: activePanel === "specifications",
                         onClick: () => setActivePanel("specifications"),
                       })}
-                      {navBtn("sample", "Sample Requirements", {
+                      {navBtn("sample", "Sample requirements", {
                         icon: <FlaskConical className="h-4 w-4" />,
                         active: activePanel === "sample_requirements",
                         onClick: () => setActivePanel("sample_requirements"),
+                      })}
+                      {navBtn("view_charges", "View charges", {
+                        icon: <IndianRupee className="h-4 w-4" />,
+                        active: activePanel === "view_charges",
+                        onClick: () => setActivePanel("view_charges"),
+                      })}
+                      {navBtn("calc_charges", "Calculate charges", {
+                        icon: <IndianRupee className="h-4 w-4" />,
+                        variant: "action",
+                        onClick: handleCalculateChargesClick,
                       })}
                       {navBtn(
                         "publications",
@@ -977,26 +1034,38 @@ const EquipmentProfile = () => {
                           onClick: () => setActivePanel("publications"),
                         }
                       )}
-                      <div className="h-px bg-border my-2" />
-                      {navBtn("support", "Raise Support Request", {
+                      {shouldShowBookingCard() && !isLabInchargeUser() && (
+                        navBtn(
+                          "book",
+                          canManageEquipment() ? "Manage this equipment" : "Book this equipment",
+                          {
+                            icon: <Calendar className="h-4 w-4" />,
+                            variant: "action",
+                            disabled: !canManageEquipment() && !isEquipmentOperational(),
+                            onClick: handleBookOrManageClick,
+                          }
+                        )
+                      )}
+                      {navBtn("support", "Raise support request", {
                         icon: <LifeBuoy className="h-4 w-4" />,
                         variant: "action",
                         onClick: () => setSupportOpen(true),
+                      })}
+                      {navBtn("contact", "Contact us (Officer in-charge, Lab operator)", {
+                        icon: <UserCog className="h-4 w-4" />,
+                        active: activePanel === "contact",
+                        onClick: () => setActivePanel("contact"),
+                      })}
+                      {navBtn("manage_another", "Manage another equipment", {
+                        icon: <LayoutGrid className="h-4 w-4" />,
+                        variant: "action",
+                        onClick: () => navigate("/"),
                       })}
                       {shouldShowBookingCard() && !isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
                         <p className="text-sm text-amber-600 font-medium pt-1">
                           Booking is disabled while equipment is{" "}
                           {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
                         </p>
-                      )}
-                      {canManageEquipment() && (
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-muted-foreground"
-                          onClick={() => navigate("/equipments")}
-                        >
-                          Manage another equipment
-                        </Button>
                       )}
                     </CardContent>
                   </Card>

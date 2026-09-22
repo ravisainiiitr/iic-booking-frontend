@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -112,6 +113,9 @@ const DepartmentFilter = ({
 
   return (
     <div className={className}>
+      <Label htmlFor="catalog-department-filter" className="mb-1.5 block text-sm font-medium text-foreground">
+        Select Department/Centre
+      </Label>
       <Select
         value={selectValue}
         onValueChange={(next) => {
@@ -124,7 +128,7 @@ const DepartmentFilter = ({
         }}
         disabled={disabled || loading}
       >
-        <SelectTrigger className={triggerClassName ?? "h-12 text-base"}>
+        <SelectTrigger id="catalog-department-filter" className={triggerClassName ?? "h-12 text-base"}>
           <div className="flex items-center gap-2 min-w-0">
             {loading ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />

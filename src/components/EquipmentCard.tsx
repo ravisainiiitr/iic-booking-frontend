@@ -431,16 +431,6 @@ const EquipmentCard = ({
         {typeof internalRate === "number" && internalRate > 0 ? (
           <div className="text-base font-semibold tabular-nums text-primary">₹{Number(internalRate).toFixed(2)}/hour</div>
         ) : null}
-        <Button
-          size="sm"
-          className="bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary/90"
-          onClick={(e) => {
-            e.stopPropagation();
-            setDialogOpen(true);
-          }}
-        >
-          More info
-        </Button>
       </CardContent>
 
       <Dialog

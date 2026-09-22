@@ -6031,6 +6031,7 @@ class ApiClient {
     doi?: string;
     url?: string;
     facility_note?: string;
+    impact_factor?: number | string | null;
     citation?: string;
     equipment_ids: number[];
   }) {
@@ -6038,6 +6039,8 @@ class ApiClient {
       id: number;
       title: string;
       status: string;
+      approval_path?: string;
+      impact_factor?: string | null;
     }>('/publication-claims/my/', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -6059,6 +6062,7 @@ class ApiClient {
         doi: string;
         url: string;
         facility_note: string;
+        impact_factor?: string | null;
         citation: string;
         status: string;
         rejection_reason: string;

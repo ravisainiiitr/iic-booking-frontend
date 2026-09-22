@@ -83,7 +83,15 @@ const Footer = () => {
           <div id="contact">
             <h4 className="font-semibold mb-4">Contact Us</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>Email: <a href="mailto:iicbooking@iitr.ac.in" className="hover:text-primary transition-colors">iicbooking@iitr.ac.in</a></li>
+              <li>
+                TEL: <a href="tel:01332284350" className="hover:text-primary transition-colors">01332-284350</a>
+              </li>
+              <li>
+                Email:{" "}
+                <a href="mailto:iic@iitr.ac.in" className="hover:text-primary transition-colors">
+                  iic@iitr.ac.in
+                </a>
+              </li>
               <li>Hours: 24/7 Online Support</li>
               <li>Indian Institute of Technology Roorkee</li>
             </ul>

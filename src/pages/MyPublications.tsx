@@ -38,7 +38,8 @@ const statusBadge = (status: string) => {
 
 export default function MyPublications() {
   const navigate = useNavigate();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const userTypeStr = String(user?.user_type ?? "").toLowerCase();
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -55,6 +56,7 @@ export default function MyPublications() {
     volume_pages: "",
     url: "",
     facility_note: "",
+    impact_factor: "",
   });
 
   useEffect(() => {
@@ -157,10 +159,18 @@ export default function MyPublications() {
         doi: form.doi.trim(),
         url: form.url.trim(),
         facility_note: form.facility_note.trim(),
+        impact_factor: form.impact_factor.trim() ? form.impact_factor.trim() : null,
         equipment_ids: selectedEq,
       });
       if (submitRes.error) throw new Error(submitRes.error);
-      toast.success("Submitted for OIC / Admin review");
+      const path = String((submitRes.data as { approval_path?: string } | undefined)?.approval_path || "");
+      if (path === "faculty_auto" || userTypeStr === "faculty") {
+        toast.success("Publication approved and listed on the selected instruments");
+      } else if (path === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") {
+        toast.success("Submitted for your faculty supervisor to review");
+      } else {
+        toast.success("Submitted for OIC / Admin review");
+      }
       setForm({
         doi: "",
         title: "",
@@ -170,6 +180,7 @@ export default function MyPublications() {
         volume_pages: "",
         url: "",
         facility_note: "",
+        impact_factor: "",
       });
       setSelectedEq([]);
       await load();
@@ -265,6 +276,16 @@ export default function MyPublications() {
                   inputMode="numeric"
                   value={form.year}
                   onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="impact_factor">Impact factor (optional)</Label>
+                <Input
+                  id="impact_factor"
+                  inputMode="decimal"
+                  value={form.impact_factor}
+                  onChange={(e) => setForm((f) => ({ ...f, impact_factor: e.target.value }))}
+                  placeholder="e.g. 12.345"
                 />
               </div>
               <div className="space-y-1.5">

@@ -665,7 +665,7 @@ const Dashboard = () => {
         if (isCurrentUserOperatorOrManager && currentUserTypeStr !== "operator") {
           tasks.push(fetchUrgentRequestsPendingCount().then(() => {}));
         }
-        if (isCurrentUserOperatorOrManager || currentUserTypeStr === "admin") {
+        if (isCurrentUserOperatorOrManager || currentUserTypeStr === "admin" || currentUserTypeStr === "faculty") {
           tasks.push(fetchPublicationClaimsPendingCount().then(() => {}));
         }
         const facultyDeptInternal =
@@ -3096,7 +3096,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {(isAdmin || isOicUser) && (
+          {(isAdmin || isOicUser || userTypeStr === "faculty") && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => navigate("/publication-claims")}
@@ -3109,7 +3109,9 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Publication claims</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Review user-submitted journal references for your instruments
+                      {userTypeStr === "faculty"
+                        ? "Review publication claims from your students"
+                        : "Review external user-submitted journal references for your instruments"}
                     </CardDescription>
                   </div>
                 </div>
