@@ -455,9 +455,9 @@ const UrgentRequests = () => {
                   ? "This request has expired (no action was taken within the hold expiry time). The hold was released and slots are free. No further action is possible except delete."
                   : detailRow?.request_type === "REVIEWER_URGENT"
                     ? detailRow?.pending_wallet_approval
-                      ? "Urgent comment from reviewer: supervisor must approve first. You may view the attachment and reject; Approve will be enabled after supervisor approval."
-                      : "Urgent comment from reviewer: Supervisor has approved. View the attachment if needed and approve or reject."
-                    : "Unable to get slot despite trials: no supervisor approval required. Review the no-slot log and approve or reject."}
+                      ? "Urgent comment from reviewer: supervisor must approve first. You may view the attachment and reject; Accept will be enabled after supervisor approval."
+                      : "Urgent comment from reviewer: Supervisor has approved. View the attachment if needed. Accept & allocate confirms the booking at normal category rate + 50% urgent surcharge; Reject releases the hold."
+                    : "Unable to get slot despite trials: no supervisor approval required. Accept & allocate confirms the booking at normal category rate + 50% urgent surcharge; Reject releases the hold."}
               </DialogDescription>
             </DialogHeader>
             {detailRow && (
@@ -650,10 +650,10 @@ const UrgentRequests = () => {
                   <Button
                     disabled={actionLoading || (detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval)}
                     onClick={() => detailRow && handleApproveReject(detailRow.id, "APPROVED")}
-                    title={detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval ? "Supervisor must approve first" : undefined}
+                    title={detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Accept and allocate held slots (urgent charge includes 50% surcharge)"}
                   >
                     {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                    Approve
+                    Accept &amp; allocate
                   </Button>
                 </>
               )}

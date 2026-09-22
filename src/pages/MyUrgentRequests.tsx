@@ -402,6 +402,13 @@ const MyUrgentRequests = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
+              <p className="font-semibold">Additional charges for urgent requests</p>
+              <p className="mt-1 leading-relaxed">
+                Urgent booking requests are charged <strong>50% more</strong> than the normal charges applicable to your user category.
+                The Officer In Charge (OIC) will review your request and may accept (allocate) or reject it. If accepted, the held slots are confirmed and the urgent charge (including the 50% surcharge) is deducted from your wallet.
+              </p>
+            </div>
             <DepartmentFilter
               value={urgentDepartmentId}
               onChange={(next) => {

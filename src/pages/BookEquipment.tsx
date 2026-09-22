@@ -741,6 +741,7 @@ type ChargeCalcHashInput = {
   printAnalysisBatchId: string | null;
   sampleReturnAfterAnalysis: boolean;
   chargeEstimateUserType: string | null;
+  urgent?: boolean;
 };
 
 function buildChargeCalculationHash(input: ChargeCalcHashInput): string {
@@ -750,6 +751,7 @@ function buildChargeCalculationHash(input: ChargeCalcHashInput): string {
     printAnalysisBatchId: input.printAnalysisBatchId,
     sample_return_after_analysis: input.sampleReturnAfterAnalysis,
     charge_estimate_user_type: input.chargeEstimateUserType,
+    urgent: Boolean(input.urgent),
   });
 }
 
@@ -2592,6 +2594,7 @@ const BookEquipment = () => {
       printAnalysisBatchId,
       sampleReturnAfterAnalysis: sampleReturnFlag,
       chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
+      urgent: isUrgentHoldMode,
     });
     if (lastCalculatedValuesRef.current === currentValuesHash) {
       return; // Already calculated for these values
@@ -2672,6 +2675,7 @@ const BookEquipment = () => {
             : equipmentDetail.profile_type === "PRINT_3D" && printAnalysisId
               ? { print_analysis_id: printAnalysisId }
               : {}),
+          ...(isUrgentHoldMode ? { urgent: true } : {}),
         }
       );
 
@@ -2753,7 +2757,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentHoldMode]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -3001,6 +3005,7 @@ const BookEquipment = () => {
         printAnalysisBatchId,
         sampleReturnAfterAnalysis: sampleReturnFlag,
         chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
+        urgent: isUrgentHoldMode,
       });
       
       // Skip if we already calculated (or failed) for these exact values
@@ -7980,6 +7985,15 @@ const BookEquipment = () => {
                     <CollapsibleContent>
                     {equipmentDetail?.profile_type === "PRINT_3D" && (
                       <p className="text-sm font-bold text-amber-900 mb-2">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
+                    )}
+                    {isUrgentHoldMode && (
+                      <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+                        <p className="font-semibold">Urgent booking charges</p>
+                        <p className="mt-0.5 leading-relaxed">
+                          Urgent requests are charged <strong>50% more</strong> than the normal rate for your user category.
+                          The amount below includes this surcharge and will be debited if the Officer In Charge accepts your request.
+                        </p>
+                      </div>
                     )}
                     <div className="space-y-1.5 text-base">
                       <div className="flex justify-between items-center">

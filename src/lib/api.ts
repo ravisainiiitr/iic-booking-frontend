@@ -2014,6 +2014,8 @@ class ApiClient {
       print_analysis_batch_id?: string;
       /** Estimate charges for this user type (standard charge profile). */
       user_type?: string;
+      /** Urgent hold flow: apply 50% surcharge on category normal charge. */
+      urgent?: boolean;
     }
   ) {
     // Convert field values to query parameters
@@ -2043,6 +2045,9 @@ class ApiClient {
     }
     if (options?.user_type) {
       params.append('user_type', String(options.user_type));
+    }
+    if (options?.urgent) {
+      params.append('urgent', '1');
     }
     const queryString = params.toString();
     const endpoint = queryString
