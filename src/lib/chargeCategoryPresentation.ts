@@ -10,6 +10,8 @@ export type ChargeCategoryRowInput = {
   /** Breakpoint units after which secondary applies (e.g. elements). */
   breakpoint?: string | number | null;
   notes?: string;
+  /** Admin-authored rate-card line; preferred when non-empty. */
+  displayText?: string | null;
 };
 
 export type MultiParamSlotOptionInput = {
@@ -18,6 +20,7 @@ export type MultiParamSlotOptionInput = {
   param_name?: string | null;
   unit_charge?: string | number | null;
   unit_time_minutes?: number | string | null;
+  display_text?: string | null;
   is_active?: boolean;
 };
 
@@ -30,7 +33,7 @@ export type ChargeCategoryPresentation = {
   /** When true, use the simplified layout (not the legacy primary/secondary table). */
   simplified: boolean;
   /** Profile family driving the simplified copy. */
-  mode: "sample_element" | "sample" | "hour" | "multi_param" | "legacy";
+  mode: "sample_element" | "sample" | "hour" | "multi_param" | "generic" | "legacy";
   subtitle: string;
   rows: Array<{
     userType: string;
@@ -75,6 +78,10 @@ function moneyOrDash(raw: string): string {
   return formatINR(raw);
 }
 
+function trimmedDisplayText(raw: string | null | undefined): string {
+  return String(raw ?? "").trim();
+}
+
 /** MULTI_PARAM uses breakpoint as a 0/1 flag: 1 means charge/time scale with number of samples. */
 function isMultiParamPerSampleFlag(breakpoint: string | number | null | undefined): boolean {
   if (breakpoint == null || String(breakpoint).trim() === "") return false;
@@ -84,8 +91,11 @@ function isMultiParamPerSampleFlag(breakpoint: string | number | null | undefine
 
 function formatMultiParamOptionCharge(
   rawCharge: string | null,
-  breakpoint: string | number | null | undefined
+  breakpoint: string | number | null | undefined,
+  displayText?: string | null
 ): string {
+  const custom = trimmedDisplayText(displayText);
+  if (custom) return custom;
   if (rawCharge == null) return "—";
   const money = moneyOrDash(rawCharge);
   if (money === "—") return "—";
@@ -154,11 +164,11 @@ function resolveMultiParamOptionColumns(
   return columns;
 }
 
-function findSlotChargeForOption(
+function findSlotOptionForLabel(
   slotOptions: MultiParamSlotOptionInput[],
   userType: string,
   optionLabel: string
-): string | null {
+): MultiParamSlotOptionInput | null {
   const ut = normalizeUserTypeCode(userType);
   const optKey = normKey(optionLabel);
   if (!ut || !optKey) return null;
@@ -170,9 +180,7 @@ function findSlotChargeForOption(
     list.find((s) => normKey(s.param_code) === optKey) ||
     list.find((s) => normKey(s.param_name) === optKey);
 
-  const hit = matchIn(forUser) || matchIn(active);
-  if (!hit || hit.unit_charge == null || String(hit.unit_charge).trim() === "") return null;
-  return String(hit.unit_charge);
+  return matchIn(forUser) || matchIn(active) || null;
 }
 
 function buildMultiParamPresentation(
@@ -188,8 +196,12 @@ function buildMultiParamPresentation(
   const multiParamRows = rows.map((row) => {
     const chargesByOption: Record<string, string> = {};
     for (const opt of optionColumns) {
-      const raw = findSlotChargeForOption(slotOptions, row.userType, opt);
-      chargesByOption[opt] = formatMultiParamOptionCharge(raw, row.breakpoint);
+      const hit = findSlotOptionForLabel(slotOptions, row.userType, opt);
+      const raw =
+        hit && hit.unit_charge != null && String(hit.unit_charge).trim() !== ""
+          ? String(hit.unit_charge)
+          : null;
+      chargesByOption[opt] = formatMultiParamOptionCharge(raw, row.breakpoint, hit?.display_text);
     }
     return {
       userType: row.userType,
@@ -213,9 +225,18 @@ function buildMultiParamPresentation(
   };
 }
 
+function genericFallbackChargeLine(primary: string, secondary: string): string {
+  const p = moneyOrDash(primary);
+  const hasSc = hasSecondaryCharge(secondary);
+  const s = hasSc ? moneyOrDash(secondary) : "";
+  if (p === "—" && !hasSc) return "—";
+  if (hasSc && s && s !== "—") return `pc ${p} · sc ${s}`;
+  return p === "—" ? "—" : `pc ${p}`;
+}
+
 /**
  * Build simplified charge copy for SAMPLE_ELEMENT, SAMPLE (no secondary), HOUR (no secondary),
- * and MULTI_PARAM (Field B options × slot-option charges).
+ * GENERIC (display_text or pc/sc fallback), and MULTI_PARAM (Field B options × slot-option charges).
  * Other profile types return simplified:false so the caller keeps the legacy multi-column table.
  */
 export function buildChargeCategoryPresentation(
@@ -238,6 +259,24 @@ export function buildChargeCategoryPresentation(
     };
   }
 
+  if (t === "GENERIC") {
+    const presented = rows.map((row) => {
+      const custom = trimmedDisplayText(row.displayText);
+      return {
+        userType: row.userType,
+        label: row.label,
+        chargeLine: custom || genericFallbackChargeLine(row.primary, row.secondary),
+        gstLine: gstLineForUserType(row.userType),
+      };
+    });
+    return {
+      simplified: true,
+      mode: "generic",
+      subtitle: "Standard rates for this equipment, including student and faculty categories.",
+      rows: presented,
+    };
+  }
+
   let mode: ChargeCategoryPresentation["mode"] = "legacy";
   if (t === "SAMPLE_ELEMENT" || (t === "SAMPLE" && anySecondary && anyBreakpoint)) {
     mode = "sample_element";
@@ -247,7 +286,10 @@ export function buildChargeCategoryPresentation(
     mode = "hour";
   }
 
-  if (mode === "legacy") {
+  // Prefer display_text on any simplified-capable row, including legacy SAMPLE/HOUR/SAMPLE_ELEMENT.
+  const anyDisplayText = rows.some((r) => trimmedDisplayText(r.displayText));
+
+  if (mode === "legacy" && !anyDisplayText) {
     return {
       simplified: false,
       mode,
@@ -259,9 +301,21 @@ export function buildChargeCategoryPresentation(
   const subtitle =
     mode === "hour"
       ? "Standard rates for this equipment (per hour), including student and faculty categories."
-      : "Standard rates for this equipment (per sample), including student and faculty categories.";
+      : mode === "legacy"
+        ? "Standard rates for this equipment, including student and faculty categories."
+        : "Standard rates for this equipment (per sample), including student and faculty categories.";
 
   const presented = rows.map((row) => {
+    const custom = trimmedDisplayText(row.displayText);
+    if (custom) {
+      return {
+        userType: row.userType,
+        label: row.label,
+        chargeLine: custom,
+        gstLine: gstLineForUserType(row.userType),
+      };
+    }
+
     const primary = moneyOrDash(row.primary);
     const secondary = moneyOrDash(row.secondary);
     const bp = formatBreakpoint(row.breakpoint);
@@ -285,5 +339,10 @@ export function buildChargeCategoryPresentation(
     };
   });
 
-  return { simplified: true, mode, subtitle, rows: presented };
+  return {
+    simplified: true,
+    mode: mode === "legacy" ? "generic" : mode,
+    subtitle,
+    rows: presented,
+  };
 }

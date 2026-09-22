@@ -225,6 +225,8 @@ export type EquipmentFormData = {
     secondary_unit_charge?: string | number;
     breakpoint?: string | number | null;
     time_formula?: string | null;
+    charge_formula?: string | null;
+    display_text?: string | null;
   }>;
   /** @deprecated Prefer unified charge_profiles with pricing_profile=pi; still sent on save. */
   pi_charge_profiles?: Array<{
@@ -237,6 +239,8 @@ export type EquipmentFormData = {
     secondary_unit_charge?: string | number;
     breakpoint?: string | number | null;
     time_formula?: string | null;
+    charge_formula?: string | null;
+    display_text?: string | null;
   }>;
   input_fields?: Array<{
     user_type?: string;
@@ -260,9 +264,14 @@ export type EquipmentFormData = {
     param_code: string;
     unit_time_minutes: number | string;
     unit_charge: number | string;
+    display_text?: string | null;
     is_active?: boolean;
   }>;
 };
+
+/** Legacy profile types kept for existing rows only; new picks use GENERIC. */
+const LEGACY_CHARGE_PROFILE_TYPES = new Set(["SAMPLE", "HOUR", "SAMPLE_ELEMENT"]);
+const NEW_CHARGE_PROFILE_TYPES = new Set(["GENERIC", "MULTI_PARAM", "PRINT_3D"]);
 
 type StaffUserChoice = {
   id: number;
@@ -585,6 +594,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         secondary_unit_charge: p.secondary_unit_charge ?? 0,
         breakpoint: p.breakpoint ?? null,
         time_formula: p.time_formula ?? null,
+        charge_formula: (p.charge_formula as string | null) ?? null,
+        display_text: (p.display_text as string | null) ?? null,
       });
       const mergedChargeProfiles = [
         ...(Array.isArray(profiles) ? profiles.map((p) => mapChargeRow(p, "standard")) : []),
@@ -741,6 +752,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               param_code: String(row.param_code ?? ""),
               unit_time_minutes: row.unit_time_minutes ?? 0,
               unit_charge: row.unit_charge ?? 0,
+              display_text: (row.display_text as string | null) ?? "",
               is_active: row.is_active !== false,
             }))
           : prev.param_definitions ?? [],
@@ -960,6 +972,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             ? row.unit_time_minutes
             : parseInt(String(row.unit_time_minutes || "0"), 10) || 0,
         unit_charge: row.unit_charge,
+        display_text: row.display_text ?? "",
         is_active: row.is_active !== false,
       })),
     };
@@ -1520,6 +1533,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       param_code: "",
                       unit_time_minutes: 60,
                       unit_charge: 0,
+                      display_text: "",
                       is_active: true,
                     },
                   ],
@@ -1533,7 +1547,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             <p className="text-sm text-muted-foreground">No slot options configured.</p>
           ) : (
             (formData.param_definitions ?? []).map((row, idx) => (
-              <div key={idx} className="grid gap-3 sm:grid-cols-6 border rounded-md p-3 items-end">
+              <div key={idx} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7 border rounded-md p-3 items-end">
                 <div className="space-y-1">
                   <Label className="text-xs">User type</Label>
                   <Select
@@ -1614,6 +1628,20 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         return { ...p, param_definitions: rows };
                       })
                     }
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                  <Label className="text-xs">Display text</Label>
+                  <Input
+                    value={row.display_text ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const rows = [...(p.param_definitions ?? [])];
+                        rows[idx] = { ...rows[idx], display_text: e.target.value };
+                        return { ...p, param_definitions: rows };
+                      })
+                    }
+                    placeholder="Shown on View Charges"
                   />
                 </div>
                 <div className="flex items-center gap-2 pb-1">
@@ -2135,6 +2163,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           (formData.charge_profiles ?? []).map((cp, idx) => {
             const label = chargeProfileDisplayLabel(cp, choices.user_type_choices ?? []);
             const piRow = isPiChargeRow(cp);
+            const currentProfileType = String(cp.profile_type ?? "").toUpperCase();
+            const profileTypeChoices = (choices.profile_type_choices ?? []).filter((c) => {
+              const v = String(c.value ?? "").toUpperCase();
+              if (NEW_CHARGE_PROFILE_TYPES.has(v)) return true;
+              if (LEGACY_CHARGE_PROFILE_TYPES.has(v) && v === currentProfileType) return true;
+              return false;
+            });
+            const isGeneric = currentProfileType === "GENERIC";
             return (
               <div key={chargeProfileRowKey(cp, idx)} className="p-3 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
@@ -2159,14 +2195,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— None —</SelectItem>
-                        {choices.profile_type_choices.map((c) => (
+                        {profileTypeChoices.map((c) => (
                           <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`cp-primary-${idx}`}>Primary charge</Label>
+                    <Label htmlFor={`cp-primary-${idx}`}>{isGeneric ? "Primary (pc)" : "Primary charge"}</Label>
                     <Input
                       id={`cp-primary-${idx}`}
                       type="number"
@@ -2182,7 +2218,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`cp-secondary-${idx}`}>Secondary charge</Label>
+                    <Label htmlFor={`cp-secondary-${idx}`}>{isGeneric ? "Secondary (sc)" : "Secondary charge"}</Label>
                     <Input
                       id={`cp-secondary-${idx}`}
                       type="number"
@@ -2222,9 +2258,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <Input
                     id={`cp-formula-${idx}`}
                     placeholder={
-                      cp.profile_type === "HOUR"
-                        ? 'e.g. ((((C-B)/D)*E)*A)/60 — blank or B = legacy slots'
-                        : 'e.g. (A * C) + B'
+                      isGeneric
+                        ? "e.g. A * SLOT_DURATION_MINUTES — uses A–Z inputs"
+                        : cp.profile_type === "HOUR"
+                          ? 'e.g. ((((C-B)/D)*E)*A)/60 — blank or B = legacy slots'
+                          : 'e.g. (A * C) + B'
                     }
                     value={cp.time_formula ?? ""}
                     onChange={(e) =>
@@ -2235,11 +2273,62 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       })
                     }
                   />
-                  {cp.profile_type === "HOUR" ? (
+                  {isGeneric ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Restricted Python expression. Names: A–Z inputs, <code>SLOT_DURATION_MINUTES</code>. Result is minutes.
+                    </p>
+                  ) : cp.profile_type === "HOUR" ? (
                     <p className="text-[11px] text-muted-foreground">
                       HOUR: generic formula returns minutes (same engine as SAMPLE). Blank or <code>B</code> keeps
                       legacy Slot Duration × field B (optional toggle C + secondary). Formula path: hours × primary
                       only (no toggle).
+                    </p>
+                  ) : null}
+                </div>
+                {isGeneric ? (
+                  <div className="space-y-1">
+                    <Label htmlFor={`cp-charge-formula-${idx}`}>Charge formula</Label>
+                    <Input
+                      id={`cp-charge-formula-${idx}`}
+                      placeholder="e.g. pc * A + sc * max(0, B - 1)"
+                      value={cp.charge_formula ?? ""}
+                      onChange={(e) =>
+                        setFormData((p) => {
+                          const arr = [...(p.charge_profiles ?? [])];
+                          arr[idx] = {
+                            ...arr[idx],
+                            charge_formula: e.target.value === "" ? null : e.target.value,
+                          };
+                          return { ...p, charge_profiles: arr };
+                        })
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Restricted expression for total ₹. Names: <code>pc</code>, <code>sc</code>, A–Z,{" "}
+                      <code>TIME</code> (minutes after time formula), <code>SLOT_DURATION_MINUTES</code>.
+                      Supports <code>min</code>/<code>max</code>/<code>abs</code>/<code>round</code> and{" "}
+                      <code>a if cond else b</code>.
+                    </p>
+                  </div>
+                ) : null}
+                <div className="space-y-1">
+                  <Label htmlFor={`cp-display-text-${idx}`}>Display text</Label>
+                  <Textarea
+                    id={`cp-display-text-${idx}`}
+                    rows={2}
+                    placeholder="Shown on View Charges for this user category"
+                    value={cp.display_text ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => {
+                        const arr = [...(p.charge_profiles ?? [])];
+                        arr[idx] = { ...arr[idx], display_text: e.target.value };
+                        return { ...p, charge_profiles: arr };
+                      })
+                    }
+                  />
+                  {isGeneric ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Preferred rate-card line for Generic profiles. Leave blank to fall back to pc/sc amounts.
                     </p>
                   ) : null}
                 </div>
@@ -2337,18 +2426,20 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 ...p,
                 charge_profiles: [
                   ...(p.charge_profiles ?? []),
-                  {
-                    user_type: userType,
-                    pricing_profile: pricingProfile,
-                    profile_type: null,
-                    is_active: true,
-                    require_istem_fbr: false,
-                    show_charge_breakdown: true,
-                    primary_unit_charge: 0,
-                    secondary_unit_charge: 0,
-                    breakpoint: null,
-                    time_formula: null,
-                  },
+                    {
+                      user_type: userType,
+                      pricing_profile: pricingProfile,
+                      profile_type: null,
+                      is_active: true,
+                      require_istem_fbr: false,
+                      show_charge_breakdown: true,
+                      primary_unit_charge: 0,
+                      secondary_unit_charge: 0,
+                      breakpoint: null,
+                      time_formula: null,
+                      charge_formula: null,
+                      display_text: "",
+                    },
                 ],
               }));
             }}
