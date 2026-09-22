@@ -6747,8 +6747,8 @@ const BookEquipment = () => {
         <div className="max-w-6xl mx-auto">
           <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
+                <div className="flex justify-between items-start gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
                     <CardTitle className="text-xl md:text-2xl">{selectedEquipment.name}</CardTitle>
                     <CardDescription className="text-base md:text-lg">
                       {isCalculateChargesFlow ? (
@@ -6779,19 +6779,29 @@ const BookEquipment = () => {
                       )}
                     </CardDescription>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (canAccessManageEquipmentModes()) {
-                        navigate("/equipments");
-                      } else {
-                        navigate(`/equipment/${selectedEquipment.id}`);
-                      }
-                    }}
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
-                  </Button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/equipment/${selectedEquipment.id}`)}
+                      title="Open full equipment information page"
+                    >
+                      <Info className="h-4 w-4 mr-2" />
+                      More Information
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (canAccessManageEquipmentModes()) {
+                          navigate("/equipments");
+                        } else {
+                          navigate(`/equipment/${selectedEquipment.id}`);
+                        }
+                      }}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -9389,7 +9399,7 @@ const BookEquipment = () => {
               </DialogTitle>
               <DialogDescription asChild>
                 <div className="space-y-3">
-                  <p className="text-base text-foreground">{bookingResultDialog.message}</p>
+                  <p className="text-base text-foreground whitespace-pre-line">{bookingResultDialog.message}</p>
                   {bookingResultDialog.variant === "success" && (
                     <p className="text-sm text-muted-foreground rounded-lg border bg-primary/5 dark:bg-primary/10 border-primary/25 dark:border-primary/40 px-3 py-2">
                       Confirmation email and notifications are being sent in the background — your booking is already saved.
