@@ -75,6 +75,23 @@ function moneyOrDash(raw: string): string {
   return formatINR(raw);
 }
 
+/** MULTI_PARAM uses breakpoint as a 0/1 flag: 1 means charge/time scale with number of samples. */
+function isMultiParamPerSampleFlag(breakpoint: string | number | null | undefined): boolean {
+  if (breakpoint == null || String(breakpoint).trim() === "") return false;
+  const n = Number(breakpoint);
+  return Number.isFinite(n) && n === 1;
+}
+
+function formatMultiParamOptionCharge(
+  rawCharge: string | null,
+  breakpoint: string | number | null | undefined
+): string {
+  if (rawCharge == null) return "—";
+  const money = moneyOrDash(rawCharge);
+  if (money === "—") return "—";
+  return isMultiParamPerSampleFlag(breakpoint) ? `${money}/Sample` : money;
+}
+
 function normKey(raw: string | null | undefined): string {
   return String(raw ?? "")
     .trim()
@@ -172,7 +189,7 @@ function buildMultiParamPresentation(
     const chargesByOption: Record<string, string> = {};
     for (const opt of optionColumns) {
       const raw = findSlotChargeForOption(slotOptions, row.userType, opt);
-      chargesByOption[opt] = raw != null ? moneyOrDash(raw) : "—";
+      chargesByOption[opt] = formatMultiParamOptionCharge(raw, row.breakpoint);
     }
     return {
       userType: row.userType,
@@ -182,11 +199,14 @@ function buildMultiParamPresentation(
     };
   });
 
+  const anyPerSample = rows.some((r) => isMultiParamPerSampleFlag(r.breakpoint));
+
   return {
     simplified: true,
     mode: "multi_param",
-    subtitle:
-      "Standard rates for this equipment by duration option (per sample), including student and faculty categories.",
+    subtitle: anyPerSample
+      ? "Standard rates for this equipment by option (per sample when Breakpoint Flag is 1), including student and faculty categories."
+      : "Standard rates for this equipment by option, including student and faculty categories.",
     rows: [],
     optionColumns,
     multiParamRows,
