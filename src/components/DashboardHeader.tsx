@@ -18,6 +18,7 @@ import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -27,9 +28,11 @@ const DashboardHeader = () => {
   const location = useLocation();
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
   const { openGuide } = useUserGuide();
+  const embedded = useEmbeddedMode();
   const isEmbed =
-    typeof window !== "undefined" &&
-    new URLSearchParams(location.search).get("embed") === "1";
+    embedded ||
+    (typeof window !== "undefined" &&
+      new URLSearchParams(location.search).get("embed") === "1");
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [hasWallet, setHasWallet] = useState(false);
   const [showWalletOption, setShowWalletOption] = useState(false);

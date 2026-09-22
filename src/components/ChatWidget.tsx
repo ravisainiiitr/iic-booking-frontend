@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, X, Send, Loader2 } from "lucide-react";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
 type ChatMessage = {
   id: string;
@@ -19,9 +20,11 @@ const WELCOME = "Hi! Ask me anything about booking equipment, slots, wallet, or 
 export default function ChatWidget() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const embedded = useEmbeddedMode();
   const isEmbed =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("embed") === "1";
+    embedded ||
+    (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("embed") === "1");
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     { id: "welcome", role: "assistant", content: WELCOME },

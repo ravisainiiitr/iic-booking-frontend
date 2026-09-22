@@ -3,13 +3,16 @@ import TicketForm from "@/components/TicketForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { Link } from "react-router-dom";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
 const Footer = () => {
   const { isAuthenticated } = useAuth();
   const { openGuide } = useUserGuide();
+  const embedded = useEmbeddedMode();
   const isEmbed =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("embed") === "1";
+    embedded ||
+    (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("embed") === "1");
 
   if (isEmbed) {
     return null;

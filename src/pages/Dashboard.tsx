@@ -21,6 +21,7 @@ import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import DashboardWorkspace from "@/components/DashboardWorkspace";
 import { MigrationPortalBanner } from "@/components/MigrationPortalBanner";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
@@ -278,6 +279,8 @@ const Dashboard = () => {
   /** In-dashboard workspace: open menu destinations on the right without full page switch. */
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [workspaceTitle, setWorkspaceTitle] = useState<string>("");
+  /** Remount MemoryRouter when a menu item opens a new section. */
+  const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
@@ -1274,6 +1277,7 @@ const Dashboard = () => {
     if (!path.startsWith("/")) path = `/${path}`;
     setWorkspacePath(path);
     setWorkspaceTitle(title || path.replace(/^\//, "").replace(/[-_/]/g, " "));
+    setWorkspaceEpoch((n) => n + 1);
   }, []);
 
   useEffect(() => {
@@ -3947,10 +3951,13 @@ const Dashboard = () => {
                   </Button>
                 </CardHeader>
                 <CardContent className="p-0 sm:p-0">
-                  <iframe
-                    title={workspaceTitle || "Dashboard workspace"}
-                    src={`${workspacePath}${workspacePath.includes("?") ? "&" : "?"}embed=1`}
-                    className="w-full min-h-[70vh] border-0 bg-background rounded-b-xl"
+                  <DashboardWorkspace
+                    key={workspaceEpoch}
+                    initialPath={workspacePath}
+                    onClose={() => {
+                      setWorkspacePath(null);
+                      setWorkspaceTitle("");
+                    }}
                   />
                 </CardContent>
               </Card>

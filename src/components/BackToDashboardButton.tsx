@@ -2,6 +2,7 @@ import { LayoutDashboard } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useCloseWorkspace, useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
 type Props = {
   className?: string;
@@ -33,7 +34,10 @@ export function BackToDashboardButton({
 }: Props) {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const isEmbed = new URLSearchParams(search).get("embed") === "1";
+  const embedded = useEmbeddedMode();
+  const closeWorkspace = useCloseWorkspace();
+  const isQueryEmbed = new URLSearchParams(search).get("embed") === "1";
+  const isEmbed = embedded || isQueryEmbed;
 
   if (!isEmbed && (pathname === "/dashboard" || pathname.startsWith("/dashboard/"))) {
     return null;
@@ -41,6 +45,10 @@ export function BackToDashboardButton({
 
   const go = () => {
     if (isEmbed) {
+      if (embedded) {
+        closeWorkspace();
+        return;
+      }
       try {
         window.parent.postMessage({ type: "iic-close-dashboard-embed" }, "*");
       } catch {

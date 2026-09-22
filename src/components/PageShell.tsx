@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import DashboardHeader from "@/components/DashboardHeader";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
 /** Consistent authenticated page chrome. */
 export function PageShell({
@@ -12,9 +13,10 @@ export function PageShell({
   className?: string;
   withHeader?: boolean;
 }) {
+  const embedded = useEmbeddedMode();
   return (
-    <div className={cn("page-shell", className)}>
-      {withHeader ? <DashboardHeader /> : null}
+    <div className={cn("page-shell", embedded && "min-h-0", className)}>
+      {withHeader && !embedded ? <DashboardHeader /> : null}
       {children}
     </div>
   );
