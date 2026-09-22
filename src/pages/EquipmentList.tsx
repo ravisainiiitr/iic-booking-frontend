@@ -298,11 +298,11 @@ const EquipmentList = () => {
           </div>
         ) : null}
 
-        <div className="mb-5 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 max-w-5xl">
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 max-w-5xl">
           {isDeptAdmin ? (
-            <div className="sm:w-64 shrink-0 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
+            <div className="min-w-0 flex-1 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
-              <p className="font-medium truncate">
+              <p className="font-semibold truncate whitespace-nowrap">
                 {user?.department_name
                   ? `${user.department_name}${user.department_code ? ` (${user.department_code})` : ""}`
                   : daDepartmentId != null
@@ -314,12 +314,12 @@ const EquipmentList = () => {
             <DepartmentFilter
               value={selectedDepartmentId}
               onChange={setSelectedDepartmentId}
-              className="sm:max-w-md sm:flex-1 min-w-0"
-              triggerClassName="h-11 rounded-xl w-full max-w-xs text-sm"
+              className="min-w-0 flex-1"
+              triggerClassName="h-11 rounded-xl w-full text-sm font-semibold"
               disabled={loading}
             />
           )}
-          <div className="relative sm:w-72 md:w-80 shrink-0">
+          <div className="relative w-full sm:w-72 md:w-80 shrink-0 sm:ml-auto">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"

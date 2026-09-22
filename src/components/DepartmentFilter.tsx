@@ -113,7 +113,7 @@ const DepartmentFilter = ({
   const selectValue = value === "all" ? "all" : String(value);
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 min-w-0", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2 min-w-0 w-full", className)}>
       <Label
         htmlFor="catalog-department-filter"
         className="shrink-0 text-sm font-medium text-foreground whitespace-nowrap"
@@ -134,22 +134,32 @@ const DepartmentFilter = ({
       >
         <SelectTrigger
           id="catalog-department-filter"
-          className={cn("min-w-[12rem] flex-1", triggerClassName ?? "h-11 text-sm")}
+          className={cn(
+            "min-w-[14rem] flex-1 h-11 text-sm font-semibold text-foreground",
+            triggerClassName,
+          )}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 w-full">
             {loading ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
             ) : (
-              <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Building2 className="h-4 w-4 shrink-0 text-primary" />
             )}
-            <SelectValue placeholder="All departments" />
+            <SelectValue
+              placeholder="All departments"
+              className="truncate whitespace-nowrap font-semibold text-foreground"
+            />
           </div>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All departments</SelectItem>
+          <SelectItem value="all" className="font-medium">
+            All departments
+          </SelectItem>
           {departments.map((dept) => (
-            <SelectItem key={dept.id} value={String(dept.id)}>
-              {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${dept.equipment_count}`}
+            <SelectItem key={dept.id} value={String(dept.id)} className="font-medium">
+              <span className="whitespace-nowrap font-semibold">
+                {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${dept.equipment_count}`}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
