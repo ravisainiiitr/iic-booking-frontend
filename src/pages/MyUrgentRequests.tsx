@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
+import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { ArrowLeft, Loader2, AlertCircle, Clock, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
@@ -91,6 +92,8 @@ const MyUrgentRequests = () => {
   const [tick, setTick] = useState(0);
 
   // Submit new request form state
+  const [urgentDepartmentId, setUrgentDepartmentId] = useState<DepartmentFilterValue>("all");
+  const [urgentDepartmentReady, setUrgentDepartmentReady] = useState(false);
   const [urgentEquipmentList, setUrgentEquipmentList] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
   const [loadingUrgentEquipments, setLoadingUrgentEquipments] = useState(false);
   const [urgentSelectedEquipmentId, setUrgentSelectedEquipmentId] = useState<string>("");
@@ -126,26 +129,33 @@ const MyUrgentRequests = () => {
     }
   }, []);
 
-  // Load equipment list for dropdown
+  // Load equipment list for dropdown (filtered by selected department)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    if (!urgentDepartmentReady) return;
     setLoadingUrgentEquipments(true);
+    const deptArg =
+      urgentDepartmentId === "all" ? undefined : urgentDepartmentId;
     apiClient
-      .getEquipments(undefined, "ACTIVE")
+      .getEquipments(undefined, "ACTIVE", undefined, false, deptArg)
       .then((res) => {
         const raw = (res as { data?: unknown })?.data ?? res;
         const data = Array.isArray(raw) ? raw : (raw as { equipments?: unknown[] })?.equipments ?? (raw as { results?: unknown[] })?.results ?? [];
-        setUrgentEquipmentList(
-          (data as Array<{ equipment_id?: number; id?: number; code?: string; equipment_code?: string; name?: string; equipment_name?: string }>).map((e) => ({
-            equipment_id: e.equipment_id ?? e.id ?? 0,
-            code: e.code ?? e.equipment_code ?? "",
-            name: e.name ?? e.equipment_name ?? "",
-          }))
-        );
+        const list = (data as Array<{ equipment_id?: number; id?: number; code?: string; equipment_code?: string; name?: string; equipment_name?: string }>).map((e) => ({
+          equipment_id: e.equipment_id ?? e.id ?? 0,
+          code: e.code ?? e.equipment_code ?? "",
+          name: e.name ?? e.equipment_name ?? "",
+        }));
+        setUrgentEquipmentList(list);
+        setUrgentSelectedEquipmentId((prev) => {
+          if (!prev) return prev;
+          const stillThere = list.some((eq) => String(eq.equipment_id) === prev);
+          return stillThere ? prev : "";
+        });
       })
       .catch(() => setUrgentEquipmentList([]))
       .finally(() => setLoadingUrgentEquipments(false));
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, urgentDepartmentId, urgentDepartmentReady]);
 
   // Students/other users can only submit NO_SLOT. REVIEWER_URGENT is faculty-only.
   useEffect(() => {
@@ -387,9 +397,31 @@ const MyUrgentRequests = () => {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">Submit new urgent request</CardTitle>
-            <CardDescription>Select equipment, choose reason, and submit. You may select slots on the booking page first and return here to complete.</CardDescription>
+            <CardDescription>
+              Choose department and equipment, then reason, and submit. You may select slots on the booking page first and return here to complete.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <DepartmentFilter
+              value={urgentDepartmentId}
+              onChange={(next) => {
+                setUrgentDepartmentId(next);
+                setUrgentSelectedEquipmentId("");
+                setUrgentRequestType(isFacultyUser ? "REVIEWER_URGENT" : "");
+                setUrgentDisclaimerAccepted(false);
+                setUrgentEvidenceFile(null);
+                setUrgentReviewerComment("");
+                setUrgentHoldBookingId(null);
+                setNoAttemptsDialogOpen(false);
+              }}
+              defaultDepartmentName="Institute Instrumentation Centre"
+              onResolved={(resolved) => {
+                setUrgentDepartmentId(resolved);
+                setUrgentDepartmentReady(true);
+              }}
+              className="max-w-xl"
+              triggerClassName="max-w-md"
+            />
             <div className="space-y-2">
               <Label className="text-sm font-medium">Select equipment</Label>
               <Select
@@ -403,6 +435,7 @@ const MyUrgentRequests = () => {
                   setUrgentHoldBookingId(null);
                   setNoAttemptsDialogOpen(false);
                 }}
+                disabled={!urgentDepartmentReady || loadingUrgentEquipments}
               >
                 <SelectTrigger className="w-full max-w-md">
                   <SelectValue placeholder={loadingUrgentEquipments ? "Loading…" : "Choose equipment"} />

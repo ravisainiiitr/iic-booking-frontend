@@ -254,7 +254,7 @@ function labDashPanelTitle(panel: NonNullable<LabDashPanel>): string {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated, refreshUser, logout } = useAuth();
-  const { openGuide, guide: userGuide } = useUserGuide();
+  const { guide: userGuide } = useUserGuide();
 
   const handleProfileAvatarUploaded = useCallback(async () => {
     await refreshUser();
@@ -2964,7 +2964,7 @@ const Dashboard = () => {
             userGuide && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openGuide({ force: true })}
+              onClick={() => openWorkspace("/user-guide", "User Guide")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2985,7 +2985,7 @@ const Dashboard = () => {
                   className="w-full bg-primary hover:bg-primary/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    openGuide({ force: true });
+                    openWorkspace("/user-guide", "User Guide");
                   }}
                 >
                   Open user guide

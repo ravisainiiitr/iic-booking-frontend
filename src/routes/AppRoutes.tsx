@@ -114,6 +114,7 @@ import OrganizationUsersManagement from "@/pages/OrganizationUsersManagement";
 import ExternalDepartmentAdditionVerification from "@/pages/ExternalDepartmentAdditionVerification";
 import UserGuidePreview from "@/pages/UserGuidePreview";
 import AdminSettingsKnowledge from "@/pages/AdminSettingsKnowledge";
+import UserGuidePage from "@/pages/UserGuidePage";
 
 /**
  * Shared route table for the main BrowserRouter and the dashboard in-panel MemoryRouter.
@@ -266,6 +267,7 @@ export default function AppRoutes() {
       <Route path="/test/icpms-standards" element={<IcpmsStandardsTest />} />
       <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
       <Route path="/tickets" element={<Tickets />} />
+      <Route path="/user-guide" element={<UserGuidePage />} />
       <Route path="/dev/user-guides" element={<UserGuidePreview />} />
       <Route path="/page/:slug" element={<CmsPageView />} />
       <Route path="/wallet/recharge-action/:token" element={<WalletRechargeEmailAction />} />
