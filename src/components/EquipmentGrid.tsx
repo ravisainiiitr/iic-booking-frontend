@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 
 interface ApiEquipment {
   equipment_id: number;
@@ -67,6 +68,10 @@ const EquipmentGrid = () => {
     equipmentId: number;
     equipmentName: string;
     newStatus: "ACTIVE" | "REPAIR";
+  } | null>(null);
+  const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
+    noticeId: number;
+    equipmentName: string;
   } | null>(null);
   /** OIC: default managed instruments; toggle to browse full catalog. */
   const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
@@ -200,7 +205,11 @@ const EquipmentGrid = () => {
     }));
   };
 
-  const handleStatusChange = async (equipmentId: number, newStatus: "ACTIVE" | "REPAIR") => {
+  const handleStatusChange = async (
+    equipmentId: number,
+    newStatus: "ACTIVE" | "REPAIR",
+    equipmentName?: string
+  ) => {
     setStatusUpdatingId(equipmentId);
     setPendingStatusChange(null);
     try {
@@ -211,6 +220,18 @@ const EquipmentGrid = () => {
       }
       const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
+      const nb = res.data?.notice_board;
+      if (nb?.notice_closed_on_operational) {
+        toast.message("Linked notice board entry was closed (expiry set to now).");
+      }
+      if (nb?.notice_prompt_for_actor && nb.notice_request_id) {
+        setNoticeExpiryPrompt({
+          noticeId: Number(nb.notice_request_id),
+          equipmentName: equipmentName || "Equipment",
+        });
+      } else if (nb?.needs_notice_expiry && nb.notice_request_id) {
+        toast.message("Notice board draft created. OIC can set expiry under Notice board requests.");
+      }
       await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
@@ -373,7 +394,12 @@ const EquipmentGrid = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() =>
-                pendingStatusChange && handleStatusChange(pendingStatusChange.equipmentId, pendingStatusChange.newStatus)
+                pendingStatusChange &&
+                handleStatusChange(
+                  pendingStatusChange.equipmentId,
+                  pendingStatusChange.newStatus,
+                  pendingStatusChange.equipmentName
+                )
               }
             >
               Confirm
@@ -381,8 +407,15 @@ const EquipmentGrid = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <NoticeExpiryDialog
+        open={noticeExpiryPrompt != null}
+        noticeId={noticeExpiryPrompt?.noticeId ?? null}
+        equipmentName={noticeExpiryPrompt?.equipmentName}
+        onOpenChange={(open) => {
+          if (!open) setNoticeExpiryPrompt(null);
+        }}
+      />
     </section>
   );
 };
-
 export default EquipmentGrid;

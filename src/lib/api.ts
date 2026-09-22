@@ -2000,7 +2000,79 @@ class ApiClient {
 
   /** Update equipment status. Admin / OIC only (not Lab In-charge). */
   async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER') {
-    return this.updateEquipment(String(equipmentId), { status });
+    return this.updateEquipment(String(equipmentId), { status }) as Promise<{
+      data?: Record<string, unknown> & {
+        notice_board?: {
+          notice_request_id?: number;
+          needs_notice_expiry?: boolean;
+          notice_prompt_for_actor?: boolean;
+          notices_closed?: number;
+          notice_closed_on_operational?: boolean;
+        };
+      };
+      error?: string;
+    }>;
+  }
+
+  /** OIC: list my notice requests + drafts needing expiry. */
+  async getMyNoticeRequests() {
+    return this.request<{
+      requests: Array<Record<string, unknown>>;
+      needs_expiry: Array<Record<string, unknown>>;
+      count: number;
+    }>("/notice-requests/mine/");
+  }
+
+  /** OIC: create generic notice request (pending Main Admin approval). */
+  async createNoticeRequest(data: {
+    title: string;
+    description: string;
+    content?: string;
+    notice_type?: string;
+    priority?: number;
+    expiry_date?: string | null;
+    expiry_unlimited?: boolean;
+  }) {
+    return this.request<Record<string, unknown>>("/notice-requests/mine/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** OIC: set expiry on equipment-unavailable draft and submit for approval. */
+  async completeNoticeRequestExpiry(
+    noticeId: number | string,
+    data: { expiry_date?: string | null; expiry_unlimited?: boolean }
+  ) {
+    return this.request<Record<string, unknown>>(
+      `/notice-requests/${noticeId}/complete-expiry/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  /** Main Admin: pending notice approvals. */
+  async getPendingNoticeRequests() {
+    return this.request<{
+      requests: Array<Record<string, unknown>>;
+      count: number;
+    }>("/notice-requests/pending/");
+  }
+
+  async approveNoticeRequest(noticeId: number | string, data?: { review_comment?: string }) {
+    return this.request<Record<string, unknown>>(`/notice-requests/${noticeId}/approve/`, {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  async rejectNoticeRequest(noticeId: number | string, data?: { review_comment?: string }) {
+    return this.request<Record<string, unknown>>(`/notice-requests/${noticeId}/reject/`, {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    });
   }
 
   async calculateEquipmentCharge(
@@ -8595,13 +8667,21 @@ class ApiClient {
   }
 
   /** Admin: list notices with optional filters (admin user only). */
-  async adminNoticesList(params?: { search?: string; notice_type?: string; is_active?: string }) {
+  async adminNoticesList(params?: {
+    search?: string;
+    notice_type?: string;
+    is_active?: string;
+    approval_status?: string;
+  }) {
     const p: Record<string, string> = {};
     if (params?.search) p.search = params.search;
     if (params?.notice_type) p.notice_type = params.notice_type;
-    if (params?.is_active !== undefined && params?.is_active !== '') p.is_active = params.is_active;
-    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : '';
-    return this.request<Array<Record<string, unknown>>>(`${this.getAdminEndpoint('notices')}${q}`, { method: 'GET' });
+    if (params?.is_active !== undefined && params?.is_active !== "") p.is_active = params.is_active;
+    if (params?.approval_status) p.approval_status = params.approval_status;
+    const q = Object.keys(p).length ? `?${new URLSearchParams(p).toString()}` : "";
+    return this.request<Array<Record<string, unknown>>>(`${this.getAdminEndpoint("notices")}${q}`, {
+      method: "GET",
+    });
   }
 
   async adminNoticeGet(id: number | string) {

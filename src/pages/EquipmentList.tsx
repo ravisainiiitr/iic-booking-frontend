@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import {
@@ -103,6 +104,10 @@ const EquipmentList = () => {
     equipmentId: number;
     equipmentName: string;
     newStatus: "ACTIVE" | "REPAIR";
+  } | null>(null);
+  const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
+    noticeId: number;
+    equipmentName: string;
   } | null>(null);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
@@ -217,7 +222,11 @@ const EquipmentList = () => {
     };
   }, [authReady, searchQuery, selectedDepartmentId, fetchEquipment]);
 
-  const handleStatusToggle = async (equipmentId: number, newStatus: "ACTIVE" | "REPAIR") => {
+  const handleStatusToggle = async (
+    equipmentId: number,
+    newStatus: "ACTIVE" | "REPAIR",
+    equipmentName?: string
+  ) => {
     setStatusUpdatingId(equipmentId);
     setPendingStatusChange(null);
     try {
@@ -228,6 +237,18 @@ const EquipmentList = () => {
       }
       const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
+      const nb = res.data?.notice_board;
+      if (nb?.notice_closed_on_operational) {
+        toast.message("Linked notice board entry was closed (expiry set to now).");
+      }
+      if (nb?.notice_prompt_for_actor && nb.notice_request_id) {
+        setNoticeExpiryPrompt({
+          noticeId: Number(nb.notice_request_id),
+          equipmentName: equipmentName || "Equipment",
+        });
+      } else if (nb?.needs_notice_expiry && nb.notice_request_id) {
+        toast.message("Notice board draft created. OIC can set expiry under Notice board requests.");
+      }
       const list = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
       setRawEquipment(list);
       setExpandedParentId((prev) =>
@@ -414,7 +435,11 @@ const EquipmentList = () => {
             <AlertDialogAction
               onClick={() =>
                 pendingStatusChange &&
-                handleStatusToggle(pendingStatusChange.equipmentId, pendingStatusChange.newStatus)
+                handleStatusToggle(
+                  pendingStatusChange.equipmentId,
+                  pendingStatusChange.newStatus,
+                  pendingStatusChange.equipmentName
+                )
               }
             >
               Confirm
@@ -422,6 +447,14 @@ const EquipmentList = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <NoticeExpiryDialog
+        open={noticeExpiryPrompt != null}
+        noticeId={noticeExpiryPrompt?.noticeId ?? null}
+        equipmentName={noticeExpiryPrompt?.equipmentName}
+        onOpenChange={(open) => {
+          if (!open) setNoticeExpiryPrompt(null);
+        }}
+      />
     </div>
   );
 };

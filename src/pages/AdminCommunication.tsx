@@ -82,6 +82,16 @@ type NoticeRow = {
   is_active: boolean;
   priority: number;
   expiry_date?: string | null;
+  expiry_unlimited?: boolean;
+  approval_status?: string;
+  approval_status_display?: string;
+  source?: string;
+  source_display?: string;
+  equipment_code?: string | null;
+  equipment_name?: string | null;
+  requested_by_name?: string | null;
+  requested_by_email?: string | null;
+  review_comment?: string;
   created_by?: number | null;
   created_by_name?: string | null;
   created_at: string;
@@ -160,6 +170,9 @@ const AdminCommunication = () => {
 
   const [notices, setNotices] = useState<NoticeRow[]>([]);
   const [loadingNotices, setLoadingNotices] = useState(false);
+  const [pendingNoticeRequests, setPendingNoticeRequests] = useState<NoticeRow[]>([]);
+  const [loadingPendingNotices, setLoadingPendingNotices] = useState(false);
+  const [reviewingNoticeId, setReviewingNoticeId] = useState<number | null>(null);
   const [noticeFilters, setNoticeFilters] = useState({ search: "", notice_type: "", is_active: "" });
   const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
   const [editingNotice, setEditingNotice] = useState<NoticeRow | null>(null);
@@ -271,10 +284,32 @@ const AdminCommunication = () => {
     }
   };
 
+  const fetchPendingNoticeRequests = async () => {
+    if (!isAdmin) return;
+    setLoadingPendingNotices(true);
+    try {
+      const res = await apiClient.getPendingNoticeRequests();
+      if (res.error) {
+        setPendingNoticeRequests([]);
+        return;
+      }
+      setPendingNoticeRequests((res.data?.requests as NoticeRow[]) || []);
+    } catch {
+      setPendingNoticeRequests([]);
+    } finally {
+      setLoadingPendingNotices(false);
+    }
+  };
+
   useEffect(() => {
     if (!canAccess) return;
     fetchNotices();
   }, [canAccess, noticeFilters.search, noticeFilters.notice_type, noticeFilters.is_active]);
+
+  useEffect(() => {
+    if (!canAccess || !isAdmin) return;
+    void fetchPendingNoticeRequests();
+  }, [canAccess, isAdmin]);
 
   const fetchEquipments = async () => {
     setLoadingEquipments(true);
@@ -475,6 +510,45 @@ const AdminCommunication = () => {
       toast.error("Failed to delete notice.");
     } finally {
       setDeletingNoticeId(null);
+    }
+  };
+
+  const handleApproveNoticeRequest = async (noticeId: number) => {
+    setReviewingNoticeId(noticeId);
+    try {
+      const res = await apiClient.approveNoticeRequest(noticeId);
+      if (res.error) {
+        toast.error(typeof res.error === "string" ? res.error : "Approve failed");
+        return;
+      }
+      toast.success("Notice approved and published on the notice board.");
+      await fetchPendingNoticeRequests();
+      await fetchNotices();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Approve failed");
+    } finally {
+      setReviewingNoticeId(null);
+    }
+  };
+
+  const handleRejectNoticeRequest = async (noticeId: number) => {
+    const comment = window.prompt("Rejection comment (optional):") ?? "";
+    setReviewingNoticeId(noticeId);
+    try {
+      const res = await apiClient.rejectNoticeRequest(noticeId, {
+        review_comment: comment.trim(),
+      });
+      if (res.error) {
+        toast.error(typeof res.error === "string" ? res.error : "Reject failed");
+        return;
+      }
+      toast.success("Notice request rejected.");
+      await fetchPendingNoticeRequests();
+      await fetchNotices();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reject failed");
+    } finally {
+      setReviewingNoticeId(null);
     }
   };
 
@@ -828,6 +902,92 @@ const AdminCommunication = () => {
           </TabsContent>
 
           <TabsContent value="notices" className="space-y-4">
+            {isAdmin ? (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">
+                    Pending approvals
+                    {pendingNoticeRequests.length ? ` (${pendingNoticeRequests.length})` : ""}
+                  </CardTitle>
+                  <CardDescription>
+                    OIC notice board requests. Approve to publish on the main page notice board.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingPendingNotices ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : pendingNoticeRequests.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">No pending notice requests.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Source</TableHead>
+                            <TableHead>Requester</TableHead>
+                            <TableHead>Equipment</TableHead>
+                            <TableHead>Expiry</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pendingNoticeRequests.map((row) => (
+                            <TableRow key={row.notice_id}>
+                              <TableCell>
+                                <div className="font-medium">{row.title}</div>
+                                <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                  {row.description}
+                                </div>
+                              </TableCell>
+                              <TableCell>{row.source_display || row.source || "—"}</TableCell>
+                              <TableCell className="text-sm">
+                                {row.requested_by_name || row.requested_by_email || "—"}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {row.equipment_code
+                                  ? `${row.equipment_code}${row.equipment_name ? ` — ${row.equipment_name}` : ""}`
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {row.expiry_unlimited
+                                  ? "Unlimited"
+                                  : row.expiry_date
+                                    ? format(new Date(row.expiry_date), "dd MMM yyyy HH:mm")
+                                    : "—"}
+                              </TableCell>
+                              <TableCell className="text-right space-x-2">
+                                <Button
+                                  size="sm"
+                                  disabled={reviewingNoticeId === row.notice_id}
+                                  onClick={() => void handleApproveNoticeRequest(row.notice_id)}
+                                >
+                                  {reviewingNoticeId === row.notice_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    "Approve"
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={reviewingNoticeId === row.notice_id}
+                                  onClick={() => void handleRejectNoticeRequest(row.notice_id)}
+                                >
+                                  Reject
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
             <Card>
               <CardHeader className="pb-4">
                 <CardTitle className="text-base">Filters</CardTitle>
@@ -893,6 +1053,8 @@ const AdminCommunication = () => {
                       <TableRow>
                         <TableHead>Title</TableHead>
                         <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Source</TableHead>
                         <TableHead>Active</TableHead>
                         <TableHead>Priority</TableHead>
                         <TableHead>Expiry date</TableHead>
@@ -904,13 +1066,13 @@ const AdminCommunication = () => {
                     <TableBody>
                       {loadingNotices ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="h-24 text-center">
+                          <TableCell colSpan={10} className="h-24 text-center">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                           </TableCell>
                         </TableRow>
                       ) : notices.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                          <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                             No notices found.
                           </TableCell>
                         </TableRow>
@@ -919,10 +1081,16 @@ const AdminCommunication = () => {
                           <TableRow key={row.notice_id}>
                             <TableCell className="font-medium max-w-[200px] truncate" title={row.title}>{row.title}</TableCell>
                             <TableCell>{row.notice_type_display ?? row.notice_type}</TableCell>
+                            <TableCell className="text-sm">{row.approval_status_display ?? row.approval_status ?? "—"}</TableCell>
+                            <TableCell className="text-sm">{row.source_display ?? row.source ?? "—"}</TableCell>
                             <TableCell>{row.is_active ? "Yes" : "No"}</TableCell>
                             <TableCell>{row.priority}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {row.expiry_date ? format(new Date(row.expiry_date), "dd MMM yyyy") : "—"}
+                              {row.expiry_unlimited
+                                ? "Unlimited"
+                                : row.expiry_date
+                                  ? format(new Date(row.expiry_date), "dd MMM yyyy")
+                                  : "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{row.created_by_name ?? "—"}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
