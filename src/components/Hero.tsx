@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Calendar, Search, LogIn, FlaskConical, Mail } from "lucide-react";
+import { Calendar, Search, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -13,7 +13,7 @@ const DEFAULT_HOME = {
   hero_title_line1: "Institute Equipment Booking Portal",
   hero_title_line2: "Precision instruments. Real-time booking.",
   hero_subtitle:
-    "Book state-of-the-art laboratory instruments online. Seamless scheduling for researchers and institutions.",
+    "Book state-of-the-art laboratory instruments online.\nSeamless scheduling for researchers and institutions.",
   cta_book_text: "Book Equipment",
   cta_book_route: "/equipments",
   cta_browse_text: "Browse Catalog",
@@ -47,6 +47,23 @@ const Hero = () => {
   } | null>(null);
   const [siteStatsFailed, setSiteStatsFailed] = useState(false);
   const [channeliLoading, setChanneliLoading] = useState(false);
+  const [analysisChargesLoading, setAnalysisChargesLoading] = useState(false);
+
+  const handleAnalysisCharges = async () => {
+    setAnalysisChargesLoading(true);
+    try {
+      const res = await apiClient.getAnalysisChargesDocument();
+      if (res.error || !res.data?.document_url) {
+        toast.error(res.error || "Analysis Charges document is not available yet.");
+        return;
+      }
+      window.open(res.data.document_url, "_blank", "noopener,noreferrer");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to open Analysis Charges");
+    } finally {
+      setAnalysisChargesLoading(false);
+    }
+  };
 
   const handleChanneliLogin = async () => {
     setChanneliLoading(true);
@@ -162,10 +179,19 @@ const Hero = () => {
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </p>
               <p
-                className="max-w-2xl text-base leading-snug text-white/80 sm:text-lg"
+                className="max-w-2xl whitespace-pre-line text-base leading-snug text-white/80 sm:text-lg"
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
               >
-                {home.hero_subtitle || DEFAULT_HOME.hero_subtitle}
+                {(() => {
+                  const raw = (home.hero_subtitle || DEFAULT_HOME.hero_subtitle).trim();
+                  if (raw.includes("\n")) return raw;
+                  const marker = "Seamless scheduling";
+                  const idx = raw.indexOf(marker);
+                  if (idx > 0) return `${raw.slice(0, idx).trim()}\n${raw.slice(idx).trim()}`;
+                  const m = raw.match(/^(.+?\.)\s+(.+)$/);
+                  if (m) return `${m[1]}\n${m[2]}`;
+                  return raw;
+                })()}
               </p>
             </div>
 
@@ -209,6 +235,19 @@ const Hero = () => {
               >
                 <Search className="h-4 w-4" />
                 {home.cta_browse_text || "Browse Catalog"}
+              </Button>
+              <Button
+                size="lg"
+                className={primaryCtaClass}
+                onClick={() => void handleAnalysisCharges()}
+                disabled={analysisChargesLoading}
+              >
+                {analysisChargesLoading ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <IndianRupee className="h-4 w-4" />
+                )}
+                Analysis Charges
               </Button>
               <Button
                 size="lg"

@@ -1020,6 +1020,8 @@ const BookEquipment = () => {
   );
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
   const [chargeEstimateUserType, setChargeEstimateUserType] = useState<string>("");
+  /** Calculate-charges page: toggle rate card vs interactive estimate (fewer scrolls). */
+  const [calculateChargesPanel, setCalculateChargesPanel] = useState<"view" | "calculate">("view");
   /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
   const [sampleInfoExpanded, setSampleInfoExpanded] = useState(true);
   const [chargeCalcExpanded, setChargeCalcExpanded] = useState(true);
@@ -5479,11 +5481,29 @@ const BookEquipment = () => {
             <div className="min-w-0">
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 {isCalculateChargesFlow
-                  ? `Calculate Charges — ${selectedEquipment.name}`
+                  ? `Charges — ${selectedEquipment.name}`
                   : canAccessManageEquipmentModes()
                     ? `Manage ${selectedEquipment.name}`
                     : selectedEquipment.name}
               </h1>
+              {isCalculateChargesFlow && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={calculateChargesPanel === "view" ? "default" : "outline"}
+                    onClick={() => setCalculateChargesPanel("view")}
+                  >
+                    View Charges
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={calculateChargesPanel === "calculate" ? "default" : "outline"}
+                    onClick={() => setCalculateChargesPanel("calculate")}
+                  >
+                    Calculate Charges
+                  </Button>
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
                 <EquipmentDepartmentLabel
                   name={(equipmentDetail as any)?.internal_department_name}
@@ -7118,7 +7138,10 @@ const BookEquipment = () => {
                   </div>
                 )}
 
-                {isCalculateChargesFlow && chargeCategorySummaryRows.length > 0 && (() => {
+                {isCalculateChargesFlow &&
+                  calculateChargesPanel === "view" &&
+                  chargeCategorySummaryRows.length > 0 &&
+                  (() => {
                   const unitLabels = getChargeUnitColumnLabels(equipmentDetail?.profile_type);
                   const presentation = buildChargeCategoryPresentation(
                     equipmentDetail?.profile_type,
@@ -7200,6 +7223,16 @@ const BookEquipment = () => {
                   );
                 })()}
 
+                {isCalculateChargesFlow && calculateChargesPanel === "view" && chargeCategorySummaryRows.length === 0 && (
+                  <div className="mb-4 p-4 rounded-lg border bg-muted/30">
+                    <p className="text-base text-muted-foreground">
+                      Rate card is not available for this equipment. Use <span className="font-medium text-foreground">Calculate Charges</span> for an estimate.
+                    </p>
+                  </div>
+                )}
+
+                {(!isCalculateChargesFlow || calculateChargesPanel === "calculate") && (
+                <>
                 {isCalculateChargesFlow && (
                   <div className="mb-4 p-4 rounded-lg border bg-muted/30 space-y-2">
                     <h3 className="text-lg font-semibold md:text-xl">Select User Type</h3>
@@ -8187,18 +8220,6 @@ const BookEquipment = () => {
                             <span>{formatINR(calculatedCharge.normal_charge)}</span>
                           </div>
                         ) : null}
-                        {calculatedCharge.applied_profile ? (
-                          <div className="flex justify-between text-sm">
-                            <span>Applied Profile</span>
-                            <span className="font-medium">{calculatedCharge.applied_profile}</span>
-                          </div>
-                        ) : null}
-                        {calculatedCharge.applied_charge != null ? (
-                          <div className="flex justify-between text-sm">
-                            <span>Applied Charge</span>
-                            <span>{formatINR(calculatedCharge.applied_charge)}</span>
-                          </div>
-                        ) : null}
                         <div className="flex justify-between font-semibold text-base pt-1">
                           <span>Final amount</span>
                           <span>{formatINR(calculatedCharge.total_charge)}</span>
@@ -8296,6 +8317,8 @@ const BookEquipment = () => {
                       Back to equipment
                     </Button>
                   </div>
+                )}
+                </>
                 )}
 
                 {/* Step 3: Slot Selection (only shown after charge calculation) */}

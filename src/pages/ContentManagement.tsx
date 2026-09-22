@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, Layout, Menu, Loader2, Image } from "lucide-react";
+import { ArrowLeft, Home, Layout, Menu, Loader2, Image, FileText } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { PageHero, PageShell, SettingsTile } from "@/components/PageShell";
@@ -83,6 +83,12 @@ const ContentManagement = () => {
             title="Hero / Background Images"
             description="Carousel slides behind the landing hero"
             onClick={() => navigate("/admin/hero-slides")}
+          />
+          <SettingsTile
+            icon={<FileText className="h-5 w-5" />}
+            title="Analysis Charges PDF"
+            description="Document opened by the home-page Analysis Charges button"
+            onClick={() => navigate("/admin/analysis-charges")}
           />
         </div>
       </main>

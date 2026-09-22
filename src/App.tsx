@@ -57,6 +57,7 @@ import DepartmentAdministrationHub from "./pages/DepartmentAdministrationHub";
 import DepartmentStaffManagement from "./pages/DepartmentStaffManagement";
 import DepartmentFacultyCreditFacility from "./pages/DepartmentFacultyCreditFacility";
 import AdminHeroSlides from "./pages/AdminHeroSlides";
+import AdminAnalysisCharges from "./pages/AdminAnalysisCharges";
 import ContentManagement from "./pages/ContentManagement";
 import AdminSettings from "./pages/AdminSettings";
 import AdminPanelAccessConfig from "./pages/AdminPanelAccessConfig";
@@ -219,6 +220,7 @@ const App = () => (
                 <Route path="/manage/department-administration/:role" element={<DepartmentStaffManagement />} />
                 <Route path="/organization/users" element={<OrganizationUsersManagement />} />
                 <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
+                <Route path="/admin/analysis-charges" element={<AdminAnalysisCharges />} />
                 <Route path="/content-management" element={<ContentManagement />} />
                 <Route path="/admin-settings" element={<AdminSettings />} />
                 <Route path="/admin-settings/knowledge" element={<AdminSettingsKnowledge />} />

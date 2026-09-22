@@ -194,6 +194,7 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   cmsHome: 'admin/cms-home',
   cmsPages: 'admin/cms-pages',
   cmsHeroSlides: 'admin/cms-hero-slides',
+  cmsSiteDocuments: 'admin/cms-site-documents',
   communicationTemplates: 'admin/communication-templates',
   communicationLogs: 'admin/communication-logs',
   notices: 'admin/notices',
@@ -1872,6 +1873,13 @@ class ApiClient {
   /** Hero carousel background images (multiple, with autoscroll on frontend). */
   async getCmsHeroSlides() {
     return this.request<Array<{ id: number; order: number; image_url: string; alt_text: string }>>('/cms/hero-slides/');
+  }
+
+  /** Public Analysis Charges PDF (home-page CTA). */
+  async getAnalysisChargesDocument() {
+    return this.request<{ key: string; title: string; document_url: string; updated_at?: string }>(
+      '/cms/documents/analysis-charges/'
+    );
   }
 
   /** Public: get published CMS page by slug. */
@@ -8688,6 +8696,35 @@ class ApiClient {
       return { data: resData };
     }
     return this.adminUpdate('cmsHeroSlides', id, data as Record<string, unknown>);
+  }
+
+  /** Admin: get site document by key (e.g. analysis_charges). */
+  async adminGetSiteDocumentByKey(key: string) {
+    const endpoint = this.getAdminEndpoint('cmsSiteDocuments');
+    return this.request<{
+      id: number;
+      key: string;
+      title: string;
+      document_url: string | null;
+      updated_at?: string;
+    }>(`${endpoint}by-key/${encodeURIComponent(key)}/`);
+  }
+
+  /** Admin: upload/replace a site document PDF by key. */
+  async adminUploadSiteDocument(key: string, file: File, title?: string) {
+    const endpoint = this.getAdminEndpoint('cmsSiteDocuments');
+    const form = new FormData();
+    form.append('document', file);
+    if (title != null && title.trim()) form.append('title', title.trim());
+    const url = `${this.baseURL}${endpoint}upload/${encodeURIComponent(key)}/`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: form });
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = resData as { error?: string; detail?: string };
+      return { error: err.error || err.detail || `HTTP ${res.status}` };
+    }
+    return { data: resData as { id: number; key: string; title: string; document_url: string | null; updated_at?: string } };
   }
 
   /** Options for admin equipment add/edit form (categories, departments, user groups, etc.). */
