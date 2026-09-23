@@ -265,7 +265,7 @@ export async function exportAnalysisChargesPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   const noteLines = doc.splitTextToSize(GST_EXPORT_NOTE, pageW - marginX * 2);
-  doc.text(noteLines, marginX, y);
+  doc.text(noteLines, pageW / 2, y, { align: "center" });
   const tableStartY = y + noteLines.length * 10 + 8;
 
   const head = [

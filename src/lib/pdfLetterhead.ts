@@ -1,11 +1,9 @@
 /**
  * Standard IIT Roorkee letterhead for every portal-generated PDF.
- * Layout (all centered): crest masthead (logo + Hindi + English) →
- * department name (larger, brand color) → document title.
+ * Layout (all centered): crest + English name → department (larger, brand color) → document title.
  */
 import type { jsPDF } from "jspdf";
 
-export const ORG_HINDI = "भारतीय प्रौद्योगिकी संस्थान रुड़की";
 export const ORG_ENGLISH = "Indian Institute of Technology Roorkee";
 export const DEFAULT_DEPARTMENT_NAME = "Institute Instrumentation Centre (IIC)";
 
@@ -39,7 +37,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function loadPdfMastheadBytes(): Promise<ArrayBuffer> {
   if (!mastheadBytesPromise) {
     mastheadBytesPromise = (async () => {
-      const res = await fetch("/iitr-pdf-masthead.png?v=3");
+      const res = await fetch("/iitr-pdf-masthead.png?v=4");
       if (!res.ok) throw new Error("Failed to load IITR PDF masthead");
       return res.arrayBuffer();
     })();
@@ -66,36 +64,42 @@ export async function drawPdfLetterhead(
 ): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
   const cx = pageW / 2;
-  let y = options.topY ?? 24;
-  const maxW = options.mastheadMaxWidth ?? Math.min(420, pageW - 48);
+  let y = options.topY ?? 20;
+  const maxW = options.mastheadMaxWidth ?? Math.min(280, pageW - 80);
 
   const dataUrl = await loadMastheadDataUrl();
-  // Use real PNG dimensions so Devanagari glyphs are not stretched.
   const props = doc.getImageProperties(dataUrl);
   const aspect = props.height / props.width;
   const imgW = maxW;
   const imgH = imgW * aspect;
   doc.addImage(dataUrl, "PNG", cx - imgW / 2, y, imgW, imgH);
-  y += imgH + 10;
+  y += imgH + 8;
+
+  // Subtle rule under institute block
+  doc.setDrawColor(21, 63, 121);
+  doc.setLineWidth(0.7);
+  const ruleW = Math.min(220, pageW - 120);
+  doc.line(cx - ruleW / 2, y, cx + ruleW / 2, y);
+  y += 14;
 
   const dept =
     String(options.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(15);
   doc.setTextColor(...PDF_BRAND_RGB);
-  const deptLines = doc.splitTextToSize(dept, pageW - 56);
+  const deptLines = doc.splitTextToSize(dept, pageW - 64);
   doc.text(deptLines, cx, y, { align: "center" });
-  y += deptLines.length * 16 + 4;
+  y += deptLines.length * 17 + 2;
 
   const title = String(options.documentTitle || "").trim();
   if (title) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(...PDF_INK_RGB);
-    const titleLines = doc.splitTextToSize(title, pageW - 56);
+    const titleLines = doc.splitTextToSize(title, pageW - 64);
     doc.text(titleLines, cx, y, { align: "center" });
-    y += titleLines.length * 14 + 6;
+    y += titleLines.length * 14 + 4;
   }
 
-  return y + 4;
+  return y + 6;
 }
