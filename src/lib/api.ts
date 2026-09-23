@@ -3760,6 +3760,7 @@ class ApiClient {
         reminder_days_before_due?: number;
         overdue_reminder_interval_days?: number;
       };
+      eligible_departments?: Array<{ id: number; name: string; code?: string; balance?: string }>;
     }>("/wallet/credit-requests/summary/", { method: "GET" });
   }
 

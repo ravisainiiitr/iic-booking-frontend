@@ -606,7 +606,7 @@ export default function AdminSection() {
     const isDeptAdmin = currentUserType === "dept_admin";
     setFormData(
       sectionKey === "departments"
-        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true, equipment_booking_enabled: false, equipment_visibility_enabled: false }
+        ? { name: "", code: "", department_type: "internal", description: "", access_enabled: true, equipment_booking_enabled: false, equipment_visibility_enabled: false, enable_wallet_credit: false }
         : sectionKey === "wallets"
         ? { user: "" }
         : sectionKey === "projects"
@@ -837,6 +837,8 @@ export default function AdminSection() {
           formData.equipment_booking_enabled === true || formData.equipment_booking_enabled === "true",
         equipment_visibility_enabled:
           formData.equipment_visibility_enabled === true || formData.equipment_visibility_enabled === "true",
+        enable_wallet_credit:
+          formData.enable_wallet_credit === true || formData.enable_wallet_credit === "true",
       };
     }
     if (sectionKey === "projects") {
@@ -1796,6 +1798,7 @@ export default function AdminSection() {
                           <TableHead>Access</TableHead>
                           <TableHead>Equipment Visibility</TableHead>
                           <TableHead>Equipment Booking</TableHead>
+                          <TableHead>Wallet Credit</TableHead>
                           <TableHead>User Count</TableHead>
                           <TableHead>Equipment Count</TableHead>
                           <TableHead className="w-[100px]">Actions</TableHead>
@@ -1982,6 +1985,11 @@ export default function AdminSection() {
                               </TableCell>
                               <TableCell>
                                 {row.equipment_booking_enabled === true || row.equipment_booking_enabled === "true"
+                                  ? "Enabled"
+                                  : "Disabled"}
+                              </TableCell>
+                              <TableCell>
+                                {row.enable_wallet_credit === true || row.enable_wallet_credit === "true"
                                   ? "Enabled"
                                   : "Disabled"}
                               </TableCell>
@@ -2971,6 +2979,24 @@ export default function AdminSection() {
                       />
                       <span className="text-sm text-muted-foreground">
                         When disabled (default), equipment linked to this department cannot be booked. Independent of visibility. Main administrator control.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right" htmlFor="dept-wallet-credit">Wallet credit</Label>
+                    <div className="col-span-3 flex items-center gap-3">
+                      <Checkbox
+                        id="dept-wallet-credit"
+                        checked={
+                          formData.enable_wallet_credit === true ||
+                          formData.enable_wallet_credit === "true"
+                        }
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({ ...prev, enable_wallet_credit: checked === true }))
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        When enabled, eligible faculty/staff may request Wallet Credit Facility for this department. External users remain ineligible.
                       </span>
                     </div>
                   </div>

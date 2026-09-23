@@ -13,11 +13,40 @@ import { ArrowLeft, Loader2, Shield } from "lucide-react";
 
 type Profile = Record<string, unknown>;
 
+type ReviewContext = {
+  current_wallet_balance?: string;
+  sub_wallets?: Array<{ department_id: number; department_name: string; balance: string }>;
+  request_department?: string;
+  request_subwallet_balance?: string;
+  past_credit_facilities?: Array<{
+    id: number;
+    public_reference: string;
+    status: string;
+    requested_amount: string;
+    approved_amount: string | null;
+    outstanding_amount: string;
+    department_name: string;
+    due_date: string | null;
+    credited_at: string | null;
+    cleared_at: string | null;
+    requested_at: string | null;
+  }>;
+  lifetime_credit_posted?: string;
+  date_of_joining?: string;
+  employee_id?: string;
+  designation?: string;
+  user_type?: string;
+  user_email?: string;
+  user_name?: string;
+  mobile?: string;
+};
+
 type FacilityDetail = {
   id: number;
   public_reference: string;
   user_name: string;
   user_email: string;
+  department_name?: string;
   requested_amount: string;
   approved_amount: string | null;
   outstanding_amount: string;
@@ -26,12 +55,20 @@ type FacilityDetail = {
   status: string;
   due_date: string | null;
   channel_i_profile?: Profile;
-  audit_events?: Array<{ action: string; actor: string | null; reason: string; created_at: string; previous_value: string; new_value: string }>;
+  review_context?: ReviewContext;
+  audit_events?: Array<{
+    action: string;
+    actor: string | null;
+    reason: string;
+    created_at: string;
+    previous_value: string;
+    new_value: string;
+  }>;
 };
 
 function Field({ label, value }: { label: string; value: unknown }) {
   const text =
-    value === null || value === undefined || value === ""
+    value === null || value === undefined || value === "" || value === "Not available"
       ? "Not available"
       : typeof value === "object"
         ? JSON.stringify(value)
@@ -42,6 +79,15 @@ function Field({ label, value }: { label: string; value: unknown }) {
       <span className="font-medium">{text}</span>
     </div>
   );
+}
+
+function formatInr(value: string | number | undefined | null): string {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (Number.isFinite(n)) {
+    return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `₹${value}`;
 }
 
 export default function AdminWalletCreditManagement() {
@@ -112,7 +158,7 @@ export default function AdminWalletCreditManagement() {
     setBusy(false);
     if (res.error) toast.error(res.error);
     else {
-      toast.success(postCredit ? "Approved and credited" : "Approved");
+      toast.success(postCredit ? "Approved and credited — user notified" : "Approved — user notified");
       setDetail(res.data || null);
     }
   };
@@ -142,6 +188,8 @@ export default function AdminWalletCreditManagement() {
   };
 
   const profile = (detail?.channel_i_profile || {}) as Profile;
+  const review = detail?.review_context || {};
+  const past = review.past_credit_facilities || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -192,7 +240,8 @@ export default function AdminWalletCreditManagement() {
                         {r.public_reference} — {r.status}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {r.user_name} ({r.user_email}) · Requested ₹{r.requested_amount}
+                        {r.user_name} ({r.user_email}) · {r.department_name || "—"} · Requested ₹
+                        {r.requested_amount}
                         {r.approved_amount ? ` · Approved ₹${r.approved_amount}` : ""}
                       </div>
                     </button>
@@ -211,33 +260,90 @@ export default function AdminWalletCreditManagement() {
                 <CardDescription>Status: {detail.status}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Field label="Requested" value={`₹${detail.requested_amount}`} />
-                <Field label="Approved" value={detail.approved_amount ? `₹${detail.approved_amount}` : "Not available"} />
-                <Field label="Outstanding" value={`₹${detail.outstanding_amount}`} />
+                <Field label="Department" value={detail.department_name || review.request_department} />
+                <Field label="Requested" value={formatInr(detail.requested_amount)} />
+                <Field
+                  label="Approved"
+                  value={detail.approved_amount ? formatInr(detail.approved_amount) : "Not available"}
+                />
+                <Field label="Outstanding" value={formatInr(detail.outstanding_amount)} />
                 <Field label="Purpose" value={detail.purpose} />
-                <Field label="Remarks" value={detail.remarks || "Not available"} />
                 <Field label="Due date" value={detail.due_date || "Not available"} />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Channel-I Profile</CardTitle>
-                <CardDescription>Source: Channel-I / Portal (audit snapshot)</CardDescription>
+                <CardTitle>User details for decision</CardTitle>
+                <CardDescription>Profile, balances, and joining information</CardDescription>
               </CardHeader>
               <CardContent className="space-y-1">
-                <Field label="Name" value={profile.name} />
-                <Field label="Email" value={profile.email} />
-                <Field label="Employee ID" value={profile.employee_id} />
+                <Field label="Name" value={review.user_name || profile.name || detail.user_name} />
+                <Field label="Email" value={review.user_email || profile.email || detail.user_email} />
+                <Field label="Employee ID" value={review.employee_id || profile.employee_id} />
+                <Field label="User Type" value={review.user_type || profile.user_type} />
+                <Field label="Designation" value={review.designation || profile.designation} />
+                <Field
+                  label="Date of Joining"
+                  value={review.date_of_joining || profile.date_of_joining}
+                />
+                <Field label="Mobile" value={review.mobile || profile.mobile} />
                 <Field label="Channel-I User ID" value={profile.channel_i_user_id} />
                 <Field label="Channel-I Username" value={profile.channel_i_username} />
-                <Field label="User Type" value={profile.user_type} />
-                <Field label="Department" value={profile.department} />
-                <Field label="Designation" value={profile.designation} />
-                <Field label="Date of Joining" value={profile.date_of_joining} />
-                <Field label="Mobile" value={profile.mobile} />
+                <Field label="Department (profile)" value={profile.department || profile.internal_department} />
+                <Field label="Current wallet balance" value={formatInr(review.current_wallet_balance)} />
+                <Field
+                  label="Request sub-wallet balance"
+                  value={formatInr(review.request_subwallet_balance)}
+                />
+                <Field label="Lifetime credit posted" value={formatInr(review.lifetime_credit_posted)} />
                 <Field label="Last Login" value={profile.last_login} />
                 <Field label="Account Created" value={profile.account_created_at} />
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Sub-wallet balances</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {(review.sub_wallets || []).length === 0 && (
+                  <p className="text-muted-foreground">No sub-wallets found.</p>
+                )}
+                {(review.sub_wallets || []).map((sw) => (
+                  <div key={sw.department_id} className="flex justify-between border-b py-1">
+                    <span>{sw.department_name}</span>
+                    <span className="font-medium tabular-nums">{formatInr(sw.balance)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Past credit facilities / payouts</CardTitle>
+                <CardDescription>Prior credit history for this user (helps approval decisions).</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {past.length === 0 && <p className="text-muted-foreground">No prior credit facilities.</p>}
+                {past.map((f) => (
+                  <div key={f.id} className="border rounded-md p-3">
+                    <div className="font-medium">
+                      {f.public_reference} — {f.status}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {f.department_name || "—"} · Requested {formatInr(f.requested_amount)}
+                      {f.approved_amount ? ` · Approved ${formatInr(f.approved_amount)}` : ""}
+                      {` · Outstanding ${formatInr(f.outstanding_amount)}`}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Requested {f.requested_at || "—"}
+                      {f.credited_at ? ` · Credited ${f.credited_at}` : ""}
+                      {f.due_date ? ` · Due ${f.due_date}` : ""}
+                      {f.cleared_at ? ` · Cleared ${f.cleared_at}` : ""}
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
@@ -246,7 +352,8 @@ export default function AdminWalletCreditManagement() {
                 <CardHeader>
                   <CardTitle>Admin Decision</CardTitle>
                   <CardDescription>
-                    Requested amount is immutable. Enter a lower approved amount to reduce.
+                    Requested amount is immutable. Enter a lower approved amount to reduce. The user is emailed
+                    when you approve.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
