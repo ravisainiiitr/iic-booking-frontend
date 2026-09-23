@@ -69,7 +69,7 @@ import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
+import { PortalFeedbackForm } from "@/components/PortalFeedbackDialog";
 import {
   Dialog,
   DialogContent,
@@ -1244,12 +1244,7 @@ const BookEquipment = () => {
     /** When true, show stronger copy to complete remaining optional (editable) parameters. */
     promptCompleteOptionalParams?: boolean;
   }>({ open: false, success: false, variant: "failure", message: "" });
-  const [portalFeedbackOpen, setPortalFeedbackOpen] = useState(false);
-  useEffect(() => {
-    if (bookingResultDialog.open && bookingResultDialog.success && bookingResultDialog.variant === "success") {
-      setPortalFeedbackOpen(true);
-    }
-  }, [bookingResultDialog.open, bookingResultDialog.success, bookingResultDialog.variant]);
+
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
   const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
   const [expandedSlotBooking, setExpandedSlotBooking] = useState<BookingDetailCardBooking | null>(null);
@@ -9462,7 +9457,7 @@ const BookEquipment = () => {
         </Dialog>
 
         <Dialog open={bookingResultDialog.open} onOpenChange={(open) => !open && setBookingResultDialog((p) => ({ ...p, open: false }))}>
-          <DialogContent className="max-w-md sm:max-w-lg overflow-hidden">
+          <DialogContent className="max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle
                 className={
@@ -9484,7 +9479,7 @@ const BookEquipment = () => {
                   <p className="text-base text-foreground whitespace-pre-line">{bookingResultDialog.message}</p>
                   {bookingResultDialog.variant === "success" && (
                     <p className="text-sm text-muted-foreground rounded-lg border bg-primary/5 dark:bg-primary/10 border-primary/25 dark:border-primary/40 px-3 py-2">
-                      Confirmation email and notifications are being sent in the background — your booking is already saved.
+                      Confirmation email and notifications are being sent in the background — your booking is already confirmed.
                     </p>
                   )}
                   {bookingResultDialog.success && bookingResultDialog.variant === "success" ? (
@@ -9506,6 +9501,12 @@ const BookEquipment = () => {
                       </div>
                     </div>
                   ) : null}
+                  {bookingResultDialog.success && bookingResultDialog.variant === "success" && (
+                    <PortalFeedbackForm
+                      active={bookingResultDialog.open}
+                      embedded
+                    />
+                  )}
                   <p className="text-foreground font-medium">Do you want to book another equipment or continue booking current equipment?</p>
                 </div>
               </DialogDescription>
@@ -9600,8 +9601,6 @@ const BookEquipment = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        <PortalFeedbackDialog open={portalFeedbackOpen} onOpenChange={setPortalFeedbackOpen} />
 
         <Dialog open={userTransactionHistoryDialog.open} onOpenChange={(open) => !open && setUserTransactionHistoryDialog((p) => ({ ...p, open: false }))}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">

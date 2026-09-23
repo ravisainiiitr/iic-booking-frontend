@@ -64,12 +64,25 @@ function StarRow({
   );
 }
 
-interface PortalFeedbackDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+export type PortalFeedbackFormProps = {
+  /** When true, load existing feedback and show the form. */
+  active: boolean;
+  /** Compact layout for embedding inside another dialog. */
+  embedded?: boolean;
+  /** Called after a successful submit (embedded: typically leave parent open). */
+  onSubmitted?: () => void;
+  /** Optional cancel for dialog mode. */
+  onCancel?: () => void;
+  className?: string;
+};
 
-export default function PortalFeedbackDialog({ open, onOpenChange }: PortalFeedbackDialogProps) {
+export function PortalFeedbackForm({
+  active,
+  embedded = false,
+  onSubmitted,
+  onCancel,
+  className,
+}: PortalFeedbackFormProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [existingId, setExistingId] = useState<number | null>(null);
@@ -83,7 +96,7 @@ export default function PortalFeedbackDialog({ open, onOpenChange }: PortalFeedb
   const [comments, setComments] = useState("");
 
   useEffect(() => {
-    if (!open) return;
+    if (!active) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -119,7 +132,7 @@ export default function PortalFeedbackDialog({ open, onOpenChange }: PortalFeedb
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [active]);
 
   const handleSave = async () => {
     for (const f of RATING_FIELDS) {
@@ -140,75 +153,106 @@ export default function PortalFeedbackDialog({ open, onOpenChange }: PortalFeedb
         return;
       }
       toast.success(existingId ? "Feedback updated. Thank you!" : "Feedback submitted. Thank you!");
-      onOpenChange(false);
+      onSubmitted?.();
     } finally {
       setSaving(false);
     }
   };
 
+  if (!active) return null;
+
+  return (
+    <div className={cn(embedded ? "space-y-4" : "space-y-5 py-1", className)}>
+      {embedded && (
+        <div className="space-y-1 border-t pt-4">
+          <p className="text-base font-semibold text-foreground">
+            {existingId ? "Update your feedback" : "Share your experience"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Help us improve the Online Equipment Booking System. You can update your ratings anytime.
+          </p>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+      ) : (
+        <>
+          {RATING_FIELDS.map((f) => (
+            <div key={f.key} className="space-y-1.5">
+              <Label className="text-sm font-medium">{f.label}</Label>
+              <p className="text-xs text-muted-foreground">{f.hint}</p>
+              <StarRow
+                label={f.label}
+                value={ratings[f.key]}
+                onChange={(n) => setRatings((r) => ({ ...r, [f.key]: n }))}
+              />
+            </div>
+          ))}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="fb-suggestions">Suggestions for improvement</Label>
+            <Textarea
+              id="fb-suggestions"
+              value={suggestions}
+              onChange={(e) => setSuggestions(e.target.value)}
+              placeholder="What should we improve next?"
+              rows={embedded ? 2 : 3}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="fb-comments">Additional comments (optional)</Label>
+            <Textarea
+              id="fb-comments"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Anything else you'd like us to know…"
+              rows={embedded ? 2 : 3}
+            />
+          </div>
+
+          <div className={cn("flex gap-2 pt-1", embedded ? "justify-stretch" : "justify-end")}>
+            {!embedded && onCancel && (
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+            )}
+            <Button
+              type="button"
+              className={cn("bg-primary hover:bg-primary/90", embedded && "w-full")}
+              disabled={saving}
+              onClick={() => void handleSave()}
+            >
+              {saving ? "Saving…" : existingId ? "Update feedback" : "Submit feedback"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface PortalFeedbackDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function PortalFeedbackDialog({ open, onOpenChange }: PortalFeedbackDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{existingId ? "Update your feedback" : "Share your experience"}</DialogTitle>
+          <DialogTitle>Share your experience</DialogTitle>
           <DialogDescription>
             Help us improve the Online Equipment Booking System. You can update your ratings anytime.
           </DialogDescription>
         </DialogHeader>
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>
-        ) : (
-          <div className="space-y-5 py-1">
-            {RATING_FIELDS.map((f) => (
-              <div key={f.key} className="space-y-1.5">
-                <Label className="text-sm font-medium">{f.label}</Label>
-                <p className="text-xs text-muted-foreground">{f.hint}</p>
-                <StarRow
-                  label={f.label}
-                  value={ratings[f.key]}
-                  onChange={(n) => setRatings((r) => ({ ...r, [f.key]: n }))}
-                />
-              </div>
-            ))}
-
-            <div className="space-y-1.5">
-              <Label htmlFor="fb-suggestions">Suggestions for improvement</Label>
-              <Textarea
-                id="fb-suggestions"
-                value={suggestions}
-                onChange={(e) => setSuggestions(e.target.value)}
-                placeholder="What should we improve next?"
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="fb-comments">Additional comments (optional)</Label>
-              <Textarea
-                id="fb-comments"
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder="Anything else you'd like us to know…"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-primary hover:bg-primary/90"
-                disabled={saving}
-                onClick={() => void handleSave()}
-              >
-                {saving ? "Saving…" : existingId ? "Update feedback" : "Submit feedback"}
-              </Button>
-            </div>
-          </div>
-        )}
+        <PortalFeedbackForm
+          active={open}
+          onCancel={() => onOpenChange(false)}
+          onSubmitted={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );
