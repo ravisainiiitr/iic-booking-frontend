@@ -167,13 +167,24 @@ export default function DashboardWorkspace({
     [],
   );
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keep the Book CTA / page header visible when drilling into equipment details
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [location.pathname, location.search, location.key]);
+
   return (
     <EmbeddedModeProvider onClose={handleClose}>
       <NavigationContext.Provider value={navigationContext}>
         <LocationContext.Provider value={locationContext}>
           <RouteContext.Provider value={routeContext}>
             <WorkspaceExitGuard pathname={location.pathname} onClose={handleClose} />
-            <div className="embedded-workspace min-h-[70vh] max-h-[calc(100vh-10rem)] overflow-y-auto bg-background rounded-b-xl [&_.page-shell]:min-h-0 [&_.page-shell]:py-0 [&_.dashboard-page]:min-h-0">
+            <div
+              ref={scrollRef}
+              className="embedded-workspace min-h-[70vh] max-h-[calc(100vh-10rem)] overflow-y-auto bg-background rounded-b-xl [&_.page-shell]:min-h-0 [&_.page-shell]:py-0 [&_.dashboard-page]:min-h-0"
+            >
               <ErrorBoundary fallbackTitle="Workspace Error" backPath="/dashboard">
                 <Suspense
                   fallback={

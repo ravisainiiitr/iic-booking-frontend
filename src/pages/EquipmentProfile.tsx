@@ -296,6 +296,13 @@ const EquipmentProfile = () => {
     fetchEquipmentProfile();
   }, [id, authUserKey]);
 
+  // Dashboard workspace keeps prior scroll after "View details"; reset so Book CTA is visible.
+  useEffect(() => {
+    const embedded = document.querySelector(".embedded-workspace") as HTMLElement | null;
+    if (embedded) embedded.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, [id]);
+
   // Admin-only: true when user_type is admin (for "Manage this Equipment" label and visibility)
   const isAdminUser = (): boolean => userTypeNorm === "admin";
 
@@ -1011,15 +1018,26 @@ const EquipmentProfile = () => {
               <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 max-w-[11.5rem] lg:max-w-none">
                 <div className="sticky top-6 space-y-2">
                   {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
-                    <Button
+                    <button
                       type="button"
                       onClick={handleBookOrManageClick}
-                      className="w-full h-auto py-3 px-2 text-sm font-bold whitespace-normal leading-tight shadow-lg text-primary-foreground bg-primary hover:bg-accent animate-[book-cta-cycle_2.4s_ease-in-out_infinite] hover:animate-none"
+                      className="book-this-cta group relative w-full overflow-hidden rounded-xl border-2 border-amber-300/80 px-2 py-3.5 text-center shadow-[0_0_0_3px_rgba(245,158,11,0.35),0_10px_28px_-6px_rgba(180,83,9,0.55)] transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
+                      style={{ animation: "book-cta-cycle 2s ease-in-out infinite" }}
                     >
-                      <style>{`@keyframes book-cta-cycle{0%,100%{background-color:hsl(var(--primary))}50%{background-color:hsl(var(--accent))}}`}</style>
-                      <Calendar className="h-4 w-4 mr-1.5 shrink-0" />
-                      {canManageEquipment() || isOicUser() ? "Create Booking" : "Book This Equipment"}
-                    </Button>
+                      <style>{`
+                        @keyframes book-cta-cycle {
+                          0%, 100% { background-color: #b45309; color: #fff; box-shadow: 0 0 0 3px rgba(245,158,11,0.4), 0 10px 28px -6px rgba(180,83,9,0.55); }
+                          33% { background-color: #047857; color: #fff; box-shadow: 0 0 0 3px rgba(16,185,129,0.45), 0 10px 28px -6px rgba(4,120,87,0.55); }
+                          66% { background-color: #1d4ed8; color: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,0.45), 0 10px 28px -6px rgba(29,78,216,0.55); }
+                        }
+                      `}</style>
+                      <span className="relative z-10 flex flex-col items-center justify-center gap-1.5">
+                        <Calendar className="h-5 w-5 shrink-0 drop-shadow-sm" aria-hidden />
+                        <span className="text-[13px] font-extrabold leading-tight tracking-wide uppercase">
+                          {canManageEquipment() || isOicUser() ? "Create Booking" : "Book This Equipment"}
+                        </span>
+                      </span>
+                    </button>
                   )}
                   <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                     <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
