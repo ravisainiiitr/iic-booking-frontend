@@ -23,16 +23,23 @@ export function catalogParentId(
 /**
  * Default catalog view: parents + standalone only (hide child modes).
  * When a parent id is expanded, include that parent and its children.
+ * When search is active, show all API matches including child equipment.
  */
 export function filterCatalogEquipmentForDisplay<T extends CatalogEquipmentLike>(
   list: T[],
   expandedParentId: number | null,
+  options?: { searchActive?: boolean },
 ): T[] {
   if (!Array.isArray(list) || list.length === 0) return [];
   const hasParentField = list.some(
     (eq) => catalogParentId(eq) != null || eq.enable_multi_mode === true,
   );
   if (!hasParentField) return list;
+
+  // Search: API already filtered; show matching children as well as parents.
+  if (options?.searchActive) {
+    return list;
+  }
 
   if (expandedParentId != null) {
     const parentId = Number(expandedParentId);

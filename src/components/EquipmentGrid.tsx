@@ -241,8 +241,11 @@ const EquipmentGrid = () => {
   };
 
   const visibleEquipment = useMemo(
-    () => filterCatalogEquipmentForDisplay(equipment, expandedParentId),
-    [equipment, expandedParentId],
+    () =>
+      filterCatalogEquipmentForDisplay(equipment, expandedParentId, {
+        searchActive: Boolean(searchQuery.trim()),
+      }),
+    [equipment, expandedParentId, searchQuery],
   );
 
   const displayEquipment = useMemo(() => {

@@ -925,10 +925,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       slot_masters: formData.slot_masters ?? [],
       charge_profiles: (formData.charge_profiles ?? [])
         .filter((cp) => !isPiChargeRow(cp))
-        .map(({ pricing_profile: _pp, ...rest }) => rest),
+        .map(({ pricing_profile: _pp, ...rest }) => {
+          const pt = String(rest.profile_type || "").toUpperCase();
+          return pt === "GENERIC" ? { ...rest, breakpoint: null } : rest;
+        }),
       pi_charge_profiles: (formData.charge_profiles ?? [])
         .filter((cp) => isPiChargeRow(cp))
-        .map(({ pricing_profile: _pp, ...rest }) => rest),
+        .map(({ pricing_profile: _pp, ...rest }) => {
+          const pt = String(rest.profile_type || "").toUpperCase();
+          return pt === "GENERIC" ? { ...rest, breakpoint: null } : rest;
+        }),
       input_fields: (formData.input_fields ?? []).map((f) => {
         const fieldType = String(f.field_type || "").toUpperCase();
         const field_key = String(f.field_key || "").trim().toUpperCase().slice(0, 1);
@@ -2185,7 +2191,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       onValueChange={(v) =>
                         setFormData((p) => {
                           const arr = [...(p.charge_profiles ?? [])];
-                          arr[idx] = { ...arr[idx], profile_type: v === "none" ? null : v };
+                          const nextType = v === "none" ? null : v;
+                          const next: typeof arr[number] = {
+                            ...arr[idx],
+                            profile_type: nextType,
+                          };
+                          // GENERIC uses formulas; breakpoint is unused.
+                          if (String(nextType || "").toUpperCase() === "GENERIC") {
+                            next.breakpoint = null;
+                          }
+                          arr[idx] = next;
                           return { ...p, charge_profiles: arr };
                         })
                       }
@@ -2234,6 +2249,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     />
                   </div>
                 </div>
+                {!isGeneric && (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
                   <div className="space-y-1">
                     <Label htmlFor={`cp-breakpoint-${idx}`}>Breakpoint</Label>
@@ -2253,6 +2269,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     />
                   </div>
                 </div>
+                )}
                 <div className="space-y-1">
                   <Label htmlFor={`cp-formula-${idx}`}>Time formula</Label>
                   {isGeneric ? (

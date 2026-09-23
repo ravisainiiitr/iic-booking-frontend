@@ -132,9 +132,13 @@ const EquipmentList = () => {
 
   useEffect(() => {
     setEquipment(
-      transformApiEquipment(filterCatalogEquipmentForDisplay(rawEquipment, expandedParentId)),
+      transformApiEquipment(
+        filterCatalogEquipmentForDisplay(rawEquipment, expandedParentId, {
+          searchActive: Boolean(searchQuery.trim()),
+        }),
+      ),
     );
-  }, [rawEquipment, expandedParentId]);
+  }, [rawEquipment, expandedParentId, searchQuery]);
 
 
   const fetchEquipment = useCallback(
