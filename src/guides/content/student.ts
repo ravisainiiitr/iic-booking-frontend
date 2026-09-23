@@ -65,6 +65,7 @@ export const studentGuide: UserGuideContent = {
           title: "Review charges and requirements",
           body: "Check accessories, sample rules, and Calculate Charges for your user category before selecting slots.",
           screenshotCaption: "Equipment detail page — charges and accessories",
+          screenshotSrc: "/guides/equipment-calculate-charges.png",
         },
         {
           title: "Select slots",

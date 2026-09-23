@@ -55,6 +55,7 @@ export const startupGuide: UserGuideContent = {
           title: "Review startup rates",
           body: "Open equipment details and Calculate Charges for your category before selecting slots.",
           screenshotCaption: "Charge estimate for startup category",
+          screenshotSrc: "/guides/equipment-calculate-charges.png",
         },
         {
           title: "Book and pay",

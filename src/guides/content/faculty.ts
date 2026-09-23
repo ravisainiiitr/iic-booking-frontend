@@ -62,6 +62,7 @@ export const facultyGuide: UserGuideContent = {
           title: "Check charges and accessories",
           body: "Use Calculate Charges and review sample/accessory requirements before selecting slots.",
           screenshotCaption: "Charges calculator on equipment page",
+          screenshotSrc: "/guides/equipment-calculate-charges.png",
         },
         {
           title: "Reserve slots",
