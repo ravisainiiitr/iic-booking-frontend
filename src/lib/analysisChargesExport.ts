@@ -7,18 +7,29 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 
+export type AnalysisChargeLine = {
+  option: string;
+  amount: string;
+};
+
 export type AnalysisChargeExportRow = {
   equipmentName: string;
   userCategory: string;
+  /** Flat text fallback (single-line / simple profiles). */
   charge: string;
   gst: string;
+  /** Multi-parameter: one entry per option (Room Temperature, etc.). */
+  chargeLines?: AnalysisChargeLine[];
 };
 
 export type AnalysisChargePivotTable = {
   categories: string[];
   rows: Array<{
     equipmentName: string;
-    cells: Record<string, { charge: string; gst: string }>;
+    cells: Record<
+      string,
+      { charge: string; gst: string; chargeLines?: AnalysisChargeLine[] }
+    >;
   }>;
 };
 
@@ -51,7 +62,7 @@ export function pivotAnalysisChargeRows(
 
   const byEquipment = new Map<
     string,
-    Record<string, { charge: string; gst: string }>
+    Record<string, { charge: string; gst: string; chargeLines?: AnalysisChargeLine[] }>
   >();
   const equipmentOrder: string[] = [];
 
@@ -65,6 +76,7 @@ export function pivotAnalysisChargeRows(
     byEquipment.get(name)![cat] = {
       charge: String(r.charge || "").trim() || "—",
       gst: String(r.gst || "").trim() || "—",
+      ...(r.chargeLines && r.chargeLines.length > 0 ? { chargeLines: r.chargeLines } : {}),
     };
   }
 
@@ -77,11 +89,18 @@ export function pivotAnalysisChargeRows(
   };
 }
 
-function cellDisplay(charge: string, gst: string): string {
-  const c = String(charge || "").trim() || "—";
+function cellDisplay(
+  charge: string,
+  gst: string,
+  chargeLines?: AnalysisChargeLine[]
+): string {
+  const lines =
+    chargeLines && chargeLines.length > 0
+      ? chargeLines.map((l) => `${l.option}: ${l.amount}`).join("\n")
+      : String(charge || "").trim() || "—";
   const g = String(gst || "").trim();
-  if (!g || /^—$/.test(g)) return c;
-  return `${c}\n(${g})`;
+  if (!g || /^—$/.test(g)) return lines;
+  return `${lines}\n(${g})`;
 }
 
 export function exportAnalysisChargesExcel(
@@ -104,7 +123,7 @@ export function exportAnalysisChargesExcel(
       r.equipmentName,
       ...pivot.categories.map((cat) => {
         const cell = r.cells[cat];
-        return cell ? cellDisplay(cell.charge, cell.gst) : "—";
+        return cell ? cellDisplay(cell.charge, cell.gst, cell.chargeLines) : "—";
       }),
     ]),
   ];
@@ -163,7 +182,7 @@ export function exportAnalysisChargesPdf(
     ...pivot.categories.map((cat) => {
       const cell = r.cells[cat];
       if (!cell) return "—";
-      return pdfSafeMoney(cellDisplay(cell.charge, cell.gst));
+      return pdfSafeMoney(cellDisplay(cell.charge, cell.gst, cell.chargeLines));
     }),
   ]);
 
@@ -177,16 +196,23 @@ export function exportAnalysisChargesPdf(
       cellPadding: 4,
       valign: "top",
       overflow: "linebreak",
+      lineColor: [180, 190, 200],
+      lineWidth: 0.4,
     },
     headStyles: {
       fillColor: [15, 76, 129],
       textColor: 255,
       fontStyle: "bold",
       fontSize: 8,
+      lineColor: [15, 76, 129],
+      lineWidth: 0.4,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 248, 252],
     },
     columnStyles: {
       0: { cellWidth: 28, halign: "center" },
-      1: { cellWidth: useLandscape ? 110 : 90 },
+      1: { cellWidth: useLandscape ? 110 : 90, textColor: [15, 76, 129], fontStyle: "bold" },
     },
     didDrawPage: (data) => {
       const pageH = doc.internal.pageSize.getHeight();

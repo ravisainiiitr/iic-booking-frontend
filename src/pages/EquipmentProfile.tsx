@@ -180,6 +180,7 @@ const EquipmentProfile = () => {
   const [activePanel, setActivePanel] = useState<ContentPanel>("general");
   const [supportOpen, setSupportOpen] = useState(false);
   const userType = user?.user_type ?? null;
+  const userTypeNorm = normalizeUserTypeCode(userType);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [apiSlots, setApiSlots] = useState<Array<{
     id: number;
@@ -296,56 +297,37 @@ const EquipmentProfile = () => {
   }, [id, authUserKey]);
 
   // Admin-only: true when user_type is admin (for "Manage this Equipment" label and visibility)
-  const isAdminUser = (): boolean => {
-    if (!userType) return false;
-    return String(userType).toLowerCase() === 'admin';
-  };
+  const isAdminUser = (): boolean => userTypeNorm === "admin";
 
-  const isLabInchargeUser = (): boolean => {
-    if (!userType) return false;
-    return String(userType).toLowerCase() === "operator";
-  };
+  const isLabInchargeUser = (): boolean => userTypeNorm === "operator";
 
   // Admin, OIC, Department Administrator: manage / book-for-user on this equipment.
-  // Lab In-charge (operator) uses Booking Management / Lab dashboard — not this CTA.
-  const canManageEquipment = (): boolean => {
-    if (!userType) return false;
-    const t = String(userType).toLowerCase();
-    return t === 'admin' || t === 'manager' || t === 'dept_admin';
-  };
+  const canManageEquipment = (): boolean =>
+    userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "dept_admin";
 
   /** Admin / OIC / Lab In-charge: change slot status (calendar holds). */
-  const canChangeSlotStatus = (): boolean => {
-    if (!userType) return false;
-    const t = String(userType).toLowerCase();
-    return t === "admin" || t === "manager" || t === "operator";
-  };
+  const canChangeSlotStatus = (): boolean =>
+    userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "operator";
 
-  const isOicUser = (): boolean => String(userType || "").toLowerCase() === "manager";
+  const isOicUser = (): boolean => userTypeNorm === "manager";
 
   // Check if user type is allowed to book equipment
-  // Allowed types: Student, Faculty, External, RND, Institute (admin sees "Manage this Equipment" instead)
   const canBookEquipment = (): boolean => {
-    if (!userType) return false;
-    if (isAdminUser()) return true; // Admin can see the button (labeled "Manage this Equipment")
-
-    const allowedStringTypes = ['student', 'faculty', 'external', 'rnd', 'industry', 'startup_incubated_iitr', 'external_startup_msme'];
-    
-    // Handle string user_type (case-insensitive)
-    if (typeof userType === 'string') {
-      const userTypeLower = userType.toLowerCase();
-      return allowedStringTypes.some(type => userTypeLower.includes(type));
-    }
-    
-    // Handle number user_type
-    // Based on common mappings: 1=student, 2=faculty, 3=external
-    // Allow numbers 1-5 to cover RND and Institute if they exist
-    if (typeof userType === 'number') {
-      // Allow student (1), faculty (2), external (3), and potentially RND (4) and Institute (5)
-      return userType >= 1 && userType <= 5;
-    }
-    
-    return false;
+    if (!userTypeNorm) return false;
+    if (isAdminUser()) return true;
+    const allowedStringTypes = [
+      "student",
+      "individual_student",
+      "faculty",
+      "external",
+      "rnd",
+      "industry",
+      "institute",
+      "startup_incubated_iitr",
+      "external_startup_msme",
+      "other",
+    ];
+    return allowedStringTypes.includes(userTypeNorm);
   };
 
   const isEquipmentOperational = (): boolean => {
@@ -353,8 +335,11 @@ const EquipmentProfile = () => {
     return st === "ACTIVE" || st === "OPERATIONAL";
   };
 
-  const shouldShowBookingCard = (): boolean => {
-    if (canManageEquipment() || canBookEquipment()) return true;
+  /** Show Create Booking / Book CTA in equipment menu. */
+  const showCreateOrBookCta = (): boolean => {
+    if (isLabInchargeUser() || userTypeNorm === "finance") return false;
+    if (canManageEquipment() || isOicUser()) return true;
+    if (canBookEquipment()) return true;
     return !isAuthenticated;
   };
 
@@ -493,11 +478,8 @@ const EquipmentProfile = () => {
   };
 
   /** Admin, OIC, and Department Administrator always see time on the vertical axis. */
-  const isAdminOrOIC = (): boolean => {
-    if (userType == null) return false;
-    const t = String(userType).toLowerCase();
-    return t === "admin" || t === "manager" || t === "dept_admin";
-  };
+  const isAdminOrOIC = (): boolean =>
+    userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "dept_admin";
 
   const getEffectiveWeeklyViewDisplay = (): "TIME" | "SLOT_ID" => {
     if (isAdminOrOIC()) return "TIME";
@@ -660,23 +642,23 @@ const EquipmentProfile = () => {
             <Button
               key={key}
               type="button"
+              size="sm"
               variant={opts.active || opts.variant === "primary" ? "default" : "outline"}
               disabled={opts.disabled}
               className={cn(
-                "w-full justify-start gap-2 h-auto min-h-0 py-1.5 px-2.5 text-xs font-medium whitespace-normal text-left leading-snug",
+                "w-full max-w-full justify-start gap-1.5 h-auto min-h-0 py-1 px-2 text-[11px] font-medium whitespace-normal text-left leading-tight rounded-md",
                 opts.active && "shadow-sm",
                 opts.variant === "primary" &&
                   !opts.active &&
                   "bg-primary text-primary-foreground hover:bg-primary/90 border-primary shadow-sm shadow-primary/20",
                 opts.variant === "action" &&
                   !opts.active &&
-                  opts.variant !== "primary" &&
                   "border-primary/25 bg-primary/[0.04] hover:bg-primary/10"
               )}
               onClick={opts.onClick}
             >
-              <span className="shrink-0 opacity-90 [&_svg]:h-3.5 [&_svg]:w-3.5">{opts.icon}</span>
-              <span className="leading-snug">{label}</span>
+              <span className="shrink-0 opacity-90 [&_svg]:h-3 [&_svg]:w-3">{opts.icon}</span>
+              <span className="leading-tight break-words">{label}</span>
             </Button>
           );
 
@@ -964,8 +946,8 @@ const EquipmentProfile = () => {
           }
 
           return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
-              <div className="lg:col-span-9 space-y-5 min-w-0 order-2 lg:order-2">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 items-start">
+              <div className="lg:col-span-10 space-y-5 min-w-0 order-2 lg:order-2">
                 <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                   <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                   <CardHeader className="pb-3">
@@ -1026,60 +1008,60 @@ const EquipmentProfile = () => {
                 </Card>
               </div>
 
-              <div className="lg:col-span-3 order-1 lg:order-1">
+              <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 max-w-[11.5rem] lg:max-w-none">
                 <div className="sticky top-6 space-y-2">
                   <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                     <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
-                    <CardHeader className="pb-1.5 pt-3 px-3">
-                      <CardTitle className="text-sm font-semibold tracking-tight">Equipment menu</CardTitle>
-                      <CardDescription className="text-xs leading-snug">
+                    <CardHeader className="pb-1 pt-2.5 px-2">
+                      <CardTitle className="text-xs font-semibold tracking-tight">Equipment menu</CardTitle>
+                      <CardDescription className="text-[10px] leading-snug">
                         Opens on the right
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-1 px-2.5 pb-3">
-                      {shouldShowBookingCard() && !isLabInchargeUser() && (
+                    <CardContent className="space-y-0.5 px-1.5 pb-2">
+                      {showCreateOrBookCta() && (
                         navBtn(
                           "book",
-                          isOicUser() || canManageEquipment()
+                          canManageEquipment() || isOicUser()
                             ? "Create Booking"
                             : "Book this equipment",
                           {
-                            icon: <Calendar className="h-3.5 w-3.5" />,
+                            icon: <Calendar className="h-3 w-3" />,
                             variant: "primary",
-                            disabled: !canManageEquipment() && !isEquipmentOperational(),
+                            disabled: !canManageEquipment() && !isOicUser() && !isEquipmentOperational(),
                             onClick: handleBookOrManageClick,
                           }
                         )
                       )}
                       {canChangeSlotStatus() && (
                         navBtn("slot_status", "Change Slot Status", {
-                          icon: <CalendarClock className="h-3.5 w-3.5" />,
+                          icon: <CalendarClock className="h-3 w-3" />,
                           variant: "action",
                           onClick: handleChangeSlotStatusClick,
                         })
                       )}
                       {navBtn("general", "General information", {
-                        icon: <ClipboardList className="h-3.5 w-3.5" />,
+                        icon: <ClipboardList className="h-3 w-3" />,
                         active: activePanel === "general",
                         onClick: () => setActivePanel("general"),
                       })}
                       {navBtn("specifications", "Technical specifications", {
-                        icon: <FileText className="h-3.5 w-3.5" />,
+                        icon: <FileText className="h-3 w-3" />,
                         active: activePanel === "specifications",
                         onClick: () => setActivePanel("specifications"),
                       })}
                       {navBtn("sample", "Sample requirements", {
-                        icon: <FlaskConical className="h-3.5 w-3.5" />,
+                        icon: <FlaskConical className="h-3 w-3" />,
                         active: activePanel === "sample_requirements",
                         onClick: () => setActivePanel("sample_requirements"),
                       })}
                       {navBtn("view_charges", "View charges", {
-                        icon: <IndianRupee className="h-3.5 w-3.5" />,
+                        icon: <IndianRupee className="h-3 w-3" />,
                         active: activePanel === "view_charges",
                         onClick: () => setActivePanel("view_charges"),
                       })}
                       {navBtn("calc_charges", "Calculate charges", {
-                        icon: <IndianRupee className="h-3.5 w-3.5" />,
+                        icon: <IndianRupee className="h-3 w-3" />,
                         variant: "action",
                         active: activePanel === "calc_charges",
                         onClick: handleCalculateChargesClick,
@@ -1090,31 +1072,31 @@ const EquipmentProfile = () => {
                           ? `Publications (${publicationCount})`
                           : "Publications",
                         {
-                          icon: <BookOpen className="h-3.5 w-3.5" />,
+                          icon: <BookOpen className="h-3 w-3" />,
                           active: activePanel === "publications",
                           onClick: () => setActivePanel("publications"),
                         }
                       )}
                       {navBtn("support", "Raise support request", {
-                        icon: <LifeBuoy className="h-3.5 w-3.5" />,
+                        icon: <LifeBuoy className="h-3 w-3" />,
                         variant: "action",
                         onClick: () => setSupportOpen(true),
                       })}
                       {navBtn("contact", "Contact us", {
-                        icon: <UserCog className="h-3.5 w-3.5" />,
+                        icon: <UserCog className="h-3 w-3" />,
                         active: activePanel === "contact",
                         onClick: () => setActivePanel("contact"),
                       })}
                       {navBtn("manage_another", "Manage another equipment", {
-                        icon: <LayoutGrid className="h-3.5 w-3.5" />,
+                        icon: <LayoutGrid className="h-3 w-3" />,
                         variant: "action",
                         onClick: () => {
                           if (window.history.length > 1) navigate(-1);
                           else navigate("/equipments");
                         },
                       })}
-                      {shouldShowBookingCard() && !isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
-                        <p className="text-[11px] text-amber-600 font-medium pt-1 px-0.5 leading-snug">
+                      {showCreateOrBookCta() && !canManageEquipment() && !isOicUser() && !isEquipmentOperational() && (
+                        <p className="text-[10px] text-amber-600 font-medium pt-1 px-0.5 leading-snug">
                           Booking is disabled while equipment is{" "}
                           {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
                         </p>
