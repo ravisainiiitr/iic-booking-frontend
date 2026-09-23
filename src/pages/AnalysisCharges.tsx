@@ -569,7 +569,7 @@ export default function AnalysisCharges() {
                   ))}
                 </TableBody>
               </Table>
-            </div>            </div>
+            </div>
           </section>
         )}
       </main>
