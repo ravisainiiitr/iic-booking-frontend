@@ -1289,6 +1289,11 @@ const BookEquipment = () => {
   const [myUnsuccessfulAttemptsLoading, setMyUnsuccessfulAttemptsLoading] = useState(false);
   /** True when user came from "Select Slot" in urgent dialog: show "Submit Request" and create hold booking (no debit). */
   const isUrgentHoldMode = searchParams.get('urgent') === '1';
+  /** Type A rush relief: book advance week at normal rates (no hold, no urgent surcharge). */
+  const isRushReliefMode = searchParams.get("rush_relief") === "1";
+  const allowUrgentWeekExtension = isUrgentHoldMode || isRushReliefMode;
+  /** Type B: hold slots for OIC/Admin review with 50% surcharge. */
+  const isUrgentTypeBHoldMode = isUrgentHoldMode && !isRushReliefMode;
   const [statusChangeSlotColors, setStatusChangeSlotColors] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem("slotStatusColors");
@@ -2641,7 +2646,7 @@ const BookEquipment = () => {
       printAnalysisBatchId,
       sampleReturnAfterAnalysis: sampleReturnFlag,
       chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
-      urgent: isUrgentHoldMode,
+      urgent: isUrgentTypeBHoldMode,
     });
     if (lastCalculatedValuesRef.current === currentValuesHash) {
       return; // Already calculated for these values
@@ -2722,7 +2727,7 @@ const BookEquipment = () => {
             : equipmentDetail.profile_type === "PRINT_3D" && printAnalysisId
               ? { print_analysis_id: printAnalysisId }
               : {}),
-          ...(isUrgentHoldMode ? { urgent: true } : {}),
+          ...(isUrgentTypeBHoldMode ? { urgent: true } : {}),
         }
       );
 
@@ -2804,7 +2809,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentHoldMode]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -3052,7 +3057,7 @@ const BookEquipment = () => {
         printAnalysisBatchId,
         sampleReturnAfterAnalysis: sampleReturnFlag,
         chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
-        urgent: isUrgentHoldMode,
+        urgent: isUrgentTypeBHoldMode,
       });
       
       // Skip if we already calculated (or failed) for these exact values
@@ -3118,7 +3123,7 @@ const BookEquipment = () => {
         selectedEquipment.id,
         startDateStr,
         endDateStr,
-        { urgentWeekExtension: isUrgentHoldMode }
+        { urgentWeekExtension: allowUrgentWeekExtension }
       );
 
       if ((slotsResponse as any)?.error) {
@@ -3213,7 +3218,7 @@ const BookEquipment = () => {
       setLoadingSlots(false);
       fetchingSlotsRef.current = false;
     }
-  }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, isUrgentHoldMode]);
+  }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, allowUrgentWeekExtension]);
 
   // After changing slots in mode=status, switching to booking (mode=book or UI) must reload Step 3 slot data
   useEffect(() => {
@@ -3356,7 +3361,7 @@ const BookEquipment = () => {
     lastFetchedWeek,
     fetchSlotsForWeek,
     userType,
-    isUrgentHoldMode,
+    allowUrgentWeekExtension,
     equipmentDetail?.slot_window_min_date,
     equipmentDetail?.slot_window_max_date,
   ]);
@@ -4336,7 +4341,7 @@ const BookEquipment = () => {
       const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
       const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
       if (!minDateStr || !maxDateStr) {
-        if (isUrgentHoldMode) {
+        if (allowUrgentWeekExtension) {
           const weekAfterNext = addWeeks(nextWeek, 1);
           return (
             weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
@@ -4355,7 +4360,7 @@ const BookEquipment = () => {
       return weekSunday >= minDate && weekStartNormalized <= maxDate;
     }
 
-    if (isUrgentHoldMode) {
+    if (allowUrgentWeekExtension) {
       const weekAfterNext = addWeeks(nextWeek, 1);
       return (
         weekStartNormalized.getTime() === currentWeekNormalized.getTime() ||
@@ -4396,14 +4401,14 @@ const BookEquipment = () => {
       const minDateStr = equipmentDetail?.slot_window_min_date ?? null;
       const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
       if (!minDateStr || !maxDateStr) {
-        if (isUrgentHoldMode) {
+        if (allowUrgentWeekExtension) {
           return [currentWeek, nextWeek, addWeeks(nextWeek, 1)];
         }
         return [currentWeek, nextWeek];
       }
       const minDate = parseISO(minDateStr);
       const maxDate = parseISO(maxDateStr);
-      if (isUrgentHoldMode) {
+      if (allowUrgentWeekExtension) {
         const previousWeek = subWeeks(currentWeek, 1);
         const candidateWeeks = [previousWeek, currentWeek, nextWeek, addWeeks(nextWeek, 1)];
         const weeks: Date[] = [];
@@ -4474,7 +4479,7 @@ const BookEquipment = () => {
     if (!isAllowed) {
       setCurrentWeekStart(startOfWeek(allowed[0], { weekStartsOn: 1 }));
     }
-  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart, isUrgentHoldMode]);
+  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart, allowUrgentWeekExtension]);
 
   // Default to current week whenever an equipment is selected for booking (internal / external users)
   useEffect(() => {
@@ -4997,7 +5002,7 @@ const BookEquipment = () => {
       .filter((id): id is number => typeof id === "number");
     const canUseSlotIds = slotIds.length === selectedSlots.length && slotIds.length > 0;
 
-    if (isUrgentHoldMode && !canUseSlotIds) {
+    if (isUrgentTypeBHoldMode && !canUseSlotIds) {
       toast.error("Please select one or more slots from the grid for your urgent request.");
       return;
     }
@@ -5058,7 +5063,7 @@ const BookEquipment = () => {
       const totalCost = calculatedCharge ? Number(calculatedCharge.total_charge) : 0;
 
       if (canUseSlotIds) {
-        if (isUrgentHoldMode) {
+        if (isUrgentTypeBHoldMode) {
           const rt = searchParams.get("return_to");
           const returnToPage =
             rt === "my-urgent-requests" || rt === "urgent-requests-wallet" || rt === "dashboard";
@@ -5079,6 +5084,7 @@ const BookEquipment = () => {
               waitlist_on_failure: waitlistIntentEffective,
               book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
               book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
+              ...(isRushReliefMode ? { rush_relief: true } : {}),
               ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
               ...print3dBookExtras,
             });
@@ -5136,6 +5142,7 @@ const BookEquipment = () => {
           waitlist_on_failure: waitlistIntentEffective,
           book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
           book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
+              ...(isRushReliefMode ? { rush_relief: true } : {}),
           ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
@@ -8069,8 +8076,7 @@ const BookEquipment = () => {
                       <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
                         <p className="font-semibold">Urgent booking charges</p>
                         <p className="mt-0.5 leading-relaxed">
-                          Type B urgent requests (with a reason) are charged <strong>50% more</strong> than the normal rate for your user category; the amount below includes this surcharge.
-                          If you qualify for Type A rush relief ({RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ peak-window failed attempts in 14 days), the surcharge is removed when you submit.
+                          Type B: selecting slots here holds them for OIC/Admin review at <strong>50% surcharge</strong> — they are not auto-confirmed. Type A rush relief uses advance-week booking at normal rates (no surcharge).
                           Either way the held slots are confirmed automatically once your wallet is debited.
                         </p>
                       </div>
@@ -9053,7 +9059,9 @@ const BookEquipment = () => {
                           </>
                         ) : (
                           <>
-                            {isUrgentHoldMode
+                            {isRushReliefMode
+                              ? "Confirm Type A booking"
+                              : isUrgentTypeBHoldMode
                               ? ((["my-urgent-requests", "urgent-requests-wallet", "dashboard"].includes(
                                     searchParams.get("return_to") || ""
                                   ))
@@ -9158,7 +9166,7 @@ const BookEquipment = () => {
                     <Label htmlFor="urgent-no-slot" className="flex-1 cursor-pointer">
                       <span className="font-medium text-base">Type A — Rush relief (no surcharge)</span>
                       <span className="text-muted-foreground text-sm block mt-0.5">
-                        For users with {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ unsuccessful attempts in the peak booking window (last 14 days). Normal rate; no OIC approval.
+                        Internal users with {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ peak-window failed attempts (last 14 days, since last Type A use). Book advance week at normal rates; window resets after booking.
                       </span>
                     </Label>
                   </div>
@@ -9167,7 +9175,7 @@ const BookEquipment = () => {
                     <Label htmlFor="urgent-reviewer" className="flex-1 cursor-pointer">
                       <span className="font-medium text-base">Type B — Urgent with reason (50% surcharge)</span>
                       <span className="text-muted-foreground text-sm block mt-0.5">
-                        Give a reason; 50% urgent surcharge applies. No further approval needed.
+                        Give a reason; 50% surcharge. Slots stay pending for OIC/Admin review and possible reschedule (including weekends).
                       </span>
                     </Label>
                   </div>
@@ -9207,7 +9215,7 @@ const BookEquipment = () => {
               {urgentRequestType === 'NO_SLOT' && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                    Rush relief is available only if you have at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} unsuccessful booking attempts for this equipment during the peak booking window in the last 14 days. The 50% urgent surcharge is waived and your held slots are confirmed automatically.
+                    Type A is for internal users only when no current-search slots exist and you have at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} peak-window failed attempts. Prefer Book advance week from My Urgent Requests. Completing Type A resets the 14-day attempt window.
                     {noSlotNoAttempts && " You do not qualify yet — use Type B (urgent with reason) instead."}
                   </p>
                   <p className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-4 border border-border/60">I am unable to get any booking despite repeated trials and my requirement is genuine and urgent.</p>
@@ -9262,7 +9270,7 @@ const BookEquipment = () => {
               {urgentRequestType === 'REVIEWER_URGENT' && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                    Explain why the booking is urgent (e.g. reviewer comment, deadline). A <strong>50% urgent surcharge</strong> is added to the normal rate for your category. No further approval is needed — your held slots are confirmed once the wallet is debited. Misuse may result in action.
+                    Explain why the booking is urgent. A <strong>50% surcharge</strong> applies. Slots are NOT auto-confirmed — OIC/Admin will review and may reschedule (including weekends). After approval, submit your sample at the earliest.
                   </p>
                   <div className="flex items-center space-x-3">
                     <Checkbox id="urgent-disclaimer-reviewer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" />

@@ -5458,6 +5458,8 @@ class ApiClient {
     slot_ids?: number[];
     /** When true, create booking in HOLD status (no wallet debit); used for urgent request "Select Slot" flow */
     create_as_hold?: boolean;
+    /** When true, Type A rush-relief booking (advance week at normal rates, no urgent surcharge). */
+    rush_relief?: boolean;
     /** When true and slot_ids are taken, backend may allocate any other available slots (e.g. distributed) for the same duration */
     book_any_available_slots?: boolean;
     /** When book_any_available_slots is true: restrict alternative slots to this week (YYYY-MM-DD, Monday). */
@@ -5868,6 +5870,9 @@ class ApiClient {
         duration_minutes: number | null;
       }>;
       equipment_id: number;
+      peak_qualified_attempts?: number;
+      rush_relief_min_attempts?: number;
+      rush_relief_qualified?: boolean;
     }>(`/booking-attempt-logs/my-unsuccessful/?equipment_id=${encodeURIComponent(equipmentId)}`);
   }
 
