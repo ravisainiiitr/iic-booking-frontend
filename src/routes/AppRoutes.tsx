@@ -3,6 +3,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AdminModuleGuard from "@/components/AdminModuleGuard";
 import Index from "@/pages/Index";
 import AnalysisCharges from "@/pages/AnalysisCharges";
+import Publications from "@/pages/Publications";
 import NotFound from "@/pages/NotFound";
 import Auth from "@/pages/Auth";
 import LoginRedirect from "@/pages/LoginRedirect";
@@ -128,6 +129,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/analysis-charges" element={<AnalysisCharges />} />
+      <Route path="/publications" element={<Publications />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/login" element={<LoginRedirect />} />
       <Route path="/auth/callback" element={<AuthCallback />} />

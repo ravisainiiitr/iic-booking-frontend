@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar, Search, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -8,6 +8,7 @@ import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
 import { storeOmniportState } from "@/lib/omniportAuth";
 import { toast } from "sonner";
 import iitrMainBuilding from "@/assets/iitr-main-building.jpg";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_HOME = {
   hero_title_line1: "Institute Equipment Booking Portal",
@@ -44,6 +45,7 @@ const Hero = () => {
     equipmentCount: number;
     totalBookingsCount: number;
     activeUsersCount: number;
+    publicationCount: number;
   } | null>(null);
   const [siteStatsFailed, setSiteStatsFailed] = useState(false);
   const [channeliLoading, setChanneliLoading] = useState(false);
@@ -98,6 +100,7 @@ const Hero = () => {
           equipmentCount: res.data.equipment_count,
           totalBookingsCount: res.data.total_bookings_count ?? 0,
           activeUsersCount: res.data.active_users_count,
+          publicationCount: res.data.publication_count ?? 0,
         });
       })
       .catch(() => setSiteStatsFailed(true));
@@ -120,6 +123,12 @@ const Hero = () => {
       ? `${liveSiteStats.activeUsersCount.toLocaleString("en-IN")}+`
       : siteStatsFailed
         ? (home.stat3_value ?? DEFAULT_HOME.stat3_value)
+        : "—";
+  const publicationsDisplay =
+    liveSiteStats != null
+      ? `${liveSiteStats.publicationCount.toLocaleString("en-IN")}+`
+      : siteStatsFailed
+        ? "—"
         : "—";
 
   const scrollTo = (selector: string) => {
@@ -240,28 +249,88 @@ const Hero = () => {
         </div>
 
         <div className="container mx-auto w-full shrink-0 px-4 pb-4 sm:pb-5">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/25 bg-white/20 p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_10%/0.35)] backdrop-blur-md sm:gap-3 sm:p-4 lg:grid-cols-4">
-            {[
-              { value: stat1Display, label: home.stat1_label ?? "Instruments", fsV: fontSizes.stat1_value, fsL: fontSizes.stat1_label },
-              { value: stat2BookingsDisplay, label: home.stat4_label ?? "Bookings", fsV: fontSizes.stat4_value, fsL: fontSizes.stat4_label },
-              { value: home.stat2_value ?? "24/7", label: home.stat2_label ?? "Online Booking", fsV: fontSizes.stat2_value, fsL: fontSizes.stat2_label },
-              { value: stat3Display, label: home.stat3_label ?? "Researchers", fsV: fontSizes.stat3_value, fsL: fontSizes.stat3_label },
-            ].map((s) => (
-              <div key={s.label} className="px-2 py-1 text-center">
-                <div
-                  className="text-xl font-semibold tabular-nums text-white sm:text-2xl md:text-3xl"
-                  style={s.fsV ? { fontSize: s.fsV } : undefined}
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/25 bg-white/20 p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_10%/0.35)] backdrop-blur-md sm:gap-3 sm:p-4 lg:grid-cols-5">
+            {(
+              [
+                {
+                  key: "instruments",
+                  value: stat1Display,
+                  label: home.stat1_label ?? "Instruments",
+                  fsV: fontSizes.stat1_value,
+                  fsL: fontSizes.stat1_label,
+                },
+                {
+                  key: "bookings",
+                  value: stat2BookingsDisplay,
+                  label: home.stat4_label ?? "Bookings",
+                  fsV: fontSizes.stat4_value,
+                  fsL: fontSizes.stat4_label,
+                },
+                {
+                  key: "online",
+                  value: home.stat2_value ?? "24/7",
+                  label: home.stat2_label ?? "Online Booking",
+                  fsV: fontSizes.stat2_value,
+                  fsL: fontSizes.stat2_label,
+                },
+                {
+                  key: "publications",
+                  value: publicationsDisplay,
+                  label: "Publications",
+                  href: "/publications",
+                  fsV: undefined,
+                  fsL: undefined,
+                },
+                {
+                  key: "users",
+                  value: stat3Display,
+                  label: home.stat3_label ?? "Active Users",
+                  fsV: fontSizes.stat3_value,
+                  fsL: fontSizes.stat3_label,
+                },
+              ] as Array<{
+                key: string;
+                value: string;
+                label: string;
+                href?: string;
+                fsV?: string;
+                fsL?: string;
+              }>
+            ).map((s) => {
+              const inner = (
+                <>
+                  <div
+                    className="text-xl font-semibold tabular-nums text-white sm:text-2xl md:text-3xl"
+                    style={s.fsV ? { fontSize: s.fsV } : undefined}
+                  >
+                    {s.value}
+                  </div>
+                  <div
+                    className={cn(
+                      "mt-0.5 text-xs font-medium uppercase tracking-wide text-white/75 sm:text-sm",
+                      s.href && "underline decoration-white/50 underline-offset-4 group-hover:decoration-white"
+                    )}
+                    style={s.fsL ? { fontSize: s.fsL } : undefined}
+                  >
+                    {s.label}
+                  </div>
+                </>
+              );
+              return s.href ? (
+                <Link
+                  key={s.key}
+                  to={s.href}
+                  className="group px-2 py-1 text-center rounded-lg transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  title="View publications"
                 >
-                  {s.value}
+                  {inner}
+                </Link>
+              ) : (
+                <div key={s.key} className="px-2 py-1 text-center">
+                  {inner}
                 </div>
-                <div
-                  className="mt-0.5 text-xs font-medium uppercase tracking-wide text-white/75 sm:text-sm"
-                  style={s.fsL ? { fontSize: s.fsL } : undefined}
-                >
-                  {s.label}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

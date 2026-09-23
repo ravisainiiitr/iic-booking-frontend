@@ -1865,9 +1865,32 @@ class ApiClient {
     return this.request<{ content: Record<string, string>; font_sizes: Record<string, string> }>('/cms/home/');
   }
 
-  /** Public hero stats: operational equipment (public catalog) and active users. */
+  /** Public hero stats: operational equipment (public catalog), bookings, publications, active users. */
   async getCmsSiteStats() {
-    return this.request<{ equipment_count: number; active_users_count: number; total_bookings_count: number }>('/cms/site-stats/');
+    return this.request<{
+      equipment_count: number;
+      active_users_count: number;
+      total_bookings_count: number;
+      publication_count?: number;
+    }>('/cms/site-stats/');
+  }
+
+  /** Public list of equipment-linked publications (home hero link). */
+  async getCmsPublications() {
+    return this.request<{
+      count: number;
+      results: Array<{
+        id: number;
+        title: string;
+        citation: string;
+        url: string;
+        doi: string;
+        year: number | null;
+        equipment_id: number | null;
+        equipment_name: string;
+        equipment_code: string;
+      }>;
+    }>('/cms/publications/');
   }
 
   /** Hero carousel background images (multiple, with autoscroll on frontend). */
