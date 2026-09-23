@@ -39,7 +39,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function loadPdfMastheadBytes(): Promise<ArrayBuffer> {
   if (!mastheadBytesPromise) {
     mastheadBytesPromise = (async () => {
-      const res = await fetch("/iitr-pdf-masthead.png");
+      const res = await fetch("/iitr-pdf-masthead.png?v=3");
       if (!res.ok) throw new Error("Failed to load IITR PDF masthead");
       return res.arrayBuffer();
     })();
@@ -67,11 +67,12 @@ export async function drawPdfLetterhead(
   const pageW = doc.internal.pageSize.getWidth();
   const cx = pageW / 2;
   let y = options.topY ?? 24;
-  const maxW = options.mastheadMaxWidth ?? Math.min(340, pageW - 56);
+  const maxW = options.mastheadMaxWidth ?? Math.min(420, pageW - 48);
 
   const dataUrl = await loadMastheadDataUrl();
-  // Intrinsic masthead ~568×319 — keep aspect ratio.
-  const aspect = 319 / 568;
+  // Use real PNG dimensions so Devanagari glyphs are not stretched.
+  const props = doc.getImageProperties(dataUrl);
+  const aspect = props.height / props.width;
   const imgW = maxW;
   const imgH = imgW * aspect;
   doc.addImage(dataUrl, "PNG", cx - imgW / 2, y, imgW, imgH);
