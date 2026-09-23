@@ -57,8 +57,9 @@ export const studentGuide: UserGuideContent = {
       steps: [
         {
           title: "Find equipment",
-          body: "From the Dashboard or Equipments catalog, search by name, department, or category. Open View Details & Charges.",
+          body: "From the Dashboard or Equipments catalog, search by name, department, or category. Open View Details.",
           screenshotCaption: "Equipment catalog with search and filters",
+          screenshotSrc: "/guides/equipment-catalog-search-filters.jpg",
         },
         {
           title: "Review charges and requirements",

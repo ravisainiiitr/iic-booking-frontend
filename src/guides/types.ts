@@ -19,7 +19,10 @@ export type GuideAudienceId =
 export interface GuideStep {
   title: string;
   body: string;
+  /** Caption shown under the step (and used as alt text). */
   screenshotCaption?: string;
+  /** Public path to a real screenshot, e.g. /guides/equipment-catalog-search-filters.jpg */
+  screenshotSrc?: string;
 }
 
 export interface GuideFaq {

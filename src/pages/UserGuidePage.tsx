@@ -96,9 +96,23 @@ export default function UserGuidePage() {
                     <li key={step.title} className="pl-1">
                       <p className="font-medium text-foreground">{step.title}</p>
                       <p className="text-muted-foreground mt-0.5">{step.body}</p>
-                      {step.screenshotCaption ? (
-                        <p className="text-xs text-muted-foreground/80 mt-1 italic">
-                          Screenshot: {step.screenshotCaption}
+                      {step.screenshotSrc ? (
+                        <figure className="mt-3 overflow-hidden rounded-lg border border-border/70 bg-muted/20 shadow-sm">
+                          <img
+                            src={step.screenshotSrc}
+                            alt={step.screenshotCaption || step.title}
+                            className="w-full h-auto object-contain object-top max-h-[28rem]"
+                            loading="lazy"
+                          />
+                          {step.screenshotCaption ? (
+                            <figcaption className="border-t border-border/60 px-3 py-1.5 text-xs text-muted-foreground">
+                              {step.screenshotCaption}
+                            </figcaption>
+                          ) : null}
+                        </figure>
+                      ) : step.screenshotCaption ? (
+                        <p className="mt-2 rounded-md border border-dashed border-muted-foreground/40 bg-muted/20 px-2.5 py-2 text-xs italic text-muted-foreground">
+                          [Screenshot: {step.screenshotCaption}]
                         </p>
                       ) : null}
                     </li>

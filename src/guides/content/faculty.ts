@@ -56,6 +56,7 @@ export const facultyGuide: UserGuideContent = {
           title: "Browse the catalog",
           body: "Open Equipments, filter by department or technique, and open an instrument’s detail page.",
           screenshotCaption: "Equipment catalog",
+          screenshotSrc: "/guides/equipment-catalog-search-filters.jpg",
         },
         {
           title: "Check charges and accessories",

@@ -175,9 +175,11 @@ export default function UserGuideDialog({
             <h3>Step ${idx + 1}: ${escapeHtml(st.title)}</h3>
             <p>${escapeHtml(st.body)}</p>
             ${
-              st.screenshotCaption
-                ? `<p class="shot">[Screenshot: ${escapeHtml(st.screenshotCaption)}]</p>`
-                : ""
+              st.screenshotSrc
+                ? `<figure class="shot"><img src="${escapeHtml(st.screenshotSrc)}" alt="${escapeHtml(st.screenshotCaption || st.title)}" /><figcaption>${escapeHtml(st.screenshotCaption || "")}</figcaption></figure>`
+                : st.screenshotCaption
+                  ? `<p class="shot">[Screenshot: ${escapeHtml(st.screenshotCaption)}]</p>`
+                  : ""
             }
           </div>`
                 )
@@ -223,7 +225,7 @@ export default function UserGuideDialog({
     h2{font-size:1.2rem;margin-top:1.75rem;border-bottom:1px solid #ddd;padding-bottom:.35rem}
     h3{font-size:1.05rem;margin-top:1rem}
     ul{padding-left:1.25rem}
-    .shot{color:#555;font-style:italic;border:1px dashed #bbb;padding:.5rem .75rem;background:#fafafa}
+    .shot img{max-width:100%;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px}.shot figcaption{font-size:11px;color:#64748b;margin-top:4px}.shot{color:#555;font-style:italic;border:1px dashed #bbb;padding:.5rem .75rem;background:#fafafa}
     .faq{margin:.75rem 0;padding:.5rem 0;border-bottom:1px dotted #ddd}
     @media print{body{margin:0}}
   </style>
@@ -554,7 +556,21 @@ export default function UserGuideDialog({
                                   {st.title}
                                 </p>
                                 <p className="text-foreground/90 leading-relaxed pl-5">{st.body}</p>
-                                {st.screenshotCaption ? (
+                                {st.screenshotSrc ? (
+                                  <figure className="ml-5 mt-1 overflow-hidden rounded-md border border-border/70 bg-background shadow-sm">
+                                    <img
+                                      src={st.screenshotSrc}
+                                      alt={st.screenshotCaption || st.title}
+                                      className="w-full h-auto object-contain object-top max-h-56"
+                                      loading="lazy"
+                                    />
+                                    {st.screenshotCaption ? (
+                                      <figcaption className="border-t border-border/50 px-2 py-1 text-[0.7rem] text-muted-foreground">
+                                        {st.screenshotCaption}
+                                      </figcaption>
+                                    ) : null}
+                                  </figure>
+                                ) : st.screenshotCaption ? (
                                   <p className="ml-5 rounded-md border border-dashed border-muted-foreground/40 bg-background px-2.5 py-1.5 text-xs italic text-muted-foreground">
                                     [Screenshot: {st.screenshotCaption}]
                                   </p>
