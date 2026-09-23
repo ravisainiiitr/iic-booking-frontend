@@ -37,7 +37,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function loadPdfMastheadBytes(): Promise<ArrayBuffer> {
   if (!mastheadBytesPromise) {
     mastheadBytesPromise = (async () => {
-      const res = await fetch("/iitr-pdf-masthead.png?v=5");
+      const res = await fetch("/iitr-pdf-masthead.png?v=6");
       if (!res.ok) throw new Error("Failed to load IITR PDF masthead");
       return res.arrayBuffer();
     })();
@@ -65,7 +65,7 @@ export async function drawPdfLetterhead(
   const pageW = doc.internal.pageSize.getWidth();
   const cx = pageW / 2;
   let y = options.topY ?? 20;
-  const maxW = options.mastheadMaxWidth ?? Math.min(280, pageW - 80);
+  const maxW = options.mastheadMaxWidth ?? Math.min(320, pageW - 64);
 
   const dataUrl = await loadMastheadDataUrl();
   const props = doc.getImageProperties(dataUrl);
@@ -73,13 +73,8 @@ export async function drawPdfLetterhead(
   const imgW = maxW;
   const imgH = imgW * aspect;
   doc.addImage(dataUrl, "PNG", cx - imgW / 2, y, imgW, imgH);
-  y += imgH + 16;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(...PDF_INK_RGB);
-  doc.text(ORG_ENGLISH, cx, y, { align: "center" });
-  y += 20;
+  // Masthead PNG already includes "Indian Institute of Technology Roorkee" — do not redraw it.
+  y += imgH + 10;
 
   const dept =
     String(options.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
