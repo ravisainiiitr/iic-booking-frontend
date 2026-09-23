@@ -65,6 +65,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
@@ -809,14 +810,51 @@ function shouldPromptCompleteOptionalParams(
   return hasIncompleteOptionalEditableParams(equipmentDetail?.input_fields, merged);
 }
 
+/** Fields that only capture notes / free text and do not drive charge formulas. */
+function isNonChargeAffectingInputField(field: {
+  field_key?: string | null;
+  field_label?: string | null;
+  field_type?: string | null;
+  is_required?: boolean | null;
+}): boolean {
+  const key = String(field.field_key || "").trim().toLowerCase();
+  const label = String(field.field_label || "").trim().toLowerCase();
+  const fieldType = String(field.field_type || "").toUpperCase().trim();
+  if (
+    key === "comments" ||
+    key === "comment" ||
+    key === "remarks" ||
+    key === "remark" ||
+    key === "notes" ||
+    key === "note"
+  ) {
+    return true;
+  }
+  if (fieldType === "TEXT" && /\b(comment|remark|note)s?\b/.test(label)) {
+    return true;
+  }
+  if (
+    fieldType === "TEXT" &&
+    !field.is_required &&
+    /\b(any other|additional|other)\b/.test(label) &&
+    /\b(requirement|request|instruction|detail)s?\b/.test(label)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 const BookEquipment = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const embedded = useEmbeddedMode();
   const debugSlots = searchParams.get("debug_slots") === "1";
   /** Build proforma line item from charge step only (no slot booking). */
   const isProformaFlow = searchParams.get("proforma") === "1";
   /** Charge estimate only — inputs + calculation, no slot booking. */
   const isCalculateChargesFlow = searchParams.get("mode") === "calculate";
+  /** Embedded in equipment profile / dashboard workspace — omit full-page chrome. */
+  const isEmbedFlow = embedded || searchParams.get("embed") === "1";
   const proformaEditLineIndex = useMemo((): number | null => {
     const raw = searchParams.get("proformaLineIndex");
     if (raw == null || raw === "") return null;
@@ -5346,9 +5384,9 @@ const BookEquipment = () => {
     const isLoadingFromUrl = Boolean(equipmentIdFromUrl) && (loadingEquipmentDetail || !selectedEquipment);
 
     return (
-      <div className="page-shell">
-        <DashboardHeader />
-        <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8">
+      <div className={isEmbedFlow ? "relative" : "page-shell"}>
+        {!isEmbedFlow && <DashboardHeader />}
+        <main className={isEmbedFlow ? "w-full px-0 py-2" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8"}>
           <Card className="rounded-2xl shadow-[var(--shadow-card)]">
             <CardContent className="py-12 text-center">
               {isLoadingFromUrl ? (
@@ -5359,9 +5397,11 @@ const BookEquipment = () => {
               ) : (
                 <>
                   <p className="text-muted-foreground mb-4">No equipment selected for booking</p>
-                  <Button className="bg-primary hover:bg-primary/90" onClick={() => navigate("/equipments")}>
-                    Browse Equipment
-                  </Button>
+                  {!isEmbedFlow && (
+                    <Button className="bg-primary hover:bg-primary/90" onClick={() => navigate("/equipments")}>
+                      Browse Equipment
+                    </Button>
+                  )}
                 </>
               )}
             </CardContent>
@@ -5372,7 +5412,7 @@ const BookEquipment = () => {
   }
 
   return (
-    <div className="page-shell relative">
+    <div className={isEmbedFlow ? "relative" : "page-shell relative"}>
       {(loadingEquipmentDetail || repeatSourceLoading) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-2xl flex flex-col items-center gap-4 shadow-xl border">
@@ -5381,8 +5421,9 @@ const BookEquipment = () => {
           </div>
         </div>
       )}
-      <DashboardHeader />
-      <main className="w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8 text-base md:text-lg leading-relaxed">
+      {!isEmbedFlow && <DashboardHeader />}
+      <main className={isEmbedFlow ? "w-full px-0 py-1 text-base leading-relaxed" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8 text-base md:text-lg leading-relaxed"}>
+        {!isEmbedFlow && (
         <div className="max-w-6xl mx-auto mb-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
@@ -5433,6 +5474,7 @@ const BookEquipment = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Admin: mode selector (Manage this Equipment) */}
         {canAccessManageEquipmentModes() && adminManageMode === null && !isCalculateChargesFlow && (
@@ -6744,13 +6786,15 @@ const BookEquipment = () => {
 
         {/* Booking flow: hide when Admin/Dept Admin and mode not yet chosen or when in status mode */}
         {((!requiresBookModeBeforeForm() || adminManageMode === 'book') || isCalculateChargesFlow) && (
-        <div className="max-w-6xl mx-auto">
-          <Card>
-              <CardHeader>
+        <div className={isEmbedFlow ? "max-w-none mx-auto" : "max-w-6xl mx-auto"}>
+          <Card className={isEmbedFlow ? "border-0 shadow-none" : undefined}>
+              <CardHeader className={isEmbedFlow ? "px-1 pt-1 pb-2" : undefined}>
                 <div className="flex justify-between items-start gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-xl md:text-2xl">{selectedEquipment.name}</CardTitle>
-                    <CardDescription className="text-base md:text-lg">
+                    {!isEmbedFlow && (
+                      <CardTitle className="text-xl md:text-2xl">{selectedEquipment.name}</CardTitle>
+                    )}
+                    <CardDescription className={isEmbedFlow ? "text-sm" : "text-base md:text-lg"}>
                       {isCalculateChargesFlow ? (
                         <>Select user type and parameters to estimate charges. No time slots are required.</>
                       ) : (
@@ -6779,6 +6823,7 @@ const BookEquipment = () => {
                       )}
                     </CardDescription>
                   </div>
+                  {!isEmbedFlow && (
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       variant="outline"
@@ -6802,11 +6847,14 @@ const BookEquipment = () => {
                       Back
                     </Button>
                   </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
                 {/* Accessory availability — informational, before booking steps */}
                 {equipmentDetail &&
+                  !isProformaFlow &&
+                  !isCalculateChargesFlow &&
                   ((Array.isArray(equipmentDetail.accessories) &&
                     equipmentDetail.accessories.length > 0) ||
                     (Array.isArray(equipmentDetail.additional_accessories) &&
@@ -7129,8 +7177,15 @@ const BookEquipment = () => {
                       <div className="grid grid-cols-1 gap-3">
                         {equipmentDetail.input_fields
                           .filter((field: any) => {
-                            if (equipmentDetail?.profile_type !== "PRINT_3D") return true;
-                            return !["A", "B", "C"].includes(String(field.field_key || "").toUpperCase());
+                            if (equipmentDetail?.profile_type === "PRINT_3D") {
+                              if (["A", "B", "C"].includes(String(field.field_key || "").toUpperCase())) {
+                                return false;
+                              }
+                            }
+                            if (isProformaFlow && isNonChargeAffectingInputField(field)) {
+                              return false;
+                            }
+                            return true;
                           })
                           .map((field: any) => {
                           // Normalize field_type to uppercase for case-insensitive matching
@@ -7786,6 +7841,7 @@ const BookEquipment = () => {
 
                   {!repeatSourceBooking &&
                     !isCalculateChargesFlow &&
+                    !isProformaFlow &&
                     atmosphereSensitiveAllowed && (
                     <div className="mt-4 p-4 rounded-lg border bg-muted/20 space-y-2">
                       <div className="flex items-start gap-3">

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -28,6 +28,8 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
+import BookEquipment from "@/pages/BookEquipment";
+import { EmbeddedModeProvider } from "@/contexts/EmbeddedModeContext";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
@@ -143,6 +145,7 @@ type ContentPanel =
   | "specifications"
   | "sample_requirements"
   | "view_charges"
+  | "calc_charges"
   | "publications"
   | "contact";
 
@@ -366,7 +369,7 @@ const EquipmentProfile = () => {
 
   const handleCalculateChargesClick = () => {
     if (!equipment) return;
-    navigate(`/book-equipment?equipment_id=${equipment.equipment_id}&mode=calculate`);
+    setActivePanel("calc_charges");
   };
 
   const fetchEquipmentProfile = async () => {
@@ -611,6 +614,7 @@ const EquipmentProfile = () => {
             specifications: { title: "Technical specifications", icon: <FileText className="h-5 w-5" /> },
             sample_requirements: { title: "Sample requirements", icon: <FlaskConical className="h-5 w-5" /> },
             view_charges: { title: "View charges", icon: <IndianRupee className="h-5 w-5" /> },
+            calc_charges: { title: "Calculate charges", icon: <IndianRupee className="h-5 w-5" /> },
             publications: {
               title:
                 publicationCount > 0
@@ -832,6 +836,22 @@ const EquipmentProfile = () => {
                 );
               }
             }
+          } else if (activePanel === "calc_charges") {
+            panelBody = (
+              <div className="min-h-[24rem] -mx-1">
+                <EmbeddedModeProvider onClose={() => setActivePanel("view_charges")}>
+                  <MemoryRouter
+                    initialEntries={[
+                      `/book-equipment?equipment_id=${equipment.equipment_id}&mode=calculate&embed=1`,
+                    ]}
+                  >
+                    <Routes>
+                      <Route path="/book-equipment" element={<BookEquipment />} />
+                    </Routes>
+                  </MemoryRouter>
+                </EmbeddedModeProvider>
+              </div>
+            );
           } else if (activePanel === "contact") {
             const managerEntries =
               equipment.managers && equipment.managers.length > 0
@@ -1021,6 +1041,7 @@ const EquipmentProfile = () => {
                       {navBtn("calc_charges", "Calculate charges", {
                         icon: <IndianRupee className="h-4 w-4" />,
                         variant: "action",
+                        active: activePanel === "calc_charges",
                         onClick: handleCalculateChargesClick,
                       })}
                       {navBtn(

@@ -653,9 +653,11 @@ export default function AnalysisLaunchPage() {
               <div className="pointer-events-auto max-w-xl rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-xl dark:border-amber-500/30 dark:bg-amber-950/90 dark:text-amber-50">
                 <p className="font-semibold">Desktop looks blank?</p>
                 <p className="mt-1 text-xs opacity-90">
-                  This usually means the Analysis PC is stuck on Windows Welcome, or an older agent
-                  is installed. Click <strong>Reconnect</strong>, start Analysis from another
-                  computer (not the Analysis PC itself), and keep the Analysis PC console locked.
+                  Guacamole is waiting because the Analysis PC console is still unlocked for the
+                  same Windows user. Do <strong>not</strong> use the Analysis PC keyboard/screen
+                  during the session. Start Analysis from another computer, then click{" "}
+                  <strong>Reconnect</strong>. If you unlocked RAVI, lock it again (Win+L) and
+                  reconnect.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
