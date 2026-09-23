@@ -56,6 +56,7 @@ export const projectStaffGuide: UserGuideContent = {
           title: "Select equipment and slots",
           body: "Browse Equipments, review charges, and reserve consecutive free slots.",
           screenshotCaption: "Booking calendar",
+          screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
         {
           title: "Complete confirmation",

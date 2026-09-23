@@ -68,6 +68,7 @@ export const facultyGuide: UserGuideContent = {
           title: "Reserve slots",
           body: "Select consecutive free slots on the weekly calendar and confirm. Complete wallet debit when prompted.",
           screenshotCaption: "Slot selection calendar",
+          screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
         {
           title: "Monitor My Bookings",

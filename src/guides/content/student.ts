@@ -71,6 +71,7 @@ export const studentGuide: UserGuideContent = {
           title: "Select slots",
           body: "Choose consecutive slots for the duration you need. The system validates conflicts in real time.",
           screenshotCaption: "Weekly booking calendar",
+          screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
         {
           title: "Confirm and pay",

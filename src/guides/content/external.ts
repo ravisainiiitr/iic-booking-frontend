@@ -66,6 +66,7 @@ export const externalGuide: UserGuideContent = {
           title: "Book within the allowed window",
           body: "Use the calendar to select eligible slots. Confirm and complete any payment or invoice step shown.",
           screenshotCaption: "External booking calendar",
+          screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
         {
           title: "Submit samples and track status",
