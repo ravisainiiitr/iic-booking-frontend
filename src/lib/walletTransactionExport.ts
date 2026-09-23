@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
+import { DEFAULT_DEPARTMENT_NAME, drawPdfLetterhead } from "@/lib/pdfLetterhead";
 
 export interface WalletTransactionExportRow {
   equipment_name?: string | null;
@@ -94,16 +95,18 @@ export function exportWalletTransactionsExcel(
 /**
  * Export transactions as PDF (landscape A4 table).
  */
-export function exportWalletTransactionsPdf(
+export async function exportWalletTransactionsPdf(
   rows: WalletTransactionExportRow[],
-  options?: { filename?: string; title?: string }
-): void {
+  options?: { filename?: string; title?: string; departmentName?: string }
+): Promise<void> {
   if (!rows.length) return;
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const title = options?.title ?? "Wallet transaction history";
-  doc.setFontSize(11);
-  doc.text(title, 40, 32);
-  doc.setFontSize(8);
+  const startY = await drawPdfLetterhead(doc, {
+    departmentName: options?.departmentName || DEFAULT_DEPARTMENT_NAME,
+    documentTitle: title,
+    mastheadMaxWidth: 300,
+  });
 
   const body = rows.map((r) => [
     (r.equipment_name ?? "—").slice(0, 80),
@@ -117,7 +120,7 @@ export function exportWalletTransactionsPdf(
   ]);
 
   autoTable(doc, {
-    startY: 42,
+    startY,
     head: [
       [
         "Equipment",

@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
+import { DEFAULT_DEPARTMENT_NAME, drawPdfLetterhead } from "@/lib/pdfLetterhead";
 
 export type AnalysisChargeLine = {
   option: string;
@@ -238,10 +239,10 @@ export function exportAnalysisChargesExcel(
   XLSX.writeFile(wb, name.endsWith(".xlsx") ? name : `${name}.xlsx`);
 }
 
-export function exportAnalysisChargesPdf(
+export async function exportAnalysisChargesPdf(
   rows: AnalysisChargeExportRow[],
   options?: { filename?: string; departmentName?: string; title?: string }
-): void {
+): Promise<void> {
   if (!rows.length) return;
   const pivot = pivotAnalysisChargeRows(rows);
   const useLandscape = pivot.categories.length > 3 || pivot.hasParameters;
@@ -252,27 +253,20 @@ export function exportAnalysisChargesPdf(
   });
   const pageW = doc.internal.pageSize.getWidth();
   const marginX = 28;
-  const dept = (options?.departmentName || "").trim() || "Department";
+  const dept = (options?.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
   const title = options?.title || "Analysis Charges";
 
-  doc.setFillColor(15, 76, 129);
-  doc.rect(0, 0, pageW, 64, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Institute Equipment Booking Portal", marginX, 26);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-  doc.text(title, marginX, 44);
-  doc.setFontSize(9);
-  doc.text(`Department: ${dept}`, marginX, 58);
+  let y = await drawPdfLetterhead(doc, {
+    departmentName: dept,
+    documentTitle: title,
+  });
 
   doc.setTextColor(146, 64, 14);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   const noteLines = doc.splitTextToSize(GST_EXPORT_NOTE, pageW - marginX * 2);
-  doc.text(noteLines, marginX, 78);
-  const tableStartY = 78 + noteLines.length * 10 + 8;
+  doc.text(noteLines, marginX, y);
+  const tableStartY = y + noteLines.length * 10 + 8;
 
   const head = [
     pivot.hasParameters

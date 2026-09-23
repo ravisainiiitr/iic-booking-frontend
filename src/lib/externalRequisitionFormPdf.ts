@@ -1,4 +1,10 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import {
+  DEFAULT_DEPARTMENT_NAME,
+  loadPdfMastheadBytes,
+  PDF_BRAND_RGB,
+  PDF_INK_RGB,
+} from "@/lib/pdfLetterhead";
 import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
 
 function fmtDate(d: Date): string {
@@ -45,10 +51,38 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
     y -= gap;
   };
 
-  // Header
-  draw("Institute Equipment Booking Portal", 14, { bold: true });
-  draw("Indian Institute of Technology Roorkee", 12, { bold: true });
-  draw("Equipment Requisition Form (External Users)", 12, { bold: true });
+  // Standard IITR letterhead (logo + Hindi + English + department + title)
+  const mastheadBytes = await loadPdfMastheadBytes();
+  const masthead = await pdfDoc.embedPng(mastheadBytes);
+  const maxW = Math.min(340, width - margin * 2);
+  const scale = maxW / masthead.width;
+  const imgW = masthead.width * scale;
+  const imgH = masthead.height * scale;
+  y -= imgH;
+  page.drawImage(masthead, { x: (width - imgW) / 2, y, width: imgW, height: imgH });
+  y -= 14;
+  const dept = DEFAULT_DEPARTMENT_NAME;
+  const deptSize = 14;
+  const deptW = fontBold.widthOfTextAtSize(dept, deptSize);
+  page.drawText(dept, {
+    x: (width - deptW) / 2,
+    y,
+    size: deptSize,
+    font: fontBold,
+    color: rgb(PDF_BRAND_RGB[0] / 255, PDF_BRAND_RGB[1] / 255, PDF_BRAND_RGB[2] / 255),
+  });
+  y -= 18;
+  const docTitle = "Equipment Requisition Form (External Users)";
+  const titleSize = 12;
+  const titleW = fontBold.widthOfTextAtSize(docTitle, titleSize);
+  page.drawText(docTitle, {
+    x: (width - titleW) / 2,
+    y,
+    size: titleSize,
+    font: fontBold,
+    color: rgb(PDF_INK_RGB[0] / 255, PDF_INK_RGB[1] / 255, PDF_INK_RGB[2] / 255),
+  });
+  y -= 10;
   line(8);
 
   // Prefilled summary

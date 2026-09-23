@@ -255,13 +255,17 @@ export default function AnalysisCharges() {
     toast.success("Excel downloaded.");
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!tableRows.length) {
       toast.error("Nothing to export — select at least one equipment with charges.");
       return;
     }
-    exportAnalysisChargesPdf(tableRows, { departmentName: departmentTitle });
-    toast.success("PDF downloaded.");
+    try {
+      await exportAnalysisChargesPdf(tableRows, { departmentName: departmentTitle });
+      toast.success("PDF downloaded.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "PDF export failed");
+    }
   };
 
   return (

@@ -9612,10 +9612,16 @@ const BookEquipment = () => {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => {
-                          exportWalletTransactionsPdf(userTransactionHistory.transactions, {
-                            title: `Transaction history — ${userTransactionHistoryDialog.userDisplayName}`,
-                          });
-                          toast.success("PDF downloaded.");
+                          void (async () => {
+                            try {
+                              await exportWalletTransactionsPdf(userTransactionHistory.transactions, {
+                                title: `Transaction history — ${userTransactionHistoryDialog.userDisplayName}`,
+                              });
+                              toast.success("PDF downloaded.");
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : "PDF export failed");
+                            }
+                          })();
                         }}
                       >
                         <FileText className="h-4 w-4 mr-2" />

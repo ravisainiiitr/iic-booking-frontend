@@ -3713,14 +3713,20 @@ const Wallet = () => {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => {
-                          if (filteredTransactions.length === 0) {
-                            toast.error("No transactions match the current filters.");
-                            return;
-                          }
-                          exportWalletTransactionsPdf(filteredTransactions, {
-                            title: "Wallet transaction history",
-                          });
-                          toast.success("PDF downloaded.");
+                          void (async () => {
+                            if (filteredTransactions.length === 0) {
+                              toast.error("No transactions match the current filters.");
+                              return;
+                            }
+                            try {
+                              await exportWalletTransactionsPdf(filteredTransactions, {
+                                title: "Wallet transaction history",
+                              });
+                              toast.success("PDF downloaded.");
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : "PDF export failed");
+                            }
+                          })();
                         }}
                       >
                         <FileText className="h-4 w-4 mr-2" />
