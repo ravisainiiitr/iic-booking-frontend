@@ -3757,6 +3757,8 @@ class ApiClient {
         min_request_amount: string;
         max_outstanding_amount: string;
         max_credit_duration_days: number;
+        reminder_days_before_due?: number;
+        overdue_reminder_interval_days?: number;
       };
     }>("/wallet/credit-requests/summary/", { method: "GET" });
   }

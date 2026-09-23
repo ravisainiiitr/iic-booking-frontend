@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { ArrowLeft, Loader2, CreditCard, ScrollText } from "lucide-react";
 
 type Eligibility = { allowed: boolean; code: string; message: string };
 
@@ -25,6 +25,8 @@ type Summary = {
     min_request_amount: string;
     max_outstanding_amount: string;
     max_credit_duration_days: number;
+    reminder_days_before_due?: number;
+    overdue_reminder_interval_days?: number;
   };
 };
 
@@ -38,6 +40,15 @@ type Facility = {
   purpose: string;
   due_date: string | null;
 };
+
+function formatInr(value: string | number | undefined | null): string {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (Number.isFinite(n)) {
+    return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return String(value);
+}
 
 export default function WalletCreditFacilityRequest() {
   const navigate = useNavigate();
@@ -54,6 +65,10 @@ export default function WalletCreditFacilityRequest() {
 
   const userType = String(user?.user_type || "").toLowerCase();
   const isStudent = userType === "student" || userType === "individual_student";
+  const policy = summary?.policy;
+  const durationDays = policy?.max_credit_duration_days ?? 30;
+  const reminderBeforeDue = policy?.reminder_days_before_due ?? 3;
+  const overdueInterval = policy?.overdue_reminder_interval_days ?? 7;
 
   const load = async () => {
     setLoading(true);
@@ -132,6 +147,80 @@ export default function WalletCreditFacilityRequest() {
           </div>
         ) : (
           <>
+            <Card className="border-primary/20 bg-muted/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ScrollText className="h-5 w-5" />
+                  Credit facility rules
+                </CardTitle>
+                <CardDescription>
+                  Administrator-approved temporary credit posted to your department sub-wallet. Limits below
+                  reflect the current IIC policy.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">Minimum request</div>
+                    <div className="font-semibold tabular-nums">₹{formatInr(policy?.min_request_amount)}</div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">Maximum credit per request</div>
+                    <div className="font-semibold tabular-nums">₹{formatInr(policy?.max_credit_amount)}</div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">Maximum outstanding credit</div>
+                    <div className="font-semibold tabular-nums">₹{formatInr(policy?.max_outstanding_amount)}</div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">Credit duration (repayment window)</div>
+                    <div className="font-semibold">{durationDays} days</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Due date defaults to approval date + {durationDays} days unless set otherwise by the
+                      administrator.
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">Reminder before due date</div>
+                    <div className="font-semibold">{reminderBeforeDue} days prior</div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">Overdue reminder interval</div>
+                    <div className="font-semibold">Every {overdueInterval} days</div>
+                  </div>
+                </div>
+
+                <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+                  <li>
+                    <span className="text-foreground font-medium">Who may request:</span> eligible faculty,
+                    staff, and HoD users only. Student accounts are not eligible.
+                  </li>
+                  <li>
+                    <span className="text-foreground font-medium">Approval:</span> every request needs Main
+                    Administrator review. Approval is not automatic; the approved amount may be reduced with a
+                    recorded reason.
+                  </li>
+                  <li>
+                    <span className="text-foreground font-medium">One active facility:</span> you cannot submit a
+                    new request while another credit is pending, approved, credited, partially settled, or
+                    returned for clarification.
+                  </li>
+                  <li>
+                    <span className="text-foreground font-medium">Posting:</span> after approval, credit is posted
+                    to your department sub-wallet and becomes available for bookings.
+                  </li>
+                  <li>
+                    <span className="text-foreground font-medium">Repayment:</span> repay outstanding credit from
+                    this page before or by the due date. An invoice PDF is available after credit is posted.
+                  </li>
+                  <li>
+                    <span className="text-foreground font-medium">Purpose:</span> a clear purpose / reason is
+                    mandatory with each request.
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Request Wallet Credit</CardTitle>
@@ -141,9 +230,9 @@ export default function WalletCreditFacilityRequest() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                  <div>Current wallet balance: ₹{summary?.current_wallet_balance ?? "—"}</div>
-                  <div>Outstanding credit: ₹{summary?.existing_outstanding_credit ?? "0.00"}</div>
-                  <div>Max credit: ₹{summary?.policy?.max_credit_amount ?? "—"}</div>
+                  <div>Current wallet balance: ₹{formatInr(summary?.current_wallet_balance)}</div>
+                  <div>Outstanding credit: ₹{formatInr(summary?.existing_outstanding_credit ?? "0.00")}</div>
+                  <div>Max credit: ₹{formatInr(summary?.policy?.max_credit_amount)}</div>
                   <div>
                     Eligibility:{" "}
                     {isStudent
@@ -165,8 +254,12 @@ export default function WalletCreditFacilityRequest() {
                         id="amount"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        placeholder={summary?.policy?.min_request_amount || "1000"}
+                        placeholder={summary?.policy?.min_request_amount || "100"}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Allowed range: ₹{formatInr(policy?.min_request_amount)} – ₹
+                        {formatInr(policy?.max_credit_amount)}
+                      </p>
                     </div>
                     <div>
                       <Label htmlFor="purpose">Purpose / Reason</Label>
@@ -177,7 +270,8 @@ export default function WalletCreditFacilityRequest() {
                       <Textarea id="remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Credit is subject to Main Administrator approval. Do not assume approval.
+                      If approved, repayment is expected within {durationDays} days (or by the due date set by
+                      the administrator). Do not assume approval.
                     </p>
                     <Button
                       onClick={submit}
@@ -206,10 +300,13 @@ export default function WalletCreditFacilityRequest() {
                       {f.public_reference} — {f.status}
                     </div>
                     <div>
-                      Requested ₹{f.requested_amount}
-                      {f.approved_amount ? ` · Approved ₹${f.approved_amount}` : ""}
-                      {` · Outstanding ₹${f.outstanding_amount}`}
+                      Requested ₹{formatInr(f.requested_amount)}
+                      {f.approved_amount ? ` · Approved ₹${formatInr(f.approved_amount)}` : ""}
+                      {` · Outstanding ₹${formatInr(f.outstanding_amount)}`}
                     </div>
+                    {f.due_date && (
+                      <div className="text-muted-foreground">Due date: {f.due_date}</div>
+                    )}
                     <div className="text-muted-foreground">{f.purpose}</div>
                     {(f.status === "CREDITED" || f.status === "PARTIALLY_SETTLED") && (
                       <div className="flex flex-wrap gap-2 items-end">
