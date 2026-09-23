@@ -2787,58 +2787,6 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {!isOperatorOrManager && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/proforma-invoice")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Receipt className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Proforma Invoice</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Get cost estimate for equipments and samples/slots before booking
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma Invoice</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && showWalletOption && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/wallet")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Wallet className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet Management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                  {hasWallet ? "Open Wallet" : "Wallet"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           {showFacultyUrgentWalletCard && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
@@ -2905,6 +2853,58 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {!isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/proforma-invoice")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Proforma Invoice</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Get cost estimate for equipments and samples/slots before booking
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma Invoice</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && showWalletOption && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet Management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                  {hasWallet ? "Open Wallet" : "Wallet"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {(userTypeStr === "student" ||
             userTypeStr === "individual_student" ||
             userTypeStr === "faculty" ||
@@ -2961,6 +2961,66 @@ const Dashboard = () => {
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage nomination requests</Button>
               </CardContent>
             </Card>
+          )}
+
+          {canSeeTaDutyAssignmentsCard && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/ta-assignments")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Allocate TA duties and track assignment-to-reward workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                  Open TA assignments
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isLabInchargeUser && (
+          <Card 
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View your booking history and statistics
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
+                View Reports
+              </span>
+            </CardContent>
+          </Card>
           )}
 
           {(userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
@@ -3028,39 +3088,6 @@ const Dashboard = () => {
           )}
 
 
-          {!isLabInchargeUser && (
-          <Card 
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { openWorkspace("/reports"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                  <FileText className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    View your booking history and statistics
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span
-                data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
-              >
-                View Reports
-              </span>
-            </CardContent>
-          </Card>
-          )}
-
           {!isLabInchargeUser && (<Card 
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
             onClick={() => setFeedbackOpen(true)}
@@ -3083,6 +3110,31 @@ const Dashboard = () => {
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">Give Feedback</Button>
             </CardContent>
           </Card>)}
+
+          {!isLabInchargeUser && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/tickets")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <MessageSquarePlus className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Support Tickets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Report issues, ask the lab, or track support conversations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
+              </CardContent>
+            </Card>
+          )}
 
           {(isOperatorOrManager || isDeptAdmin) && (
             <Card 
@@ -3222,33 +3274,6 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">Initiate TA nomination call</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeTaDutyAssignmentsCard && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/ta-assignments")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Allocate TA duties and track assignment-to-reward workflow
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                  Open TA assignments
-                </Button>
               </CardContent>
             </Card>
           )}
@@ -3921,30 +3946,6 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {!isLabInchargeUser && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/tickets")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <MessageSquarePlus className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support Tickets</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Report issues, ask the lab, or track support conversations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
         )}
                 </CardContent>

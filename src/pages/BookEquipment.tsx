@@ -69,6 +69,7 @@ import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
+import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import {
   Dialog,
   DialogContent,
@@ -570,6 +571,9 @@ function resolveDynamicMaxForFieldA(
  * True if "Request urgent booking" button should be shown.
  * When current weekday equals slot window (internal users) reference weekday, show only after 30 minutes past that time.
  */
+/** Must match RUSH_RELIEF_MIN_PEAK_FAILED_ATTEMPTS in backend api_views. */
+const RUSH_RELIEF_MIN_PEAK_ATTEMPTS = 2;
+
 function canShowRequestUrgentBookingButton(
   refWeekday: number | null | undefined,
   refTimeStr: string | null | undefined
@@ -1240,6 +1244,12 @@ const BookEquipment = () => {
     /** When true, show stronger copy to complete remaining optional (editable) parameters. */
     promptCompleteOptionalParams?: boolean;
   }>({ open: false, success: false, variant: "failure", message: "" });
+  const [portalFeedbackOpen, setPortalFeedbackOpen] = useState(false);
+  useEffect(() => {
+    if (bookingResultDialog.open && bookingResultDialog.success && bookingResultDialog.variant === "success") {
+      setPortalFeedbackOpen(true);
+    }
+  }, [bookingResultDialog.open, bookingResultDialog.success, bookingResultDialog.variant]);
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
   const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
   const [expandedSlotBooking, setExpandedSlotBooking] = useState<BookingDetailCardBooking | null>(null);
@@ -1328,7 +1338,7 @@ const BookEquipment = () => {
   }, [urgentDialogOpen, urgentRequestType, selectedEquipment?.id]);
 
   /** When "Unable to get slot despite repeated trials" is selected and no unsuccessful attempts in past 2 weeks, disable Select Slot, I confirm, and Submit. */
-  const noSlotWithNoUnsuccessfulAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length === 0;
+  const noSlotWithNoUnsuccessfulAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length < RUSH_RELIEF_MIN_PEAK_ATTEMPTS;
 
   /** When repeatOf is in URL, this holds the source booking for repeat-sample flow (params prefilled, no change allowed, user picks slots). */
   const [repeatSourceBooking, setRepeatSourceBooking] = useState<{
@@ -2594,11 +2604,10 @@ const BookEquipment = () => {
     [isCalculateChargesFlow, equipmentDetail]
   );
 
-  // Collapse Sample Information + Charge Calculation once charges are ready (and when slots appear).
+  // Collapse Charge Calculation once charges are ready (and when slots appear); Sample Information stays expanded.
   useEffect(() => {
     if (!chargeCalculated) return;
     if (showSlots || isCalculateChargesFlow || isProformaFlow) {
-      setSampleInfoExpanded(false);
       setChargeCalcExpanded(false);
     }
   }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow]);
@@ -8060,8 +8069,9 @@ const BookEquipment = () => {
                       <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
                         <p className="font-semibold">Urgent booking charges</p>
                         <p className="mt-0.5 leading-relaxed">
-                          Urgent requests are charged <strong>50% more</strong> than the normal rate for your user category.
-                          The amount below includes this surcharge and will be debited if the Officer In Charge accepts your request.
+                          Type B urgent requests (with a reason) are charged <strong>50% more</strong> than the normal rate for your user category; the amount below includes this surcharge.
+                          If you qualify for Type A rush relief ({RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ peak-window failed attempts in 14 days), the surcharge is removed when you submit.
+                          Either way the held slots are confirmed automatically once your wallet is debited.
                         </p>
                       </div>
                     )}
@@ -9126,13 +9136,13 @@ const BookEquipment = () => {
         }}>
           <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col text-base">
             {(() => {
-              const noSlotNoAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length === 0;
+              const noSlotNoAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length < RUSH_RELIEF_MIN_PEAK_ATTEMPTS;
               return (
             <>
             <DialogHeader className="shrink-0 pb-2">
               <DialogTitle className="text-xl font-semibold tracking-tight">Request urgent booking</DialogTitle>
               <DialogDescription className="text-base text-muted-foreground">
-                Choose the reason. Your request will be reviewed as per the process.
+                Choose the request type. Both are confirmed automatically once your held slots are debited — no further approval is needed.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-5 py-3 overflow-y-auto min-h-0 flex-1">
@@ -9146,19 +9156,21 @@ const BookEquipment = () => {
                   <div className="flex items-center space-x-4 rounded-lg border-2 border-border/80 p-4 hover:bg-muted/50 transition-colors">
                     <RadioGroupItem value="NO_SLOT" id="urgent-no-slot" className="h-5 w-5" />
                     <Label htmlFor="urgent-no-slot" className="flex-1 cursor-pointer">
-                      <span className="font-medium text-base">Unable to get slot despite repeated trials</span>
-                      <span className="text-muted-foreground text-sm block mt-0.5">Reviewed by Admin/OIC.</span>
+                      <span className="font-medium text-base">Type A — Rush relief (no surcharge)</span>
+                      <span className="text-muted-foreground text-sm block mt-0.5">
+                        For users with {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ unsuccessful attempts in the peak booking window (last 14 days). Normal rate; no OIC approval.
+                      </span>
                     </Label>
                   </div>
-                  {normalizeUserType(userType) === "faculty" && (
-                    <div className="flex items-center space-x-4 rounded-lg border-2 border-border/80 p-4 hover:bg-muted/50 transition-colors">
-                      <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer" className="h-5 w-5" />
-                      <Label htmlFor="urgent-reviewer" className="flex-1 cursor-pointer">
-                        <span className="font-medium text-base">Urgent comment from reviewer</span>
-                        <span className="text-muted-foreground text-sm block mt-0.5">Upload evidence; Supervisor then Admin/OIC.</span>
-                      </Label>
-                    </div>
-                  )}
+                  <div className="flex items-center space-x-4 rounded-lg border-2 border-border/80 p-4 hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer" className="h-5 w-5" />
+                    <Label htmlFor="urgent-reviewer" className="flex-1 cursor-pointer">
+                      <span className="font-medium text-base">Type B — Urgent with reason (50% surcharge)</span>
+                      <span className="text-muted-foreground text-sm block mt-0.5">
+                        Give a reason; 50% urgent surcharge applies. No further approval needed.
+                      </span>
+                    </Label>
+                  </div>
                 </RadioGroup>
               </div>
 
@@ -9194,6 +9206,10 @@ const BookEquipment = () => {
 
               {urgentRequestType === 'NO_SLOT' && (
                 <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
+                    Rush relief is available only if you have at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} unsuccessful booking attempts for this equipment during the peak booking window in the last 14 days. The 50% urgent surcharge is waived and your held slots are confirmed automatically.
+                    {noSlotNoAttempts && " You do not qualify yet — use Type B (urgent with reason) instead."}
+                  </p>
                   <p className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-4 border border-border/60">I am unable to get any booking despite repeated trials and my requirement is genuine and urgent.</p>
                   <div className="flex items-center space-x-3">
                     <Checkbox id="urgent-disclaimer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" disabled={noSlotNoAttempts} />
@@ -9201,8 +9217,10 @@ const BookEquipment = () => {
                   </div>
                   {selectedEquipment && (
                     <div className="space-y-3 mt-4">
-                      <p className="text-base font-medium text-foreground">Your unsuccessful booking attempts for this equipment (past 2 weeks)</p>
-                      <p className="text-sm text-muted-foreground">This log is for your reference only. Admin/OIC will review it when processing your request. Submitting an urgent request does not guarantee approval.</p>
+                      <p className="text-base font-medium text-foreground">Your peak-window unsuccessful attempts for this equipment (past 2 weeks)</p>
+                      <p className="text-sm text-muted-foreground">
+                        {myUnsuccessfulAttempts.length} of {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} required attempts recorded. Quota-limit failures are not counted.
+                      </p>
                       {myUnsuccessfulAttemptsLoading ? (
                         <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>
                       ) : myUnsuccessfulAttempts.length > 0 ? (
@@ -9244,25 +9262,25 @@ const BookEquipment = () => {
               {urgentRequestType === 'REVIEWER_URGENT' && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                    Enter a reviewer comment and upload documentary evidence. Your supervisor reviews first, then Admin/OIC. Misuse may result in action.
+                    Explain why the booking is urgent (e.g. reviewer comment, deadline). A <strong>50% urgent surcharge</strong> is added to the normal rate for your category. No further approval is needed — your held slots are confirmed once the wallet is debited. Misuse may result in action.
                   </p>
                   <div className="flex items-center space-x-3">
                     <Checkbox id="urgent-disclaimer-reviewer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" />
-                    <Label htmlFor="urgent-disclaimer-reviewer" className="text-base cursor-pointer">I have read the above and confirm my comment and evidence are genuine.</Label>
+                    <Label htmlFor="urgent-disclaimer-reviewer" className="text-base cursor-pointer">I confirm my reason is genuine and accept the 50% urgent surcharge.</Label>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="urgent-reviewer-comment-be" className="text-base">Reviewer comment (required)</Label>
+                    <Label htmlFor="urgent-reviewer-comment-be" className="text-base">Reason (required)</Label>
                     <Textarea
                       id="urgent-reviewer-comment-be"
                       value={urgentReviewerComment}
                       onChange={(e) => setUrgentReviewerComment(e.target.value)}
-                      placeholder="Summarize reviewer feedback or urgency (min. 10 characters)."
+                      placeholder="Why is this booking urgent? (min. 10 characters)"
                       rows={3}
                       className="text-base"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="urgent-evidence" className="text-base">Evidence (required) *</Label>
+                    <Label htmlFor="urgent-evidence" className="text-base">Supporting document (optional)</Label>
                     <Input
                       id="urgent-evidence"
                       type="file"
@@ -9282,18 +9300,14 @@ const BookEquipment = () => {
                 disabled={
                   (!urgentDisclaimerAccepted && !urgentDisclaimerAcceptedRef.current) ||
                   urgentSubmitting ||
-                  (urgentRequestType === 'REVIEWER_URGENT' && (!urgentEvidenceFile || urgentReviewerComment.trim().length < 10)) ||
+                  (urgentRequestType === 'REVIEWER_URGENT' && urgentReviewerComment.trim().length < 10) ||
                   (urgentHoldBookingId == null && pendingHoldSelection == null) ||
                   noSlotNoAttempts
                 }
                 onClick={async () => {
                   if (!selectedEquipment) return;
-                  if (urgentRequestType === 'REVIEWER_URGENT' && !urgentEvidenceFile) {
-                    toast.error("Please upload documentary evidence.");
-                    return;
-                  }
                   if (urgentRequestType === 'REVIEWER_URGENT' && urgentReviewerComment.trim().length < 10) {
-                    toast.error("Reviewer comment must be at least 10 characters.");
+                    toast.error("Reason must be at least 10 characters.");
                     return;
                   }
                   setUrgentSubmitting(true);
@@ -9578,6 +9592,8 @@ const BookEquipment = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <PortalFeedbackDialog open={portalFeedbackOpen} onOpenChange={setPortalFeedbackOpen} />
 
         <Dialog open={userTransactionHistoryDialog.open} onOpenChange={(open) => !open && setUserTransactionHistoryDialog((p) => ({ ...p, open: false }))}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">

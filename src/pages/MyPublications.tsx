@@ -10,6 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  departmentLabel,
+  deriveDepartmentsFromEquipments,
+  pickDefaultDepartmentId,
+  type EquipmentDeptOption,
+} from "@/lib/equipmentDepartments";
 import { ArrowLeft, BookOpen, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -27,7 +34,20 @@ type ClaimRow = {
   equipments: Array<{ id: number; code: string; name: string }>;
 };
 
-type EquipmentOption = { equipment_id: number; code: string; name: string };
+type EquipmentOption = {
+  equipment_id: number;
+  code: string;
+  name: string;
+  internal_department?: number | null;
+  internal_department_name?: string | null;
+  internal_department_code?: string | null;
+};
+
+const toEquipmentOption = (e: EquipmentOption): EquipmentOption => ({
+  equipment_id: e.equipment_id,
+  code: e.code,
+  name: e.name,
+});
 
 const statusBadge = (status: string) => {
   const s = status.toLowerCase();
@@ -45,6 +65,9 @@ export default function MyPublications() {
   const [submitting, setSubmitting] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [equipments, setEquipments] = useState<EquipmentOption[]>([]);
+  const [departments, setDepartments] = useState<EquipmentDeptOption[]>([]);
+  const [departmentId, setDepartmentId] = useState("");
+  const [loadingEq, setLoadingEq] = useState(false);
   const [eqSearch, setEqSearch] = useState("");
   const [selectedEq, setSelectedEq] = useState<number[]>([]);
   const [form, setForm] = useState({
@@ -78,19 +101,40 @@ export default function MyPublications() {
       if (mineRes.error) throw new Error(mineRes.error);
       if (eqRes.error) throw new Error(eqRes.error);
       setClaims((mineRes.data?.results as ClaimRow[]) || []);
-      setEquipments(
-        ((eqRes.data?.equipments || []) as EquipmentOption[]).map((e) => ({
-          equipment_id: e.equipment_id,
-          code: e.code,
-          name: e.name,
-        }))
+      const allEq = (eqRes.data?.equipments || []) as EquipmentOption[];
+      const depts = deriveDepartmentsFromEquipments(allEq);
+      setDepartments(depts);
+      setDepartmentId((prev) =>
+        prev && depts.some((d) => String(d.id) === prev) ? prev : pickDefaultDepartmentId(depts)
       );
+      if (!depts.length) setEquipments(allEq.map(toEquipmentOption));
     } catch (e: any) {
       toast.error(e?.message || "Failed to load publications");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!departmentId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingEq(true);
+      try {
+        const res = await apiClient.getEquipments(undefined, "ACTIVE", undefined, undefined, Number(departmentId));
+        if (cancelled) return;
+        if (res.error) throw new Error(res.error);
+        setEquipments(((res.data?.equipments || []) as EquipmentOption[]).map(toEquipmentOption));
+      } catch (e: any) {
+        if (!cancelled) toast.error(e?.message || "Failed to load instruments");
+      } finally {
+        if (!cancelled) setLoadingEq(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [departmentId]);
 
   const filteredEq = useMemo(() => {
     const q = eqSearch.trim().toLowerCase();
@@ -317,13 +361,31 @@ export default function MyPublications() {
 
             <div className="space-y-2">
               <Label>Instruments used *</Label>
+              {departments.length > 0 ? (
+                <Select value={departmentId || undefined} onValueChange={setDepartmentId}>
+                  <SelectTrigger aria-label="Department">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>
+                        {departmentLabel(d)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
               <Input
                 placeholder="Search equipment by name or code…"
                 value={eqSearch}
                 onChange={(e) => setEqSearch(e.target.value)}
               />
               <div className="max-h-48 overflow-y-auto rounded-md border p-2 space-y-1">
-                {filteredEq.length === 0 ? (
+                {loadingEq ? (
+                  <p className="text-sm text-muted-foreground p-2 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading instruments…
+                  </p>
+                ) : filteredEq.length === 0 ? (
                   <p className="text-sm text-muted-foreground p-2">No instruments match.</p>
                 ) : (
                   filteredEq.map((eq) => (

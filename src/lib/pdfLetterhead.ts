@@ -37,7 +37,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function loadPdfMastheadBytes(): Promise<ArrayBuffer> {
   if (!mastheadBytesPromise) {
     mastheadBytesPromise = (async () => {
-      const res = await fetch("/iitr-pdf-masthead.png?v=4");
+      const res = await fetch("/iitr-pdf-masthead.png?v=5");
       if (!res.ok) throw new Error("Failed to load IITR PDF masthead");
       return res.arrayBuffer();
     })();
@@ -73,14 +73,13 @@ export async function drawPdfLetterhead(
   const imgW = maxW;
   const imgH = imgW * aspect;
   doc.addImage(dataUrl, "PNG", cx - imgW / 2, y, imgW, imgH);
-  y += imgH + 8;
+  y += imgH + 16;
 
-  // Subtle rule under institute block
-  doc.setDrawColor(21, 63, 121);
-  doc.setLineWidth(0.7);
-  const ruleW = Math.min(220, pageW - 120);
-  doc.line(cx - ruleW / 2, y, cx + ruleW / 2, y);
-  y += 14;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(...PDF_INK_RGB);
+  doc.text(ORG_ENGLISH, cx, y, { align: "center" });
+  y += 20;
 
   const dept =
     String(options.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;

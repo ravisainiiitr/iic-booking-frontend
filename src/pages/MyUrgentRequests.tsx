@@ -53,9 +53,12 @@ type MyUrgentRequestRow = {
 };
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
-  NO_SLOT: "Unable to get slot despite repeated trials",
-  REVIEWER_URGENT: "Urgent comment from reviewer",
+  NO_SLOT: "Type A — Rush relief (no surcharge)",
+  REVIEWER_URGENT: "Type B — Urgent with reason (50% surcharge)",
 };
+
+/** Must match RUSH_RELIEF_MIN_PEAK_FAILED_ATTEMPTS in backend api_views. */
+const RUSH_RELIEF_MIN_PEAK_ATTEMPTS = 2;
 
 /** Format seconds as HH:MM:SS (e.g. 3665 -> "01:01:05"). */
 function formatTimeRemaining(totalSeconds: number): string {
@@ -157,15 +160,6 @@ const MyUrgentRequests = () => {
       .finally(() => setLoadingUrgentEquipments(false));
   }, [isAuthenticated, user?.id, urgentDepartmentId, urgentDepartmentReady]);
 
-  // Students/other users can only submit NO_SLOT. REVIEWER_URGENT is faculty-only.
-  useEffect(() => {
-    if (!isFacultyUser && urgentRequestType === "REVIEWER_URGENT") {
-      setUrgentRequestType("");
-      setUrgentEvidenceFile(null);
-      setUrgentDisclaimerAccepted(false);
-    }
-  }, [isFacultyUser, urgentRequestType]);
-
   // Load unsuccessful attempts when equipment selected and reason is NO_SLOT
   useEffect(() => {
     if (!urgentSelectedEquipmentId || urgentRequestType !== "NO_SLOT") {
@@ -185,7 +179,10 @@ const MyUrgentRequests = () => {
       .finally(() => setMyUnsuccessfulAttemptsLoading(false));
   }, [urgentSelectedEquipmentId, urgentRequestType]);
 
-  const noSlotNoAttempts = urgentRequestType === "NO_SLOT" && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length === 0;
+  const noSlotNoAttempts =
+    urgentRequestType === "NO_SLOT" &&
+    !myUnsuccessfulAttemptsLoading &&
+    myUnsuccessfulAttempts.length < RUSH_RELIEF_MIN_PEAK_ATTEMPTS;
 
   // When "Unable to get slot…" is selected and the past-2-weeks check finds no attempts, show a clear modal (after loading finishes).
   useEffect(() => {
@@ -403,10 +400,19 @@ const MyUrgentRequests = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
-              <p className="font-semibold">Additional charges for urgent requests</p>
-              <p className="mt-1 leading-relaxed">
-                Urgent booking requests are charged <strong>50% more</strong> than the normal charges applicable to your user category.
-                The Officer In Charge (OIC) will review your request and may accept (allocate) or reject it. If accepted, the held slots are confirmed and the urgent charge (including the 50% surcharge) is deducted from your wallet.
+              <p className="font-semibold">Two types of urgent request</p>
+              <ul className="mt-1 list-disc pl-5 space-y-1 leading-relaxed">
+                <li>
+                  <strong>Type A — Rush relief (no surcharge):</strong> available if you had at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} unsuccessful
+                  booking attempts for the equipment during the peak booking window in the last 14 days. Normal charges apply and no OIC approval is needed.
+                </li>
+                <li>
+                  <strong>Type B — Urgent with reason (50% surcharge):</strong> give a short reason; charged <strong>50% more</strong> than the normal
+                  rate for your user category. No further approval is needed.
+                </li>
+              </ul>
+              <p className="mt-2 leading-relaxed">
+                For both types, the held slots are confirmed automatically once the charge is debited from your wallet. If the debit fails (e.g. low balance), the request stays pending for Admin/OIC.
               </p>
             </div>
             <DepartmentFilter
@@ -486,7 +492,7 @@ const MyUrgentRequests = () => {
                     <Button type="button" variant="link" className="h-auto p-0 align-baseline text-blue-800 dark:text-blue-200" onClick={() => navigate(`/book-equipment?equipment_id=${urgentSelectedEquipmentId}`)}>
                       standard booking
                     </Button>
-                    . You may still submit an &quot;Urgent comment from reviewer&quot; request when documentary evidence supports it.
+                    . You may still submit a Type B urgent request with a reason (50% surcharge).
                   </div>
                 )}
                 {!loadingSlotsAvailable && (slotsAvailableThisWeek !== true || urgentRequestType === "REVIEWER_URGENT") && (
@@ -497,7 +503,6 @@ const MyUrgentRequests = () => {
                     value={urgentRequestType}
                     onValueChange={(v) => {
                       const next = v as "" | "NO_SLOT" | "REVIEWER_URGENT";
-                      if (!isFacultyUser && next === "REVIEWER_URGENT") return;
                       setUrgentRequestType(next);
                       setUrgentDisclaimerAccepted(false);
                       setUrgentEvidenceFile(null);
@@ -510,18 +515,16 @@ const MyUrgentRequests = () => {
                     }}
                     className="flex flex-col gap-2"
                   >
-                    {isFacultyUser && (
-                      <div className="flex items-center space-x-3 rounded-lg border p-3">
-                        <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer-page" className="h-4 w-4" />
-                        <Label htmlFor="urgent-reviewer-page" className="flex-1 cursor-pointer text-sm">
-                          Urgent comment from reviewer (upload evidence; Supervisor then Admin/OIC)
-                        </Label>
-                      </div>
-                    )}
                     <div className="flex items-center space-x-3 rounded-lg border p-3">
                       <RadioGroupItem value="NO_SLOT" id="urgent-no-slot-page" className="h-4 w-4" />
                       <Label htmlFor="urgent-no-slot-page" className="flex-1 cursor-pointer text-sm">
-                        Unable to get slot despite repeated trials (reviewed by Admin/OIC)
+                        Type A — Rush relief: {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ unsuccessful peak-window attempts in 14 days (no surcharge, no OIC approval)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3 rounded-lg border p-3">
+                      <RadioGroupItem value="REVIEWER_URGENT" id="urgent-reviewer-page" className="h-4 w-4" />
+                      <Label htmlFor="urgent-reviewer-page" className="flex-1 cursor-pointer text-sm">
+                        Type B — Urgent with reason (50% surcharge, no further approval)
                       </Label>
                     </div>
                   </RadioGroup>
@@ -547,6 +550,12 @@ const MyUrgentRequests = () => {
 
                 {urgentRequestType === "NO_SLOT" && (
                   <div className="space-y-2">
+                    {noSlotNoAttempts && (
+                      <p className="text-xs text-amber-800 dark:text-amber-200 rounded p-3 border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                        Rush relief needs at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} unsuccessful peak-window attempts in the last 14 days
+                        ({myUnsuccessfulAttempts.length} found). Use Type B (urgent with reason) instead.
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground bg-muted/30 rounded p-3 border">I am unable to get any booking despite repeated trials and my requirement is genuine and urgent.</p>
                     <div className="flex items-center space-x-2">
                       <input
@@ -602,10 +611,11 @@ const MyUrgentRequests = () => {
                   <div className="space-y-2">
                     <div className="text-xs text-muted-foreground border border-amber-200 dark:border-amber-800 rounded p-3 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
                       <p>
-                        This path is for faculty when a reviewer&apos;s comment or project timeline requires an exceptional urgent booking. You must provide a short written summary (reviewer comment) and documentary evidence (e.g. reviewer email or note).
+                        Give a short reason why the booking is urgent (e.g. reviewer comment, deadline). A supporting document is optional.
+                        A <strong>50% urgent surcharge</strong> is added to the normal rate for your user category.
                       </p>
                       <p>
-                        By submitting, you confirm the information is accurate. The request is reviewed by your supervisor and by Admin/Officer in charge. Misuse may affect future access.
+                        No further approval is needed — your held slots are confirmed once the charge is debited. By submitting, you confirm the information is accurate. Misuse may affect future access.
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -616,10 +626,10 @@ const MyUrgentRequests = () => {
                         onChange={(e) => setUrgentDisclaimerAccepted(e.target.checked)}
                         className="h-4 w-4 rounded border-input"
                       />
-                      <Label htmlFor="urgent-disclaimer-reviewer-page" className="text-sm cursor-pointer">I have read the disclaimer and confirm the reviewer comment and evidence are genuine.</Label>
+                      <Label htmlFor="urgent-disclaimer-reviewer-page" className="text-sm cursor-pointer">I confirm my reason is genuine and accept the 50% urgent surcharge.</Label>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="urgent-reviewer-comment-page" className="text-sm">Reviewer comment (required)</Label>
+                      <Label htmlFor="urgent-reviewer-comment-page" className="text-sm">Reason (required)</Label>
                       <Textarea
                         id="urgent-reviewer-comment-page"
                         value={urgentReviewerComment}
@@ -630,7 +640,7 @@ const MyUrgentRequests = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="urgent-evidence-page" className="text-sm">Evidence (required) *</Label>
+                      <Label htmlFor="urgent-evidence-page" className="text-sm">Supporting document (optional)</Label>
                       <Input
                         id="urgent-evidence-page"
                         type="file"
@@ -652,18 +662,14 @@ const MyUrgentRequests = () => {
                     !urgentRequestType ||
                     !urgentDisclaimerAccepted ||
                     urgentSubmitting ||
-                    (urgentRequestType === "REVIEWER_URGENT" && (!urgentEvidenceFile || urgentReviewerComment.trim().length < 10)) ||
+                    (urgentRequestType === "REVIEWER_URGENT" && urgentReviewerComment.trim().length < 10) ||
                     noSlotNoAttempts
                   }
                   onClick={async () => {
                     const eqId = parseInt(urgentSelectedEquipmentId, 10);
                     if (Number.isNaN(eqId)) return;
-                    if (urgentRequestType === "REVIEWER_URGENT" && !urgentEvidenceFile) {
-                      toast.error("Please upload documentary evidence.");
-                      return;
-                    }
                     if (urgentRequestType === "REVIEWER_URGENT" && urgentReviewerComment.trim().length < 10) {
-                      toast.error("Please enter a reviewer comment (at least 10 characters).");
+                      toast.error("Please enter a reason (at least 10 characters).");
                       return;
                     }
                     setUrgentSubmitting(true);

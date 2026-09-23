@@ -38,6 +38,75 @@ export function writeProformaLineItemsToStorage(items: ProformaLineItemStored[])
   sessionStorage.setItem(PROFORMA_LINE_ITEMS_STORAGE_KEY, JSON.stringify(items));
 }
 
+export const PROFORMA_SAVED_LIST_STORAGE_KEY = "proforma_invoice_saved_list_v1";
+
+export type ProformaSavedDraft = {
+  id: string;
+  name: string;
+  savedAt: string;
+  lineItems: ProformaLineItemStored[];
+};
+
+export function readSavedProformas(): ProformaSavedDraft[] {
+  try {
+    const raw = localStorage.getItem(PROFORMA_SAVED_LIST_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? (parsed as ProformaSavedDraft[]).filter((d) => d && d.id && Array.isArray(d.lineItems))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedProformas(list: ProformaSavedDraft[]) {
+  localStorage.setItem(PROFORMA_SAVED_LIST_STORAGE_KEY, JSON.stringify(list));
+}
+
+export function saveProformaDraft(name: string, lineItems: ProformaLineItemStored[]): ProformaSavedDraft[] {
+  const draft: ProformaSavedDraft = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: name.trim() || `Proforma ${new Date().toLocaleString()}`,
+    savedAt: new Date().toISOString(),
+    lineItems,
+  };
+  const next = [draft, ...readSavedProformas()];
+  writeSavedProformas(next);
+  return next;
+}
+
+export function deleteSavedProforma(id: string): ProformaSavedDraft[] {
+  const next = readSavedProformas().filter((d) => d.id !== id);
+  writeSavedProformas(next);
+  return next;
+}
+
+const NON_CHARGE_FIELD_TYPES = new Set(["TEXT", "TEXTAREA", "TABLE", "DATE", "DATETIME", "FILE", "EMAIL", "URL"]);
+const NEGATIVE_VALUES = new Set(["no", "false", "none", "n/a", "na", "nil", "0", "-"]);
+
+/**
+ * Whether an input belongs in the "Inputs & charge breakup" column / PDF: drops empty and
+ * "No"/false answers and free-text fields; sample / slot counts are always kept when set.
+ */
+export function isChargeRelevantProformaInput(
+  key: string,
+  value: unknown,
+  field?: Pick<ProformaLineItemField, "field_label" | "field_type">
+): boolean {
+  if (key.endsWith("_elements")) return false;
+  if (value === undefined || value === null) return false;
+  const str = String(value).trim();
+  if (!str) return false;
+  const ft = String(field?.field_type || "").toUpperCase().trim();
+  if (NON_CHARGE_FIELD_TYPES.has(ft)) return false;
+  const label = String(field?.field_label || key);
+  if (/sample|slot/i.test(key) || /sample|slot/i.test(label)) {
+    return !/^(no|false)$/i.test(str);
+  }
+  return !(value === false || NEGATIVE_VALUES.has(str.toLowerCase()));
+}
+
 /** Map Book Equipment form state into proforma calculate payload shape. */
 export function inputValuesForProformaStorage(
   raw: Record<string, string | boolean | string[] | number | string[][] | undefined>

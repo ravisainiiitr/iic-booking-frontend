@@ -1,12 +1,24 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { formatINR, formatRupees } from "@/lib/money";
 import {
+  deleteSavedProforma,
+  isChargeRelevantProformaInput,
   readProformaLineItemsFromStorage,
+  readSavedProformas,
+  saveProformaDraft,
   writeProformaLineItemsToStorage,
+  type ProformaLineItemField,
   type ProformaLineItemStored,
+  type ProformaSavedDraft,
 } from "@/lib/proformaInvoiceStorage";
+import {
+  departmentLabel,
+  deriveDepartmentsFromEquipments,
+  pickDefaultDepartmentId,
+  type EquipmentDeptOption,
+} from "@/lib/equipmentDepartments";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +30,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, FileText, Trash2, Download, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, FileText, Trash2, Download, Pencil, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
+
+function fieldMapFor(entry: ProformaLineItemStored | undefined): Record<string, ProformaLineItemField> {
+  const map: Record<string, ProformaLineItemField> = {};
+  entry?.input_fields?.forEach((f) => {
+    map[f.field_key] = f;
+  });
+  return map;
+}
+
+function chargeRelevantInputs(
+  inputValues: Record<string, number | string>,
+  entry: ProformaLineItemStored | undefined
+): Array<[string, number | string]> {
+  const fields = fieldMapFor(entry);
+  return Object.entries(inputValues)
+    .filter(([k, v]) => isChargeRelevantProformaInput(k, v, fields[k]))
+    .map(([k, v]) => [fields[k]?.field_label || k, v]);
+}
 
 type LineItemResult = {
   equipment_id: number;
@@ -37,7 +67,12 @@ type LineItemResult = {
 
 export default function ProformaInvoice() {
   const navigate = useNavigate();
-  const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
+  const [equipmentList, setEquipmentList] = useState<
+    Array<{ equipment_id: number; code: string; name: string; internal_department: number | null }>
+  >([]);
+  const [departments, setDepartments] = useState<EquipmentDeptOption[]>([]);
+  const [departmentId, setDepartmentId] = useState("");
+  const [savedDrafts, setSavedDrafts] = useState<ProformaSavedDraft[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [selectedEquipId, setSelectedEquipId] = useState<string>("");
   const [lineItems, setLineItems] = useState<ProformaLineItemStored[]>([]);
@@ -63,7 +98,13 @@ export default function ProformaInvoice() {
           equipment_id: e.equipment_id ?? e.id,
           code: e.code ?? e.equipment_code ?? "",
           name: e.name ?? e.equipment_name ?? "",
+          internal_department: e.internal_department ?? null,
         }))
+      );
+      const depts = deriveDepartmentsFromEquipments(data);
+      setDepartments(depts);
+      setDepartmentId((prev) =>
+        prev && depts.some((d) => String(d.id) === prev) ? prev : pickDefaultDepartmentId(depts)
       );
     } catch {
       toast.error("Failed to load equipment list.");
@@ -76,7 +117,47 @@ export default function ProformaInvoice() {
   useEffect(() => {
     loadEquipments();
     setLineItems(readProformaLineItemsFromStorage());
+    setSavedDrafts(readSavedProformas());
   }, [loadEquipments]);
+
+  const visibleEquipmentList = useMemo(
+    () =>
+      departmentId
+        ? equipmentList.filter((e) => String(e.internal_department ?? "") === departmentId)
+        : equipmentList,
+    [equipmentList, departmentId]
+  );
+
+  const handleDepartmentChange = (value: string) => {
+    setDepartmentId(value);
+    setSelectedEquipId("");
+  };
+
+  const handleSaveProforma = () => {
+    if (lineItems.length === 0) {
+      toast.error("Add at least one equipment before saving.");
+      return;
+    }
+    const name = window.prompt("Name this proforma", `Proforma ${new Date().toLocaleDateString()}`);
+    if (name === null) return;
+    try {
+      setSavedDrafts(saveProformaDraft(name, lineItems));
+      toast.success("Proforma saved.");
+    } catch {
+      toast.error("Could not save proforma (browser storage may be full).");
+    }
+  };
+
+  const handleLoadProforma = (draft: ProformaSavedDraft) => {
+    writeProformaLineItemsToStorage(draft.lineItems);
+    setLineItems(draft.lineItems);
+    toast.success(`Loaded "${draft.name}".`);
+  };
+
+  const handleDeleteProforma = (draft: ProformaSavedDraft) => {
+    if (!window.confirm(`Delete saved proforma "${draft.name}"?`)) return;
+    setSavedDrafts(deleteSavedProforma(draft.id));
+  };
 
   const goConfigureEquipment = () => {
     const id = selectedEquipId ? parseInt(selectedEquipId, 10) : NaN;
@@ -178,6 +259,23 @@ export default function ProformaInvoice() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-wrap items-end gap-3">
+              {departments.length > 0 && (
+                <div className="w-full sm:w-auto sm:min-w-[240px] space-y-2">
+                  <Label>Department</Label>
+                  <Select value={departmentId || undefined} onValueChange={handleDepartmentChange} disabled={loadingList}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>
+                          {departmentLabel(d)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex-1 min-w-[200px] space-y-2">
                 <Label>Add equipment</Label>
                 <Select value={selectedEquipId} onValueChange={setSelectedEquipId} disabled={loadingList}>
@@ -185,7 +283,7 @@ export default function ProformaInvoice() {
                     <SelectValue placeholder="Select equipment" />
                   </SelectTrigger>
                   <SelectContent>
-                    {equipmentList.map((e) => (
+                    {visibleEquipmentList.map((e) => (
                       <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
                         {e.code} – {e.name}
                       </SelectItem>
@@ -197,7 +295,48 @@ export default function ProformaInvoice() {
                 <Plus className="h-4 w-4 mr-2" />
                 Add
               </Button>
+              <Button variant="outline" onClick={handleSaveProforma} disabled={lineItems.length === 0}>
+                <Save className="h-4 w-4 mr-2" />
+                Save proforma
+              </Button>
             </div>
+
+            {savedDrafts.length > 0 && (
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-primary" />
+                  Saved proformas
+                </p>
+                <ul className="divide-y">
+                  {savedDrafts.map((d) => (
+                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{d.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {d.lineItems.length} item{d.lineItems.length !== 1 ? "s" : ""} · saved{" "}
+                          {new Date(d.savedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="secondary" onClick={() => handleLoadProforma(d)}>
+                          Load
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteProforma(d)}
+                          aria-label={`Delete ${d.name}`}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {calculating && lineItems.length > 0 && (
               <p className="text-sm text-muted-foreground">Updating proforma totals…</p>
@@ -231,16 +370,9 @@ export default function ProformaInvoice() {
                     </thead>
                     <tbody>
                       {result.line_items.map((row, idx) => {
-                        const entry = lineItems[idx];
-                        const labelMap: Record<string, string> = {};
-                        if (entry?.input_fields) {
-                          entry.input_fields.forEach((f) => {
-                            labelMap[f.field_key] = f.field_label || f.field_key;
-                          });
-                        }
-                        const inputParts = Object.entries(row.input_values)
-                          .filter(([k, v]) => v !== "" && v !== undefined && !k.endsWith("_elements"))
-                          .map(([k, v]) => `${labelMap[k] ?? k}: ${v}`);
+                        const inputParts = chargeRelevantInputs(row.input_values, lineItems[idx]).map(
+                          ([label, v]) => `${label}: ${v}`
+                        );
                         return (
                           <tr key={`${row.equipment_id}-${idx}`} className="border-t">
                             <td className="p-3 align-top">{idx + 1}</td>
@@ -335,20 +467,9 @@ export default function ProformaInvoice() {
                       setDownloadingPdf(true);
                       try {
                         const line_items = result.line_items.map((row, idx) => {
-                          const entry = lineItems[idx];
-                          const labelMap: Record<string, string> = {};
-                          if (entry?.input_fields) {
-                            entry.input_fields.forEach((f) => {
-                              labelMap[f.field_key] = f.field_label || f.field_key;
-                            });
-                          }
-                          const input_labels_and_values: Record<string, string | number> = {};
-                          Object.entries(row.input_values).forEach(([k, v]) => {
-                            if (v === "" || v === undefined) return;
-                            if (k.endsWith("_elements")) return;
-                            const label = labelMap[k] ?? k;
-                            input_labels_and_values[label] = typeof v === "number" ? v : v;
-                          });
+                          const input_labels_and_values: Record<string, string | number> = Object.fromEntries(
+                            chargeRelevantInputs(row.input_values, lineItems[idx])
+                          );
                           return {
                             equipment_id: row.equipment_id,
                             equipment_code: row.equipment_code,

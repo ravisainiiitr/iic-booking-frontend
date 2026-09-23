@@ -940,7 +940,7 @@ const EquipmentProfile = () => {
                 </div>
               ) : (
                 emptyPanel(
-                  "No publications listed yet. Users can submit references from Dashboard → My Publications; after OIC or Admin approval they appear here. Administrators can also add them in Equipment settings."
+                  "No publications listed yet. Internal IIT Roorkee users can submit references from Dashboard → My Publications (they appear once submitted if not a duplicate). External users' submissions may need review. Administrators can also add them in Equipment settings."
                 )
               );
           }
@@ -1010,6 +1010,17 @@ const EquipmentProfile = () => {
 
               <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 max-w-[11.5rem] lg:max-w-none">
                 <div className="sticky top-6 space-y-2">
+                  {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
+                    <Button
+                      type="button"
+                      onClick={handleBookOrManageClick}
+                      className="w-full h-auto py-3 px-2 text-sm font-bold whitespace-normal leading-tight shadow-lg text-primary-foreground bg-primary hover:bg-accent animate-[book-cta-cycle_2.4s_ease-in-out_infinite] hover:animate-none"
+                    >
+                      <style>{`@keyframes book-cta-cycle{0%,100%{background-color:hsl(var(--primary))}50%{background-color:hsl(var(--accent))}}`}</style>
+                      <Calendar className="h-4 w-4 mr-1.5 shrink-0" />
+                      {canManageEquipment() || isOicUser() ? "Create Booking" : "Book This Equipment"}
+                    </Button>
+                  )}
                   <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                     <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
                     <CardHeader className="pb-1 pt-2.5 px-2">
@@ -1027,7 +1038,6 @@ const EquipmentProfile = () => {
                             : "Book this equipment",
                           {
                             icon: <Calendar className="h-3 w-3" />,
-                            variant: "primary",
                             disabled: !canManageEquipment() && !isOicUser() && !isEquipmentOperational(),
                             onClick: handleBookOrManageClick,
                           }
@@ -1087,7 +1097,7 @@ const EquipmentProfile = () => {
                         active: activePanel === "contact",
                         onClick: () => setActivePanel("contact"),
                       })}
-                      {navBtn("manage_another", "Manage another equipment", {
+                      {navBtn("manage_another", "Browse & Book Another Instrument", {
                         icon: <LayoutGrid className="h-3 w-3" />,
                         variant: "action",
                         onClick: () => {
