@@ -74,6 +74,7 @@ export const facultyGuide: UserGuideContent = {
           title: "Monitor My Bookings",
           body: "Track status, sample deadlines, disruptions, and result downloads from the Dashboard.",
           screenshotCaption: "Dashboard — My Bookings",
+          screenshotSrc: "/guides/my-bookings-dashboard.png",
         },
       ],
     },

@@ -72,6 +72,7 @@ export const externalGuide: UserGuideContent = {
           title: "Submit samples and track status",
           body: "Follow sample submission deadlines on the booking. Download results from My Bookings when published.",
           screenshotCaption: "My Bookings — sample deadline and results",
+          screenshotSrc: "/guides/my-bookings-dashboard.png",
         },
       ],
     },

@@ -62,6 +62,7 @@ export const projectStaffGuide: UserGuideContent = {
           title: "Complete confirmation",
           body: "Confirm booking and wallet debit. Monitor My Bookings for sample deadlines and results.",
           screenshotCaption: "My Bookings list",
+          screenshotSrc: "/guides/my-bookings-dashboard.png",
         },
       ],
     },
