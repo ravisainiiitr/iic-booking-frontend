@@ -471,7 +471,7 @@ export default function AnalysisCharges() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Charges by user category — standard published rates
               </p>
-              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-foreground/80">
+              <p className="mt-4 whitespace-nowrap overflow-x-auto text-base font-bold tracking-tight text-amber-900 sm:text-lg dark:text-amber-200">
                 {GST_TABLE_NOTE}
               </p>
             </div>

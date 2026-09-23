@@ -267,8 +267,9 @@ export function exportAnalysisChargesPdf(
   doc.setFontSize(9);
   doc.text(`Department: ${dept}`, marginX, 58);
 
-  doc.setTextColor(60);
-  doc.setFontSize(8);
+  doc.setTextColor(146, 64, 14);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
   const noteLines = doc.splitTextToSize(GST_EXPORT_NOTE, pageW - marginX * 2);
   doc.text(noteLines, marginX, 78);
   const tableStartY = 78 + noteLines.length * 10 + 8;
