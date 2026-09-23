@@ -199,7 +199,7 @@ async function exportFinanceReportPdf(data: FinanceReportDashboardData): Promise
   });
 
   type DocWithAutoTable = { lastAutoTable: { finalY: number } };
-  let y = (doc as unknown as DocWithAutoTable).lastAutoTable.finalY + 24;
+  y = (doc as unknown as DocWithAutoTable).lastAutoTable.finalY + 24;
 
   const addSection = (title: string, head: string[], body: Array<Array<string | number>>) => {
     if (body.length === 0) return;
