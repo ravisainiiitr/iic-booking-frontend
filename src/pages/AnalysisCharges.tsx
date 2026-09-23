@@ -6,7 +6,6 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -35,6 +34,9 @@ import { cn } from "@/lib/utils";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { toast } from "sonner";
 
+const GST_TABLE_NOTE =
+  "Note: All rates are exclusive of GST. GST @ 18% will be applicable to external users. No GST is applicable to IIT Roorkee internal users.";
+
 type DeptOption = { id: number; name: string; code: string; equipment_count: number };
 type UserTypeOption = { code: string; label: string };
 type AnalysisEquipment = {
@@ -60,24 +62,6 @@ function pickDefaultDepartmentId(depts: DeptOption[]): string {
       /instrumentation/i.test(String(d.name || ""))
   );
   return String((iic ?? depts[0]).id);
-}
-
-function GstBadge({ text }: { text: string }) {
-  const t = String(text || "").trim();
-  const isNone = /^no\s*gst$/i.test(t);
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "h-auto whitespace-nowrap px-2.5 py-0.5 text-xs font-medium",
-        isNone
-          ? "border-emerald-200/80 bg-emerald-50 text-emerald-800"
-          : "border-amber-200/80 bg-amber-50 text-amber-900"
-      )}
-    >
-      {t || "—"}
-    </Badge>
-  );
 }
 
 export default function AnalysisCharges() {
@@ -487,6 +471,9 @@ export default function AnalysisCharges() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Charges by user category — standard published rates
               </p>
+              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-foreground/80">
+                {GST_TABLE_NOTE}
+              </p>
             </div>
             <div className="overflow-x-auto">
               <Table className="min-w-[720px] border-collapse">
@@ -551,14 +538,9 @@ export default function AnalysisCharges() {
                             className="border border-border/60 px-2.5 py-2.5 text-center align-middle sm:px-3"
                           >
                             {cell ? (
-                              <div className="space-y-1.5">
-                                <p className="text-sm leading-snug text-foreground tabular-nums whitespace-pre-line">
-                                  {cell.amount}
-                                </p>
-                                <div className="flex justify-center">
-                                  <GstBadge text={cell.gst} />
-                                </div>
-                              </div>
+                              <p className="text-sm leading-snug text-foreground tabular-nums whitespace-pre-line">
+                                {cell.amount}
+                              </p>
                             ) : (
                               <span className="text-sm text-muted-foreground">—</span>
                             )}

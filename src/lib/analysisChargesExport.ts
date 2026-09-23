@@ -175,11 +175,11 @@ export function pivotAnalysisChargeRows(
 }
 
 function cellExportText(cell: AnalysisChargePivotCell): string {
-  const amount = String(cell.amount || "").trim() || "—";
-  const g = String(cell.gst || "").trim();
-  if (!g || /^—$/.test(g)) return amount;
-  return `${amount}\n(${g})`;
+  return String(cell.amount || "").trim() || "—";
 }
+
+const GST_EXPORT_NOTE =
+  "Note: All rates are exclusive of GST. GST @ 18% will be applicable to external users. No GST is applicable to IIT Roorkee internal users.";
 
 export function exportAnalysisChargesExcel(
   rows: AnalysisChargeExportRow[],
@@ -196,6 +196,7 @@ export function exportAnalysisChargesExcel(
     ["Institute Equipment Booking Portal — Analysis Charges"],
     [`Department: ${dept}`],
     [`Generated: ${generated}`],
+    [GST_EXPORT_NOTE],
     [],
     header,
     ...pivot.rows.map((r) => {
@@ -228,6 +229,7 @@ export function exportAnalysisChargesExcel(
     { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: lastCol } },
   ];
   const wb = XLSX.utils.book_new();
   const sheetName = dept.slice(0, 31) || "Analysis Charges";
@@ -265,6 +267,12 @@ export function exportAnalysisChargesPdf(
   doc.setFontSize(9);
   doc.text(`Department: ${dept}`, marginX, 58);
 
+  doc.setTextColor(60);
+  doc.setFontSize(8);
+  const noteLines = doc.splitTextToSize(GST_EXPORT_NOTE, pageW - marginX * 2);
+  doc.text(noteLines, marginX, 78);
+  const tableStartY = 78 + noteLines.length * 10 + 8;
+
   const head = [
     pivot.hasParameters
       ? ["S.No.", "Equipment", "Parameter", ...pivot.categories.map((c) => pdfSafeMoney(c))]
@@ -288,7 +296,7 @@ export function exportAnalysisChargesPdf(
   });
 
   autoTable(doc, {
-    startY: 76,
+    startY: tableStartY,
     head,
     body,
     margin: { left: marginX, right: marginX },
