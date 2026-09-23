@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { MemoryRouter, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -26,10 +26,11 @@ import {
   FlaskConical,
   ClipboardList,
   LayoutGrid,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import BookEquipment from "@/pages/BookEquipment";
-import { EmbeddedModeProvider } from "@/contexts/EmbeddedModeContext";
+import { InPanelRoute } from "@/components/InPanelRouter";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
@@ -313,6 +314,15 @@ const EquipmentProfile = () => {
     return t === 'admin' || t === 'manager' || t === 'dept_admin';
   };
 
+  /** Admin / OIC / Lab In-charge: change slot status (calendar holds). */
+  const canChangeSlotStatus = (): boolean => {
+    if (!userType) return false;
+    const t = String(userType).toLowerCase();
+    return t === "admin" || t === "manager" || t === "operator";
+  };
+
+  const isOicUser = (): boolean => String(userType || "").toLowerCase() === "manager";
+
   // Check if user type is allowed to book equipment
   // Allowed types: Student, Faculty, External, RND, Institute (admin sees "Manage this Equipment" instead)
   const canBookEquipment = (): boolean => {
@@ -365,6 +375,11 @@ const EquipmentProfile = () => {
       return;
     }
     navigate(bookingUrl);
+  };
+
+  const handleChangeSlotStatusClick = () => {
+    if (!equipment) return;
+    navigate(`/book-equipment?equipment_id=${equipment.equipment_id}&mode=status`);
   };
 
   const handleCalculateChargesClick = () => {
@@ -588,7 +603,10 @@ const EquipmentProfile = () => {
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Loading equipment…</h2>
           <p className="text-sm text-muted-foreground">If this persists, return to the dashboard.</p>
-          <Button className="mt-4" variant="outline" onClick={() => navigate("/dashboard")}>
+          <Button className="mt-4" variant="outline" onClick={() => {
+            if (window.history.length > 1) navigate(-1);
+            else navigate("/dashboard");
+          }}>
             Go to Dashboard
           </Button>
         </div>
@@ -623,7 +641,7 @@ const EquipmentProfile = () => {
               icon: <BookOpen className="h-5 w-5" />,
             },
             contact: {
-              title: "Contact us (Officer in-charge, Lab operator)",
+              title: "Contact us",
               icon: <UserCog className="h-5 w-5" />,
             },
           };
@@ -635,23 +653,29 @@ const EquipmentProfile = () => {
               icon: JSX.Element;
               onClick: () => void;
               active?: boolean;
-              variant?: "action" | "panel";
+              variant?: "action" | "panel" | "primary";
               disabled?: boolean;
             }
           ) => (
             <Button
               key={key}
               type="button"
-              variant={opts.active ? "default" : "outline"}
+              variant={opts.active || opts.variant === "primary" ? "default" : "outline"}
               disabled={opts.disabled}
               className={cn(
-                "w-full justify-start gap-2.5 h-auto py-3 px-3.5 text-sm font-semibold whitespace-normal text-left",
+                "w-full justify-start gap-2 h-auto min-h-0 py-1.5 px-2.5 text-xs font-medium whitespace-normal text-left leading-snug",
                 opts.active && "shadow-sm",
-                opts.variant === "action" && !opts.active && "border-primary/30 bg-primary/5 hover:bg-primary/10"
+                opts.variant === "primary" &&
+                  !opts.active &&
+                  "bg-primary text-primary-foreground hover:bg-primary/90 border-primary shadow-sm shadow-primary/20",
+                opts.variant === "action" &&
+                  !opts.active &&
+                  opts.variant !== "primary" &&
+                  "border-primary/25 bg-primary/[0.04] hover:bg-primary/10"
               )}
               onClick={opts.onClick}
             >
-              <span className="shrink-0 opacity-90">{opts.icon}</span>
+              <span className="shrink-0 opacity-90 [&_svg]:h-3.5 [&_svg]:w-3.5">{opts.icon}</span>
               <span className="leading-snug">{label}</span>
             </Button>
           );
@@ -839,17 +863,12 @@ const EquipmentProfile = () => {
           } else if (activePanel === "calc_charges") {
             panelBody = (
               <div className="min-h-[24rem] -mx-1">
-                <EmbeddedModeProvider onClose={() => setActivePanel("view_charges")}>
-                  <MemoryRouter
-                    initialEntries={[
-                      `/book-equipment?equipment_id=${equipment.equipment_id}&mode=calculate&embed=1`,
-                    ]}
-                  >
-                    <Routes>
-                      <Route path="/book-equipment" element={<BookEquipment />} />
-                    </Routes>
-                  </MemoryRouter>
-                </EmbeddedModeProvider>
+                <InPanelRoute
+                  initialPath={`/book-equipment?equipment_id=${equipment.equipment_id}&mode=calculate&embed=1`}
+                  path="/book-equipment"
+                  element={<BookEquipment />}
+                  onClose={() => setActivePanel("view_charges")}
+                />
               </div>
             );
           } else if (activePanel === "contact") {
@@ -945,8 +964,8 @@ const EquipmentProfile = () => {
           }
 
           return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-              <div className="lg:col-span-8 space-y-5 min-w-0 order-2 lg:order-2">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
+              <div className="lg:col-span-9 space-y-5 min-w-0 order-2 lg:order-2">
                 <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                   <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                   <CardHeader className="pb-3">
@@ -1007,39 +1026,60 @@ const EquipmentProfile = () => {
                 </Card>
               </div>
 
-              <div className="lg:col-span-4 order-1 lg:order-1">
-                <div className="sticky top-6 space-y-3">
-                  <Card className="overflow-hidden border-0 shadow-md ring-1 ring-border/60">
-                    <div className="h-1 w-full bg-gradient-to-r from-primary to-accent" />
-                    <CardHeader className="pb-2 pt-4">
-                      <CardTitle className="text-base">Equipment menu</CardTitle>
-                      <CardDescription>
-                        Choose a section; content opens on the right.
+              <div className="lg:col-span-3 order-1 lg:order-1">
+                <div className="sticky top-6 space-y-2">
+                  <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
+                    <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
+                    <CardHeader className="pb-1.5 pt-3 px-3">
+                      <CardTitle className="text-sm font-semibold tracking-tight">Equipment menu</CardTitle>
+                      <CardDescription className="text-xs leading-snug">
+                        Opens on the right
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 pb-5">
+                    <CardContent className="space-y-1 px-2.5 pb-3">
+                      {shouldShowBookingCard() && !isLabInchargeUser() && (
+                        navBtn(
+                          "book",
+                          isOicUser() || canManageEquipment()
+                            ? "Create Booking"
+                            : "Book this equipment",
+                          {
+                            icon: <Calendar className="h-3.5 w-3.5" />,
+                            variant: "primary",
+                            disabled: !canManageEquipment() && !isEquipmentOperational(),
+                            onClick: handleBookOrManageClick,
+                          }
+                        )
+                      )}
+                      {canChangeSlotStatus() && (
+                        navBtn("slot_status", "Change Slot Status", {
+                          icon: <CalendarClock className="h-3.5 w-3.5" />,
+                          variant: "action",
+                          onClick: handleChangeSlotStatusClick,
+                        })
+                      )}
                       {navBtn("general", "General information", {
-                        icon: <ClipboardList className="h-4 w-4" />,
+                        icon: <ClipboardList className="h-3.5 w-3.5" />,
                         active: activePanel === "general",
                         onClick: () => setActivePanel("general"),
                       })}
                       {navBtn("specifications", "Technical specifications", {
-                        icon: <FileText className="h-4 w-4" />,
+                        icon: <FileText className="h-3.5 w-3.5" />,
                         active: activePanel === "specifications",
                         onClick: () => setActivePanel("specifications"),
                       })}
                       {navBtn("sample", "Sample requirements", {
-                        icon: <FlaskConical className="h-4 w-4" />,
+                        icon: <FlaskConical className="h-3.5 w-3.5" />,
                         active: activePanel === "sample_requirements",
                         onClick: () => setActivePanel("sample_requirements"),
                       })}
                       {navBtn("view_charges", "View charges", {
-                        icon: <IndianRupee className="h-4 w-4" />,
+                        icon: <IndianRupee className="h-3.5 w-3.5" />,
                         active: activePanel === "view_charges",
                         onClick: () => setActivePanel("view_charges"),
                       })}
                       {navBtn("calc_charges", "Calculate charges", {
-                        icon: <IndianRupee className="h-4 w-4" />,
+                        icon: <IndianRupee className="h-3.5 w-3.5" />,
                         variant: "action",
                         active: activePanel === "calc_charges",
                         onClick: handleCalculateChargesClick,
@@ -1050,40 +1090,31 @@ const EquipmentProfile = () => {
                           ? `Publications (${publicationCount})`
                           : "Publications",
                         {
-                          icon: <BookOpen className="h-4 w-4" />,
+                          icon: <BookOpen className="h-3.5 w-3.5" />,
                           active: activePanel === "publications",
                           onClick: () => setActivePanel("publications"),
                         }
                       )}
-                      {shouldShowBookingCard() && !isLabInchargeUser() && (
-                        navBtn(
-                          "book",
-                          canManageEquipment() ? "Manage this equipment" : "Book this equipment",
-                          {
-                            icon: <Calendar className="h-4 w-4" />,
-                            variant: "action",
-                            disabled: !canManageEquipment() && !isEquipmentOperational(),
-                            onClick: handleBookOrManageClick,
-                          }
-                        )
-                      )}
                       {navBtn("support", "Raise support request", {
-                        icon: <LifeBuoy className="h-4 w-4" />,
+                        icon: <LifeBuoy className="h-3.5 w-3.5" />,
                         variant: "action",
                         onClick: () => setSupportOpen(true),
                       })}
-                      {navBtn("contact", "Contact us (Officer in-charge, Lab operator)", {
-                        icon: <UserCog className="h-4 w-4" />,
+                      {navBtn("contact", "Contact us", {
+                        icon: <UserCog className="h-3.5 w-3.5" />,
                         active: activePanel === "contact",
                         onClick: () => setActivePanel("contact"),
                       })}
                       {navBtn("manage_another", "Manage another equipment", {
-                        icon: <LayoutGrid className="h-4 w-4" />,
+                        icon: <LayoutGrid className="h-3.5 w-3.5" />,
                         variant: "action",
-                        onClick: () => navigate("/"),
+                        onClick: () => {
+                          if (window.history.length > 1) navigate(-1);
+                          else navigate("/equipments");
+                        },
                       })}
                       {shouldShowBookingCard() && !isLabInchargeUser() && !canManageEquipment() && !isEquipmentOperational() && (
-                        <p className="text-sm text-amber-600 font-medium pt-1">
+                        <p className="text-[11px] text-amber-600 font-medium pt-1 px-0.5 leading-snug">
                           Booking is disabled while equipment is{" "}
                           {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
                         </p>

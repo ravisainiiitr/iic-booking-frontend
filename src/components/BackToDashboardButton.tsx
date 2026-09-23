@@ -56,10 +56,14 @@ export function BackToDashboardButton({
       }
       return;
     }
-    if (pathname === to || pathname.startsWith(`${to}/`)) return;
     if (confirmMessage) {
       const ok = window.confirm(confirmMessage);
       if (!ok) return;
+    }
+    // Prefer browser history so Back returns to the previous page.
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigate(-1);
+      return;
     }
     navigate(to);
   };

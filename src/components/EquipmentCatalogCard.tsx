@@ -2,8 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarClock, Play, Star, StarHalf } from "lucide-react";
-import { toast } from "sonner";
+import { Play, Star, StarHalf } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
@@ -246,36 +245,16 @@ export default function EquipmentCatalogCard({
           {canShowBookNow && (
             <Button
               className={cn("w-full text-white", accent.button)}
-              disabled={!isOperational}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!isOperational) {
-                  toast.error("This equipment is not operational and cannot be booked.");
-                  return;
-                }
                 const id = Number(item.id);
-                // Expand parent ? show parent + child cards before booking a specific mode.
                 if (onOpenEquipment?.(id)) return;
-                navigate(`/book-equipment?equipment_id=${id}&mode=book`);
+                navigate(`/equipment/${id}`);
               }}
             >
-              Book now
+              View Details
             </Button>
           )}
-
-          {canChangeSlotStatus && !isAccountsInCharge ? (
-            <Button
-              variant="outline"
-              className="w-full border-primary/25 bg-card text-primary hover:bg-primary/5 hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/book-equipment?equipment_id=${item.id}&mode=status`);
-              }}
-            >
-              <CalendarClock className="mr-2 h-4 w-4" />
-              Change Slot Status
-            </Button>
-          ) : null}
         </div>
       </CardContent>
     </Card>

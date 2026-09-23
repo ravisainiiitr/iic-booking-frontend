@@ -2635,6 +2635,35 @@ const Dashboard = () => {
         </div>
         ) : (
         <div className="dashboard-uniform-cards flex flex-col gap-2">
+          {!isLabInchargeUser && (<Card 
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-2 border-primary/45 shadow-md shadow-primary/15 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/70 h-full ring-1 ring-primary/25"
+            onClick={() => { openWorkspace("/equipments"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">{isOicUser ? "Create Booking" : "Book Equipment"}</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    {isOicUser
+                      ? "Create bookings for users on equipment you manage"
+                      : "Browse and book available laboratory equipment"}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
+                {isOicUser ? "Create Booking" : "Browse Equipment"}
+              </span>
+            </CardContent>
+          </Card>)}
           {isLabInchargeUser && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
@@ -2731,33 +2760,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           )}
-          {!isLabInchargeUser && (<Card 
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-            onClick={() => { openWorkspace("/equipments"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <Package className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Book Equipment</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Browse and book available laboratory equipment
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
-                Browse Equipment
-              </span>
-            </CardContent>
-          </Card>)}
+          
 
           {!isOperatorOrManager && (
             <Card 

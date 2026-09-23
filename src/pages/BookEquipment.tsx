@@ -6836,6 +6836,10 @@ const BookEquipment = () => {
                     <Button
                       variant="outline"
                       onClick={() => {
+                        if (window.history.length > 1) {
+                          navigate(-1);
+                          return;
+                        }
                         if (canAccessManageEquipmentModes()) {
                           navigate("/equipments");
                         } else {

@@ -1,6 +1,6 @@
 /**
  * Export Analysis Charges as a professional rate sheet (PDF / Excel).
- * Layout: department as document header; columns Equipment | User Category | Charge | GST.
+ * Layout: department header; rows = equipment; columns = user categories (charge + GST).
  */
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -12,6 +12,14 @@ export type AnalysisChargeExportRow = {
   userCategory: string;
   charge: string;
   gst: string;
+};
+
+export type AnalysisChargePivotTable = {
+  categories: string[];
+  rows: Array<{
+    equipmentName: string;
+    cells: Record<string, { charge: string; gst: string }>;
+  }>;
 };
 
 function defaultFilename(ext: "xlsx" | "pdf"): string {
@@ -27,6 +35,55 @@ function pdfSafeMoney(text: string): string {
     .trim();
 }
 
+/** Pivot long-format charge rows so user categories become column headers. */
+export function pivotAnalysisChargeRows(
+  rows: AnalysisChargeExportRow[]
+): AnalysisChargePivotTable {
+  const categoryOrder: string[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const cat = String(r.userCategory || "").trim() || "—";
+    if (!seen.has(cat)) {
+      seen.add(cat);
+      categoryOrder.push(cat);
+    }
+  }
+
+  const byEquipment = new Map<
+    string,
+    Record<string, { charge: string; gst: string }>
+  >();
+  const equipmentOrder: string[] = [];
+
+  for (const r of rows) {
+    const name = String(r.equipmentName || "").trim() || "—";
+    const cat = String(r.userCategory || "").trim() || "—";
+    if (!byEquipment.has(name)) {
+      byEquipment.set(name, {});
+      equipmentOrder.push(name);
+    }
+    byEquipment.get(name)![cat] = {
+      charge: String(r.charge || "").trim() || "—",
+      gst: String(r.gst || "").trim() || "—",
+    };
+  }
+
+  return {
+    categories: categoryOrder,
+    rows: equipmentOrder.map((equipmentName) => ({
+      equipmentName,
+      cells: byEquipment.get(equipmentName) || {},
+    })),
+  };
+}
+
+function cellDisplay(charge: string, gst: string): string {
+  const c = String(charge || "").trim() || "—";
+  const g = String(gst || "").trim();
+  if (!g || /^—$/.test(g)) return c;
+  return `${c}\n(${g})`;
+}
+
 export function exportAnalysisChargesExcel(
   rows: AnalysisChargeExportRow[],
   options?: { filename?: string; departmentName?: string }
@@ -34,20 +91,34 @@ export function exportAnalysisChargesExcel(
   if (!rows.length) return;
   const dept = (options?.departmentName || "").trim() || "Department";
   const generated = format(new Date(), "dd MMM yyyy, HH:mm");
+  const pivot = pivotAnalysisChargeRows(rows);
+  const header = ["S.No.", "Equipment", ...pivot.categories];
   const aoa: (string | number)[][] = [
     ["Institute Equipment Booking Portal — Analysis Charges"],
     [`Department: ${dept}`],
     [`Generated: ${generated}`],
     [],
-    ["S.No.", "Equipment", "User Category", "Charge", "GST"],
-    ...rows.map((r, i) => [i + 1, r.equipmentName, r.userCategory, r.charge, r.gst]),
+    header,
+    ...pivot.rows.map((r, i) => [
+      i + 1,
+      r.equipmentName,
+      ...pivot.categories.map((cat) => {
+        const cell = r.cells[cat];
+        return cell ? cellDisplay(cell.charge, cell.gst) : "—";
+      }),
+    ]),
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 8 }, { wch: 42 }, { wch: 28 }, { wch: 56 }, { wch: 18 }];
+  ws["!cols"] = [
+    { wch: 8 },
+    { wch: 36 },
+    ...pivot.categories.map(() => ({ wch: 28 })),
+  ];
+  const lastCol = Math.max(header.length - 1, 1);
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
   ];
   const wb = XLSX.utils.book_new();
   const sheetName = dept.slice(0, 31) || "Analysis Charges";
@@ -61,86 +132,76 @@ export function exportAnalysisChargesPdf(
   options?: { filename?: string; departmentName?: string; title?: string }
 ): void {
   if (!rows.length) return;
-  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pivot = pivotAnalysisChargeRows(rows);
+  const useLandscape = pivot.categories.length > 3;
+  const doc = new jsPDF({
+    orientation: useLandscape ? "landscape" : "portrait",
+    unit: "pt",
+    format: "a4",
+  });
   const pageW = doc.internal.pageSize.getWidth();
-  const marginX = 36;
+  const marginX = 28;
   const dept = (options?.departmentName || "").trim() || "Department";
   const title = options?.title || "Analysis Charges";
 
-  // Header band
   doc.setFillColor(15, 76, 129);
-  doc.rect(0, 0, pageW, 72, "F");
+  doc.rect(0, 0, pageW, 64, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("Institute Equipment Booking Portal", marginX, 28);
-  doc.setFontSize(12);
+  doc.setFontSize(14);
+  doc.text("Institute Equipment Booking Portal", marginX, 26);
+  doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(title, marginX, 48);
+  doc.text(title, marginX, 44);
   doc.setFontSize(9);
-  doc.text(`Generated ${format(new Date(), "dd MMM yyyy, HH:mm")}`, pageW - marginX, 48, {
-    align: "right",
-  });
+  doc.text(`Department: ${dept}`, marginX, 58);
 
-  // Department title block
-  doc.setTextColor(15, 23, 42);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text(dept, marginX, 98);
-  doc.setDrawColor(15, 76, 129);
-  doc.setLineWidth(1.2);
-  doc.line(marginX, 106, pageW - marginX, 106);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text("Charges by user category (standard published rates)", marginX, 122);
+  const head = [["S.No.", "Equipment", ...pivot.categories.map((c) => pdfSafeMoney(c))]];
+  const body = pivot.rows.map((r, i) => [
+    String(i + 1),
+    pdfSafeMoney(r.equipmentName),
+    ...pivot.categories.map((cat) => {
+      const cell = r.cells[cat];
+      if (!cell) return "—";
+      return pdfSafeMoney(cellDisplay(cell.charge, cell.gst));
+    }),
+  ]);
 
   autoTable(doc, {
-    startY: 136,
-    head: [["S.No.", "Equipment", "User Category", "Charge", "GST"]],
-    body: rows.map((r, i) => [
-      String(i + 1),
-      r.equipmentName,
-      r.userCategory,
-      pdfSafeMoney(r.charge),
-      r.gst,
-    ]),
+    startY: 76,
+    head,
+    body,
     margin: { left: marginX, right: marginX },
     styles: {
-      font: "helvetica",
-      fontSize: 8.5,
-      cellPadding: { top: 6, right: 5, bottom: 6, left: 5 },
-      overflow: "linebreak",
+      fontSize: pivot.categories.length > 4 ? 7 : 8,
+      cellPadding: 4,
       valign: "top",
-      lineColor: [226, 232, 240],
-      lineWidth: 0.4,
-      textColor: [15, 23, 42],
+      overflow: "linebreak",
     },
     headStyles: {
       fillColor: [15, 76, 129],
       textColor: 255,
       fontStyle: "bold",
-      fontSize: 8.5,
-      cellPadding: { top: 7, right: 5, bottom: 7, left: 5 },
+      fontSize: 8,
     },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { cellWidth: 36, halign: "center" },
-      1: { cellWidth: 145, fontStyle: "bold" },
-      2: { cellWidth: 105 },
-      3: { cellWidth: 170 },
-      4: { cellWidth: 72, halign: "center" },
+      0: { cellWidth: 28, halign: "center" },
+      1: { cellWidth: useLandscape ? 110 : 90 },
     },
     didDrawPage: (data) => {
-      const pageCount = doc.getNumberOfPages();
       const pageH = doc.internal.pageSize.getHeight();
       doc.setFontSize(8);
-      doc.setTextColor(100);
+      doc.setTextColor(120);
       doc.text(
-        `Page ${data.pageNumber} of ${pageCount}`,
-        pageW / 2,
-        pageH - 18,
-        { align: "center" }
+        `Generated ${format(new Date(), "dd MMM yyyy, HH:mm")}`,
+        marginX,
+        pageH - 16
+      );
+      doc.text(
+        `Page ${data.pageNumber}`,
+        pageW - marginX,
+        pageH - 16,
+        { align: "right" }
       );
     },
   });

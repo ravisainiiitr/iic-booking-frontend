@@ -26,6 +26,7 @@ import { apiClient } from "@/lib/api";
 import {
   exportAnalysisChargesExcel,
   exportAnalysisChargesPdf,
+  pivotAnalysisChargeRows,
   type AnalysisChargeExportRow,
 } from "@/lib/analysisChargesExport";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
@@ -237,6 +238,8 @@ export default function AnalysisCharges() {
     }
     return rows;
   }, [visibleEquipments, filterUserTypes]);
+
+  const pivotTable = useMemo(() => pivotAnalysisChargeRows(tableRows), [tableRows]);
 
   const toggleEquipment = (id: number, checked: boolean) => {
     setSelectedEquipmentIds((prev) => {
@@ -487,47 +490,59 @@ export default function AnalysisCharges() {
               <Table className="min-w-[720px]">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-14 bg-muted/50 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
+                    <TableHead className="sticky left-0 z-10 w-14 bg-muted/80 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
                       S.No.
                     </TableHead>
-                    <TableHead className="min-w-[14rem] bg-muted/50 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
+                    <TableHead className="sticky left-14 z-10 min-w-[12rem] bg-muted/80 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
                       Equipment
                     </TableHead>
-                    <TableHead className="min-w-[11rem] bg-muted/50 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
-                      User Category
-                    </TableHead>
-                    <TableHead className="min-w-[16rem] bg-muted/50 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
-                      Charge
-                    </TableHead>
-                    <TableHead className="w-36 bg-muted/50 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs">
-                      GST
-                    </TableHead>
+                    {pivotTable.categories.map((cat) => (
+                      <TableHead
+                        key={cat}
+                        className="min-w-[11rem] bg-muted/50 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:text-xs"
+                      >
+                        {cat}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tableRows.map((row, idx) => (
+                  {pivotTable.rows.map((row, idx) => (
                     <TableRow
-                      key={`${row.equipmentName}-${row.userCategory}-${idx}`}
+                      key={`${row.equipmentName}-${idx}`}
                       className={cn(
                         "border-border/50",
                         idx % 2 === 1 && "bg-muted/20"
                       )}
                     >
-                      <TableCell className="px-3 py-3.5 text-center text-sm tabular-nums text-muted-foreground sm:px-4">
+                      <TableCell className="sticky left-0 z-[1] bg-card px-3 py-3.5 text-center text-sm tabular-nums text-muted-foreground sm:px-4">
                         {idx + 1}
                       </TableCell>
-                      <TableCell className="px-3 py-3.5 text-[0.95rem] font-semibold text-foreground sm:px-4">
+                      <TableCell className="sticky left-14 z-[1] bg-card px-3 py-3.5 text-[0.95rem] font-semibold text-foreground sm:px-4">
                         {row.equipmentName}
                       </TableCell>
-                      <TableCell className="px-3 py-3.5 text-sm text-foreground sm:px-4">
-                        {row.userCategory}
-                      </TableCell>
-                      <TableCell className="px-3 py-3.5 text-sm leading-relaxed text-foreground sm:px-4">
-                        {row.charge}
-                      </TableCell>
-                      <TableCell className="px-3 py-3.5 text-center sm:px-4">
-                        <GstBadge text={row.gst} />
-                      </TableCell>
+                      {pivotTable.categories.map((cat) => {
+                        const cell = row.cells[cat];
+                        return (
+                          <TableCell
+                            key={cat}
+                            className="px-3 py-3.5 text-center align-top sm:px-4"
+                          >
+                            {cell ? (
+                              <div className="space-y-1.5">
+                                <p className="text-sm leading-snug text-foreground">
+                                  {cell.charge}
+                                </p>
+                                <div className="flex justify-center">
+                                  <GstBadge text={cell.gst} />
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   ))}
                 </TableBody>
