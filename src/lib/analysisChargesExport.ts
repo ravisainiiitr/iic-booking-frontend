@@ -1,6 +1,7 @@
 /**
  * Export Analysis Charges as a professional rate sheet (PDF / Excel).
- * Layout: department header; rows = equipment; columns = user categories (charge + GST).
+ * Layout: department header; rows = equipment (+ parameter for multi-param);
+ * columns = user categories.
  */
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -22,15 +23,26 @@ export type AnalysisChargeExportRow = {
   chargeLines?: AnalysisChargeLine[];
 };
 
+export type AnalysisChargePivotCell = {
+  amount: string;
+  gst: string;
+};
+
+export type AnalysisChargePivotDisplayRow = {
+  equipmentName: string;
+  /** Present for multi-parameter profiles (shown once per option row). */
+  parameter: string | null;
+  isMultiParam: boolean;
+  isFirstOfEquipment: boolean;
+  equipmentRowSpan: number;
+  serialNumber: number;
+  cells: Record<string, AnalysisChargePivotCell>;
+};
+
 export type AnalysisChargePivotTable = {
   categories: string[];
-  rows: Array<{
-    equipmentName: string;
-    cells: Record<
-      string,
-      { charge: string; gst: string; chargeLines?: AnalysisChargeLine[] }
-    >;
-  }>;
+  hasParameters: boolean;
+  rows: AnalysisChargePivotDisplayRow[];
 };
 
 function defaultFilename(ext: "xlsx" | "pdf"): string {
@@ -46,61 +58,127 @@ function pdfSafeMoney(text: string): string {
     .trim();
 }
 
-/** Pivot long-format charge rows so user categories become column headers. */
+/**
+ * Pivot long-format charge rows so user categories become column headers.
+ * Multi-parameter equipment expands to one table row per option (parameter
+ * shown once on the left — not repeated inside every user-type cell).
+ */
 export function pivotAnalysisChargeRows(
   rows: AnalysisChargeExportRow[]
 ): AnalysisChargePivotTable {
   const categoryOrder: string[] = [];
-  const seen = new Set<string>();
+  const seenCat = new Set<string>();
   for (const r of rows) {
     const cat = String(r.userCategory || "").trim() || "—";
-    if (!seen.has(cat)) {
-      seen.add(cat);
+    if (!seenCat.has(cat)) {
+      seenCat.add(cat);
       categoryOrder.push(cat);
     }
   }
 
-  const byEquipment = new Map<
-    string,
-    Record<string, { charge: string; gst: string; chargeLines?: AnalysisChargeLine[] }>
-  >();
+  type EqBucket = {
+    byCategory: Record<
+      string,
+      { charge: string; gst: string; chargeLines?: AnalysisChargeLine[] }
+    >;
+  };
+  const byEquipment = new Map<string, EqBucket>();
   const equipmentOrder: string[] = [];
 
   for (const r of rows) {
     const name = String(r.equipmentName || "").trim() || "—";
     const cat = String(r.userCategory || "").trim() || "—";
     if (!byEquipment.has(name)) {
-      byEquipment.set(name, {});
+      byEquipment.set(name, { byCategory: {} });
       equipmentOrder.push(name);
     }
-    byEquipment.get(name)![cat] = {
+    byEquipment.get(name)!.byCategory[cat] = {
       charge: String(r.charge || "").trim() || "—",
       gst: String(r.gst || "").trim() || "—",
       ...(r.chargeLines && r.chargeLines.length > 0 ? { chargeLines: r.chargeLines } : {}),
     };
   }
 
-  return {
-    categories: categoryOrder,
-    rows: equipmentOrder.map((equipmentName) => ({
-      equipmentName,
-      cells: byEquipment.get(equipmentName) || {},
-    })),
-  };
+  const displayRows: AnalysisChargePivotDisplayRow[] = [];
+  let serial = 0;
+  let hasParameters = false;
+
+  for (const equipmentName of equipmentOrder) {
+    const bucket = byEquipment.get(equipmentName)!;
+    const cats = categoryOrder
+      .map((c) => bucket.byCategory[c])
+      .filter(Boolean);
+    const optionOrder: string[] = [];
+    const seenOpt = new Set<string>();
+    for (const cell of cats) {
+      for (const line of cell.chargeLines || []) {
+        const opt = String(line.option || "").trim();
+        if (opt && !seenOpt.has(opt)) {
+          seenOpt.add(opt);
+          optionOrder.push(opt);
+        }
+      }
+    }
+
+    if (optionOrder.length > 0) {
+      hasParameters = true;
+      serial += 1;
+      const span = optionOrder.length;
+      optionOrder.forEach((opt, optIdx) => {
+        const cells: Record<string, AnalysisChargePivotCell> = {};
+        for (const cat of categoryOrder) {
+          const src = bucket.byCategory[cat];
+          if (!src) {
+            cells[cat] = { amount: "—", gst: "—" };
+            continue;
+          }
+          const line = (src.chargeLines || []).find(
+            (l) => String(l.option || "").trim() === opt
+          );
+          cells[cat] = {
+            amount: line?.amount?.trim() || "—",
+            gst: src.gst || "—",
+          };
+        }
+        displayRows.push({
+          equipmentName,
+          parameter: opt,
+          isMultiParam: true,
+          isFirstOfEquipment: optIdx === 0,
+          equipmentRowSpan: span,
+          serialNumber: serial,
+          cells,
+        });
+      });
+    } else {
+      serial += 1;
+      const cells: Record<string, AnalysisChargePivotCell> = {};
+      for (const cat of categoryOrder) {
+        const src = bucket.byCategory[cat];
+        cells[cat] = src
+          ? { amount: src.charge || "—", gst: src.gst || "—" }
+          : { amount: "—", gst: "—" };
+      }
+      displayRows.push({
+        equipmentName,
+        parameter: null,
+        isMultiParam: false,
+        isFirstOfEquipment: true,
+        equipmentRowSpan: 1,
+        serialNumber: serial,
+        cells,
+      });
+    }
+  }
+
+  return { categories: categoryOrder, hasParameters, rows: displayRows };
 }
 
-function cellDisplay(
-  charge: string,
-  gst: string,
-  chargeLines?: AnalysisChargeLine[]
-): string {
-  const lines =
-    chargeLines && chargeLines.length > 0
-      ? chargeLines.map((l) => `${l.option}: ${l.amount}`).join("\n")
-      : String(charge || "").trim() || "—";
-  const g = String(gst || "").trim();
-  if (!g || /^—$/.test(g)) return lines;
-  return `${lines}\n(${g})`;
+function cellExportText(cell: AnalysisChargePivotCell): string {
+  const amount = String(cell.amount || "").trim() || "—";
+  const g = String(cell.gst || "").trim();
+  if (!g || /^—$/.test(g)) return amount;
+  return `${amount}\n(${g})`;
 }
 
 export function exportAnalysisChargesExcel(
@@ -111,28 +189,40 @@ export function exportAnalysisChargesExcel(
   const dept = (options?.departmentName || "").trim() || "Department";
   const generated = format(new Date(), "dd MMM yyyy, HH:mm");
   const pivot = pivotAnalysisChargeRows(rows);
-  const header = ["S.No.", "Equipment", ...pivot.categories];
+  const header = pivot.hasParameters
+    ? ["S.No.", "Equipment", "Parameter", ...pivot.categories]
+    : ["S.No.", "Equipment", ...pivot.categories];
   const aoa: (string | number)[][] = [
     ["Institute Equipment Booking Portal — Analysis Charges"],
     [`Department: ${dept}`],
     [`Generated: ${generated}`],
     [],
     header,
-    ...pivot.rows.map((r, i) => [
-      i + 1,
-      r.equipmentName,
-      ...pivot.categories.map((cat) => {
+    ...pivot.rows.map((r) => {
+      const amounts = pivot.categories.map((cat) => {
         const cell = r.cells[cat];
-        return cell ? cellDisplay(cell.charge, cell.gst, cell.chargeLines) : "—";
-      }),
-    ]),
+        return cell ? cellExportText(cell) : "—";
+      });
+      if (pivot.hasParameters) {
+        return [
+          r.isFirstOfEquipment ? r.serialNumber : "",
+          r.isFirstOfEquipment ? r.equipmentName : "",
+          r.parameter || "—",
+          ...amounts,
+        ];
+      }
+      return [r.serialNumber, r.equipmentName, ...amounts];
+    }),
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [
-    { wch: 8 },
-    { wch: 36 },
-    ...pivot.categories.map(() => ({ wch: 28 })),
-  ];
+  ws["!cols"] = pivot.hasParameters
+    ? [
+        { wch: 8 },
+        { wch: 36 },
+        { wch: 22 },
+        ...pivot.categories.map(() => ({ wch: 22 })),
+      ]
+    : [{ wch: 8 }, { wch: 36 }, ...pivot.categories.map(() => ({ wch: 28 }))];
   const lastCol = Math.max(header.length - 1, 1);
   ws["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
@@ -152,7 +242,7 @@ export function exportAnalysisChargesPdf(
 ): void {
   if (!rows.length) return;
   const pivot = pivotAnalysisChargeRows(rows);
-  const useLandscape = pivot.categories.length > 3;
+  const useLandscape = pivot.categories.length > 3 || pivot.hasParameters;
   const doc = new jsPDF({
     orientation: useLandscape ? "landscape" : "portrait",
     unit: "pt",
@@ -175,16 +265,27 @@ export function exportAnalysisChargesPdf(
   doc.setFontSize(9);
   doc.text(`Department: ${dept}`, marginX, 58);
 
-  const head = [["S.No.", "Equipment", ...pivot.categories.map((c) => pdfSafeMoney(c))]];
-  const body = pivot.rows.map((r, i) => [
-    String(i + 1),
-    pdfSafeMoney(r.equipmentName),
-    ...pivot.categories.map((cat) => {
+  const head = [
+    pivot.hasParameters
+      ? ["S.No.", "Equipment", "Parameter", ...pivot.categories.map((c) => pdfSafeMoney(c))]
+      : ["S.No.", "Equipment", ...pivot.categories.map((c) => pdfSafeMoney(c))],
+  ];
+  const body = pivot.rows.map((r) => {
+    const amounts = pivot.categories.map((cat) => {
       const cell = r.cells[cat];
       if (!cell) return "—";
-      return pdfSafeMoney(cellDisplay(cell.charge, cell.gst, cell.chargeLines));
-    }),
-  ]);
+      return pdfSafeMoney(cellExportText(cell));
+    });
+    if (pivot.hasParameters) {
+      return [
+        r.isFirstOfEquipment ? String(r.serialNumber) : "",
+        r.isFirstOfEquipment ? pdfSafeMoney(r.equipmentName) : "",
+        pdfSafeMoney(r.parameter || "—"),
+        ...amounts,
+      ];
+    }
+    return [String(r.serialNumber), pdfSafeMoney(r.equipmentName), ...amounts];
+  });
 
   autoTable(doc, {
     startY: 76,
@@ -210,10 +311,16 @@ export function exportAnalysisChargesPdf(
     alternateRowStyles: {
       fillColor: [245, 248, 252],
     },
-    columnStyles: {
-      0: { cellWidth: 28, halign: "center" },
-      1: { cellWidth: useLandscape ? 110 : 90, textColor: [15, 76, 129], fontStyle: "bold" },
-    },
+    columnStyles: pivot.hasParameters
+      ? {
+          0: { cellWidth: 26, halign: "center" },
+          1: { cellWidth: useLandscape ? 100 : 80, textColor: [15, 76, 129], fontStyle: "bold" },
+          2: { cellWidth: 70, fontStyle: "bold" },
+        }
+      : {
+          0: { cellWidth: 28, halign: "center" },
+          1: { cellWidth: useLandscape ? 110 : 90, textColor: [15, 76, 129], fontStyle: "bold" },
+        },
     didDrawPage: (data) => {
       const pageH = doc.internal.pageSize.getHeight();
       doc.setFontSize(8);

@@ -495,13 +495,18 @@ export default function AnalysisCharges() {
                     <TableHead className="sticky left-0 z-10 w-14 border border-border/70 bg-primary/10 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
                       S.No.
                     </TableHead>
-                    <TableHead className="sticky left-14 z-10 min-w-[12rem] border border-border/70 bg-primary/10 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
+                    <TableHead className="sticky left-14 z-10 min-w-[11rem] border border-border/70 bg-primary/10 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
                       Equipment
                     </TableHead>
+                    {pivotTable.hasParameters ? (
+                      <TableHead className="min-w-[9rem] border border-border/70 bg-primary/10 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
+                        Parameter
+                      </TableHead>
+                    ) : null}
                     {pivotTable.categories.map((cat) => (
                       <TableHead
                         key={cat}
-                        className="min-w-[11rem] border border-border/70 bg-primary/10 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs"
+                        className="min-w-[9rem] border border-border/70 bg-primary/10 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs"
                       >
                         {cat}
                       </TableHead>
@@ -511,49 +516,46 @@ export default function AnalysisCharges() {
                 <TableBody>
                   {pivotTable.rows.map((row, idx) => (
                     <TableRow
-                      key={`${row.equipmentName}-${idx}`}
+                      key={`${row.equipmentName}-${row.parameter ?? "base"}-${idx}`}
                       className={cn(
                         "border-border/60",
-                        idx % 2 === 1 && "bg-slate-50/80 dark:bg-slate-900/30"
+                        row.serialNumber % 2 === 0 && "bg-slate-50/80 dark:bg-slate-900/30"
                       )}
                     >
-                      <TableCell className="sticky left-0 z-[1] border border-border/60 bg-card px-3 py-3 text-center text-sm tabular-nums text-muted-foreground sm:px-4">
-                        {idx + 1}
-                      </TableCell>
-                      <TableCell className="sticky left-14 z-[1] border border-border/60 bg-card px-3 py-3 text-[0.95rem] font-semibold text-primary sm:px-4">
-                        {row.equipmentName}
-                      </TableCell>
+                      {row.isFirstOfEquipment ? (
+                        <TableCell
+                          rowSpan={row.equipmentRowSpan}
+                          className="sticky left-0 z-[1] border border-border/60 bg-card px-3 py-3 text-center align-middle text-sm tabular-nums text-muted-foreground sm:px-4"
+                        >
+                          {row.serialNumber}
+                        </TableCell>
+                      ) : null}
+                      {row.isFirstOfEquipment ? (
+                        <TableCell
+                          rowSpan={row.equipmentRowSpan}
+                          className="sticky left-14 z-[1] border border-border/60 bg-card px-3 py-3 align-middle text-[0.95rem] font-semibold text-primary sm:px-4"
+                        >
+                          {row.equipmentName}
+                        </TableCell>
+                      ) : null}
+                      {pivotTable.hasParameters ? (
+                        <TableCell className="border border-border/60 px-3 py-2.5 align-middle text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-4">
+                          {row.parameter || "—"}
+                        </TableCell>
+                      ) : null}
                       {pivotTable.categories.map((cat) => {
                         const cell = row.cells[cat];
                         return (
                           <TableCell
                             key={cat}
-                            className="border border-border/60 px-2.5 py-2.5 text-left align-top sm:px-3"
+                            className="border border-border/60 px-2.5 py-2.5 text-center align-middle sm:px-3"
                           >
                             {cell ? (
-                              <div className="space-y-2">
-                                {cell.chargeLines && cell.chargeLines.length > 0 ? (
-                                  <div className="divide-y divide-border/70 rounded-md border border-border/50 overflow-hidden">
-                                    {cell.chargeLines.map((line) => (
-                                      <div
-                                        key={`${cat}-${line.option}`}
-                                        className="flex flex-col gap-0.5 px-2.5 py-1.5 bg-card"
-                                      >
-                                        <span className="text-[11px] font-bold leading-tight text-slate-800 dark:text-slate-100">
-                                          {line.option}
-                                        </span>
-                                        <span className="text-sm leading-snug text-foreground tabular-nums">
-                                          {line.amount}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm leading-snug text-foreground whitespace-pre-line">
-                                    {cell.charge}
-                                  </p>
-                                )}
-                                <div className="flex justify-start pt-0.5">
+                              <div className="space-y-1.5">
+                                <p className="text-sm leading-snug text-foreground tabular-nums whitespace-pre-line">
+                                  {cell.amount}
+                                </p>
+                                <div className="flex justify-center">
                                   <GstBadge text={cell.gst} />
                                 </div>
                               </div>
@@ -567,7 +569,7 @@ export default function AnalysisCharges() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </div>            </div>
           </section>
         )}
       </main>
