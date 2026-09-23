@@ -77,6 +77,7 @@ export const studentGuide: UserGuideContent = {
           title: "Confirm and pay",
           body: "Confirm the booking and complete wallet selection when prompted. Status moves to Booked, Awaiting payment, or Waitlisted depending on the path.",
           screenshotCaption: "Booking confirmation and wallet selection",
+          screenshotSrc: "/guides/booking-confirmation-success.png",
         },
       ],
       callouts: [

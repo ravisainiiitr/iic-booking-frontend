@@ -61,6 +61,7 @@ export const startupGuide: UserGuideContent = {
           title: "Book and pay",
           body: "Reserve slots, complete payment steps, then track sample deadlines and results in My Bookings.",
           screenshotCaption: "Booking confirmation",
+          screenshotSrc: "/guides/booking-confirmation-success.png",
         },
       ],
     },
