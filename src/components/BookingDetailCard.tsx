@@ -1524,12 +1524,20 @@ export function BookingDetailCard({
   const rawReadyFromAnalysis = Boolean(
     (analysisSummary as any)?.raw_ready ?? (analysisSummary as any)?.analyze?.raw_ready
   );
-  // When Remote Analysis is enabled, Raw Data must stay visible from booking results
+  /** Raw Data / Results folder actions must not appear before Sample Accepted (or Completed). */
+  const sampleLifecycleAllowsRawOrResults =
+    traceHasSampleAccepted ||
+    sampleTraceList.some((e) =>
+      ["PROCESSING", "COMPLETED", "DISPOSED"].includes(String(e.status || "").toUpperCase())
+    ) ||
+    isCompleted;
+  // When Remote Analysis is enabled, Raw Data stays visible from booking results after accept,
   // independently of analysis workspace output_files / experience.results.available.
   const showRawOrResultsAction =
-    hasDownloadableResults ||
-    (remoteAnalysisEnabled && rawReadyFromAnalysis && !resultsFbrBlock) ||
-    (remoteAnalysisEnabled && resultsRatingBlocked && rawReadyFromAnalysis);
+    sampleLifecycleAllowsRawOrResults &&
+    (hasDownloadableResults ||
+      (remoteAnalysisEnabled && rawReadyFromAnalysis && !resultsFbrBlock) ||
+      (remoteAnalysisEnabled && resultsRatingBlocked && rawReadyFromAnalysis));
   const analyzedDataAvailable = Boolean(
     (analysisSummary as any)?.experience?.results?.available ||
       ((analysisSummary as any)?.experience?.results?.file_count || 0) > 0
@@ -2987,7 +2995,9 @@ export function BookingDetailCard({
               )}
           </div>
 
-          {!isWaitlistedEntry && remoteAnalysisEnabled && (
+          {!isWaitlistedEntry &&
+            remoteAnalysisEnabled &&
+            sampleLifecycleAllowsRawOrResults && (
               <div className="mt-4 pt-4 border-t no-print space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-semibold">Analysis Workspace</h3>

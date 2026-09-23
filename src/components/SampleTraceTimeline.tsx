@@ -607,13 +607,21 @@ export default function SampleTraceTimeline({
                   <p className="text-sm mt-0.5 break-words">{detailEvent.tracking_id}</p>
                 </div>
               )}
-              {detailEvent.results_folder_path && (
+              {detailEvent.results_folder_path &&
+                ["SAMPLE_ACCEPTED", "PROCESSING"].includes(String(detailEvent.status || "").toUpperCase()) && (
                 <div>
-                  <Label className="text-muted-foreground text-xs">Results folder</Label>
+                  <Label className="text-muted-foreground text-xs">Raw Data folder</Label>
                   <p className="text-sm mt-0.5 break-all font-mono">{detailEvent.results_folder_path}</p>
                 </div>
               )}
-              {!detailEvent.reason && !detailEvent.sample_identifiers && !detailEvent.tracking_id && !detailEvent.results_folder_path && !(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (
+              {!detailEvent.reason &&
+                !detailEvent.sample_identifiers &&
+                !detailEvent.tracking_id &&
+                !(
+                  detailEvent.results_folder_path &&
+                  ["SAMPLE_ACCEPTED", "PROCESSING"].includes(String(detailEvent.status || "").toUpperCase())
+                ) &&
+                !(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (
                 <p className="text-sm text-muted-foreground">No additional details for this status.</p>
               )}
               {(detailEvent.status === "HELD_AT_OFFICE" || detailEvent.status === "SAMPLE_REJECTED") && (

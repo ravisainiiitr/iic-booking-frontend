@@ -897,7 +897,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : 72,
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
-      enable_remote_analysis: formData.enable_remote_analysis === true,
+      enable_remote_analysis: false,
       remote_analysis_enabled_from_status: formData.remote_analysis_enabled_from_status || "COMPLETED",
       analysis_workspace_retention_days: formData.analysis_workspace_retention_days ?? 90,
       analysis_session_limit: formData.analysis_session_limit ?? 5,
@@ -1974,135 +1974,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         defaultOpen={false}
       >
         <div className="space-y-4 max-w-2xl">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"
-              checked={formData.enable_remote_analysis === true}
-              onChange={(e) => setFormData((p) => ({ ...p, enable_remote_analysis: e.target.checked }))}
+              checked={false}
+              disabled
+              readOnly
+              aria-disabled="true"
             />
             Enable Remote Analysis
           </label>
-          {formData.enable_remote_analysis && (
-            <>
-              <div className="space-y-2">
-                <Label>Eligibility rule (booking status)</Label>
-                <Input
-                  value={formData.remote_analysis_enabled_from_status || "COMPLETED"}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, remote_analysis_enabled_from_status: e.target.value }))
-                  }
-                  placeholder="COMPLETED"
-                />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Retention days</Label>
-                  <Input
-                    type="number"
-                    value={formData.analysis_workspace_retention_days ?? 90}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        analysis_workspace_retention_days: Number(e.target.value) || 90,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Maximum sessions</Label>
-                  <Input
-                    type="number"
-                    value={formData.analysis_session_limit ?? 5}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        analysis_session_limit: Number(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Access duration (hours)</Label>
-                  <Input
-                    type="number"
-                    value={formData.analysis_access_duration ?? 72}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        analysis_access_duration: Number(e.target.value) || 72,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Analysis profile legacy fallback (optional)</Label>
-                  <Input
-                    value={formData.analysis_profile || ""}
-                    onChange={(e) => setFormData((p) => ({ ...p, analysis_profile: e.target.value }))}
-                    placeholder="e.g. OriginPro"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Primary configuration is now software catalog mapping. Configure via{" "}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => window.open("/remote-analysis/software-catalog", "_blank")}
-                    >
-                      Software Catalog
-                    </button>{" "}
-                    and{" "}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => window.open("/remote-analysis/equipment-software", "_blank")}
-                    >
-                      Equipment ↔ Software
-                    </button>{" "}
-                    (or Django Admin). Use this free-text value only for backward compatibility.
-                  </p>
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.analysis_auto_archive !== false}
-                  onChange={(e) => setFormData((p) => ({ ...p, analysis_auto_archive: e.target.checked }))}
-                />
-                Workspace auto archive
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.analysis_requires_sample_acceptance === true}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, analysis_requires_sample_acceptance: e.target.checked }))
-                  }
-                />
-                Requires sample acceptance
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.analysis_requires_experiment_completion !== false}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      analysis_requires_experiment_completion: e.target.checked,
-                    }))
-                  }
-                />
-                Requires experiment completion
-              </label>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  value={formData.analysis_notes || ""}
-                  onChange={(e) => setFormData((p) => ({ ...p, analysis_notes: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-            </>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Remote Analysis is disabled for all equipment and cannot be turned on from this form.
+          </p>
         </div>
       </FormSection>
 
