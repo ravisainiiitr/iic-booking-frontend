@@ -87,7 +87,7 @@ const ContentManagement = () => {
           <SettingsTile
             icon={<FileText className="h-5 w-5" />}
             title="Analysis Charges PDF"
-            description="Document opened by the home-page Analysis Charges button"
+            description="Optional archive PDF (home CTA now opens the live /analysis-charges page)"
             onClick={() => navigate("/admin/analysis-charges")}
           />
         </div>

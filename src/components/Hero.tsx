@@ -47,23 +47,6 @@ const Hero = () => {
   } | null>(null);
   const [siteStatsFailed, setSiteStatsFailed] = useState(false);
   const [channeliLoading, setChanneliLoading] = useState(false);
-  const [analysisChargesLoading, setAnalysisChargesLoading] = useState(false);
-
-  const handleAnalysisCharges = async () => {
-    setAnalysisChargesLoading(true);
-    try {
-      const res = await apiClient.getAnalysisChargesDocument();
-      if (res.error || !res.data?.document_url) {
-        toast.error(res.error || "Analysis Charges document is not available yet.");
-        return;
-      }
-      window.open(res.data.document_url, "_blank", "noopener,noreferrer");
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to open Analysis Charges");
-    } finally {
-      setAnalysisChargesLoading(false);
-    }
-  };
 
   const handleChanneliLogin = async () => {
     setChanneliLoading(true);
@@ -239,14 +222,9 @@ const Hero = () => {
               <Button
                 size="lg"
                 className={primaryCtaClass}
-                onClick={() => void handleAnalysisCharges()}
-                disabled={analysisChargesLoading}
+                onClick={() => navigate("/analysis-charges")}
               >
-                {analysisChargesLoading ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <IndianRupee className="h-4 w-4" />
-                )}
+                <IndianRupee className="h-4 w-4" />
                 Analysis Charges
               </Button>
               <Button

@@ -1875,11 +1875,48 @@ class ApiClient {
     return this.request<Array<{ id: number; order: number; image_url: string; alt_text: string }>>('/cms/hero-slides/');
   }
 
-  /** Public Analysis Charges PDF (home-page CTA). */
+  /** Public Analysis Charges PDF (legacy CMS document; optional archive). */
   async getAnalysisChargesDocument() {
     return this.request<{ key: string; title: string; document_url: string; updated_at?: string }>(
       '/cms/documents/analysis-charges/'
     );
+  }
+
+  /**
+   * Public Analysis Charges catalog (live rate cards by user category).
+   * Used by /analysis-charges page.
+   */
+  async getAnalysisChargesCatalog(options?: {
+    internalDepartmentId?: number | 'all';
+    equipmentIds?: number[];
+  }) {
+    const params = new URLSearchParams();
+    if (options?.internalDepartmentId != null && options.internalDepartmentId !== 'all') {
+      params.set('internal_department_id', String(options.internalDepartmentId));
+    }
+    if (options?.equipmentIds?.length) {
+      params.set('equipment_ids', options.equipmentIds.join(','));
+    }
+    const q = params.toString();
+    return this.request<{
+      departments: Array<{ id: number; name: string; code: string; equipment_count: number }>;
+      user_types: Array<{ code: string; label: string }>;
+      equipments: Array<{
+        equipment_id: number;
+        code: string;
+        name: string;
+        profile_type: string;
+        status: string;
+        internal_department: number | null;
+        internal_department_name: string | null;
+        internal_department_code: string | null;
+        slot_duration_minutes?: number | null;
+        charge_profiles: Array<Record<string, unknown>>;
+        input_fields?: Array<Record<string, unknown>>;
+        slot_options?: Array<Record<string, unknown>>;
+      }>;
+      count: number;
+    }>(q ? `/equipments/analysis-charges/?${q}` : '/equipments/analysis-charges/');
   }
 
   /** Public: get published CMS page by slug. */
