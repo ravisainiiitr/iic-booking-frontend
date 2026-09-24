@@ -110,6 +110,7 @@ import Tickets from "@/pages/Tickets";
 import WalletRechargeRequestAction from "@/pages/WalletRechargeRequestAction";
 import WalletRechargeEmailAction from "@/pages/WalletRechargeEmailAction";
 import AdminWalletRechargeRequests from "@/pages/AdminWalletRechargeRequests";
+import WalletRechargeParse from "@/pages/WalletRechargeParse";
 import LegacyWalletImportTest from "@/pages/LegacyWalletImportTest";
 import CmsPageView from "@/pages/CmsPageView";
 import ExternalUserManagement from "@/pages/ExternalUserManagement";
@@ -256,6 +257,7 @@ export default function AppRoutes() {
       <Route path="/admin-settings/wallet-sric-settings" element={<AdminWalletSricSettings />} />
       <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
       <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
+      <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
       <Route path="/admin-settings/wallet-credit-facility-settings" element={<AdminWalletCreditFacilitySettings />} />
       <Route path="/admin-settings/wallet-student-recharge-settings" element={<AdminWalletStudentRechargeSettings />} />
       <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />

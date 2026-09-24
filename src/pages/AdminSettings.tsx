@@ -15,6 +15,7 @@ import {
   KeyRound,
   BookOpen,
   FolderTree,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -114,6 +115,14 @@ const AdminSettings = () => {
               title="Inbox Email"
               description="Fetch and view the configured IMAP mailbox"
               onClick={() => navigate("/admin-settings/inbox-email")}
+            />
+          )}
+          {(can("admin_settings.legacy_wallet") || can("admin_settings.inbox_email")) && (
+            <SettingsTile
+              icon={<FileSpreadsheet className="h-5 w-5" />}
+              title="Wallet Recharge Cash Book"
+              description="Parse bills@sric TXT / IMAP and match grant codes for verification"
+              onClick={() => navigate("/admin-settings/wallet-recharge-parse")}
             />
           )}
           {can("admin_settings.legacy_wallet") && (

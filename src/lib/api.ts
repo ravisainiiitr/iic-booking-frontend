@@ -780,6 +780,31 @@ export interface LegacyWalletBalanceListResult {
   error?: string;
 }
 
+export interface WalletRechargeParseRow {
+  /** Present for rows loaded from server (stored parse entries). */
+  id?: number;
+  date: string | null;
+  receipt_no: string;
+  name: string;
+  emp_no: string;
+  department: string;
+  amount: string;
+  payment: string;
+  /** Credited to Project No. from cash-book TXT (e.g. IIC-000-002). */
+  credited_to_project_no?: string;
+  processed?: boolean;
+  matched_user: {
+    id: number;
+    email: string;
+    name: string;
+    emp_id: string;
+    /** Internal department name when user is matched by employee ID (from database). */
+    department_name?: string;
+  } | null;
+  /** IMAP mailbox UID of the message this row was imported from (if any). */
+  source_imap_uid?: string;
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -4287,6 +4312,445 @@ class ApiClient {
   }
 
   /** Public email-action detail (token from SRIC approval email). */
+  async parseWalletRechargeFile(file: File): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number; message?: string };
+    error?: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/parse-recharge-file/`;
+    const headers: HeadersInit = { ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}) };
+    const res = await fetch(url, { method: 'POST', headers, body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as any).error || 'Failed to parse file', data: undefined };
+    }
+    return { data: data as { rows: WalletRechargeParseRow[]; count: number; message?: string }, error: undefined };
+  }
+
+  /** Fetch legacy wallet balance for emp_id from legacy MySQL (admin). Uses server LEGACY_MYSQL_* env. */
+
+  async processWalletRechargeRows(rows: WalletRechargeParseRow[], defaultDepartmentId?: number | null): Promise<{
+    data?: { credited: number; skipped: number; errors: string[]; processed_receipts: string[] };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/process-recharge-rows/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      rows: rows.map((r) => ({
+        date: r.date,
+        receipt_no: r.receipt_no,
+        name: r.name,
+        emp_no: r.emp_no,
+        department: r.department,
+        amount: r.amount,
+        payment: r.payment,
+      })),
+      default_department_id: defaultDepartmentId ?? null,
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as any).error || 'Failed to process rows', data: undefined };
+    }
+    return {
+      data: data as { credited: number; skipped: number; errors: string[]; processed_receipts: string[] },
+      error: undefined,
+    };
+  }
+
+  /** Faculty recharge pipeline (OTP-verified). Admin or accounts-in-charge. filter: all | pending | unmatched_no_parse */
+
+  async getWalletRechargeParseEntries(): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entries/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'GET', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to load parse entries', data: undefined };
+    }
+    return { data: data as { rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** Merge rows into stored parse entries (upsert by date, receipt_no, emp_no). Admin only. Returns full list. */
+
+  async saveWalletRechargeParseEntries(rows: WalletRechargeParseRow[]): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entries/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      rows: rows.map((r) => {
+        const row: Record<string, unknown> = {
+          date: r.date,
+          receipt_no: r.receipt_no,
+          name: r.name,
+          emp_no: r.emp_no,
+          department: r.department,
+          amount: r.amount,
+          payment: r.payment,
+          credited_to_project_no: r.credited_to_project_no || "",
+        };
+        if (typeof r.source_imap_uid === 'string' && r.source_imap_uid.trim() !== '') {
+          row.source_imap_uid = r.source_imap_uid.trim();
+        }
+        return row;
+      }),
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to save parse entries', data: undefined };
+    }
+    return { data: data as { rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** IMAP: delete message by UID if all parse rows tagged with that UID are processed. Admin only. */
+
+  async applyWalletRechargeParseEntry(payload: {
+    id: number;
+    date: string | null;
+    receipt_no: string;
+    name: string;
+    emp_no: string;
+    department: string;
+    amount: string;
+    payment: string;
+    default_department_id?: number | null;
+  }): Promise<{
+    data?: {
+      row: WalletRechargeParseRow;
+      credited: number;
+      skipped: number;
+      errors: string[];
+      processed_receipts: string[];
+      matched_recharge_requests: number;
+    };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entry-apply/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      id: payload.id,
+      date: payload.date,
+      receipt_no: payload.receipt_no,
+      name: payload.name,
+      emp_no: payload.emp_no,
+      department: payload.department,
+      amount: payload.amount,
+      payment: payload.payment,
+      default_department_id: payload.default_department_id ?? null,
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to apply row', data: undefined };
+    }
+    return {
+      data: data as {
+        row: WalletRechargeParseRow;
+        credited: number;
+        skipped: number;
+        errors: string[];
+        processed_receipts: string[];
+        matched_recharge_requests: number;
+      },
+      error: undefined,
+    };
+  }
+
+  /** Admin/finance: active projects for a faculty user (manual recharge request from unmatched parse row). */
+
+  async createWalletRechargeRequestFromUnmatchedParseRow(payload: {
+    parse_entry_id: number;
+    user_id: number;
+    department_id: number;
+    project_id?: number | null;
+    note?: string;
+  }): Promise<{
+    data?: { request: Record<string, unknown>; message: string };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-request-from-unmatched-parse-row/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      parse_entry_id: payload.parse_entry_id,
+      user_id: payload.user_id,
+      department_id: payload.department_id,
+      project_id: payload.project_id ?? null,
+      note: payload.note?.trim() || '',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        error: (data as { error?: string }).error || 'Failed to create recharge request',
+        data: undefined,
+      };
+    }
+    return {
+      data: data as { request: Record<string, unknown>; message: string },
+      error: undefined,
+    };
+  }
+
+  /** Admin: users eligible for an individual wallet (for manual recharge). */
+
+  async clearWalletRechargeParseEntries(): Promise<{
+    data?: { deleted: number; rows: WalletRechargeParseRow[]; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-parse-entries/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'DELETE', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to clear parse entries', data: undefined };
+    }
+    return { data: data as { deleted: number; rows: WalletRechargeParseRow[]; count: number }, error: undefined };
+  }
+
+  /** IMAP: List last 50 emails (or filtered by sender/subject). Admin only. */
+
+  async walletImapListEmails(params: {
+    email: string;
+    password: string;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+    sender_filter?: string;
+    subject_filter?: string;
+  }): Promise<{
+    data?: { emails: Array<{ uid: string; subject: string; from_addr: string; date: string }>; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-list-emails/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+      sender_filter: params.sender_filter || undefined,
+      subject_filter: params.subject_filter || undefined,
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to list emails', data: undefined };
+    }
+    return { data: data as { emails: Array<{ uid: string; subject: string; from_addr: string; date: string }>; count: number }, error: undefined };
+  }
+
+  /** IMAP: Fetch email by UID, parse first or specified attachment, return rows. Admin only. */
+
+  async walletImapFetchAndParse(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    attachment_index?: number;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{
+    data?: { rows: WalletRechargeParseRow[]; count: number; attachment_name?: string; message?: string };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-fetch-and-parse/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      attachment_index: params.attachment_index,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to fetch and parse', data: undefined };
+    }
+    return {
+      data: data as { rows: WalletRechargeParseRow[]; count: number; attachment_name?: string; message?: string },
+      error: undefined,
+    };
+  }
+
+  /** IMAP: List attachments for one email by UID. Admin only. */
+
+  async walletImapEmailAttachments(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{
+    data?: { attachments: Array<{ index: number; filename: string; size?: number }>; count: number };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-email-attachments/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to list attachments', data: undefined };
+    }
+    return {
+      data: data as { attachments: Array<{ index: number; filename: string; size?: number }>; count: number },
+      error: undefined,
+    };
+  }
+
+  /** IMAP: Download one attachment by UID and index. Returns base64 content and filename. Admin only. */
+
+  async walletImapDownloadAttachment(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    attachment_index: number;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{
+    data?: { content_base64: string; filename: string };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-download-attachment/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      attachment_index: params.attachment_index,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to download', data: undefined };
+    }
+    return {
+      data: data as { content_base64: string; filename: string },
+      error: undefined,
+    };
+  }
+
+  // Wallet join request endpoints
+
+  async walletImapDeleteEmailIfProcessed(params: {
+    email: string;
+    password: string;
+    email_uid: string;
+    host?: string;
+    port?: number;
+    use_ssl?: boolean;
+    folder?: string;
+  }): Promise<{ data?: { deleted: boolean; email_uid: string }; error?: string }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/imap-delete-email-if-processed/`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const body = JSON.stringify({
+      email: params.email,
+      password: params.password,
+      email_uid: params.email_uid,
+      host: params.host ?? 'imap.gmail.com',
+      port: params.port ?? 993,
+      use_ssl: params.use_ssl ?? true,
+      folder: params.folder ?? 'INBOX',
+    });
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to delete email', data: undefined };
+    }
+    return {
+      data: data as { deleted: boolean; email_uid: string },
+      error: undefined,
+    };
+  }
+
+  /** Update one stored parse row and, if it matches a user and is unprocessed, credit like process-recharge-rows. Admin only. */
+
+  async getWalletRechargeTargetUserProjects(userId: number): Promise<{
+    data?: { projects: Array<{ id: number; name: string; project_code: string; agency: string }> };
+    error?: string;
+  }> {
+    const url = `${this.baseURL.replace(/\/$/, '')}/wallet/recharge-target-user-projects/?user_id=${encodeURIComponent(String(userId))}`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    const res = await fetch(url, { method: 'GET', headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: (data as { error?: string }).error || 'Failed to load projects', data: undefined };
+    }
+    return {
+      data: data as { projects: Array<{ id: number; name: string; project_code: string; agency: string }> },
+      error: undefined,
+    };
+  }
+
+  /**
+   * Admin/finance: unmatched Wallet Recharge History row — create pending recharge request for selected user,
+   * notify faculty and accounts (same as post–faculty-OTP flow).
+   */
+
   async getWalletRechargeActionDetail(token: string) {
     return this.request<Record<string, unknown>>(`/wallet/recharge-action/${encodeURIComponent(token)}/`);
   }

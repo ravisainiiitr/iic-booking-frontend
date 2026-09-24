@@ -103,6 +103,7 @@ const WalletRechargeEmailAction = () => {
 
   const handleApprove = async () => {
     if (!token) return;
+    const sessionKey = `wrr-approve-${token}`;
     setSubmitting(true);
     const res = await apiClient.approveWalletRechargeByToken(token);
     setSubmitting(false);
@@ -112,10 +113,36 @@ const WalletRechargeEmailAction = () => {
       return;
     }
     const data = res.data || {};
-    if (data.already_processed || data.terminal_page || data.page_code) {
+    const statusUpper = String(data.status || "").toUpperCase();
+    const approvedOk =
+      statusUpper === "APPROVED" ||
+      Boolean(data.message && /approved|credited/i.test(String(data.message)));
+
+    // Success responses include terminal_page because status is no longer PENDING —
+    // only treat as "already processed" when the API sets already_processed and we
+    // did not just complete approval in this session.
+    if (data.already_processed && !approvedOk) {
       setPayload(data);
       toast.message(data.title || data.message || "Already processed");
       return;
+    }
+    if (data.already_processed && approvedOk) {
+      // Double-submit / StrictMode: first call credited; show success not error.
+      try {
+        sessionStorage.setItem(sessionKey, "done");
+      } catch {
+        /* ignore */
+      }
+      setDoneMessage(data.message || "Request approved. Wallet credited.");
+      setPayload(data);
+      toast.success(data.message || "Approved");
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(sessionKey, "done");
+    } catch {
+      /* ignore */
     }
     setDoneMessage(data.message || "Request approved. Wallet credited.");
     setPayload(data);
@@ -127,12 +154,29 @@ const WalletRechargeEmailAction = () => {
     if (loading || error || !payload || !token) return;
     if (action !== "approve") return;
     if (autoApproveStarted.current) return;
-    if (doneMessage || terminal) return;
+    if (doneMessage) return;
+    const sessionKey = `wrr-approve-${token}`;
+    try {
+      if (sessionStorage.getItem(sessionKey) === "done") {
+        if (!payload.is_pending && String(payload.status || "").toUpperCase() === "APPROVED") {
+          setDoneMessage("Request approved. Wallet credited.");
+        }
+        return;
+      }
+      if (sessionStorage.getItem(sessionKey) === "started") return;
+    } catch {
+      /* ignore */
+    }
     if (!payload.is_pending) return;
     autoApproveStarted.current = true;
+    try {
+      sessionStorage.setItem(sessionKey, "started");
+    } catch {
+      /* ignore */
+    }
     void handleApprove();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when pending approve link loads
-  }, [loading, error, payload, token, action, doneMessage, terminal]);
+  }, [loading, error, payload, token, action, doneMessage]);
 
   const handleReject = async () => {
     if (!token) return;
@@ -226,7 +270,29 @@ const WalletRechargeEmailAction = () => {
               </Button>
             </CardContent>
           </Card>
-        ) : terminal || (payload && !payload.is_pending && !doneMessage) ? (
+        ) : doneMessage ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-primary">
+                <CheckCircle className="h-6 w-6" />
+                {action === "approve" ? "Approved" : "Declined"}
+              </CardTitle>
+              <CardDescription>{doneMessage}</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-1">
+              {payload?.department_grant_code ? (
+                <p className="text-xl font-bold text-primary">
+                  Amount to be credited to Grant: {payload.department_grant_code}
+                </p>
+              ) : null}
+              <p>
+                <span className="text-muted-foreground">Transaction:</span>{" "}
+                {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}
+              </p>
+              <p className="text-lg font-bold">Amount: ₹{payload?.amount}</p>
+            </CardContent>
+          </Card>
+        ) : terminal || (payload && !payload.is_pending) ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -254,28 +320,6 @@ const WalletRechargeEmailAction = () => {
                   <span className="text-muted-foreground">Processed by:</span> {payload.approved_by_email}
                 </p>
               ) : null}
-            </CardContent>
-          </Card>
-        ) : doneMessage ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary">
-                <CheckCircle className="h-6 w-6" />
-                {action === "approve" ? "Approved" : "Declined"}
-              </CardTitle>
-              <CardDescription>{doneMessage}</CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm space-y-1">
-              {payload?.department_grant_code ? (
-                <p className="text-xl font-bold text-primary">
-                  Amount to be credited to Grant: {payload.department_grant_code}
-                </p>
-              ) : null}
-              <p>
-                <span className="text-muted-foreground">Transaction:</span>{" "}
-                {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}
-              </p>
-              <p className="text-lg font-bold">Amount: ₹{payload?.amount}</p>
             </CardContent>
           </Card>
         ) : (
