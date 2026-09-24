@@ -43,14 +43,83 @@ export type EquipmentBrochurePdfInput = {
   contacts: BrochureContact[];
 };
 
+/** Helvetica (WinAnsi) cannot render Greek/math Unicode; map to ASCII so PDF text stays readable. */
 function pdfSafe(text: string): string {
-  return String(text || "")
+  let s = String(text || "");
+  try {
+    s = s.normalize("NFKC");
+  } catch {
+    /* ignore */
+  }
+  const greek: Record<string, string> = {
+    α: "alpha",
+    Α: "A",
+    β: "beta",
+    Β: "B",
+    γ: "gamma",
+    Γ: "Gamma",
+    δ: "delta",
+    Δ: "Delta",
+    ε: "epsilon",
+    Ε: "E",
+    ζ: "zeta",
+    η: "eta",
+    θ: "theta",
+    Θ: "Theta",
+    ι: "iota",
+    κ: "kappa",
+    λ: "lambda",
+    Λ: "Lambda",
+    μ: "mu",
+    Μ: "M",
+    ν: "nu",
+    ξ: "xi",
+    π: "pi",
+    Π: "Pi",
+    ρ: "rho",
+    σ: "sigma",
+    Σ: "Sigma",
+    τ: "tau",
+    υ: "upsilon",
+    φ: "phi",
+    Φ: "Phi",
+    χ: "chi",
+    ψ: "psi",
+    ω: "omega",
+    Ω: "Omega",
+    "µ": "mu", // micro sign U+00B5
+  };
+  s = s.replace(/[\u0370-\u03FF\u00B5]/g, (ch) => greek[ch] || ch);
+  s = s
     .replace(/\u20B9/g, "Rs.")
     .replace(/₹/g, "Rs.")
     .replace(/\u2013|\u2014/g, "-")
     .replace(/\u2018|\u2019/g, "'")
     .replace(/\u201C|\u201D/g, '"')
-    .trim();
+    .replace(/\u2026/g, "...")
+    .replace(/\u00D7/g, "x")
+    .replace(/\u00F7/g, "/")
+    .replace(/\u2212/g, "-")
+    .replace(/\u00B1/g, "+/-")
+    .replace(/\u2248/g, "~")
+    .replace(/\u2260/g, "!=")
+    .replace(/\u2264/g, "<=")
+    .replace(/\u2265/g, ">=")
+    .replace(/\u221E/g, "inf")
+    .replace(/\u2192/g, "->")
+    .replace(/\u2190/g, "<-")
+    .replace(/\u00B0/g, " deg")
+    .replace(/\u212B/g, "A") // Angstrom
+    .replace(/\u00A0/g, " ")
+    .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
+    .replace(/[\u0300-\u036F]/g, ""); // combining marks after NFKC
+  // Drop remaining non-WinAnsi-safe chars (keeps latin-1 printable + tab/newline)
+  s = s.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    if (code > 0xff) return " ";
+    return ch;
+  });
+  return s.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function defaultFilename(code: string | null | undefined, name: string): string {
@@ -127,10 +196,11 @@ function writeParagraph(
   doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
   doc.setFontSize(size);
   doc.setTextColor(...(opts?.color ?? PDF_INK_RGB));
-  const lines = doc.splitTextToSize(pdfSafe(text), maxW);
+  const lines = doc.splitTextToSize(pdfSafe(text), maxW) as string[];
   for (const line of lines) {
     y = ensureSpace(doc, y, lineH);
-    doc.text(line, marginX, y);
+    // Explicit left align — avoid any justify stretch that spaces characters oddly.
+    doc.text(String(line), marginX, y, { align: "left", baseline: "alphabetic" });
     y += lineH;
   }
   return y;

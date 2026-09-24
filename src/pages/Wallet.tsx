@@ -2348,13 +2348,15 @@ const Wallet = () => {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    <CardDescription>
-                      {isIitrStudentReceiptOffline
-                        ? "Select department and amount. Offline recharge requires a payment receipt or cash/bank request. Funds credit the faculty wallet."
-                        : isFacultyEffective
-                          ? "Select department and amount. Offline request is the default path (Razorpay is disabled)."
-                          : "Recharge a department sub-wallet. Select department and amount."}
-                    </CardDescription>
+                    {otpStep !== "done" && otpStep !== "sric" ? (
+                      <CardDescription>
+                        {isIitrStudentReceiptOffline
+                          ? "Select department and amount. Offline recharge requires a payment receipt or cash/bank request. Funds credit the faculty wallet."
+                          : isFacultyEffective
+                            ? "Select department and amount. Offline request is the default path (Razorpay is disabled)."
+                            : "Recharge a department sub-wallet. Select department and amount."}
+                      </CardDescription>
+                    ) : null}
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
                     {otpStep === "done" || otpStep === "sric" ? (
@@ -2383,10 +2385,7 @@ const Wallet = () => {
                                   Visit the SRIC Bill Section to deposit cash (or complete bank transfer).
                                 </li>
                                 <li>
-                                  Share the transaction number above as your reference for immediate recharge.
-                                </li>
-                                <li>
-                                  After approval, upload or update the receipt in Wallet history so Accounts can complete reconciliation.
+                                  Share the transaction number with Bill Section SRIC for immediate recharge.
                                 </li>
                               </ol>
                             )}

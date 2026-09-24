@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,7 @@ const WalletRechargeEmailAction = () => {
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState("");
   const [reasonText, setReasonText] = useState("");
+  const autoApproveStarted = useRef(false);
 
   const terminal = useMemo(() => {
     if (!payload) return null;
@@ -107,6 +108,7 @@ const WalletRechargeEmailAction = () => {
     setSubmitting(false);
     if (res.error) {
       toast.error(res.error);
+      setError(res.error);
       return;
     }
     const data = res.data || {};
@@ -119,6 +121,18 @@ const WalletRechargeEmailAction = () => {
     setPayload(data);
     toast.success(data.message || "Approved");
   };
+
+  // Email "Approve" link: credit immediately — no second confirm click.
+  useEffect(() => {
+    if (loading || error || !payload || !token) return;
+    if (action !== "approve") return;
+    if (autoApproveStarted.current) return;
+    if (doneMessage || terminal) return;
+    if (!payload.is_pending) return;
+    autoApproveStarted.current = true;
+    void handleApprove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when pending approve link loads
+  }, [loading, error, payload, token, action, doneMessage, terminal]);
 
   const handleReject = async () => {
     if (!token) return;
@@ -159,16 +173,20 @@ const WalletRechargeEmailAction = () => {
   ];
 
   const isPending = Boolean(payload?.is_pending) && !terminal && !doneMessage;
+  const autoApproving = action === "approve" && isPending && (submitting || !doneMessage) && !error;
 
   return (
     <div className="page-shell min-h-screen">
       <DashboardHeader />
       <main className="container mx-auto max-w-2xl px-4 py-10">
-        {loading ? (
-          <div className="flex justify-center py-20">
+        {loading || (autoApproving && !doneMessage && !terminal && !error) ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-20">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {autoApproving ? "Approving recharge and crediting wallet…" : "Loading…"}
+            </p>
           </div>
-        ) : error ? (
+        ) : error && !payload ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-destructive">
@@ -179,6 +197,32 @@ const WalletRechargeEmailAction = () => {
             <CardContent>
               <Button variant="outline" onClick={() => navigate("/")}>
                 Go home
+              </Button>
+            </CardContent>
+          </Card>
+        ) : error && payload ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <XCircle className="h-6 w-6" /> Approval failed
+              </CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-md border p-4 space-y-2 text-sm">
+                {payload.department_grant_code ? (
+                  <div className="text-xl font-bold text-primary">
+                    Amount to be credited to Grant: {payload.department_grant_code}
+                  </div>
+                ) : null}
+                <div className="text-lg font-bold">Total amount: ₹{payload.amount}</div>
+                <div>
+                  Transaction: {payload.transaction_number || payload.request_id || `#${payload.id}`}
+                </div>
+              </div>
+              <Button disabled={submitting} onClick={() => void handleApprove()}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Retry Approve
               </Button>
             </CardContent>
           </Card>
@@ -194,6 +238,11 @@ const WalletRechargeEmailAction = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
+              {payload?.department_grant_code ? (
+                <p className="text-xl font-bold text-primary">
+                  Amount to be credited to Grant: {payload.department_grant_code}
+                </p>
+              ) : null}
               <p>
                 <span className="text-muted-foreground">Request:</span> {payload?.request_id || `#${payload?.id}`}
               </p>
@@ -217,6 +266,11 @@ const WalletRechargeEmailAction = () => {
               <CardDescription>{doneMessage}</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-1">
+              {payload?.department_grant_code ? (
+                <p className="text-xl font-bold text-primary">
+                  Amount to be credited to Grant: {payload.department_grant_code}
+                </p>
+              ) : null}
               <p>
                 <span className="text-muted-foreground">Transaction:</span>{" "}
                 {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}
@@ -227,17 +281,20 @@ const WalletRechargeEmailAction = () => {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>
-                {action === "approve" ? "Approve wallet recharge" : "Decline wallet recharge"}
-              </CardTitle>
+              <CardTitle>Decline wallet recharge</CardTitle>
               <CardDescription>
-                Secure approval interface for{" "}
-                {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}. Once
-                approved, the request cannot be approved again.
+                Secure decline interface for{" "}
+                {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}. A reason is
+                required.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-md border p-4 space-y-2 text-sm">
+                {payload?.department_grant_code ? (
+                  <div className="text-xl font-bold text-primary">
+                    Amount to be credited to Grant: {payload.department_grant_code}
+                  </div>
+                ) : null}
                 <div className="text-lg font-bold text-primary">
                   Total amount: ₹{payload?.amount}
                 </div>
@@ -276,74 +333,49 @@ const WalletRechargeEmailAction = () => {
                   </div>
                 ) : null}
                 <div>
-                  <span className="text-muted-foreground">Amount to be Credited to Grant:</span>{" "}
-                  {payload?.department_grant_code || "—"}
-                </div>
-                <div>
                   <span className="text-muted-foreground">Project Grant Code for Debit:</span>{" "}
                   {payload?.project_grant_code || "—"}
                 </div>
               </div>
 
-              {action === "reject" ? (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label>Decline reason (required)</Label>
-                    <Select value={reasonCode} onValueChange={setReasonCode}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a reason" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {choices.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {reasonCode === OTHER_CODE ? (
-                    <div className="space-y-2">
-                      <Label htmlFor="reason-text">Please specify</Label>
-                      <Textarea
-                        id="reason-text"
-                        value={reasonText}
-                        onChange={(e) => setReasonText(e.target.value)}
-                        placeholder="Enter decline reason"
-                        rows={3}
-                      />
-                    </div>
-                  ) : null}
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Decline reason (required)</Label>
+                  <Select value={reasonCode} onValueChange={setReasonCode}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {choices.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : null}
+                {reasonCode === OTHER_CODE ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="reason-text">Please specify</Label>
+                    <Textarea
+                      id="reason-text"
+                      value={reasonText}
+                      onChange={(e) => setReasonText(e.target.value)}
+                      placeholder="Enter decline reason"
+                      rows={3}
+                    />
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex flex-wrap gap-2">
-                {action === "approve" ? (
-                  <Button disabled={!isPending || submitting} onClick={handleApprove}>
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Approve
-                  </Button>
-                ) : (
-                  <Button
-                    variant="destructive"
-                    disabled={!isPending || submitting}
-                    onClick={handleReject}
-                  >
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Confirm Decline
-                  </Button>
-                )}
                 <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate(
-                      action === "approve"
-                        ? `/wallet/recharge-action/${token}/reject`
-                        : `/wallet/recharge-action/${token}/approve`
-                    )
-                  }
+                  variant="destructive"
+                  disabled={!isPending || submitting}
+                  onClick={handleReject}
                 >
-                  Switch to {action === "approve" ? "Decline" : "Approve"}
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Confirm Decline
                 </Button>
               </div>
             </CardContent>
