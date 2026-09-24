@@ -9,6 +9,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -281,6 +288,7 @@ const Dashboard = () => {
   const [workspaceTitle, setWorkspaceTitle] = useState<string>("");
   /** Remount MemoryRouter when a menu item opens a new section. */
   const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
@@ -1275,6 +1283,7 @@ const Dashboard = () => {
       }
     }
     if (!path.startsWith("/")) path = `/${path}`;
+    setMobileMenuOpen(false);
     setWorkspacePath(path);
     setWorkspaceTitle(title || path.replace(/^\//, "").replace(/[-_/]/g, " "));
     setWorkspaceEpoch((n) => n + 1);
@@ -2539,7 +2548,19 @@ const Dashboard = () => {
         <MigrationPortalBanner variant="notice" />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
-          <aside className="lg:col-span-3 xl:col-span-2 order-1 min-w-0 max-w-full lg:max-w-[16.5rem] xl:max-w-none">
+          <div className="lg:hidden sticky top-16 z-30 -mx-1 mb-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full min-h-11 justify-start gap-2 shadow-sm"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <Menu className="h-4 w-4 shrink-0" aria-hidden />
+              Dashboard menu
+            </Button>
+          </div>
+
+          <aside className="hidden lg:block lg:col-span-3 xl:col-span-2 order-1 min-w-0 max-w-full lg:max-w-[16.5rem] xl:max-w-none">
             <div className="sticky top-6 space-y-2">
               <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                 <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
@@ -3984,6 +4005,1458 @@ const Dashboard = () => {
               </Card>
             </div>
           </aside>
+
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent
+              side="left"
+              className="flex w-[min(100vw-1.5rem,20rem)] flex-col gap-0 overflow-y-auto p-0 sm:max-w-sm"
+            >
+              <SheetHeader className="space-y-1 border-b px-4 py-4 text-left">
+                <SheetTitle>Dashboard menu</SheetTitle>
+                <SheetDescription>Opens on the right</SheetDescription>
+              </SheetHeader>
+              <div
+                className="dashboard-menu-nav space-y-1.5 px-2.5 pb-8 pt-3"
+                onClickCapture={(e) => {
+                  const t = e.target as HTMLElement | null;
+                  if (t?.closest('.cursor-pointer, button, a, [role="button"]')) {
+                    queueMicrotask(() => setMobileMenuOpen(false));
+                  }
+                }}
+              >
+        {isAccountsInChargeUser ? (
+        <div className="dashboard-uniform-cards flex flex-col gap-2">
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
+            onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                  <Banknote className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Verify physical receipts, review user details, and mark verified
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                Review &amp; verify
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+            onClick={() => openWorkspace("/my-bookings")}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                  <Globe2 className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">External booking requests</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Manage external sample bookings (hold and forward to laboratory)
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                Manage external bookings
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View booking and financial reports
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
+                View Reports
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+        ) : (
+        <div className="dashboard-uniform-cards flex flex-col gap-2">
+          {!isLabInchargeUser && (<Card 
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-2 border-primary/45 shadow-md shadow-primary/15 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/70 h-full ring-1 ring-primary/25"
+            onClick={() => { openWorkspace("/equipments"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">{isOicUser ? "Create booking" : "Browse equipment"}</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    {isOicUser
+                      ? "Create bookings for users on equipment you manage"
+                      : "Browse and book available laboratory equipment"}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
+                {isOicUser ? "Create booking" : "Browse equipment"}
+              </span>
+            </CardContent>
+          </Card>)}
+          {isLabInchargeUser && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/leave-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Operator availability</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Intimate periods when you are unavailable for equipment operations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/leave-management");
+                  }}
+                >
+                  Intimate Unavailability
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {canSeeOicLeaveManagement && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/oic-leave-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Leave management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review operator leave / unavailability intimations and apply for self
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/oic-leave-management");
+                  }}
+                >
+                  Open leave management
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {(isAdmin || isDeptAdmin) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
+              onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Banknote className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Complete list — verify physical receipts, user details, and remarks
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin-settings/wallet-recharge-requests");
+                  }}
+                >
+                  Open list
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {(isAdmin || isDeptAdmin) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/team-calendar")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Team calendar</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Spot department absences at a glance
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/team-calendar");
+                  }}
+                >
+                  Open calendar
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          
+
+          {!isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/my-bookings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">View bookings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Check your current and past bookings
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {showFacultyUrgentWalletCard && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => openWorkspace("/urgent-requests-wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent booking requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review and approve urgent booking requests from students under your supervision
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingFacultyUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : facultyUrgentPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {facultyUrgentPendingCount} pending request{facultyUrgentPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/my-urgent-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent booking request</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit an urgent request or view the status of your submitted requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingMyUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : myUrgentRequestsCount > 0 ? (
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                    {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
+                  </p>
+                ) : null}
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
+                  Open urgent booking request
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/proforma-invoice")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Proforma invoice</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Get cost estimate for equipments and samples/slots before booking
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma invoice</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && showWalletOption && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                  {hasWallet ? "Open Wallet" : "Wallet"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(userTypeStr === "student" ||
+            userTypeStr === "individual_student" ||
+            userTypeStr === "faculty" ||
+            userTypeStr === "external" ||
+            userTypeStr === "rnd" ||
+            userTypeStr === "institute" ||
+            userTypeStr === "startup_incubated_iitr" ||
+            userTypeStr === "external_startup_msme" ||
+            userTypeStr === "other") && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/my-publications")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My publications</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit journal references that used IIC instruments; approved entries appear on equipment Publications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/my-nomination-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Nomination requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage TA/equipment operating nominations and submit your resume for review
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage nomination requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeeTaDutyAssignmentsCard && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/ta-assignments")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Allocate TA duties and track assignment-to-reward workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                  Open TA assignments
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isLabInchargeUser && (
+          <Card 
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View your booking history and statistics
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
+                View Reports
+              </span>
+            </CardContent>
+          </Card>
+          )}
+
+          {(userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
+            userGuide && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/user-guide", "User guide")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">User guide</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Step-by-step guide for using the booking portal
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/user-guide", "User guide");
+                  }}
+                >
+                  Open user guide
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {userTypeStr === "faculty" && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/student-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Student management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Students for whom you are the supervisor
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
+                >
+                  View students
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+
+          {!isLabInchargeUser && (<Card 
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <Star className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Rate your experience</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                      Rate the portal, ease of booking, and share suggestions — you can update anytime
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Give Feedback</Button>
+            </CardContent>
+          </Card>)}
+
+          {!isLabInchargeUser && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/tickets")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <MessageSquarePlus className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Support tickets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Report issues, ask the lab, or track support conversations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isOperatorOrManager || isDeptAdmin) && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/booking-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage Bookings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOperatorOrManager && !isLabInchargeUser && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => openWorkspace("/urgent-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review and approve or reject urgent booking requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : urgentRequestsPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {urgentRequestsPendingCount} pending request{urgentRequestsPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isOicUser || isAdmin) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/notice-board-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Megaphone className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Notice board requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit notices for approval; complete expiry for equipment unavailability drafts
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Manage notice requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isOicUser || userTypeStr === "faculty") && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/publication-claims")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Publication claims</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {userTypeStr === "faculty"
+                        ? "Review publication claims from your students"
+                        : "Review external user-submitted journal references for your instruments"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingPublicationClaimsCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : publicationClaimsPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
+                    {publicationClaimsPendingCount} pending claim
+                    {publicationClaimsPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Review publication claims</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeeOicTaNomination && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/ta-nomination-call")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <Send className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA nomination call</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Initiate a request for faculty to nominate students to operate an equipment (semester-wise)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Initiate TA nomination call</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeeOicRewardConfig && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin-settings/rewards")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Star className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Reward config
+                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Per equipment</Badge>
+                    </CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Configure TA reward earning and redemption policy per equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open reward settings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isOicUser) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/accessories")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <Wrench className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Accessories</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Enable or disable equipment accessories and additional accessories
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage accessories</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isOicUser) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/print-materials")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <PackageOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">3D print materials</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Add, edit, enable, or disable filament materials for PRINT_3D equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage materials</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isOicUser) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/quota-configurations")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-700 text-white shadow-lg">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Quota configurations</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Weekly and monthly quotas for equipment groups you manage
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-emerald-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage quotas</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeeOicMultiMode && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/multi-mode")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                    <GitBranch className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Schedule modes and set each mode&apos;s operate days via Change slot status
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage modes</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/booking-attempt-logs")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking attempt log</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View booking submit attempts (success and failure)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => openWorkspace("/manage/external-user-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">External user management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Verify external departments/organizations and external users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Open verification
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canVerifyExternalOrgs && !isAdmin && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => openWorkspace("/manage/external-user-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">External organization verification</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review KYC and approve or reject external organizations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Open verification
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canManageDeptRbac && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
+              onClick={() =>
+                openWorkspace(
+                  isAdmin ? "/admin/department-administration" : "/manage/department-administration",
+                  "Department administration"
+                )
+              }
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-slate-700 text-white shadow-lg">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department administration</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {isAdmin
+                        ? "Manage department staff modules and permission caps"
+                        : "Manage OIC, Lab In Charge, Accounts In Charge (department finances), and Faculty Credit Facility"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-slate-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                  Open
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOrgAdmin && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
+              onClick={() => openWorkspace("/organization/users")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-primary text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Organization users</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Add and activate members in your external organization
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-primary mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-slate-700 hover:bg-slate-800 text-white">
+                  Manage members
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
+            <Card 
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => openWorkspace("/equipment-waitlist")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment waitlist</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View and clear waitlist queue per equipment; notify when slots free
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/equipment-lifecycle")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment lifecycle &amp; expenses</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Purchase, warranty, AMC, expenses, accessories, write-off workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open lifecycle hub</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/procurement-workflow")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Procurement workflow</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Office verification, store approval, head approval and purchase closure
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
+              onClick={() => openWorkspace("/inventory-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-emerald-600 text-white shadow-lg">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Inventory management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage item requests, stock transactions, and issued assets
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-lime-600 hover:bg-lime-700 text-white">Open inventory tools</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/remote-analysis")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Monitor className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Remote analysis</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Workstation registry, catalog, equipment↔software, inventory, and remote commands
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open remote analysis</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openWorkspace("/remote-analysis/software-catalog");
+                    }}
+                  >
+                    Software catalog
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openWorkspace("/remote-analysis/equipment-software");
+                    }}
+                  >
+                    Eq ↔ Software
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/department-sync")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
+                    <Server className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department sync agents</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Agents, assignments, profiles, commands, heartbeats, workspaces, and sync logs
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open department sync</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/laboratory-infrastructure")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg">
+                    <HardDrive className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Laboratory infrastructure</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Fleet monitoring, diagnostics, repair, alerts, and lifecycle for DSA, Equipment PCs, and Analysis PCs
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/laboratory-infrastructure");
+                  }}
+                >
+                  Open Fleet Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/test-dashboard")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Acceptance test dashboard</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Phase 2.5 SAT coverage — module health, pass/fail drill-down (Main Admin)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/test-dashboard");
+                  }}
+                >
+                  Open Test Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg">
+                    <HardDrive className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Deployment center</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      DSA, Remote Analysis Agent, and Equipment PC Wizard — versions, SHA-256, ticket downloads
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/deployment-center");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Open Deployment Center
+                </Button>
+                <Button
+                  className="w-full bg-sky-600 hover:bg-sky-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/remote-analysis/agent-installer");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  RA Agent
+                </Button>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/department-sync/agent-installer");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  DSA
+                </Button>
+                <Button
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/device-provisioning");
+                  }}
+                >
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Devices
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
+              onClick={() => openWorkspace("/content-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg">
+                    <Layout className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Content management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Menu, pages, home content and hero images (CMS)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white">Manage content</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin-settings/support")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <LifeBuoy className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Support tickets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review tickets, attachments, comments; mark resolved and notify users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open tickets</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {canSeeAdminSettingsCard && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin-settings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-lg">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Admin settings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Equipment, users, groups and wallet management
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-accent to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open settings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+
+          {isAdmin && (
+            <Card 
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => openWorkspace("/calendar-colors")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg">
+                    <Palette className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Calendar colors</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Customize weekly window colors for slot states and holidays
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
+              </CardContent>
+            </Card>
+          )}
+
+        </div>
+        )}
+              </div>
+            </SheetContent>
+          </Sheet>
 
           <div className="lg:col-span-9 xl:col-span-10 order-2 min-w-0 space-y-6">
             {workspacePath ? (

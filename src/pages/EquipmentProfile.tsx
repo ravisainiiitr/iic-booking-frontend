@@ -664,7 +664,7 @@ const EquipmentProfile = () => {
               variant={opts.active || opts.variant === "primary" ? "default" : "outline"}
               disabled={opts.disabled}
               className={cn(
-                "w-full max-w-full justify-start gap-2 h-auto min-h-0 py-1.5 px-2.5 text-sm font-medium whitespace-normal text-left leading-snug rounded-md",
+              "w-full max-w-full justify-start gap-2 h-auto min-h-11 lg:min-h-0 py-2.5 lg:py-1.5 px-2.5 text-sm font-medium whitespace-normal text-left leading-snug rounded-md",
                 opts.active && "shadow-sm",
                 opts.variant === "primary" &&
                   !opts.active &&
@@ -1244,13 +1244,13 @@ const EquipmentProfile = () => {
                 </Card>
               </div>
 
-              <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 w-full max-w-[12rem]">
-                <div className="sticky top-6 space-y-2">
+              <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 w-full max-w-none lg:max-w-[12rem]">
+                <div className="lg:sticky lg:top-6 space-y-2">
                   {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
                     <button
                       type="button"
                       onClick={handleBookOrManageClick}
-                      className="group relative w-full overflow-hidden rounded-xl border border-emerald-800 bg-emerald-700 px-2 py-3.5 text-center text-white shadow-md shadow-emerald-900/20 transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                      className="group relative w-full overflow-hidden rounded-xl border border-emerald-800 bg-emerald-700 px-2 py-3.5 text-center text-white shadow-md shadow-emerald-900/20 transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 min-h-12"
                     >
                       <span className="relative z-10 flex flex-col items-center justify-center gap-1.5">
                         <Calendar className="h-5 w-5 shrink-0" aria-hidden />

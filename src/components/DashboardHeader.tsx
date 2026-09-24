@@ -320,13 +320,13 @@ const DashboardHeader = () => {
             <>
           <NotificationPanel />
           {hasWallet && (
-            <div className="text-sm">
+            <div className="hidden sm:block text-sm">
               <span className="text-muted-foreground">Balance:</span>{" "}
               <span className="font-semibold">₹{walletBalance.toFixed(2)}</span>
             </div>
           )}
           {showWalletOption && !hasWallet && (
-            <div className="text-sm text-muted-foreground">
+            <div className="hidden sm:block text-sm text-muted-foreground">
               <Link to="/wallet" className="underline hover:text-foreground transition-colors">
                 Request Wallet Access
               </Link>

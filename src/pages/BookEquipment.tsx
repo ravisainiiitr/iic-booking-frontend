@@ -5941,6 +5941,9 @@ const BookEquipment = () => {
             </div>
 
             <div className="overflow-auto max-h-[min(70vh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-primary/5 dark:to-primary/10">
+              <p className="mb-2 text-[11px] text-muted-foreground sm:hidden">
+                Swipe sideways to view the full week calendar
+              </p>
               {loadingStatusSlots ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
                   <span className="animate-pulse">Loading slots…</span>
@@ -6263,12 +6266,12 @@ const BookEquipment = () => {
         )}
 
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <div className="sticky bottom-4 z-30 w-full max-w-none mx-auto mb-10 rounded-2xl border border-primary/25 bg-card/95 shadow-xl backdrop-blur-sm">
-            <div className="border-b border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 px-5 py-4 dark:border-primary/40 dark:from-primary/10 dark:to-accent/10">
-              <h3 className="text-lg font-semibold text-foreground">Apply changes</h3>
+          <div className="sticky bottom-2 sm:bottom-4 z-30 w-full max-w-none mx-auto mb-6 sm:mb-10 rounded-2xl border border-primary/25 bg-card/95 shadow-xl backdrop-blur-sm">
+            <div className="border-b border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 px-4 py-3 sm:px-5 sm:py-4 dark:border-primary/40 dark:from-primary/10 dark:to-accent/10">
+              <h3 className="text-base sm:text-lg font-semibold text-foreground">Apply changes</h3>
               <p className="text-sm text-muted-foreground mt-1">Select slots or dates above, choose an operation, then apply.</p>
             </div>
-            <div className="p-5 md:p-6 space-y-4">
+            <div className="p-4 sm:p-5 md:p-6 space-y-4">
               {(selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
                 <div className="rounded-xl border border-primary/70 bg-primary/5 px-4 py-3 dark:border-primary/50 dark:bg-primary/10">
                   <p className="text-sm font-semibold text-foreground">Selected slots summary</p>
@@ -6285,14 +6288,14 @@ const BookEquipment = () => {
                   </ul>
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
                                 {updatingSlotStatus && (
                                   <div className="w-full space-y-2">
                                     <p className="text-sm font-medium text-muted-foreground">Applying changes…</p>
                                     <Progress value={applyProgressPercent} className="h-2.5 w-full" />
                                   </div>
                                 )}
-                                <Label className="shrink-0 font-bold text-lg text-foreground">Select Operation</Label>
+                                <Label className="shrink-0 font-bold text-base sm:text-lg text-foreground">Select Operation</Label>
                                 <Select
                                   value={newSlotStatus}
                                   onValueChange={(v) => {
@@ -6303,7 +6306,7 @@ const BookEquipment = () => {
                                     setNewSlotStatus(v);
                                   }}
                                 >
-                                  <SelectTrigger className="w-[260px] md:w-[280px] h-12 text-base font-medium">
+                                  <SelectTrigger className="w-full sm:w-[260px] md:w-[280px] h-12 text-base font-medium">
                                     <SelectValue placeholder="Select operation" />
                                   </SelectTrigger>
                                   <SelectContent>

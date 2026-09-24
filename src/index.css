@@ -142,6 +142,12 @@
     font-size: 106.25%;
   }
 
+  @media (max-width: 640px) {
+    html {
+      font-size: 100%;
+    }
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01" on, "cv02" on;
@@ -281,6 +287,34 @@
   font-weight: 600 !important;
   line-height: 1.15rem !important;
   letter-spacing: -0.01em;
+}
+
+/* Phone: larger tap targets for dashboard menu rows (desktop keeps compact) */
+@media (max-width: 640px) {
+  .dashboard-menu-nav .dashboard-uniform-cards {
+    gap: 0.45rem;
+  }
+
+  .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer [class*="CardHeader"],
+  .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer > div:first-child {
+    padding: 0.65rem 0.7rem !important;
+    min-height: 2.75rem;
+  }
+
+  .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-12.w-12 {
+    height: 2rem !important;
+    width: 2rem !important;
+  }
+
+  .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-12.w-12 svg {
+    height: 1rem !important;
+    width: 1rem !important;
+  }
+
+  .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .text-lg {
+    font-size: 0.9rem !important;
+    line-height: 1.25rem !important;
+  }
 }
 
 .dashboard-uniform-cards .cursor-pointer:hover {

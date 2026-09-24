@@ -2333,8 +2333,8 @@ const Wallet = () => {
 
             {/* Recharge Dialog */}
             {showRechargeDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] p-4">
-                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] p-4 safe-pad">
+                <Card className="w-full max-w-lg max-h-[90dvh] overflow-y-auto shadow-2xl">
                   <CardHeader className="sticky top-0 bg-card z-10 border-b">
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle>Recharge Wallet</CardTitle>
@@ -2997,8 +2997,8 @@ const Wallet = () => {
                   </div>
 
                   {showWithdrawDialog && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                      <Card className="w-full max-w-md mx-4">
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 safe-pad">
+                      <Card className="w-full max-w-md max-h-[90dvh] overflow-y-auto mx-0">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <CardTitle>Request bank transfer</CardTitle>
@@ -3941,10 +3941,10 @@ const Wallet = () => {
             ) : showTransactionHistoryExpanded ? (
               <>
                 <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg bg-muted/40 border border-border/60">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
                     <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as "all" | "credit" | "debit")}>
-                      <SelectTrigger className="w-[120px] h-9">
+                      <SelectTrigger className="w-full sm:w-[120px] h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -3954,28 +3954,28 @@ const Wallet = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
                     <Input
                       type="date"
-                      className="w-[140px] h-9"
+                      className="w-full sm:w-[140px] h-9"
                       value={txDateFrom}
                       onChange={(e) => setTxDateFrom(e.target.value)}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
                     <Input
                       type="date"
-                      className="w-[140px] h-9"
+                      className="w-full sm:w-[140px] h-9"
                       value={txDateTo}
                       onChange={(e) => setTxDateTo(e.target.value)}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Department</Label>
                     <Select value={txDepartmentFilter || "__all__"} onValueChange={(v) => setTxDepartmentFilter(v === "__all__" ? "" : v)}>
-                      <SelectTrigger className="w-[160px] h-9">
+                      <SelectTrigger className="w-full sm:w-[160px] h-9">
                         <SelectValue placeholder="All departments" />
                       </SelectTrigger>
                       <SelectContent>
@@ -3988,10 +3988,10 @@ const Wallet = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Equipment</Label>
                     <Select value={txEquipmentFilter || "__all__"} onValueChange={(v) => setTxEquipmentFilter(v === "__all__" ? "" : v)}>
-                      <SelectTrigger className="w-[180px] h-9">
+                      <SelectTrigger className="w-full sm:w-[180px] h-9">
                         <SelectValue placeholder="All equipment" />
                       </SelectTrigger>
                       <SelectContent>
@@ -4004,13 +4004,13 @@ const Wallet = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Booked by</Label>
                     <Select
                       value={txBookedByFilter || "__all__"}
                       onValueChange={(v) => setTxBookedByFilter(v === "__all__" ? "" : v)}
                     >
-                      <SelectTrigger className="w-[180px] h-9">
+                      <SelectTrigger className="w-full sm:w-[180px] h-9">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
@@ -4026,11 +4026,11 @@ const Wallet = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[180px] w-full">
                     <Search className="h-4 w-4 text-muted-foreground shrink-0" />
                     <Input
                       placeholder="Search description or equipment..."
-                      className="h-9"
+                      className="h-9 w-full"
                       value={txSearchText}
                       onChange={(e) => setTxSearchText(e.target.value)}
                     />
@@ -4055,7 +4055,7 @@ const Wallet = () => {
                   )}
                 </div>
                 <div className="rounded-xl border border-border/80 overflow-hidden shadow-sm">
-                <Table>
+                  <div className="table-scroll overflow-x-auto">                <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
                       <TableHead className="font-semibold text-foreground min-w-[180px]">Equipment Name</TableHead>
@@ -4161,7 +4161,8 @@ const Wallet = () => {
                     )}
                   </TableBody>
                 </Table>
-              </div>
+                  </div>
+                </div>
               </>
             ) : null}
           </CardContent>
