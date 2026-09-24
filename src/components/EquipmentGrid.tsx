@@ -309,8 +309,8 @@ const EquipmentGrid = () => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);
               }}
-              className="min-w-0 flex-1"
-              triggerClassName="h-11 w-full text-sm font-semibold"
+              className="min-w-0 max-w-md"
+              triggerClassName="h-11 w-full text-base font-semibold"
               defaultDepartmentName="Institute Instrumentation Centre"
               disabled={!departmentReady && !isDeptAdmin}
             />

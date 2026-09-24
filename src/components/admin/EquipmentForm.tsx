@@ -2234,7 +2234,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     <div className="space-y-1 text-[11px] text-muted-foreground">
                       <p>
                         Assign <code>charge</code> (₹). Inputs: <code>pc</code>, <code>sc</code>, A–Z,{" "}
-                        <code>TIME</code> (minutes after time formula), <code>SLOT_DURATION_MINUTES</code>.
+                        <code>TIME</code> / <code>time</code> (minutes after time formula),{" "}
+                        <code>SLOT_DURATION_MINUTES</code>.
                         Helpers: <code>min</code>/<code>max</code>/<code>abs</code>/<code>round</code>/
                         <code>ceil</code>/<code>floor</code>/<code>range</code>.
                       </p>

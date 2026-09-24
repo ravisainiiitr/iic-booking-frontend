@@ -2564,7 +2564,7 @@ const Dashboard = () => {
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-lg">Wallet Recharge Requests</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
-                    Review received recharge requests and approve them
+                    Verify physical receipts, review user details, and mark verified
                   </CardDescription>
                 </div>
               </div>
@@ -2572,7 +2572,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                Review &amp; approve
+                Review &amp; verify
               </Button>
             </CardContent>
           </Card>
@@ -2724,6 +2724,38 @@ const Dashboard = () => {
                   }}
                 >
                   Open leave management
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {(isAdmin || isDeptAdmin) && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
+              onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Banknote className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet Recharge Requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Complete list — verify physical receipts, user details, and remarks
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin-settings/wallet-recharge-requests");
+                  }}
+                >
+                  Open list
                 </Button>
               </CardContent>
             </Card>

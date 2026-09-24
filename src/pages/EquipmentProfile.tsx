@@ -653,7 +653,7 @@ const EquipmentProfile = () => {
               variant={opts.active || opts.variant === "primary" ? "default" : "outline"}
               disabled={opts.disabled}
               className={cn(
-                "w-full max-w-full justify-start gap-1.5 h-auto min-h-0 py-1 px-2 text-[11px] font-medium whitespace-normal text-left leading-tight rounded-md",
+                "w-full max-w-full justify-start gap-2 h-auto min-h-0 py-1.5 px-2.5 text-sm font-medium whitespace-normal text-left leading-snug rounded-md",
                 opts.active && "shadow-sm",
                 opts.variant === "primary" &&
                   !opts.active &&
@@ -664,7 +664,7 @@ const EquipmentProfile = () => {
               )}
               onClick={opts.onClick}
             >
-              <span className="shrink-0 opacity-90 [&_svg]:h-3 [&_svg]:w-3">{opts.icon}</span>
+              <span className="shrink-0 opacity-90 [&_svg]:h-3.5 [&_svg]:w-3.5">{opts.icon}</span>
               <span className="leading-tight break-words">{label}</span>
             </Button>
           );
@@ -1015,24 +1015,16 @@ const EquipmentProfile = () => {
                 </Card>
               </div>
 
-              <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 max-w-[11.5rem] lg:max-w-none">
+              <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 w-full max-w-[12rem]">
                 <div className="sticky top-6 space-y-2">
                   {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
                     <button
                       type="button"
                       onClick={handleBookOrManageClick}
-                      className="book-this-cta group relative w-full overflow-hidden rounded-xl border-2 border-amber-300/80 px-2 py-3.5 text-center shadow-[0_0_0_3px_rgba(245,158,11,0.35),0_10px_28px_-6px_rgba(180,83,9,0.55)] transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
-                      style={{ animation: "book-cta-cycle 2s ease-in-out infinite" }}
+                      className="group relative w-full overflow-hidden rounded-xl border border-emerald-800 bg-emerald-700 px-2 py-3.5 text-center text-white shadow-md shadow-emerald-900/20 transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                     >
-                      <style>{`
-                        @keyframes book-cta-cycle {
-                          0%, 100% { background-color: #b45309; color: #fff; box-shadow: 0 0 0 3px rgba(245,158,11,0.4), 0 10px 28px -6px rgba(180,83,9,0.55); }
-                          33% { background-color: #047857; color: #fff; box-shadow: 0 0 0 3px rgba(16,185,129,0.45), 0 10px 28px -6px rgba(4,120,87,0.55); }
-                          66% { background-color: #1d4ed8; color: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,0.45), 0 10px 28px -6px rgba(29,78,216,0.55); }
-                        }
-                      `}</style>
                       <span className="relative z-10 flex flex-col items-center justify-center gap-1.5">
-                        <Calendar className="h-5 w-5 shrink-0 drop-shadow-sm" aria-hidden />
+                        <Calendar className="h-5 w-5 shrink-0" aria-hidden />
                         <span className="text-[13px] font-extrabold leading-tight tracking-wide uppercase">
                           {canManageEquipment() || isOicUser() ? "Create Booking" : "Book This Equipment"}
                         </span>
@@ -1041,13 +1033,13 @@ const EquipmentProfile = () => {
                   )}
                   <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                     <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
-                    <CardHeader className="pb-1 pt-2.5 px-2">
-                      <CardTitle className="text-xs font-semibold tracking-tight">Equipment menu</CardTitle>
-                      <CardDescription className="text-[10px] leading-snug">
+                    <CardHeader className="pb-1.5 pt-3 px-2.5">
+                      <CardTitle className="text-sm font-semibold tracking-tight">Equipment menu</CardTitle>
+                      <CardDescription className="text-xs leading-snug">
                         Opens on the right
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-0.5 px-1.5 pb-2">
+                    <CardContent className="space-y-1 px-2 pb-2.5">
                       {showCreateOrBookCta() && (
                         navBtn(
                           "book",

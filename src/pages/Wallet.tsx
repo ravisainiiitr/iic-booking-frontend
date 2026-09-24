@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -262,6 +262,10 @@ const Wallet = () => {
   const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
   const [loadingRechargeRequests, setLoadingRechargeRequests] = useState(false);
   const [showRechargeHistory, setShowRechargeHistory] = useState(false);
+  const [receiptAttachRow, setReceiptAttachRow] = useState<any | null>(null);
+  const [receiptAttachUtr, setReceiptAttachUtr] = useState("");
+  const [receiptAttachFile, setReceiptAttachFile] = useState<File | null>(null);
+  const [submittingReceiptAttach, setSubmittingReceiptAttach] = useState(false);
   const [showTransactionHistoryExpanded, setShowTransactionHistoryExpanded] = useState(false);
   const [resendingNotification, setResendingNotification] = useState<number | null>(null);
   const [subWallets, setSubWallets] = useState<Array<{
@@ -3457,7 +3461,12 @@ const Wallet = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Recharge Request History</CardTitle>
-                  <CardDescription>View your previous wallet recharge requests</CardDescription>
+                  <CardDescription>
+                    View your previous wallet recharge requests
+                    {isStudent
+                      ? ". For approved requests you may optionally add or update a receipt number / upload."
+                      : ""}
+                  </CardDescription>
                 </div>
                 <Button
                   variant="outline"
@@ -3653,6 +3662,32 @@ const Wallet = () => {
                                   >
                                     <X className="h-3.5 w-3.5 mr-1" />
                                     Cancel
+                                  </Button>
+                                </div>
+                              ) : req.status === "APPROVED" && isStudent ? (
+                                <div className="flex flex-col gap-1 items-end">
+                                  {req.utr_reference ? (
+                                    <span
+                                      className="text-xs text-muted-foreground max-w-[140px] truncate"
+                                      title={String(req.utr_reference)}
+                                    >
+                                      Receipt: {req.utr_reference}
+                                    </span>
+                                  ) : null}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8"
+                                    onClick={() => {
+                                      setReceiptAttachRow(req);
+                                      setReceiptAttachUtr(String(req.utr_reference || ""));
+                                      setReceiptAttachFile(null);
+                                    }}
+                                  >
+                                    <Upload className="h-3.5 w-3.5 mr-1" />
+                                    {req.utr_reference || (req.payment_receipts?.length ?? 0) > 0
+                                      ? "Update receipt"
+                                      : "Add receipt"}
                                   </Button>
                                 </div>
                               ) : (
@@ -4125,6 +4160,102 @@ const Wallet = () => {
               ) : (
                 "Confirm & Avail"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!receiptAttachRow}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReceiptAttachRow(null);
+            setReceiptAttachUtr("");
+            setReceiptAttachFile(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add / update receipt</DialogTitle>
+            <DialogDescription>
+              Optional for approved recharge{" "}
+              {receiptAttachRow?.request_id || (receiptAttachRow ? `#${receiptAttachRow.id}` : "")} — ₹
+              {receiptAttachRow ? Number(receiptAttachRow.amount).toFixed(2) : ""}. Enter a receipt / UTR
+              number and/or upload a scan. At least one is required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="approved-receipt-utr">Receipt / UTR number (optional)</Label>
+              <Input
+                id="approved-receipt-utr"
+                value={receiptAttachUtr}
+                onChange={(e) => setReceiptAttachUtr(e.target.value)}
+                placeholder="e.g. bank UTR or physical receipt number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="approved-receipt-file">Upload receipt file (optional)</Label>
+              <Input
+                id="approved-receipt-file"
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                onChange={(e) => setReceiptAttachFile(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-muted-foreground">PDF or image. Leave blank to keep the existing file.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReceiptAttachRow(null);
+                setReceiptAttachUtr("");
+                setReceiptAttachFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                submittingReceiptAttach ||
+                (!receiptAttachUtr.trim() && !receiptAttachFile)
+              }
+              onClick={async () => {
+                if (!receiptAttachRow) return;
+                if (!receiptAttachUtr.trim() && !receiptAttachFile) {
+                  toast.error("Enter a receipt number and/or choose a file.");
+                  return;
+                }
+                setSubmittingReceiptAttach(true);
+                try {
+                  const res = await apiClient.attachReceiptToApprovedRechargeRequest(receiptAttachRow.id, {
+                    utr_reference: receiptAttachUtr.trim() || undefined,
+                    receipt_file: receiptAttachFile,
+                  });
+                  if (res.error) {
+                    toast.error(res.error);
+                    return;
+                  }
+                  toast.success(res.data?.message || "Receipt saved");
+                  setReceiptAttachRow(null);
+                  setReceiptAttachUtr("");
+                  setReceiptAttachFile(null);
+                  await fetchRechargeRequests();
+                } catch (e: any) {
+                  toast.error(e?.message || "Failed to save receipt");
+                } finally {
+                  setSubmittingReceiptAttach(false);
+                }
+              }}
+            >
+              {submittingReceiptAttach ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

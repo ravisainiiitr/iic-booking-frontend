@@ -108,7 +108,7 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
   {
     key: "walletRechargeRequests",
     label: "Wallet Recharge Requests",
-    description: "History, search/filters, audit trail, and admin approve / reject / cancel",
+    description: "Complete list with filters, user details, receipt verification remarks, approve / reject / cancel",
     icon: <ShoppingCart className="h-6 w-6" />,
     path: "/admin-settings/wallet-recharge-requests",
     requiresPermission: "admin_settings.wallet",

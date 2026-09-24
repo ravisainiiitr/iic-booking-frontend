@@ -60,11 +60,7 @@ export function BackToDashboardButton({
       const ok = window.confirm(confirmMessage);
       if (!ok) return;
     }
-    // Prefer browser history so Back returns to the previous page.
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
+    // Prefer absolute /dashboard — history.back() often returns to OAuth/auth callback (blank/error).
     navigate(to);
   };
 

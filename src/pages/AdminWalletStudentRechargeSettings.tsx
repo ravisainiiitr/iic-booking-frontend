@@ -88,7 +88,9 @@ export default function AdminWalletStudentRechargeSettings() {
             Wallet Student Recharge Settings
           </h1>
           <p className="text-muted-foreground mt-1">
-            Allow IITR Students to recharge the shared faculty wallet via SBIePay or offline payment-receipt upload.
+            Legacy global toggle. Prefer enabling IITR Student wallet recharge{" "}
+            <strong>per department</strong> under Admin → Departments
+            (&quot;Student wallet recharge&quot;). That control is off by default for every department.
           </p>
         </div>
 
@@ -99,18 +101,20 @@ export default function AdminWalletStudentRechargeSettings() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>IITR Student wallet recharge</CardTitle>
+              <CardTitle>IITR Student wallet recharge (legacy global)</CardTitle>
               <CardDescription>
-                Individual Students keep their own wallet and are not affected by this setting.
+                Department-wise enablement on the Departments admin page is the primary gate.
+                Keep this off unless you need the legacy global override. Individual Students keep
+                their own wallet and are not affected.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <Label className="text-base">Enable IITR Student wallet recharge</Label>
+                  <Label className="text-base">Enable IITR Student wallet recharge (legacy)</Label>
                   <p className="text-sm text-muted-foreground">
-                    When on, IITR Students may recharge via SBIePay or Offline Request (payment receipt upload).
-                    Funds park in the concerned faculty wallet.
+                    Prefer Admin → Departments → &quot;Student wallet recharge&quot; so students can
+                    enter amount, select department, and send an email Accept/Reject request.
                   </p>
                 </div>
                 <Switch checked={enabled} onCheckedChange={setEnabled} />

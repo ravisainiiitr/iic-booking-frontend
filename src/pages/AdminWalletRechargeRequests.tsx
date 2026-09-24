@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, extractAdminListItems } from "@/lib/api";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -33,7 +33,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Banknote, RotateCcw, Eye, Check, X, Ban, BadgeCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Banknote,
+  RotateCcw,
+  Eye,
+  Check,
+  X,
+  Ban,
+  BadgeCheck,
+  ExternalLink,
+  UserRound,
+} from "lucide-react";
 
 interface AuditLog {
   id: number;
@@ -46,6 +58,37 @@ interface AuditLog {
   created_at?: string;
 }
 
+interface UserDetails {
+  id?: number;
+  name?: string;
+  email?: string;
+  emp_id?: string;
+  phone_number?: string;
+  secondary_phone_number?: string;
+  designation?: string;
+  user_type?: string;
+  user_type_display?: string;
+  user_type_alias?: string;
+  department_id?: number | null;
+  department_name?: string;
+  department_code?: string;
+  is_active?: boolean;
+  email_verified?: boolean;
+  date_joined?: string | null;
+}
+
+interface PaymentReceiptRow {
+  id: number;
+  utr_reference?: string;
+  amount?: string;
+  status?: string;
+  payment_date?: string | null;
+  receipt_file_url?: string | null;
+  has_receipt_file?: boolean;
+  finance_remarks?: string;
+  created_at?: string | null;
+}
+
 interface WalletRechargeRequestRow {
   id: number;
   request_id?: string;
@@ -55,11 +98,17 @@ interface WalletRechargeRequestRow {
   user_emp_id?: string;
   employee_number?: string;
   user_department_name?: string;
+  user_details?: UserDetails | null;
+  payment_receipts?: PaymentReceiptRow[];
   department_id?: number;
   department_name?: string;
+  department_code?: string;
   department_grant_code?: string;
   project_grant_code?: string;
   project_name?: string;
+  project_agency?: string;
+  project_head_name?: string;
+  project_head_email?: string;
   amount: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
   status_display?: string;
@@ -77,6 +126,14 @@ interface WalletRechargeRequestRow {
   fund_receipt_verified_by_name?: string;
   fund_receipt_verified_at?: string | null;
   fund_receipt_verification_remarks?: string;
+  account_incharge_name?: string;
+  account_incharge_email?: string;
+}
+
+interface CatalogDepartment {
+  id: number;
+  name: string;
+  code?: string;
 }
 
 const STATUS_OPTIONS = [
@@ -105,13 +162,23 @@ const rechargeModeLabel = (mode?: string) => {
   return mode || "—";
 };
 
+function DetailField({ label, value }: { label: string; value?: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[9rem_1fr] gap-2 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="break-words font-medium text-foreground">{value ?? "—"}</span>
+    </div>
+  );
+}
+
 export default function AdminWalletRechargeRequests() {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isFinance = userTypeStr === "finance";
   const isAdmin = userTypeStr === "admin";
-  const canVerifyFundReceipt = isFinance || isAdmin || userTypeStr === "dept_admin";
+  const isDeptAdmin = userTypeStr === "dept_admin";
+  const canVerifyFundReceipt = isFinance || isAdmin || isDeptAdmin;
   const canAccess =
     userTypeStr === "admin" ||
     userTypeStr === "dept_admin" ||
@@ -121,6 +188,10 @@ export default function AdminWalletRechargeRequests() {
   const [rows, setRows] = useState<WalletRechargeRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("__all__");
+  const [fundVerifiedFilter, setFundVerifiedFilter] = useState<string>("__all__");
+  const [modeFilter, setModeFilter] = useState<string>("__all__");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("__all__");
+  const [departments, setDepartments] = useState<CatalogDepartment[]>([]);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -143,22 +214,39 @@ export default function AdminWalletRechargeRequests() {
     }
     if (!canAccess) {
       toast.error("You do not have access to wallet recharge request management.");
-      navigate("/user-management");
+      navigate(isFinance ? "/dashboard" : "/user-management");
     }
-  }, [navigate, isAuthenticated, user, canAccess, authLoading]);
+  }, [navigate, isAuthenticated, user, canAccess, authLoading, isFinance]);
+
+  useEffect(() => {
+    if (!canAccess || !isAdmin) return;
+    void (async () => {
+      const res = await apiClient.getCatalogDepartments();
+      if (!res.error && res.data?.departments) {
+        setDepartments(
+          (res.data.departments as CatalogDepartment[]).map((d) => ({
+            id: d.id,
+            name: d.name,
+            code: d.code,
+          }))
+        );
+      }
+    })();
+  }, [canAccess, isAdmin]);
 
   const fetchRows = async () => {
     setLoading(true);
-    const params: Record<string, string> = { ordering: "-created_at" };
+    const params: Record<string, string> = { ordering: "-created_at", page_size: "200" };
     if (statusFilter !== "__all__") params.status = statusFilter;
+    if (fundVerifiedFilter === "verified") params.fund_receipt_verified = "true";
+    if (fundVerifiedFilter === "unverified") params.fund_receipt_verified = "false";
+    if (modeFilter !== "__all__") params.recharge_mode = modeFilter;
+    if (departmentFilter !== "__all__") params.department = departmentFilter;
     if (search.trim()) params.search = search.trim();
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     if (projectGrant.trim()) params.project_grant = projectGrant.trim();
-    const res = await apiClient.adminList<WalletRechargeRequestRow>(
-      "walletRechargeRequests",
-      params
-    );
+    const res = await apiClient.adminList<WalletRechargeRequestRow>("walletRechargeRequests", params);
     if (res.error) {
       toast.error(res.error);
       setRows([]);
@@ -172,7 +260,18 @@ export default function AdminWalletRechargeRequests() {
     if (!canAccess) return;
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, statusFilter]);
+  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter]);
+
+  const clearFilters = () => {
+    setStatusFilter("__all__");
+    setFundVerifiedFilter("__all__");
+    setModeFilter("__all__");
+    setDepartmentFilter("__all__");
+    setSearch("");
+    setDateFrom("");
+    setDateTo("");
+    setProjectGrant("");
+  };
 
   const openAction = (row: WalletRechargeRequestRow, type: "approve" | "reject" | "cancel") => {
     setActionRow(row);
@@ -184,7 +283,16 @@ export default function AdminWalletRechargeRequests() {
 
   const openVerify = (row: WalletRechargeRequestRow) => {
     setVerifyRow(row);
-    setVerifyRemarks("");
+    setVerifyRemarks(row.fund_receipt_verification_remarks || "");
+  };
+
+  const openDetails = async (row: WalletRechargeRequestRow) => {
+    setDetailRow(row);
+    // Prefer fresh retrieve for full user_details / receipts when list payload is thin.
+    const res = await apiClient.adminGet<WalletRechargeRequestRow>("walletRechargeRequests", row.id);
+    if (!res.error && res.data) {
+      setDetailRow(res.data);
+    }
   };
 
   const submitAction = async () => {
@@ -230,10 +338,14 @@ export default function AdminWalletRechargeRequests() {
 
   const submitVerify = async () => {
     if (!verifyRow) return;
+    if (!verifyRemarks.trim()) {
+      toast.error("Enter verification remarks after matching the physical receipt.");
+      return;
+    }
     setSubmitting(true);
     const res = await apiClient.adminWalletRechargeRequestVerifyFundReceipt(
       verifyRow.id,
-      verifyRemarks.trim() || undefined
+      verifyRemarks.trim()
     );
     setSubmitting(false);
     if (res.error) {
@@ -247,7 +359,19 @@ export default function AdminWalletRechargeRequests() {
     fetchRows();
   };
 
+  const roleCaption = useMemo(() => {
+    if (isFinance) {
+      return "Department Account In-charge view: verify physical receipts against the list, add remarks, and mark verified. Approve pending requests when appropriate.";
+    }
+    if (isDeptAdmin) {
+      return "Department Administrator view: complete list for your department. Verify receipts, review user details, and manage pending requests.";
+    }
+    return "Main Administrator view: all wallet recharge requests (every type). Filter, open full user details, verify against physical receipt, and record remarks.";
+  }, [isFinance, isDeptAdmin]);
+
   if (!canAccess && !authLoading) return null;
+
+  const ud = detailRow?.user_details;
 
   return (
     <div className="page-shell">
@@ -257,30 +381,28 @@ export default function AdminWalletRechargeRequests() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(isFinance ? "/dashboard" : "/user-management")}
+            onClick={() => navigate(isFinance || isDeptAdmin ? "/dashboard" : "/user-management")}
             className="mb-2"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            {isFinance ? "Back to Dashboard" : "Back to User Management"}
+            {isFinance || isDeptAdmin ? "Back to Dashboard" : "Back to User Management"}
           </Button>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Banknote className="h-8 w-8 text-primary" />
             Wallet Recharge Requests
           </h1>
-          <p className="text-muted-foreground mt-1">
-            {isFinance
-              ? "Review wallet recharge requests, verify fund receipt, and approve pending requests. Reject and cancel remain with administrators."
-              : "Full history with search, filters, audit trail, and admin approve / reject / cancel. Admin actions immediately invalidate email approval links."}
-          </p>
+          <p className="text-muted-foreground mt-1">{roleCaption}</p>
         </div>
 
         <Card>
           <CardHeader className="space-y-4">
             <div>
-              <CardTitle>All requests</CardTitle>
-              <CardDescription>Filter by status, date range, user, department, or project grant.</CardDescription>
+              <CardTitle>Complete request list</CardTitle>
+              <CardDescription>
+                Match each row with the physical receipt, open user details, enter remarks, then mark verified.
+              </CardDescription>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <div className="space-y-1">
                 <Label>Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -297,12 +419,60 @@ export default function AdminWalletRechargeRequests() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1 xl:col-span-2">
+              <div className="space-y-1">
+                <Label>Fund receipt</Label>
+                <Select value={fundVerifiedFilter} onValueChange={setFundVerifiedFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All</SelectItem>
+                    <SelectItem value="unverified">Not verified</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Recharge mode</Label>
+                <Select value={modeFilter} onValueChange={setModeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All modes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All modes</SelectItem>
+                    <SelectItem value="project_grant">Project Grant</SelectItem>
+                    <SelectItem value="direct_cash_deposit">Cash / Bank Transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {isAdmin ? (
+                <div className="space-y-1">
+                  <Label>Department</Label>
+                  <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All departments</SelectItem>
+                      {departments.map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>
+                          {d.name}
+                          {d.code ? ` (${d.code})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="space-y-1 sm:col-span-2">
                 <Label>Search</Label>
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="User, emp no, department, grant…"
+                  placeholder="User, emp no, email, department, grant…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") fetchRows();
+                  }}
                 />
               </div>
               <div className="space-y-1">
@@ -322,11 +492,17 @@ export default function AdminWalletRechargeRequests() {
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={fetchRows}>Apply filters</Button>
+              <Button variant="outline" onClick={clearFilters}>
+                Clear
+              </Button>
               <Button variant="outline" size="icon" onClick={fetchRows} title="Refresh">
                 <RotateCcw className="h-4 w-4" />
               </Button>
+              <span className="text-sm text-muted-foreground self-center ml-1">
+                {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
+              </span>
             </div>
           </CardHeader>
           <CardContent>
@@ -356,23 +532,45 @@ export default function AdminWalletRechargeRequests() {
                   <TableBody>
                     {rows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell className="font-medium">{row.request_id || `#${row.id}`}</TableCell>
+                        <TableCell className="font-medium">
+                          <button
+                            type="button"
+                            className="text-primary underline-offset-2 hover:underline"
+                            onClick={() => openDetails(row)}
+                          >
+                            {row.request_id || `#${row.id}`}
+                          </button>
+                        </TableCell>
                         <TableCell>
-                          <div className="font-medium">{row.user_name ?? `User #${row.user}`}</div>
-                          <div className="text-xs text-muted-foreground">{row.user_email}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Emp: {row.employee_number || row.user_emp_id || "—"}
-                          </div>
+                          <button
+                            type="button"
+                            className="text-left group"
+                            onClick={() => openDetails(row)}
+                            title="View full user details"
+                          >
+                            <div className="font-medium text-primary group-hover:underline underline-offset-2 flex items-center gap-1">
+                              <UserRound className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                              {row.user_name ?? `User #${row.user}`}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{row.user_email}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Emp: {row.employee_number || row.user_emp_id || "—"}
+                            </div>
+                          </button>
                         </TableCell>
                         <TableCell>
                           <div>{row.department_name || "—"}</div>
-                          <div className="text-xs text-muted-foreground">{row.department_grant_code || ""}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.department_code || row.department_grant_code || ""}
+                          </div>
                         </TableCell>
                         <TableCell>₹{row.amount}</TableCell>
                         <TableCell className="text-sm">{rechargeModeLabel(row.recharge_mode)}</TableCell>
                         <TableCell className="text-sm">{row.project_grant_code || "—"}</TableCell>
                         <TableCell>
-                          <Badge className={statusBadgeClass(row.status)}>{row.status_display || row.status}</Badge>
+                          <Badge className={statusBadgeClass(row.status)}>
+                            {row.status_display || row.status}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-sm">
                           {row.fund_receipt_verified ? (
@@ -396,7 +594,7 @@ export default function AdminWalletRechargeRequests() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => setDetailRow(row)} title="Details">
+                            <Button variant="ghost" size="icon" onClick={() => openDetails(row)} title="Details">
                               <Eye className="h-4 w-4" />
                             </Button>
                             {canVerifyFundReceipt && !row.fund_receipt_verified ? (
@@ -454,88 +652,166 @@ export default function AdminWalletRechargeRequests() {
       </main>
 
       <Dialog open={!!detailRow} onOpenChange={(open) => !open && setDetailRow(null)}>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{detailRow?.request_id || `Request #${detailRow?.id}`}</DialogTitle>
-            <DialogDescription>Complete request details and audit history.</DialogDescription>
+            <DialogDescription>
+              Full request, user profile, and receipts for physical verification.
+            </DialogDescription>
           </DialogHeader>
           {detailRow ? (
-            <div className="space-y-3 text-sm">
-              <p>
-                <span className="text-muted-foreground">User:</span> {detailRow.user_name} ({detailRow.user_email})
-              </p>
-              <p>
-                <span className="text-muted-foreground">Employee:</span>{" "}
-                {detailRow.employee_number || detailRow.user_emp_id || "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">User department:</span> {detailRow.user_department_name || "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Credit department / grant:</span>{" "}
-                {detailRow.department_name || "—"} / {detailRow.department_grant_code || "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Recharge mode:</span>{" "}
-                {rechargeModeLabel(detailRow.recharge_mode)}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Project grant (debit):</span> {detailRow.project_grant_code || "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Amount:</span> ₹{detailRow.amount}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Status:</span> {detailRow.status_display || detailRow.status}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Fund receipt:</span>{" "}
-                {detailRow.fund_receipt_verified ? "Verified" : "Not verified"}
-              </p>
-              {detailRow.fund_receipt_verified ? (
-                <>
-                  <p>
-                    <span className="text-muted-foreground">Verified by:</span>{" "}
-                    {detailRow.fund_receipt_verified_by_name || "—"}
+            <div className="space-y-5">
+              <section className="rounded-lg border p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <UserRound className="h-4 w-4" />
+                  User details
+                </h3>
+                <DetailField label="Name" value={ud?.name || detailRow.user_name} />
+                <DetailField label="Email" value={ud?.email || detailRow.user_email} />
+                <DetailField
+                  label="Employee / ID"
+                  value={ud?.emp_id || detailRow.employee_number || detailRow.user_emp_id}
+                />
+                <DetailField label="Phone" value={ud?.phone_number} />
+                <DetailField label="Alt. phone" value={ud?.secondary_phone_number} />
+                <DetailField label="Designation" value={ud?.designation} />
+                <DetailField label="User type" value={ud?.user_type_display || ud?.user_type} />
+                <DetailField
+                  label="Home department"
+                  value={
+                    ud?.department_name
+                      ? `${ud.department_name}${ud.department_code ? ` (${ud.department_code})` : ""}`
+                      : detailRow.user_department_name
+                  }
+                />
+                <DetailField
+                  label="Account"
+                  value={
+                    ud
+                      ? `${ud.is_active === false ? "Inactive" : "Active"}${
+                          ud.email_verified ? " · email verified" : ""
+                        }`
+                      : "—"
+                  }
+                />
+                <DetailField
+                  label="Joined"
+                  value={ud?.date_joined ? new Date(ud.date_joined).toLocaleString() : "—"}
+                />
+              </section>
+
+              <section className="rounded-lg border p-3 space-y-2">
+                <h3 className="text-sm font-semibold">Recharge request</h3>
+                <DetailField label="Amount" value={`₹${detailRow.amount}`} />
+                <DetailField label="Mode" value={rechargeModeLabel(detailRow.recharge_mode)} />
+                <DetailField
+                  label="Credit dept"
+                  value={`${detailRow.department_name || "—"}${
+                    detailRow.department_code ? ` (${detailRow.department_code})` : ""
+                  }`}
+                />
+                <DetailField label="Dept grant" value={detailRow.department_grant_code} />
+                <DetailField label="Project grant" value={detailRow.project_grant_code} />
+                <DetailField label="Project" value={detailRow.project_name} />
+                <DetailField label="Agency" value={detailRow.project_agency} />
+                <DetailField
+                  label="Project head"
+                  value={
+                    detailRow.project_head_name
+                      ? `${detailRow.project_head_name}${
+                          detailRow.project_head_email ? ` (${detailRow.project_head_email})` : ""
+                        }`
+                      : "—"
+                  }
+                />
+                <DetailField
+                  label="Account in-charge"
+                  value={
+                    detailRow.account_incharge_name
+                      ? `${detailRow.account_incharge_name}${
+                          detailRow.account_incharge_email ? ` (${detailRow.account_incharge_email})` : ""
+                        }`
+                      : "—"
+                  }
+                />
+                <DetailField label="Status" value={detailRow.status_display || detailRow.status} />
+                <DetailField
+                  label="Requested"
+                  value={detailRow.created_at ? new Date(detailRow.created_at).toLocaleString() : "—"}
+                />
+                {detailRow.response_message ? (
+                  <DetailField label="Message" value={detailRow.response_message} />
+                ) : null}
+              </section>
+
+              <section className="rounded-lg border p-3 space-y-2">
+                <h3 className="text-sm font-semibold">Fund receipt verification</h3>
+                <DetailField
+                  label="Status"
+                  value={detailRow.fund_receipt_verified ? "Verified" : "Not verified"}
+                />
+                {detailRow.fund_receipt_verified ? (
+                  <>
+                    <DetailField label="Verified by" value={detailRow.fund_receipt_verified_by_name} />
+                    <DetailField
+                      label="Verified at"
+                      value={
+                        detailRow.fund_receipt_verified_at
+                          ? new Date(detailRow.fund_receipt_verified_at).toLocaleString()
+                          : "—"
+                      }
+                    />
+                    <DetailField label="Remarks" value={detailRow.fund_receipt_verification_remarks} />
+                  </>
+                ) : canVerifyFundReceipt ? (
+                  <Button size="sm" onClick={() => openVerify(detailRow)}>
+                    <BadgeCheck className="h-4 w-4 mr-2" />
+                    Verify against physical receipt
+                  </Button>
+                ) : null}
+              </section>
+
+              <section className="rounded-lg border p-3 space-y-2">
+                <h3 className="text-sm font-semibold">Uploaded / linked receipts</h3>
+                {(detailRow.payment_receipts || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No uploaded receipt file linked. Verify using the physical receipt held by accounts.
                   </p>
-                  <p>
-                    <span className="text-muted-foreground">Verified at:</span>{" "}
-                    {detailRow.fund_receipt_verified_at
-                      ? new Date(detailRow.fund_receipt_verified_at).toLocaleString()
-                      : "—"}
-                  </p>
-                  {detailRow.fund_receipt_verification_remarks ? (
-                    <p>
-                      <span className="text-muted-foreground">Verification remarks:</span>{" "}
-                      {detailRow.fund_receipt_verification_remarks}
-                    </p>
-                  ) : null}
-                </>
-              ) : null}
-              {detailRow.response_message ? (
-                <p>
-                  <span className="text-muted-foreground">Message:</span> {detailRow.response_message}
-                </p>
-              ) : null}
-              {detailRow.approved_by_email ? (
-                <p>
-                  <span className="text-muted-foreground">Processed by:</span> {detailRow.approved_by_email}
-                </p>
-              ) : null}
-              {canVerifyFundReceipt && !detailRow.fund_receipt_verified ? (
-                <Button size="sm" onClick={() => openVerify(detailRow)}>
-                  <BadgeCheck className="h-4 w-4 mr-2" />
-                  Verify Fund Receipt
-                </Button>
-              ) : null}
-              <div>
-                <div className="font-medium mb-2">Audit log</div>
+                ) : (
+                  <ul className="space-y-2">
+                    {(detailRow.payment_receipts || []).map((r) => (
+                      <li key={r.id} className="rounded-md border bg-muted/30 p-2 text-sm">
+                        <div>
+                          UTR / ref: <span className="font-medium">{r.utr_reference || "—"}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          ₹{r.amount} · {r.status}
+                          {r.payment_date ? ` · paid ${r.payment_date}` : ""}
+                        </div>
+                        {r.receipt_file_url ? (
+                          <a
+                            href={r.receipt_file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline mt-1"
+                          >
+                            Open receipt file <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section>
+                <div className="font-medium mb-2 text-sm">Audit log</div>
                 {(detailRow.audit_logs || []).length === 0 ? (
-                  <p className="text-muted-foreground">No audit entries yet.</p>
+                  <p className="text-muted-foreground text-sm">No audit entries yet.</p>
                 ) : (
                   <ul className="space-y-2 border rounded-md p-3">
                     {(detailRow.audit_logs || []).map((log) => (
-                      <li key={log.id} className="border-b last:border-0 pb-2 last:pb-0">
+                      <li key={log.id} className="border-b last:border-0 pb-2 last:pb-0 text-sm">
                         <div className="font-medium">
                           {log.action} → {log.to_status}
                         </div>
@@ -548,7 +824,7 @@ export default function AdminWalletRechargeRequests() {
                     ))}
                   </ul>
                 )}
-              </div>
+              </section>
             </div>
           ) : null}
         </DialogContent>
@@ -557,28 +833,51 @@ export default function AdminWalletRechargeRequests() {
       <Dialog open={!!verifyRow} onOpenChange={(open) => !open && setVerifyRow(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Verify Fund Receipt</DialogTitle>
+            <DialogTitle>Verify fund receipt</DialogTitle>
             <DialogDescription>
-              {verifyRow?.request_id || `#${verifyRow?.id}`} — ₹{verifyRow?.amount}. Confirm that funds have been
-              received for this recharge request.
+              {verifyRow?.request_id || `#${verifyRow?.id}`} — ₹{verifyRow?.amount} ·{" "}
+              {verifyRow?.user_name}. Match the physical receipt, then record remarks and confirm.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-3 text-sm rounded-md border p-3 bg-muted/20">
+            <div>
+              <span className="text-muted-foreground">User: </span>
+              {verifyRow?.user_name} ({verifyRow?.user_email})
+            </div>
+            <div>
+              <span className="text-muted-foreground">Emp / ID: </span>
+              {verifyRow?.employee_number || verifyRow?.user_emp_id || "—"}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Department: </span>
+              {verifyRow?.department_name || "—"}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Mode: </span>
+              {rechargeModeLabel(verifyRow?.recharge_mode)}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Project grant: </span>
+              {verifyRow?.project_grant_code || "—"}
+            </div>
+          </div>
           <div className="space-y-2">
-            <Label>Optional remarks</Label>
+            <Label htmlFor="verify-remarks">Verification remarks (required)</Label>
             <Textarea
+              id="verify-remarks"
               value={verifyRemarks}
               onChange={(e) => setVerifyRemarks(e.target.value)}
-              rows={3}
-              placeholder="Optional notes about fund receipt"
+              rows={4}
+              placeholder="e.g. Physical receipt no. … dated … matched; amount and emp ID verified."
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setVerifyRow(null)}>
               Close
             </Button>
-            <Button disabled={submitting} onClick={submitVerify}>
+            <Button disabled={submitting || !verifyRemarks.trim()} onClick={submitVerify}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Confirm verification
+              Mark verified
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -595,8 +894,8 @@ export default function AdminWalletRechargeRequests() {
                   : "Cancel request"}
             </DialogTitle>
             <DialogDescription>
-              {actionRow?.request_id || `#${actionRow?.id}`} — ₹{actionRow?.amount}. Email approval links will become
-              invalid immediately.
+              {actionRow?.request_id || `#${actionRow?.id}`} — ₹{actionRow?.amount}. Email approval links will
+              become invalid immediately.
             </DialogDescription>
           </DialogHeader>
           {actionType === "reject" ? (

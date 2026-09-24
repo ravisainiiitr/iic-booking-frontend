@@ -2882,6 +2882,7 @@ class ApiClient {
     return this.request<{
       enabled: boolean;
       enable_iitr_student_wallet_recharge: boolean;
+      department_recharge_available?: boolean | null;
       applies_to_current_user: boolean;
     }>('/wallet/student-recharge/settings/', { method: 'GET' });
   }
@@ -4209,6 +4210,24 @@ class ApiClient {
     }>(`/wallet/recharge-requests/${requestId}/cancel/`, {
       method: 'POST',
     });
+  }
+
+  /** IITR Student: optionally add/update receipt number and/or file on an APPROVED recharge request. */
+  async attachReceiptToApprovedRechargeRequest(
+    requestId: number,
+    payload: { utr_reference?: string; receipt_file?: File | null }
+  ) {
+    const formData = new FormData();
+    if (payload.utr_reference?.trim()) {
+      formData.append('utr_reference', payload.utr_reference.trim());
+    }
+    if (payload.receipt_file) {
+      formData.append('receipt_file', payload.receipt_file);
+    }
+    return this.request<{ message: string; request: Record<string, unknown> }>(
+      `/wallet/recharge-requests/${requestId}/attach-receipt/`,
+      { method: 'POST', body: formData }
+    );
   }
 
   async resendWalletRechargeNotification(requestId: number) {

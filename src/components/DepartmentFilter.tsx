@@ -113,10 +113,10 @@ const DepartmentFilter = ({
   const selectValue = value === "all" ? "all" : String(value);
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 min-w-0 w-full", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2 min-w-0 max-w-md w-full", className)}>
       <Label
         htmlFor="catalog-department-filter"
-        className="shrink-0 text-sm font-medium text-foreground whitespace-nowrap"
+        className="shrink-0 text-base font-semibold text-foreground whitespace-nowrap"
       >
         Select Department/Centre
       </Label>
@@ -135,7 +135,7 @@ const DepartmentFilter = ({
         <SelectTrigger
           id="catalog-department-filter"
           className={cn(
-            "min-w-[14rem] flex-1 h-11 text-sm font-semibold text-foreground",
+            "min-w-[12rem] max-w-full w-full h-11 text-base font-semibold text-foreground",
             triggerClassName,
           )}
         >
@@ -147,17 +147,17 @@ const DepartmentFilter = ({
             )}
             <SelectValue
               placeholder="All departments"
-              className="truncate whitespace-nowrap font-semibold text-foreground"
+              className="truncate whitespace-nowrap font-semibold text-foreground text-base"
             />
           </div>
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all" className="font-medium">
+        <SelectContent className="max-w-[min(100vw-2rem,28rem)]">
+          <SelectItem value="all" className="text-base font-semibold py-2.5">
             All departments
           </SelectItem>
           {departments.map((dept) => (
-            <SelectItem key={dept.id} value={String(dept.id)} className="font-medium">
-              <span className="whitespace-nowrap font-semibold">
+            <SelectItem key={dept.id} value={String(dept.id)} className="text-base font-semibold py-2.5">
+              <span className="whitespace-normal break-words leading-snug">
                 {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${dept.equipment_count}`}
               </span>
             </SelectItem>
