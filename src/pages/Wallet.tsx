@@ -51,7 +51,7 @@ type WalletRechargeDraft = {
   rechargeDepartmentId: number | null;
   selectedProjectId: number | null;
   rechargeType: "sbiepay" | "request";
-  otpStep?: "form" | "otp" | "sric";
+  otpStep?: "form" | "otp" | "sric" | "done";
   studentReceiptUtr?: string;
   offlineRechargeMode?: OfflineRechargeMode;
   cashUndertakingAccepted?: boolean;
@@ -236,8 +236,17 @@ const Wallet = () => {
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [recharging, setRecharging] = useState(false);
-  const [rechargeType, setRechargeType] = useState<"sbiepay" | "request">("sbiepay");
+  const [rechargeType, setRechargeType] = useState<"sbiepay" | "request">("request");
   const [offlineRechargeMode, setOfflineRechargeMode] = useState<OfflineRechargeMode>("direct_cash_deposit");
+  /** Summary shown after OTP verify (transaction id + next steps). */
+  const [submittedRechargeSummary, setSubmittedRechargeSummary] = useState<{
+    id: number;
+    transaction_number?: string;
+    request_id?: string;
+    amount?: string | number;
+    sric_notification_sent?: boolean;
+    recharge_mode?: string;
+  } | null>(null);
   const [cashUndertakingAccepted, setCashUndertakingAccepted] = useState(false);
   /** When IITR student receipt offline is enabled: choose receipt upload vs cash-deposit OTP. */
   const [studentOfflinePath, setStudentOfflinePath] = useState<"receipt" | "cash">("receipt");
@@ -254,7 +263,7 @@ const Wallet = () => {
   }>>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [requestingRecharge, setRequestingRecharge] = useState(false);
-  const [otpStep, setOtpStep] = useState<"form" | "otp" | "sric">("form");
+  const [otpStep, setOtpStep] = useState<"form" | "otp" | "sric" | "done">("form");
   const [userOtp, setUserOtp] = useState("");
   const [tempRequestId, setTempRequestId] = useState<number | null>(null);
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -330,14 +339,10 @@ const Wallet = () => {
 
   const openRechargeDialog = useCallback((departmentId?: number | null) => {
     skipRechargeResetRef.current = false;
-    if (isFacultyEffective) {
-      setRechargeType("request");
-      setOfflineRechargeMode("project_grant");
-    } else {
-      setRechargeType("sbiepay");
-      setOfflineRechargeMode("direct_cash_deposit");
-    }
+    setRechargeType("request");
+    setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
     setCashUndertakingAccepted(false);
+    setSubmittedRechargeSummary(null);
     if (departmentId != null) {
       setRechargeDepartmentId(departmentId);
     }
@@ -1620,13 +1625,14 @@ const Wallet = () => {
     setRechargeAmount("");
     setRechargeDepartmentId(null);
     setSelectedProjectId(null);
-    setRechargeType(isFacultyEffective ? "request" : "sbiepay");
+    setRechargeType("request");
     setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
     setCashUndertakingAccepted(false);
     setStudentOfflinePath("receipt");
     setOtpStep("form");
     setUserOtp("");
     setTempRequestId(null);
+    setSubmittedRechargeSummary(null);
     setStudentReceiptFile(null);
     setStudentReceiptUtr("");
   };
@@ -1772,20 +1778,46 @@ const Wallet = () => {
       }
 
       const req = response.data?.request;
+      const cashMode =
+        isCashDepositMode ||
+        req?.recharge_mode === "direct_cash_deposit" ||
+        String(req?.recharge_mode || "").toUpperCase() === "DIRECT_CASH_DEPOSIT";
+
+      if (req) {
+        setSubmittedRechargeSummary({
+          id: req.id,
+          transaction_number: req.transaction_number,
+          request_id: req.request_id,
+          amount: req.amount,
+          sric_notification_sent: Boolean(req.sric_notification_sent),
+          recharge_mode: req.recharge_mode,
+        });
+        setTempRequestId(req.id);
+      }
+
       const needsSric =
         isFacultyEffective &&
         req &&
         req.user_otp_verified &&
         !req.sric_notification_sent;
 
+      if (cashMode) {
+        toast.success(
+          response.data?.message ||
+            `Request submitted. Transaction ${req?.transaction_number || req?.request_id || ""} — visit SRIC Bill Section with this reference.`
+        );
+        setOtpStep("done");
+        setUserOtp("");
+        await fetchWalletData();
+        await fetchRechargeRequests();
+        return;
+      }
+
       if (needsSric) {
         toast.success(
           response.data?.message ||
-            (isCashDepositMode
-              ? `Recharge request created. You can now notify the ${sricDestinationLabel} (if auto-notify did not run).`
-              : "Recharge request created. You can now notify the SRIC Office (if auto-notify did not run).")
+            "Recharge request created. You can now notify the SRIC Office (if auto-notify did not run)."
         );
-        setTempRequestId(req.id);
         setOtpStep("sric");
         setUserOtp("");
         await fetchWalletData();
@@ -1796,14 +1828,18 @@ const Wallet = () => {
       toast.success(
         response.data?.message ||
           (isFacultyEffective && req?.sric_notification_sent
-            ? isCashDepositMode
-              ? `Recharge request submitted. ${sricDestinationLabel}, accounts, and staff have been notified where configured. You will receive email when the recharge is credited from the accounts file.`
-              : "Recharge request submitted. SRIC Office, accounts, and staff have been notified where configured. You will receive email when the recharge is credited from the accounts file."
+            ? "Recharge request submitted. SRIC Office, accounts, and staff have been notified where configured."
             : "Recharge request created successfully. The accounts team will review your request.")
       );
+      if (req) {
+        setOtpStep("done");
+        setUserOtp("");
+        await fetchWalletData();
+        await fetchRechargeRequests();
+        return;
+      }
       resetRechargeDialog();
       
-      // Refresh wallet data and recharge requests
       await fetchWalletData();
       await fetchRechargeRequests();
     } catch (error: any) {
@@ -2136,67 +2172,164 @@ const Wallet = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Wallet</h1>
-          <p className="mt-2 text-white/85 text-sm sm:text-base max-w-2xl">
-            View balance, recharge, manage join requests, and review transactions.
-          </p>
+      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-5xl">
+        <div className="mb-6 sm:mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 sm:p-7 text-white shadow-xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Wallet</h1>
+              <p className="mt-1.5 text-white/85 text-sm sm:text-base max-w-xl">
+                {isShared && isStudent
+                  ? iitrStudentRechargeEnabled
+                    ? "Shared faculty wallet — recharge when enabled, or review balance and transactions."
+                    : "Shared faculty wallet — view balance, join status, and transactions."
+                  : isFacultyEffective
+                    ? "Manage department sub-wallets, offline recharge, credit facility, and transfers."
+                    : "View balance, recharge, manage join requests, and review transactions."}
+              </p>
+            </div>
+            {canShowWalletRecharge && (
+              <Button
+                size="lg"
+                onClick={() => openRechargeDialog()}
+                className={
+                  isStudent && isShared
+                    ? "w-full sm:w-auto shrink-0 h-12 px-6 text-base font-semibold bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-900/30 border-0"
+                    : "w-full sm:w-auto shrink-0 h-11 px-5 font-semibold bg-white text-primary hover:bg-white/90 shadow-md"
+                }
+              >
+                <WalletIcon className="h-5 w-5 mr-2" />
+                Recharge Wallet
+              </Button>
+            )}
+          </div>
         </div>
 
-        <Card className="mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border/50">
-            <CardTitle>Current Balance</CardTitle>
-            <CardDescription>
-              {isShared
-                ? isIitrStudentReceiptOffline
-                  ? "Shared faculty wallet — you may recharge when enabled by admin; funds park in the faculty wallet."
-                  : "Available funds in shared wallet"
-                : "Consolidated balance across all department sub-wallets. Recharge a sub-wallet to add funds."}
-            </CardDescription>
+        <Card className="mb-6 sm:mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border/50 pb-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Current Balance</CardTitle>
+                <CardDescription className="mt-1">
+                  {isShared
+                    ? isIitrStudentReceiptOffline
+                      ? "Funds sit in your faculty supervisor’s wallet. Recharges you submit credit that wallet for the department you choose."
+                      : "Available funds in the shared faculty wallet."
+                    : "Consolidated balance across all department sub-wallets."}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-              <div className="text-4xl font-bold text-primary">
-                ₹{balance.toFixed(2)}
+          <CardContent className="pt-6">
+            <div
+              className={
+                isShared && walletOwner
+                  ? "grid gap-6 lg:grid-cols-[1fr_minmax(240px,280px)] lg:items-start"
+                  : "space-y-4"
+              }
+            >
+              <div className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                      Total available
+                    </p>
+                    <div className="text-4xl sm:text-5xl font-bold text-primary tabular-nums tracking-tight">
+                      ₹{balance.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 w-full sm:w-auto sm:items-stretch min-w-[12rem]">
+                    {canShowWalletRecharge && (
+                      <Button
+                        size="lg"
+                        onClick={() => openRechargeDialog()}
+                        className={
+                          isStudent && isShared
+                            ? "w-full h-12 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                            : "w-full h-11 font-semibold"
+                        }
+                      >
+                        <WalletIcon className="h-5 w-5 mr-2" />
+                        Recharge Wallet
+                      </Button>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {isFacultyEffective && !isShared && (
+                        <Button
+                          variant="outline"
+                          onClick={() => navigate("/wallet/transfer")}
+                          className="flex-1 sm:flex-none"
+                        >
+                          Transfer
+                        </Button>
+                      )}
+                      {!isShared && (
+                        <Button
+                          variant="outline"
+                          onClick={() => navigate("/wallet/credit-facility")}
+                          className="flex-1 sm:flex-none"
+                        >
+                          Credit Facility
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {canShowWalletRecharge && isStudent && isShared && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
+                    <p className="font-medium">Offline recharge is available</p>
+                    <p className="mt-0.5 text-emerald-800/90 dark:text-emerald-200/90 text-xs sm:text-sm">
+                      Use <span className="font-semibold">Recharge Wallet</span> to submit a cash / bank
+                      transfer or payment-receipt request. Funds park in your faculty wallet after approval.
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {isFacultyEffective && !isShared && (
+
+              {isShared && walletOwner && (
+                <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Supervisor
+                  </p>
+                  <UserProfile
+                    name={walletOwner.name}
+                    email={walletOwner.email}
+                    phone={walletOwner.phone}
+                    profilePicture={
+                      walletOwner.profile_picture && walletOwner.id != null
+                        ? apiClient.getProfilePictureUrl(walletOwner.id)
+                        : undefined
+                    }
+                    size="md"
+                  />
                   <Button
                     variant="outline"
-                    onClick={() => navigate("/wallet/transfer")}
-                    className="flex items-center gap-2"
+                    size="sm"
+                    onClick={async () => {
+                      const approvedRequest = joinRequests.find(
+                        (req: any) => req.status === "APPROVED"
+                      );
+                      if (approvedRequest) {
+                        await handleCancelRequest(approvedRequest.id);
+                      } else {
+                        toast.error("No active wallet connection found to leave.");
+                      }
+                    }}
+                    className="w-full text-orange-600 hover:text-orange-700 border-orange-600/70 hover:border-orange-700"
                   >
-                    Transfer
+                    <X className="h-4 w-4 mr-1" />
+                    Leave Wallet
                   </Button>
-                )}
-                {!isShared && (
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate("/wallet/credit-facility")}
-                    className="flex items-center gap-2"
-                  >
-                    Credit Facility
-                  </Button>
-                )}
-                {canShowWalletRecharge && (
-                  <Button
-                    onClick={() => openRechargeDialog()}
-                    className="flex items-center gap-2"
-                  >
-                    <WalletIcon className="h-4 w-4" />
-                    Recharge Wallet
-                  </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Recharge Dialog */}
             {showRechargeDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90]">
-                <Card className="w-full max-w-md mx-4">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] p-4">
+                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+                  <CardHeader className="sticky top-0 bg-card z-10 border-b">
+                    <div className="flex items-center justify-between gap-2">
                       <CardTitle>Recharge Wallet</CardTitle>
                       <Button
                         variant="ghost"
@@ -2210,43 +2343,89 @@ const Wallet = () => {
                     </div>
                     <CardDescription>
                       {isIitrStudentReceiptOffline
-                        ? "Select department and amount. Offline recharge requires a payment receipt. Funds credit the faculty wallet."
-                        : "Recharge a department sub-wallet. Select department and amount."}
+                        ? "Select department and amount. Offline recharge requires a payment receipt or cash/bank request. Funds credit the faculty wallet."
+                        : isFacultyEffective
+                          ? "Select department and amount. Offline request is the default path (Razorpay is disabled)."
+                          : "Recharge a department sub-wallet. Select department and amount."}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {otpStep === "sric" ? (
+                  <CardContent className="space-y-4 pt-4">
+                    {otpStep === "done" || otpStep === "sric" ? (
                       <div className="space-y-4">
-                        <div className="p-4 border rounded-lg bg-muted/30">
-                          <p className="text-sm font-medium">OTP verified</p>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Your recharge request has been created. Send it to the {sricDestinationLabel} by email.
-                          </p>
-                        </div>
-                        <Button
-                          className="w-full"
-                          size="lg"
-                          onClick={() => {
-                            if (tempRequestId != null) {
-                              void handleSendSricNotification(tempRequestId, () => {
-                                resetRechargeDialog();
-                              });
-                            }
-                          }}
-                          disabled={sendingSric || tempRequestId == null}
-                        >
-                          {sendingSric ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="h-4 w-4 mr-2" />
-                              Send to {sricDestinationLabel}
-                            </>
+                        <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                          <p className="text-sm font-medium">Request submitted</p>
+                          {(submittedRechargeSummary?.transaction_number ||
+                            submittedRechargeSummary?.request_id) && (
+                            <p className="text-base font-semibold tracking-wide">
+                              Transaction ID:{" "}
+                              {submittedRechargeSummary.transaction_number ||
+                                submittedRechargeSummary.request_id}
+                            </p>
                           )}
-                        </Button>
+                          {submittedRechargeSummary?.amount != null && (
+                            <p className="text-lg font-bold text-primary">
+                              Amount: ₹{Number(submittedRechargeSummary.amount).toFixed(2)}
+                            </p>
+                          )}
+                          <div className="text-sm text-muted-foreground space-y-2">
+                            <p>Keep this transaction number to track credit / wallet recharge requests.</p>
+                            {(isCashDepositMode ||
+                              submittedRechargeSummary?.recharge_mode === "direct_cash_deposit") && (
+                              <ol className="list-decimal list-inside space-y-1 text-foreground/90">
+                                <li>
+                                  Visit the SRIC Bill Section to deposit cash (or complete bank transfer).
+                                </li>
+                                <li>
+                                  Share the transaction number above as your reference for immediate recharge.
+                                </li>
+                                <li>
+                                  After approval, upload or update the receipt in Wallet history so Accounts can complete reconciliation.
+                                </li>
+                              </ol>
+                            )}
+                            {otpStep === "sric" &&
+                              !(
+                                isCashDepositMode ||
+                                submittedRechargeSummary?.recharge_mode === "direct_cash_deposit"
+                              ) && (
+                              <p>
+                                Your recharge request has been created. Send it to the {sricDestinationLabel} by email
+                                if it was not already notified.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {otpStep === "sric" &&
+                          submittedRechargeSummary &&
+                          !submittedRechargeSummary.sric_notification_sent && (
+                          <Button
+                            className="w-full"
+                            size="lg"
+                            onClick={() => {
+                              if (tempRequestId != null) {
+                                void handleSendSricNotification(tempRequestId, () => {
+                                  setSubmittedRechargeSummary((prev) =>
+                                    prev ? { ...prev, sric_notification_sent: true } : prev
+                                  );
+                                  setOtpStep("done");
+                                });
+                              }
+                            }}
+                            disabled={sendingSric || tempRequestId == null}
+                          >
+                            {sendingSric ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Sending...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Send to {sricDestinationLabel}
+                              </>
+                            )}
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="outline"
@@ -2254,68 +2433,44 @@ const Wallet = () => {
                           onClick={() => {
                             resetRechargeDialog();
                             void fetchWalletData();
+                            void fetchRechargeRequests();
                           }}
                           disabled={sendingSric}
                         >
-                          I will Send the e-mail Manually
+                          Close
                         </Button>
                       </div>
                     ) : (
                     <>
-                    {/* Recharge Type Tabs — faculty: offline default, online disabled; department follows */}
+                    {/* Offline Request first; Razorpay disabled */}
                     <div className="flex gap-2 border-b">
-                      {isFacultyEffective ? (
-                        <>
-                          <Button
-                            type="button"
-                            variant={rechargeType === "request" ? "default" : "ghost"}
-                            className="rounded-b-none border-b-2 border-transparent"
-                            onClick={() => setRechargeType("request")}
-                            disabled={recharging || requestingRecharge}
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            Offline Request
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={rechargeType === "sbiepay" ? "default" : "ghost"}
-                            className="rounded-b-none border-b-2 border-transparent opacity-60"
-                            onClick={() => setRechargeType("sbiepay")}
-                            disabled
-                            title="Online payment is not available for faculty recharge"
-                          >
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            Razorpay (Online)
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button
-                            type="button"
-                            variant={rechargeType === "sbiepay" ? "default" : "ghost"}
-                            className="rounded-b-none border-b-2 border-transparent"
-                            onClick={() => setRechargeType("sbiepay")}
-                            disabled={recharging || requestingRecharge}
-                          >
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            Razorpay (Online)
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={rechargeType === "request" ? "default" : "ghost"}
-                            className="rounded-b-none border-b-2 border-transparent"
-                            onClick={() => {
-                              setRechargeType("request");
-                              setOfflineRechargeMode("direct_cash_deposit");
-                              setCashUndertakingAccepted(false);
-                            }}
-                            disabled={recharging || requestingRecharge}
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            Offline Request
-                          </Button>
-                        </>
-                      )}
+                      <Button
+                        type="button"
+                        variant={rechargeType === "request" ? "default" : "ghost"}
+                        className="rounded-b-none border-b-2 border-transparent"
+                        onClick={() => {
+                          setRechargeType("request");
+                          if (!isFacultyEffective) {
+                            setOfflineRechargeMode("direct_cash_deposit");
+                            setCashUndertakingAccepted(false);
+                          }
+                        }}
+                        disabled={recharging || requestingRecharge}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Offline Request
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={rechargeType === "sbiepay" ? "default" : "ghost"}
+                        className="rounded-b-none border-b-2 border-transparent opacity-60"
+                        onClick={() => setRechargeType("sbiepay")}
+                        disabled
+                        title="Online Razorpay recharge is temporarily disabled"
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Razorpay (Online)
+                      </Button>
                     </div>
 
                     <div className="space-y-2">
@@ -2652,12 +2807,11 @@ const Wallet = () => {
 
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                           <p className="text-sm text-blue-700 dark:text-blue-400">
-                            An OTP will be sent to your email for verification before submitting the request.
                             {isCashDepositMode
-                              ? " After verification, send the request to the SRIC Bill Section."
+                              ? "An OTP will be sent to your email for verification before submitting the request. After verification, the request to the SRIC Bill Section and you can visit the SRIC Bill section to deposit cash and share transection number for immidiate recharge."
                               : isFacultyEffective
-                                ? " After verification, send the request to the SRIC Office."
-                                : ""}
+                                ? "An OTP will be sent to your email for verification before submitting the request. After verification, send the request to the SRIC Office."
+                                : "An OTP will be sent to your email for verification before submitting the request."}
                           </p>
                         </div>
                         <Button
@@ -2755,40 +2909,6 @@ const Wallet = () => {
               </div>
             )}
             
-            {/* Supervisor Profile for Students and Other Users */}
-            {isShared && walletOwner && (
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-sm font-medium mb-3">Supervisor:</p>
-                <UserProfile
-                  name={walletOwner.name}
-                  email={walletOwner.email}
-                  phone={walletOwner.phone}
-                  profilePicture={walletOwner.profile_picture && walletOwner.id != null ? apiClient.getProfilePictureUrl(walletOwner.id) : undefined}
-                  size="md"
-                />
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      // Find the approved request to cancel
-                      const approvedRequest = joinRequests.find(
-                        (req: any) => req.status === "APPROVED"
-                      );
-                      if (approvedRequest) {
-                        await handleCancelRequest(approvedRequest.id);
-                      } else {
-                        toast.error("No active wallet connection found to leave.");
-                      }
-                    }}
-                    className="text-orange-600 hover:text-orange-700 border-orange-600 hover:border-orange-700"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Leave Wallet
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -2981,19 +3101,24 @@ const Wallet = () => {
         )}
 
         {/* Department Sub-Wallets */}
-        <Card className="mb-8">
+        <Card className="mb-6 sm:mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
               Department Sub-Wallets
             </CardTitle>
             <CardDescription>
-              Funds allocated by department. Equipment linked to a department deducts from the corresponding
-              sub-wallet. For temporary credit, use{" "}
-              <button type="button" className="underline" onClick={() => navigate("/wallet/credit-facility")}>
-                Credit Facility → Request Wallet Credit
-              </button>{" "}
-              (Main Administrator approval). Automatic overdraft credit is retired.
+              {isShared
+                ? "Balances by department in the shared faculty wallet. Equipment bookings deduct from the matching sub-wallet."
+                : (
+                  <>
+                    Funds allocated by department. For temporary credit, use{" "}
+                    <button type="button" className="underline" onClick={() => navigate("/wallet/credit-facility")}>
+                      Credit Facility → Request Wallet Credit
+                    </button>{" "}
+                    (Main Administrator approval).
+                  </>
+                )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -3211,7 +3336,7 @@ const Wallet = () => {
                             {resendingJoinRequestId === request.id ? "Resending..." : "Resend Request"}
                           </Button>
                         )}
-                        {(isPending || isApproved) && (
+                        {(isPending || (isApproved && !(isShared && walletOwner))) && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -3493,6 +3618,7 @@ const Wallet = () => {
                       <TableHeader>
                         <TableRow className="bg-muted/50 hover:bg-muted/50">
                           <TableHead className="whitespace-nowrap font-semibold">S.No.</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Transaction</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold">Requested</TableHead>
                           <TableHead className="text-right whitespace-nowrap font-semibold">Amount</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold min-w-[120px]">Department</TableHead>
@@ -3508,6 +3634,9 @@ const Wallet = () => {
                         {rechargeRequests.map((req, rowIndex) => (
                           <TableRow key={req.id}>
                             <TableCell className="text-sm tabular-nums w-[3rem]">{rowIndex + 1}</TableCell>
+                            <TableCell className="text-sm font-medium whitespace-nowrap">
+                              {req.transaction_number || req.request_id || `#${req.id}`}
+                            </TableCell>
                             <TableCell className="text-sm whitespace-nowrap">
                               {new Date(req.created_at).toLocaleString(undefined, {
                                 dateStyle: "short",
@@ -3664,7 +3793,7 @@ const Wallet = () => {
                                     Cancel
                                   </Button>
                                 </div>
-                              ) : req.status === "APPROVED" && isStudent ? (
+                              ) : req.status === "APPROVED" ? (
                                 <div className="flex flex-col gap-1 items-end">
                                   {req.utr_reference ? (
                                     <span
@@ -3687,7 +3816,7 @@ const Wallet = () => {
                                     <Upload className="h-3.5 w-3.5 mr-1" />
                                     {req.utr_reference || (req.payment_receipts?.length ?? 0) > 0
                                       ? "Update receipt"
-                                      : "Add receipt"}
+                                      : "Upload receipt"}
                                   </Button>
                                 </div>
                               ) : (
@@ -4180,9 +4309,12 @@ const Wallet = () => {
             <DialogTitle>Add / update receipt</DialogTitle>
             <DialogDescription>
               Optional for approved recharge{" "}
-              {receiptAttachRow?.request_id || (receiptAttachRow ? `#${receiptAttachRow.id}` : "")} — ₹
+              {receiptAttachRow?.transaction_number ||
+                receiptAttachRow?.request_id ||
+                (receiptAttachRow ? `#${receiptAttachRow.id}` : "")}{" "}
+              — ₹
               {receiptAttachRow ? Number(receiptAttachRow.amount).toFixed(2) : ""}. Enter a receipt / UTR
-              number and/or upload a scan. At least one is required.
+              number and/or upload a scan for Accounts reconciliation. At least one is required.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

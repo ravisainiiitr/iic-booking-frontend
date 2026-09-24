@@ -23,16 +23,20 @@ interface ReasonChoice {
 
 interface PublicRechargePayload {
   request_id?: string;
+  transaction_number?: string;
   id?: number;
   amount?: string;
   user_name?: string;
   user_email?: string;
+  user_phone?: string;
+  user_type?: string;
   employee_number?: string;
   user_department?: string;
   department_name?: string;
   department_grant_code?: string;
   project_grant_code?: string;
   project_name?: string;
+  recharge_mode_display?: string;
   status?: string;
   status_display?: string;
   is_pending?: boolean;
@@ -208,43 +212,69 @@ const WalletRechargeEmailAction = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-primary">
                 <CheckCircle className="h-6 w-6" />
-                {action === "approve" ? "Approved" : "Rejected"}
+                {action === "approve" ? "Approved" : "Declined"}
               </CardTitle>
               <CardDescription>{doneMessage}</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-1">
               <p>
-                <span className="text-muted-foreground">Request:</span> {payload?.request_id || `#${payload?.id}`}
+                <span className="text-muted-foreground">Transaction:</span>{" "}
+                {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}
               </p>
-              <p>
-                <span className="text-muted-foreground">Amount:</span> ₹{payload?.amount}
-              </p>
+              <p className="text-lg font-bold">Amount: ₹{payload?.amount}</p>
             </CardContent>
           </Card>
         ) : (
           <Card>
             <CardHeader>
               <CardTitle>
-                {action === "approve" ? "Approve wallet recharge" : "Reject wallet recharge"}
+                {action === "approve" ? "Approve wallet recharge" : "Decline wallet recharge"}
               </CardTitle>
               <CardDescription>
-                Secure approval interface for request {payload?.request_id || `#${payload?.id}`}.
+                Secure approval interface for{" "}
+                {payload?.transaction_number || payload?.request_id || `#${payload?.id}`}. Once
+                approved, the request cannot be approved again.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-md border p-4 space-y-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Amount of Recharge:</span> ₹{payload?.amount}
+                <div className="text-lg font-bold text-primary">
+                  Total amount: ₹{payload?.amount}
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Name of the User:</span> {payload?.user_name}
+                  <span className="text-muted-foreground">Transaction ID:</span>{" "}
+                  {payload?.transaction_number || payload?.request_id || "—"}
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Employee Number:</span> {payload?.employee_number || "—"}
+                  <span className="text-muted-foreground">Name:</span> {payload?.user_name}
                 </div>
                 <div>
-                  <span className="text-muted-foreground">User Department:</span> {payload?.user_department || "—"}
+                  <span className="text-muted-foreground">Email:</span> {payload?.user_email || "—"}
                 </div>
+                <div>
+                  <span className="text-muted-foreground">Phone:</span> {payload?.user_phone || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Employee / ID:</span>{" "}
+                  {payload?.employee_number || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">User type:</span> {payload?.user_type || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">User Department:</span>{" "}
+                  {payload?.user_department || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Credit department:</span>{" "}
+                  {payload?.department_name || "—"}
+                </div>
+                {payload?.recharge_mode_display ? (
+                  <div>
+                    <span className="text-muted-foreground">Recharge mode:</span>{" "}
+                    {payload.recharge_mode_display}
+                  </div>
+                ) : null}
                 <div>
                   <span className="text-muted-foreground">Amount to be Credited to Grant:</span>{" "}
                   {payload?.department_grant_code || "—"}
@@ -258,7 +288,7 @@ const WalletRechargeEmailAction = () => {
               {action === "reject" ? (
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label>Rejection reason</Label>
+                    <Label>Decline reason (required)</Label>
                     <Select value={reasonCode} onValueChange={setReasonCode}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a reason" />
@@ -279,7 +309,7 @@ const WalletRechargeEmailAction = () => {
                         id="reason-text"
                         value={reasonText}
                         onChange={(e) => setReasonText(e.target.value)}
-                        placeholder="Enter rejection reason"
+                        placeholder="Enter decline reason"
                         rows={3}
                       />
                     </div>
@@ -300,7 +330,7 @@ const WalletRechargeEmailAction = () => {
                     onClick={handleReject}
                   >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Confirm Reject
+                    Confirm Decline
                   </Button>
                 )}
                 <Button
@@ -313,7 +343,7 @@ const WalletRechargeEmailAction = () => {
                     )
                   }
                 >
-                  Switch to {action === "approve" ? "Reject" : "Approve"}
+                  Switch to {action === "approve" ? "Decline" : "Approve"}
                 </Button>
               </div>
             </CardContent>

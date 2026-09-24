@@ -92,6 +92,7 @@ interface PaymentReceiptRow {
 interface WalletRechargeRequestRow {
   id: number;
   request_id?: string;
+  transaction_number?: string;
   user: number;
   user_name?: string;
   user_email?: string;
@@ -517,7 +518,7 @@ export default function AdminWalletRechargeRequests() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Request</TableHead>
+                      <TableHead>Transaction</TableHead>
                       <TableHead>User</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead>Amount</TableHead>
@@ -535,10 +536,13 @@ export default function AdminWalletRechargeRequests() {
                         <TableCell className="font-medium">
                           <button
                             type="button"
-                            className="text-primary underline-offset-2 hover:underline"
+                            className="text-primary underline-offset-2 hover:underline text-left"
                             onClick={() => openDetails(row)}
                           >
-                            {row.request_id || `#${row.id}`}
+                            <div>{row.transaction_number || row.request_id || `#${row.id}`}</div>
+                            {row.transaction_number && row.request_id ? (
+                              <div className="text-xs text-muted-foreground font-normal">{row.request_id}</div>
+                            ) : null}
                           </button>
                         </TableCell>
                         <TableCell>
@@ -622,11 +626,11 @@ export default function AdminWalletRechargeRequests() {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      onClick={() => openAction(row, "reject")}
-                                      title="Reject"
-                                    >
-                                      <X className="h-4 w-4 text-destructive" />
-                                    </Button>
+                                    onClick={() => openAction(row, "reject")}
+                                    title="Decline"
+                                  >
+                                    <X className="h-4 w-4 text-destructive" />
+                                  </Button>
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -654,7 +658,7 @@ export default function AdminWalletRechargeRequests() {
       <Dialog open={!!detailRow} onOpenChange={(open) => !open && setDetailRow(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detailRow?.request_id || `Request #${detailRow?.id}`}</DialogTitle>
+            <DialogTitle>{detailRow?.transaction_number || detailRow?.request_id || `Request #${detailRow?.id}`}</DialogTitle>
             <DialogDescription>
               Full request, user profile, and receipts for physical verification.
             </DialogDescription>
@@ -890,18 +894,19 @@ export default function AdminWalletRechargeRequests() {
               {actionType === "approve"
                 ? "Approve request"
                 : actionType === "reject"
-                  ? "Reject request"
+                  ? "Decline request"
                   : "Cancel request"}
             </DialogTitle>
             <DialogDescription>
-              {actionRow?.request_id || `#${actionRow?.id}`} — ₹{actionRow?.amount}. Email approval links will
-              become invalid immediately.
+              {actionRow?.transaction_number || actionRow?.request_id || `#${actionRow?.id}`} — ₹
+              {actionRow?.amount}. Main admin can approve or decline while pending. Once approved, no
+              re-approval is possible.
             </DialogDescription>
           </DialogHeader>
           {actionType === "reject" ? (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label>Rejection reason</Label>
+                <Label>Decline reason</Label>
                 <Select value={reasonCode} onValueChange={setReasonCode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select reason" />

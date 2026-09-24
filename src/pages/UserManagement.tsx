@@ -143,8 +143,8 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
   },
   {
     key: "walletSricSettings",
-    label: "Wallet SRIC Office Notification Settings",
-    description: "SRIC Office email recipients for faculty wallet recharge notifications",
+    label: "Wallet Recharge Routing Emails (SRIC / Cash)",
+    description: "Edit SRIC Office and cash / bank-transfer Bill Section routing emails",
     icon: <Mail className="h-6 w-6" />,
     path: "/admin-settings/wallet-sric-settings",
     mainAdminOnly: true,

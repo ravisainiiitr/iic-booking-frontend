@@ -102,11 +102,11 @@ export default function AdminWalletSricSettings() {
           </Button>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Mail className="h-8 w-8 text-primary" />
-            {isAdmin ? "Wallet SRIC Office Notification Settings" : "SRIC Bill Section Email Settings"}
+            {isAdmin ? "Wallet Recharge Routing Emails" : "SRIC Bill Section Email Settings"}
           </h1>
           <p className="text-muted-foreground mt-1">
             {isAdmin
-              ? "SRIC Office and Bill Section email recipients used for wallet recharge request notifications."
+              ? "Main Administrator can edit SRIC Office and cash / direct bank transfer routing emails. Cash and bank-transfer recharge requests are emailed to the Bill Section list below."
               : "Configure Bill Section email recipients used for Direct Cash Deposit / Bank Transfer recharge requests."}
           </p>
         </div>
@@ -118,8 +118,13 @@ export default function AdminWalletSricSettings() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>{isAdmin ? "SRIC notification recipients" : "Bill Section recipients"}</CardTitle>
-              <CardDescription>One address per line, or comma/semicolon separated.</CardDescription>
+              <CardTitle>
+                {isAdmin ? "Cash / bank transfer & SRIC routing recipients" : "Bill Section recipients"}
+              </CardTitle>
+              <CardDescription>
+                One address per line, or comma/semicolon separated. Approval emails include Approve and Decline
+                actions with the internal transaction id in the subject.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {isAdmin ? (
@@ -151,16 +156,20 @@ export default function AdminWalletSricSettings() {
               ) : null}
 
               <div className="space-y-2">
-                <Label htmlFor="bill-section-emails">SRIC Bill Section Email</Label>
+                <Label htmlFor="bill-section-emails">
+                  Cash transfer / direct bank transfer routing emails (SRIC Bill Section)
+                </Label>
                 <Textarea
                   id="bill-section-emails"
                   value={billSectionEmails}
                   onChange={(e) => setBillSectionEmails(e.target.value)}
                   rows={6}
-                  placeholder="sric.bill@iitr.ac.in"
+                  placeholder="ravisaini.15@gmail.com"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Used for Direct Cash Deposit / Bank Transfer recharge requests.
+                  {isAdmin
+                    ? "Main Administrator editable. Direct Cash Deposit / Bank Transfer requests are routed here with Approve / Decline links."
+                    : "Used for Direct Cash Deposit / Bank Transfer recharge requests."}
                 </p>
               </div>
 
