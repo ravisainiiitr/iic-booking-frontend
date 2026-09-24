@@ -1225,22 +1225,10 @@ const EquipmentProfile = () => {
                       <button
                         type="button"
                         onClick={() => setActivePanel("publications")}
-                        className="mt-4 w-full text-left rounded-xl border border-primary/20 bg-primary/[0.04] px-3.5 py-3 hover:bg-primary/[0.07] transition-colors"
+                        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/[0.06] px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary/[0.1] hover:underline underline-offset-2 transition-colors"
                       >
-                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
-                          <BookOpen className="h-4 w-4 shrink-0" aria-hidden />
-                          {publicationCount === 1
-                            ? "1 publication cited"
-                            : `${publicationCount} publications cited`}
-                        </p>
-                        {publicationList[0]?.citation || publicationList[0]?.title ? (
-                          <p className="mt-1.5 text-sm text-foreground/85 line-clamp-3 leading-snug">
-                            {(publicationList[0].citation || publicationList[0].title || "").trim()}
-                          </p>
-                        ) : null}
-                        <p className="mt-1.5 text-xs text-muted-foreground">
-                          View full citation{publicationCount === 1 ? "" : "s"} in Publications
-                        </p>
+                        <BookOpen className="h-4 w-4 shrink-0" aria-hidden />
+                        {publicationCount === 1 ? "1 Citation" : `${publicationCount} Citations`}
                       </button>
                     ) : null}
                   </CardHeader>
@@ -1266,7 +1254,7 @@ const EquipmentProfile = () => {
                     >
                       <span className="relative z-10 flex flex-col items-center justify-center gap-1.5">
                         <Calendar className="h-5 w-5 shrink-0" aria-hidden />
-                        <span className="text-[13px] font-extrabold leading-tight tracking-wide uppercase">
+                        <span className="text-[13px] font-extrabold leading-tight tracking-wide">
                           {canManageEquipment() || isOicUser() ? "Create booking" : "Book this equipment"}
                         </span>
                       </span>
