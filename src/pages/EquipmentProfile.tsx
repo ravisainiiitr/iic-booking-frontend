@@ -28,6 +28,8 @@ import {
   LayoutGrid,
   CalendarClock,
   ScrollText,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import BookEquipment from "@/pages/BookEquipment";
@@ -51,6 +53,8 @@ import {
   ChargeCategoryMultiParamTable,
   ChargeCategorySimplifiedTable,
 } from "@/components/ChargeCategoryRatesPanel";
+import { exportEquipmentBrochurePdf } from "@/lib/equipmentBrochurePdf";
+import { DEFAULT_DEPARTMENT_NAME } from "@/lib/pdfLetterhead";
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -181,6 +185,7 @@ const EquipmentProfile = () => {
   const [loading, setLoading] = useState(true);
   const [activePanel, setActivePanel] = useState<ContentPanel>("general");
   const [supportOpen, setSupportOpen] = useState(false);
+  const [exportingBrochurePdf, setExportingBrochurePdf] = useState(false);
   const userType = user?.user_type ?? null;
   const userTypeNorm = normalizeUserTypeCode(userType);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -869,9 +874,81 @@ const EquipmentProfile = () => {
                   {body}
                 </section>
               );
+              const brochureManagers =
+                equipment.managers && equipment.managers.length > 0
+                  ? equipment.managers.map((mgr) => ({
+                      key: mgr.equipment_manager_id,
+                      name: mgr.manager_name,
+                      email: mgr.manager_email,
+                      phone: mgr.manager_phone,
+                      profilePicture: mgr.manager_profile_picture,
+                      userId: mgr.manager,
+                    }))
+                  : [];
+              const brochureOperators =
+                equipment.operators && equipment.operators.length > 0
+                  ? equipment.operators.map((op) => ({
+                      key: op.equipment_operator_id + 100000,
+                      name: op.operator_name,
+                      email: op.operator_email,
+                      phone: op.operator_phone,
+                      profilePicture: op.operator_profile_picture,
+                      userId: op.operator,
+                    }))
+                  : [];
+              const handleExportBrochurePdf = async () => {
+                if (exportingBrochurePdf) return;
+                setExportingBrochurePdf(true);
+                try {
+                  const contacts = [
+                    ...brochureManagers.map((m) => ({
+                      role: "Officer in-charge",
+                      name: m.name || "—",
+                      email: m.email,
+                      phone: m.phone,
+                    })),
+                    ...brochureOperators.map((o) => ({
+                      role: "Lab operator",
+                      name: o.name || "—",
+                      email: o.email,
+                      phone: o.phone,
+                    })),
+                  ];
+                  await exportEquipmentBrochurePdf({
+                    equipmentId: equipment.equipment_id,
+                    name: equipment.name,
+                    code: equipment.code,
+                    description: equipment.description,
+                    importantInstruction: equipment.important_instruction,
+                    location: equipment.location,
+                    departmentName:
+                      equipment.internal_department_name || DEFAULT_DEPARTMENT_NAME,
+                    generalSpecs: generalSpecs.map((s) => ({
+                      spec_key: s.spec_key,
+                      spec_value: s.spec_value,
+                    })),
+                    sampleSpecs: sampleSpecs.map((s) => ({
+                      spec_key: s.spec_key,
+                      spec_value: s.spec_value,
+                    })),
+                    chargeRows: chargeRows.map((row) => ({
+                      category: row.label || row.userType || "Category",
+                      primary: row.primary ? formatINR(row.primary) : null,
+                      secondary: row.secondary ? formatINR(row.secondary) : null,
+                    })),
+                    contacts,
+                  });
+                  toast.success("Brochure PDF downloaded.");
+                } catch (err) {
+                  console.error(err);
+                  toast.error("Could not export brochure PDF. Please try again.");
+                } finally {
+                  setExportingBrochurePdf(false);
+                }
+              };
               panelBody = (
                 <div className="space-y-10 print:space-y-6">
-                  <div className="rounded-xl border bg-primary/5 px-5 py-4 sm:px-7">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between rounded-xl border bg-primary/5 px-5 py-4 sm:px-7">
                     <p className="text-base sm:text-lg text-foreground leading-relaxed">
                       Consolidated brochure for{" "}
                       <span className="font-semibold">{equipment.name}</span>
@@ -883,6 +960,28 @@ const EquipmentProfile = () => {
                       ) : null}
                       .
                     </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-2 self-start"
+                      disabled={exportingBrochurePdf}
+                      onClick={() => void handleExportBrochurePdf()}
+                    >
+                      {exportingBrochurePdf ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      {exportingBrochurePdf ? "Exporting…" : "Export PDF"}
+                    </Button>
+                  </div>
+                  <div className="overflow-hidden rounded-xl border bg-muted/10">
+                    <EquipmentImage
+                      equipmentId={equipment.equipment_id}
+                      alt={equipment.name}
+                      className="mx-auto max-h-72 w-full object-contain bg-white dark:bg-muted/20"
+                    />
                   </div>
                   {brochureSection(
                     "General information",
@@ -939,6 +1038,32 @@ const EquipmentProfile = () => {
                     "Charges",
                     <IndianRupee className="h-5 w-5" />,
                     chargesBody
+                  )}
+                  {brochureSection(
+                    "Contact us",
+                    <UserCog className="h-5 w-5" />,
+                    <div className="space-y-8">
+                      <div className="space-y-3">
+                        <h4 className="text-base font-semibold text-foreground">Officer in-charge</h4>
+                        {brochureManagers.length > 0
+                          ? renderContactCards(brochureManagers)
+                          : (
+                              <p className="text-muted-foreground">
+                                No officer in-charge has been assigned to this instrument yet.
+                              </p>
+                            )}
+                      </div>
+                      <div className="space-y-3">
+                        <h4 className="text-base font-semibold text-foreground">Lab operator</h4>
+                        {brochureOperators.length > 0
+                          ? renderContactCards(brochureOperators)
+                          : (
+                              <p className="text-muted-foreground">
+                                No lab operator has been assigned to this instrument yet.
+                              </p>
+                            )}
+                      </div>
+                    </div>
                   )}
                 </div>
               );
@@ -1142,7 +1267,7 @@ const EquipmentProfile = () => {
                       <span className="relative z-10 flex flex-col items-center justify-center gap-1.5">
                         <Calendar className="h-5 w-5 shrink-0" aria-hidden />
                         <span className="text-[13px] font-extrabold leading-tight tracking-wide uppercase">
-                          {canManageEquipment() || isOicUser() ? "Create Booking" : "Book This Equipment"}
+                          {canManageEquipment() || isOicUser() ? "Create booking" : "Book this equipment"}
                         </span>
                       </span>
                     </button>
@@ -1157,7 +1282,7 @@ const EquipmentProfile = () => {
                     </CardHeader>
                     <CardContent className="space-y-1 px-2 pb-2.5">
                       {canChangeSlotStatus() && (
-                        navBtn("slot_status", "Change Slot Status", {
+                        navBtn("slot_status", "Change slot status", {
                           icon: <CalendarClock className="h-3 w-3" />,
                           variant: "action",
                           onClick: handleChangeSlotStatusClick,
@@ -1215,7 +1340,7 @@ const EquipmentProfile = () => {
                         active: activePanel === "contact",
                         onClick: () => setActivePanel("contact"),
                       })}
-                      {navBtn("manage_another", "Browse & Book Another Instrument", {
+                      {navBtn("manage_another", "Browse & book another instrument", {
                         icon: <LayoutGrid className="h-3 w-3" />,
                         variant: "action",
                         onClick: () => {

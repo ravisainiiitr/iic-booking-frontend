@@ -2562,7 +2562,7 @@ const Dashboard = () => {
                   <Banknote className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Wallet Recharge Requests</CardTitle>
+                  <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     Verify physical receipts, review user details, and mark verified
                   </CardDescription>
@@ -2587,7 +2587,7 @@ const Dashboard = () => {
                   <Globe2 className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">External Booking Requests</CardTitle>
+                  <CardTitle className="text-lg">External booking requests</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     Manage external sample bookings (hold and forward to laboratory)
                   </CardDescription>
@@ -2648,7 +2648,7 @@ const Dashboard = () => {
                   <Package className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">{isOicUser ? "Create Booking" : "Book Equipment"}</CardTitle>
+                  <CardTitle className="text-lg">{isOicUser ? "Create booking" : "Browse equipment"}</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     {isOicUser
                       ? "Create bookings for users on equipment you manage"
@@ -2660,7 +2660,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
-                {isOicUser ? "Create Booking" : "Browse Equipment"}
+                {isOicUser ? "Create booking" : "Browse equipment"}
               </span>
             </CardContent>
           </Card>)}
@@ -2675,7 +2675,7 @@ const Dashboard = () => {
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Operator Availability</CardTitle>
+                    <CardTitle className="text-lg">Operator availability</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Intimate periods when you are unavailable for equipment operations
                     </CardDescription>
@@ -2707,7 +2707,7 @@ const Dashboard = () => {
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Leave Management</CardTitle>
+                    <CardTitle className="text-lg">Leave management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Review operator leave / unavailability intimations and apply for self
                     </CardDescription>
@@ -2739,7 +2739,7 @@ const Dashboard = () => {
                     <Banknote className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet Recharge Requests</CardTitle>
+                    <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Complete list — verify physical receipts, user details, and remarks
                     </CardDescription>
@@ -2771,7 +2771,7 @@ const Dashboard = () => {
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Team Calendar</CardTitle>
+                    <CardTitle className="text-lg">Team calendar</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Spot department absences at a glance
                     </CardDescription>
@@ -2805,7 +2805,7 @@ const Dashboard = () => {
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View Bookings</CardTitle>
+                    <CardTitle className="text-lg">View bookings</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Check your current and past bookings
                     </CardDescription>
@@ -2814,7 +2814,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View Bookings</Button>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
               </CardContent>
             </Card>
           )}
@@ -2896,7 +2896,7 @@ const Dashboard = () => {
                     <Receipt className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Proforma Invoice</CardTitle>
+                    <CardTitle className="text-lg">Proforma invoice</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Get cost estimate for equipments and samples/slots before booking
                     </CardDescription>
@@ -2905,7 +2905,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma Invoice</Button>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma invoice</Button>
               </CardContent>
             </Card>
           )}
@@ -2921,7 +2921,7 @@ const Dashboard = () => {
                     <Wallet className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet Management</CardTitle>
+                    <CardTitle className="text-lg">Wallet management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
                     </CardDescription>
@@ -2956,7 +2956,7 @@ const Dashboard = () => {
                     <BookOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">My Publications</CardTitle>
+                    <CardTitle className="text-lg">My publications</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Submit journal references that used IIC instruments; approved entries appear on equipment Publications
                     </CardDescription>
@@ -3059,7 +3059,7 @@ const Dashboard = () => {
             userGuide && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/user-guide", "User Guide")}
+              onClick={() => openWorkspace("/user-guide", "User guide")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -3067,7 +3067,7 @@ const Dashboard = () => {
                     <BookOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">User Guide</CardTitle>
+                    <CardTitle className="text-lg">User guide</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Step-by-step guide for using the booking portal
                     </CardDescription>
@@ -3080,7 +3080,7 @@ const Dashboard = () => {
                   className="w-full bg-primary hover:bg-primary/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    openWorkspace("/user-guide", "User Guide");
+                    openWorkspace("/user-guide", "User guide");
                   }}
                 >
                   Open user guide
@@ -3100,7 +3100,7 @@ const Dashboard = () => {
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Student Management</CardTitle>
+                    <CardTitle className="text-lg">Student management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Students for whom you are the supervisor
                     </CardDescription>
@@ -3130,7 +3130,7 @@ const Dashboard = () => {
                   <Star className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Rate Your Experience</CardTitle>
+                    <CardTitle className="text-lg">Rate your experience</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                       Rate the portal, ease of booking, and share suggestions — you can update anytime
                   </CardDescription>
@@ -3154,7 +3154,7 @@ const Dashboard = () => {
                     <MessageSquarePlus className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support Tickets</CardTitle>
+                    <CardTitle className="text-lg">Support tickets</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Report issues, ask the lab, or track support conversations
                     </CardDescription>
@@ -3179,7 +3179,7 @@ const Dashboard = () => {
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking Management</CardTitle>
+                    <CardTitle className="text-lg">Booking management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
                     </CardDescription>
@@ -3374,7 +3374,7 @@ const Dashboard = () => {
                     <PackageOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">3D Print Materials</CardTitle>
+                    <CardTitle className="text-lg">3D print materials</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Add, edit, enable, or disable filament materials for PRINT_3D equipment
                     </CardDescription>
@@ -3399,7 +3399,7 @@ const Dashboard = () => {
                     <Layers className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Quota Configurations</CardTitle>
+                    <CardTitle className="text-lg">Quota configurations</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Weekly and monthly quotas for equipment groups you manage
                     </CardDescription>
@@ -3424,7 +3424,7 @@ const Dashboard = () => {
                     <GitBranch className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Multi-Mode Equipment</CardTitle>
+                    <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Schedule modes and set each mode&apos;s operate days via Change slot status
                     </CardDescription>
@@ -3474,7 +3474,7 @@ const Dashboard = () => {
                     <UserCheck className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">External User Management</CardTitle>
+                    <CardTitle className="text-lg">External user management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Verify external departments/organizations and external users
                     </CardDescription>
@@ -3523,7 +3523,7 @@ const Dashboard = () => {
               onClick={() =>
                 openWorkspace(
                   isAdmin ? "/admin/department-administration" : "/manage/department-administration",
-                  "Department Administration"
+                  "Department administration"
                 )
               }
             >
@@ -3533,7 +3533,7 @@ const Dashboard = () => {
                     <ShieldCheck className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Department Administration</CardTitle>
+                    <CardTitle className="text-lg">Department administration</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       {isAdmin
                         ? "Manage department staff modules and permission caps"
@@ -3639,7 +3639,7 @@ const Dashboard = () => {
                     <ClipboardList className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Procurement Workflow</CardTitle>
+                    <CardTitle className="text-lg">Procurement workflow</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Office verification, store approval, head approval and purchase closure
                     </CardDescription>
@@ -3664,7 +3664,7 @@ const Dashboard = () => {
                     <Package className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Inventory Management</CardTitle>
+                    <CardTitle className="text-lg">Inventory management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Manage item requests, stock transactions, and issued assets
                     </CardDescription>
@@ -3689,7 +3689,7 @@ const Dashboard = () => {
                     <Monitor className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Remote Analysis</CardTitle>
+                    <CardTitle className="text-lg">Remote analysis</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Workstation registry, catalog, equipment↔software, inventory, and remote commands
                     </CardDescription>
@@ -3736,7 +3736,7 @@ const Dashboard = () => {
                     <Server className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Department Sync Agents</CardTitle>
+                    <CardTitle className="text-lg">Department sync agents</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Agents, assignments, profiles, commands, heartbeats, workspaces, and sync logs
                     </CardDescription>
@@ -3761,7 +3761,7 @@ const Dashboard = () => {
                     <HardDrive className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Laboratory Infrastructure</CardTitle>
+                    <CardTitle className="text-lg">Laboratory infrastructure</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Fleet monitoring, diagnostics, repair, alerts, and lifecycle for DSA, Equipment PCs, and Analysis PCs
                     </CardDescription>
@@ -3794,7 +3794,7 @@ const Dashboard = () => {
                     <ClipboardList className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Acceptance Test Dashboard</CardTitle>
+                    <CardTitle className="text-lg">Acceptance test dashboard</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Phase 2.5 SAT coverage — module health, pass/fail drill-down (Main Admin)
                     </CardDescription>
@@ -3824,7 +3824,7 @@ const Dashboard = () => {
                     <HardDrive className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Deployment Center</CardTitle>
+                    <CardTitle className="text-lg">Deployment center</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       DSA, Remote Analysis Agent, and Equipment PC Wizard — versions, SHA-256, ticket downloads
                     </CardDescription>
@@ -3888,7 +3888,7 @@ const Dashboard = () => {
                     <Layout className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Content Management</CardTitle>
+                    <CardTitle className="text-lg">Content management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Menu, pages, home content and hero images (CMS)
                     </CardDescription>
@@ -3913,7 +3913,7 @@ const Dashboard = () => {
                     <LifeBuoy className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support Tickets</CardTitle>
+                    <CardTitle className="text-lg">Support tickets</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Review tickets, attachments, comments; mark resolved and notify users
                     </CardDescription>
@@ -3938,7 +3938,7 @@ const Dashboard = () => {
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Admin Settings</CardTitle>
+                    <CardTitle className="text-lg">Admin settings</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Equipment, users, groups and wallet management
                     </CardDescription>
@@ -4873,7 +4873,7 @@ const Dashboard = () => {
                         <Calendar className="h-6 w-6" />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">Upcoming Bookings</CardTitle>
+                        <CardTitle className="text-lg">Upcoming bookings</CardTitle>
                         <CardDescription className="text-sm">
                           {isDeptAdmin
                             ? "Upcoming sessions on your department’s equipment"
@@ -4960,7 +4960,7 @@ const Dashboard = () => {
                         <BarChart3 className="h-6 w-6" />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">Equipment Statistics</CardTitle>
+                        <CardTitle className="text-lg">Equipment statistics</CardTitle>
                         <CardDescription className="text-sm">
                           {isDeptAdmin
                             ? "Usage and spending for your department’s equipment"
