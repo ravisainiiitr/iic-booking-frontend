@@ -249,7 +249,7 @@ const Wallet = () => {
   } | null>(null);
   const [cashUndertakingAccepted, setCashUndertakingAccepted] = useState(false);
   /** When IITR student receipt offline is enabled: choose receipt upload vs cash-deposit OTP. */
-  const [studentOfflinePath, setStudentOfflinePath] = useState<"receipt" | "cash">("receipt");
+  const [studentOfflinePath, setStudentOfflinePath] = useState<"receipt" | "cash">("cash");
   const [studentReceiptFile, setStudentReceiptFile] = useState<File | null>(null);
   const [studentReceiptUtr, setStudentReceiptUtr] = useState("");
   const [submittingStudentReceipt, setSubmittingStudentReceipt] = useState(false);
@@ -342,6 +342,7 @@ const Wallet = () => {
     setRechargeType("request");
     setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
     setCashUndertakingAccepted(false);
+    setStudentOfflinePath("cash");
     setSubmittedRechargeSummary(null);
     if (departmentId != null) {
       setRechargeDepartmentId(departmentId);
@@ -528,7 +529,13 @@ const Wallet = () => {
       setLoadingDepartments(true);
       apiClient.getDepartmentsForRecharge().then((res) => {
         if (res.data?.departments) {
-          setInternalDepartments(res.data.departments);
+          setInternalDepartments(
+            res.data.departments.filter((d: { name?: string; code?: string | null }) => {
+              const name = (d.name || "").trim().toLowerCase();
+              const code = (d.code || "").trim().toLowerCase();
+              return name !== "admin" && code !== "admin";
+            })
+          );
         }
         setLoadingDepartments(false);
       }).catch(() => setLoadingDepartments(false));
@@ -1628,7 +1635,7 @@ const Wallet = () => {
     setRechargeType("request");
     setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
     setCashUndertakingAccepted(false);
-    setStudentOfflinePath("receipt");
+    setStudentOfflinePath("cash");
     setOtpStep("form");
     setUserOtp("");
     setTempRequestId(null);
@@ -2571,17 +2578,6 @@ const Wallet = () => {
                         <div className="grid gap-2">
                           <button
                             type="button"
-                            onClick={() => setStudentOfflinePath("receipt")}
-                            className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
-                              studentOfflinePath === "receipt"
-                                ? "border-primary bg-primary/5"
-                                : "border-input hover:bg-muted/40"
-                            }`}
-                          >
-                            <span className="font-medium">Upload payment receipt</span>
-                          </button>
-                          <button
-                            type="button"
                             onClick={() => {
                               setStudentOfflinePath("cash");
                               setOfflineRechargeMode("direct_cash_deposit");
@@ -2599,6 +2595,17 @@ const Wallet = () => {
                                 Request routed to SRIC Bill Section (OTP verification).
                               </span>
                             </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStudentOfflinePath("receipt")}
+                            className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
+                              studentOfflinePath === "receipt"
+                                ? "border-primary bg-primary/5"
+                                : "border-input hover:bg-muted/40"
+                            }`}
+                          >
+                            <span className="font-medium">Upload payment receipt</span>
                           </button>
                         </div>
                       </div>

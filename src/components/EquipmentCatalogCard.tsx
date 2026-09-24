@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Play, Star, StarHalf } from "lucide-react";
+import { Play, Star, StarHalf, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
@@ -35,6 +35,9 @@ export type EquipmentCatalogCardItem = {
   showMakeOnCard?: boolean;
   modelInformation?: string | null;
   showModelOnCard?: boolean;
+  publicationCount?: number | null;
+  featuredPublicationTitle?: string | null;
+  featuredCitation?: string | null;
 };
 
 type Props = {
@@ -188,6 +191,28 @@ export default function EquipmentCatalogCard({
           ) : null}
         </div>
 
+        {Number(item.publicationCount ?? 0) > 0 ? (
+          <div className="rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-2.5 space-y-1">
+            <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+              <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {Number(item.publicationCount) === 1
+                ? "1 publication cited"
+                : `${Number(item.publicationCount)} publications cited`}
+            </p>
+            {(item.featuredCitation || item.featuredPublicationTitle)?.trim() ? (
+              <p
+                className="line-clamp-3 text-sm leading-snug text-foreground/85"
+                title={(item.featuredCitation || item.featuredPublicationTitle || "").trim()}
+              >
+                {(item.featuredCitation || item.featuredPublicationTitle || "").trim()}
+              </p>
+            ) : null}
+            {Number(item.publicationCount) > 1 ? (
+              <p className="text-[11px] text-muted-foreground">Open details to view all citations</p>
+            ) : null}
+          </div>
+        ) : null}
+
         {metaRows.length > 0 ? (
           <div className="grid gap-2.5 border-t border-border/60 pt-3">
             {metaRows.map((row) => (
@@ -201,7 +226,7 @@ export default function EquipmentCatalogCard({
         ) : null}
 
         {rateN > 0 ? (
-          <p className="text-base font-semibold tabular-nums text-primary">?{rateN.toFixed(2)}/hour</p>
+          <p className="text-base font-semibold tabular-nums text-primary">₹{rateN.toFixed(2)}/hour</p>
         ) : null}
       </CardHeader>
 

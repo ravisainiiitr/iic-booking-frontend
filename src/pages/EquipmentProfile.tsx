@@ -27,6 +27,7 @@ import {
   ClipboardList,
   LayoutGrid,
   CalendarClock,
+  ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
 import BookEquipment from "@/pages/BookEquipment";
@@ -148,6 +149,7 @@ type ContentPanel =
   | "view_charges"
   | "calc_charges"
   | "publications"
+  | "brochure"
   | "contact";
 
 type SpecItem = {
@@ -629,6 +631,10 @@ const EquipmentProfile = () => {
                   : "Publications",
               icon: <BookOpen className="h-5 w-5" />,
             },
+            brochure: {
+              title: "Equipment brochure",
+              icon: <ScrollText className="h-5 w-5" />,
+            },
             contact: {
               title: "Contact us",
               icon: <UserCog className="h-5 w-5" />,
@@ -800,7 +806,7 @@ const EquipmentProfile = () => {
                 : emptyPanel(
                     'Sample requirements have not been published yet. Add a specification named "Sample Requirements" in equipment admin to show it here.'
                   );
-          } else if (activePanel === "view_charges") {
+          } else if (activePanel === "view_charges" || activePanel === "brochure") {
             const eqAny = equipment as EquipmentProfile & {
               charge_profiles?: Array<Record<string, unknown>>;
               base_charges_by_user_type?: Array<{
@@ -815,8 +821,9 @@ const EquipmentProfile = () => {
               input_fields?: Array<{ field_key?: string | null; options?: unknown }>;
             };
             const chargeRows = buildChargeCategorySummaryRows(eqAny);
+            let chargesBody: JSX.Element;
             if (chargeRows.length === 0) {
-              panelBody = emptyPanel(
+              chargesBody = emptyPanel(
                 "Rate card is not available for this equipment yet. Use Calculate charges for an estimate."
               );
             } else {
@@ -829,12 +836,12 @@ const EquipmentProfile = () => {
                     : [],
               });
               if (presentation.simplified && presentation.mode === "multi_param") {
-                panelBody = <ChargeCategoryMultiParamTable presentation={presentation} />;
+                chargesBody = <ChargeCategoryMultiParamTable presentation={presentation} />;
               } else if (presentation.simplified) {
-                panelBody = <ChargeCategorySimplifiedTable presentation={presentation} />;
+                chargesBody = <ChargeCategorySimplifiedTable presentation={presentation} />;
               } else {
                 const showSecondary = chargeRows.some((row) => !!row.secondary);
-                panelBody = (
+                chargesBody = (
                   <ChargeCategoryLegacyTable
                     subtitle="Standard rates for this equipment, including student and faculty categories."
                     unitLabels={{
@@ -848,6 +855,93 @@ const EquipmentProfile = () => {
                   />
                 );
               }
+            }
+
+            if (activePanel === "view_charges") {
+              panelBody = chargesBody;
+            } else {
+              const brochureSection = (title: string, icon: JSX.Element, body: JSX.Element) => (
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <span className="text-primary">{icon}</span>
+                    <h3 className="text-lg sm:text-xl font-semibold tracking-tight">{title}</h3>
+                  </div>
+                  {body}
+                </section>
+              );
+              panelBody = (
+                <div className="space-y-10 print:space-y-6">
+                  <div className="rounded-xl border bg-primary/5 px-5 py-4 sm:px-7">
+                    <p className="text-base sm:text-lg text-foreground leading-relaxed">
+                      Consolidated brochure for{" "}
+                      <span className="font-semibold">{equipment.name}</span>
+                      {equipment.code ? (
+                        <>
+                          {" "}
+                          (<span className="font-mono text-sm">({equipment.code})</span>)
+                        </>
+                      ) : null}
+                      .
+                    </p>
+                  </div>
+                  {brochureSection(
+                    "General information",
+                    <Info className="h-5 w-5" />,
+                    <div className="space-y-4">
+                      {equipment.important_instruction ? (
+                        <div className="rounded-xl border-2 border-amber-500/70 bg-amber-50/80 dark:bg-amber-950/30 p-4">
+                          <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                            Important instruction
+                          </p>
+                          <p className="whitespace-pre-line text-sm sm:text-base leading-relaxed">
+                            {equipment.important_instruction}
+                          </p>
+                        </div>
+                      ) : null}
+                      {equipment.description ? (
+                        <p className="text-base sm:text-lg whitespace-pre-line leading-relaxed text-foreground/90">
+                          {equipment.description}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground">No general description published yet.</p>
+                      )}
+                      {equipment.location ? (
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">
+                          <span className="font-medium text-foreground">Location: </span>
+                          {equipment.location}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                  {brochureSection(
+                    "Technical specifications",
+                    <FileText className="h-5 w-5" />,
+                    generalSpecs.length > 0
+                      ? renderSpecBlocks(generalSpecs)
+                      : (
+                          <p className="text-muted-foreground">
+                            Specifications have not been published for this instrument yet.
+                          </p>
+                        )
+                  )}
+                  {brochureSection(
+                    "Sample requirements",
+                    <FlaskConical className="h-5 w-5" />,
+                    sampleSpecs.length > 0
+                      ? renderSpecBlocks(sampleSpecs)
+                      : (
+                          <p className="text-muted-foreground">
+                            Sample requirements have not been published yet.
+                          </p>
+                        )
+                  )}
+                  {brochureSection(
+                    "Charges",
+                    <IndianRupee className="h-5 w-5" />,
+                    chargesBody
+                  )}
+                </div>
+              );
             }
           } else if (activePanel === "calc_charges") {
             panelBody = (
@@ -1002,6 +1096,28 @@ const EquipmentProfile = () => {
                         </div>
                       </div>
                     ) : null}
+                    {publicationCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setActivePanel("publications")}
+                        className="mt-4 w-full text-left rounded-xl border border-primary/20 bg-primary/[0.04] px-3.5 py-3 hover:bg-primary/[0.07] transition-colors"
+                      >
+                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                          <BookOpen className="h-4 w-4 shrink-0" aria-hidden />
+                          {publicationCount === 1
+                            ? "1 publication cited"
+                            : `${publicationCount} publications cited`}
+                        </p>
+                        {publicationList[0]?.citation || publicationList[0]?.title ? (
+                          <p className="mt-1.5 text-sm text-foreground/85 line-clamp-3 leading-snug">
+                            {(publicationList[0].citation || publicationList[0].title || "").trim()}
+                          </p>
+                        ) : null}
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          View full citation{publicationCount === 1 ? "" : "s"} in Publications
+                        </p>
+                      </button>
+                    ) : null}
                   </CardHeader>
                   <CardContent className="space-y-5 pt-0">
                     <div className="flex items-center gap-2.5 border-b pb-3">
@@ -1040,19 +1156,6 @@ const EquipmentProfile = () => {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-1 px-2 pb-2.5">
-                      {showCreateOrBookCta() && (
-                        navBtn(
-                          "book",
-                          canManageEquipment() || isOicUser()
-                            ? "Create Booking"
-                            : "Book this equipment",
-                          {
-                            icon: <Calendar className="h-3 w-3" />,
-                            disabled: !canManageEquipment() && !isOicUser() && !isEquipmentOperational(),
-                            onClick: handleBookOrManageClick,
-                          }
-                        )
-                      )}
                       {canChangeSlotStatus() && (
                         navBtn("slot_status", "Change Slot Status", {
                           icon: <CalendarClock className="h-3 w-3" />,
@@ -1097,6 +1200,11 @@ const EquipmentProfile = () => {
                           onClick: () => setActivePanel("publications"),
                         }
                       )}
+                      {navBtn("brochure", "Equipment brochure", {
+                        icon: <ScrollText className="h-3 w-3" />,
+                        active: activePanel === "brochure",
+                        onClick: () => setActivePanel("brochure"),
+                      })}
                       {navBtn("support", "Raise support request", {
                         icon: <LifeBuoy className="h-3 w-3" />,
                         variant: "action",

@@ -56,6 +56,9 @@ interface ApiEquipment {
   enable_multi_mode?: boolean;
   avg_rating?: number | null;
   rating_count?: number | null;
+  publication_count?: number | null;
+  featured_publication_title?: string | null;
+  featured_citation?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +90,9 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       externalRate: 0,
       avgRating: eq.avg_rating ?? null,
       ratingCount: eq.rating_count ?? null,
+      publicationCount: eq.publication_count ?? null,
+      featuredPublicationTitle: eq.featured_publication_title ?? null,
+      featuredCitation: eq.featured_citation ?? null,
     }));
 
 const EquipmentList = () => {

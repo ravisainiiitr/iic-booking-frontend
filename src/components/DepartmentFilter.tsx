@@ -78,7 +78,11 @@ const DepartmentFilter = ({
           }
           return;
         }
-        const list = response.data.departments ?? [];
+        const list = (response.data.departments ?? []).filter((d) => {
+          const name = (d.name || "").trim().toLowerCase();
+          const code = (d.code || "").trim().toLowerCase();
+          return name !== "admin" && code !== "admin";
+        });
         setDepartments(list);
 
         let nextValue: DepartmentFilterValue = value;
