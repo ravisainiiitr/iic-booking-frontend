@@ -15,8 +15,13 @@ interface WalletSricSettingsData {
   id: number;
   recipient_emails: string;
   bill_section_emails?: string;
+  project_grant_cc_emails?: string;
+  cash_deposit_cc_emails?: string;
   grant_code_for_credit: string;
 }
+
+const CC_HELP =
+  "The requesting user (and the wallet owner, if different) is always copied. CC recipients receive the full request details without Approve / Decline links, and are also informed when the request is approved, declined or cancelled.";
 
 export default function AdminWalletSricSettings() {
   const navigate = useNavigate();
@@ -32,6 +37,8 @@ export default function AdminWalletSricSettings() {
   const [saving, setSaving] = useState(false);
   const [recipientEmails, setRecipientEmails] = useState("");
   const [billSectionEmails, setBillSectionEmails] = useState("");
+  const [projectGrantCcEmails, setProjectGrantCcEmails] = useState("");
+  const [cashDepositCcEmails, setCashDepositCcEmails] = useState("");
   const [grantCode, setGrantCode] = useState("IIC-000-002");
 
   useEffect(() => {
@@ -60,6 +67,8 @@ export default function AdminWalletSricSettings() {
           setId(res.data.id ?? 1);
           setRecipientEmails(res.data.recipient_emails ?? "");
           setBillSectionEmails(res.data.bill_section_emails ?? "");
+          setProjectGrantCcEmails(res.data.project_grant_cc_emails ?? "");
+          setCashDepositCcEmails(res.data.cash_deposit_cc_emails ?? "");
           setGrantCode(res.data.grant_code_for_credit ?? "IIC-000-002");
         }
       })
@@ -73,9 +82,11 @@ export default function AdminWalletSricSettings() {
       ? {
           recipient_emails: recipientEmails,
           bill_section_emails: billSectionEmails,
+          project_grant_cc_emails: projectGrantCcEmails,
+          cash_deposit_cc_emails: cashDepositCcEmails,
           grant_code_for_credit: grantCode.trim(),
         }
-      : { bill_section_emails: billSectionEmails };
+      : { bill_section_emails: billSectionEmails, cash_deposit_cc_emails: cashDepositCcEmails };
     const res = await apiClient.adminSingletonUpdate<WalletSricSettingsData>(
       "walletSricSettings",
       payload,
@@ -86,7 +97,7 @@ export default function AdminWalletSricSettings() {
       toast.error(res.error);
       return;
     }
-    toast.success(isAdmin ? "Wallet SRIC office settings updated." : "SRIC Bill Section emails updated.");
+    toast.success(isAdmin ? "Wallet recharge routing emails updated." : "Cash / bank transfer emails updated.");
   };
 
   if (!canAccess && !authLoading) return null;
@@ -105,9 +116,8 @@ export default function AdminWalletSricSettings() {
             {isAdmin ? "Wallet Recharge Routing Emails" : "SRIC Bill Section Email Settings"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {isAdmin
-              ? "Main Administrator can edit SRIC Office and cash / direct bank transfer routing emails. Cash and bank-transfer recharge requests are emailed to the Bill Section list below."
-              : "Configure Bill Section email recipients used for Direct Cash Deposit / Bank Transfer recharge requests."}
+            Enter one address per line, or separate them with commas or semicolons. Approval emails (with Approve and
+            Decline buttons) go only to the approver list of each mode.
           </p>
         </div>
 
@@ -116,28 +126,36 @@ export default function AdminWalletSricSettings() {
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {isAdmin ? "Cash / bank transfer & SRIC routing recipients" : "Bill Section recipients"}
-              </CardTitle>
-              <CardDescription>
-                One address per line, or comma/semicolon separated. Approval emails include Approve and Decline
-                actions with the internal transaction id in the subject.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {isAdmin ? (
-                <>
+          <div className="space-y-6">
+            {isAdmin ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recharge via Project Grant</CardTitle>
+                  <CardDescription>
+                    Emailed to the SRIC Office with the grant to be credited and the project grant code to be debited.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="sric-emails">SRIC Office email addresses</Label>
+                    <Label htmlFor="sric-emails">Approvers: SRIC Office email addresses</Label>
                     <Textarea
                       id="sric-emails"
                       value={recipientEmails}
                       onChange={(e) => setRecipientEmails(e.target.value)}
-                      rows={6}
+                      rows={4}
                       placeholder="sric.office@iitr.ac.in"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-grant-cc">CC email addresses</Label>
+                    <Textarea
+                      id="project-grant-cc"
+                      value={projectGrantCcEmails}
+                      onChange={(e) => setProjectGrantCcEmails(e.target.value)}
+                      rows={3}
+                      placeholder={"accounts@iitr.ac.in\ndept.office@iitr.ac.in"}
+                    />
+                    <p className="text-sm text-muted-foreground">{CC_HELP}</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sric-grant-code">Default grant code (fallback)</Label>
@@ -148,42 +166,56 @@ export default function AdminWalletSricSettings() {
                       className="max-w-xs"
                     />
                     <p className="text-sm text-muted-foreground">
-                      Used in the SRIC Office recharge email only when the selected internal department has no grant
-                      code of its own.
+                      Used as the grant to be credited only when the selected internal department has no grant code of
+                      its own.
                     </p>
                   </div>
-                </>
-              ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
 
-              <div className="space-y-2">
-                <Label htmlFor="bill-section-emails">
-                  Cash transfer / direct bank transfer routing emails (SRIC Bill Section)
-                </Label>
-                <Textarea
-                  id="bill-section-emails"
-                  value={billSectionEmails}
-                  onChange={(e) => setBillSectionEmails(e.target.value)}
-                  rows={6}
-                  placeholder="ravisaini.15@gmail.com"
-                />
-                <p className="text-sm text-muted-foreground">
-                  {isAdmin
-                    ? "Main Administrator editable. Direct Cash Deposit / Bank Transfer requests are routed here with Approve / Decline links."
-                    : "Used for Direct Cash Deposit / Bank Transfer recharge requests."}
-                </p>
-              </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Direct Cash Deposit / Bank Transfer</CardTitle>
+                <CardDescription>
+                  Emailed to the SRIC Bill Section. The copy to the requester includes the deposit next steps.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="bill-section-emails">Approvers: SRIC Bill Section email addresses</Label>
+                  <Textarea
+                    id="bill-section-emails"
+                    value={billSectionEmails}
+                    onChange={(e) => setBillSectionEmails(e.target.value)}
+                    rows={4}
+                    placeholder="bills@sric.iitr.ac.in"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cash-deposit-cc">CC email addresses</Label>
+                  <Textarea
+                    id="cash-deposit-cc"
+                    value={cashDepositCcEmails}
+                    onChange={(e) => setCashDepositCcEmails(e.target.value)}
+                    rows={3}
+                    placeholder={"accounts@iitr.ac.in\ndept.office@iitr.ac.in"}
+                  />
+                  <p className="text-sm text-muted-foreground">{CC_HELP}</p>
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="flex gap-3 pt-2">
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Save
-                </Button>
-                <Button variant="outline" onClick={() => navigate(backPath)}>
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="flex gap-3">
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save
+              </Button>
+              <Button variant="outline" onClick={() => navigate(backPath)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         )}
       </main>
     </div>
