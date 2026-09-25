@@ -1872,7 +1872,7 @@ const Wallet = () => {
     return (
       <div className="page-shell">
         <DashboardHeader />
-        <main className="container mx-auto px-4 py-8 max-w-2xl">
+        <main className="container mx-auto px-4 py-8">
           <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Request Wallet Access</h1>
             <p className="mt-2 text-white/85 text-sm">
@@ -2757,17 +2757,16 @@ const Wallet = () => {
                               <div className="text-sm text-muted-foreground">Loading projects...</div>
                             ) : projects.length === 0 ? (
                               <div className="p-4 border border-yellow-200 dark:border-yellow-800 rounded-lg bg-yellow-50 dark:bg-yellow-950/30">
-                                <p className="text-sm text-yellow-800 dark:text-yellow-400 mb-3">
+                                <p className="text-base text-yellow-800 dark:text-yellow-400 mb-3">
                                   No active projects found. You need to add at least one active project to create a recharge request.
                                 </p>
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  size="sm"
                                   onClick={goToAddProjectFromRecharge}
-                                  className="w-full"
+                                  className="w-full text-base font-semibold"
                                 >
-                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  <ExternalLink className="h-5 w-5 mr-2" />
                                   Add Project
                                 </Button>
                               </div>
@@ -2792,15 +2791,15 @@ const Wallet = () => {
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-base text-foreground/80 leading-snug">
                                   Select an active project associated with this recharge request. Required for project grant recharge.
                                 </p>
                                 <button
                                   type="button"
                                   onClick={goToAddProjectFromRecharge}
-                                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                                  className="text-base font-semibold text-primary hover:underline inline-flex items-center gap-2"
                                 >
-                                  <ExternalLink className="h-3 w-3" />
+                                  <ExternalLink className="h-5 w-5" />
                                   Add Project
                                 </button>
                               </>
