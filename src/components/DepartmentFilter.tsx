@@ -13,7 +13,7 @@ import {
 
 export type DepartmentFilterValue = "all" | number;
 
-interface CatalogDepartment {
+export interface CatalogDepartment {
   id: number;
   name: string;
   code: string;
@@ -32,7 +32,7 @@ interface DepartmentFilterProps {
   onResolved?: (value: DepartmentFilterValue) => void;
 }
 
-function findPreferredDepartment(
+export function findPreferredDepartment(
   departments: CatalogDepartment[],
   preferredName: string,
 ): CatalogDepartment | undefined {

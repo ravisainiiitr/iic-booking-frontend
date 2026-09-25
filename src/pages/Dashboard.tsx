@@ -32,6 +32,7 @@ import DashboardWorkspace from "@/components/DashboardWorkspace";
 import { MigrationPortalBanner } from "@/components/MigrationPortalBanner";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
+import DepartmentBrochureDialog from "@/components/DepartmentBrochureDialog";
 import { formatUserDisplayName } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
@@ -291,6 +292,7 @@ const Dashboard = () => {
   /** Remount MemoryRouter when a menu item opens a new section. */
   const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [brochureDialogOpen, setBrochureDialogOpen] = useState(false);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
@@ -1328,6 +1330,17 @@ const Dashboard = () => {
     >
       <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
       Dashboard
+    </Button>
+  );
+  const downloadBrochureButton = (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full justify-start gap-2 font-semibold border-primary/40 text-primary hover:bg-primary/5"
+      onClick={() => setBrochureDialogOpen(true)}
+    >
+      <Download className="h-4 w-4 shrink-0" aria-hidden />
+      Download brochure
     </Button>
   );
 
@@ -2595,6 +2608,7 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent className="space-y-1.5 px-2.5 pb-3 dashboard-menu-nav">
         {dashboardHomeButton}
+        {downloadBrochureButton}
         {isAccountsInChargeUser ? (
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
@@ -4047,6 +4061,7 @@ const Dashboard = () => {
                 }}
               >
         {dashboardHomeButton}
+        {downloadBrochureButton}
         {isAccountsInChargeUser ? (
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
@@ -6541,6 +6556,7 @@ const Dashboard = () => {
 
       </main>
       <PortalFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <DepartmentBrochureDialog open={brochureDialogOpen} onOpenChange={setBrochureDialogOpen} />
     </div>
   );
 };

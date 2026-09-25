@@ -54,7 +54,7 @@ import {
   ChargeCategoryMultiParamTable,
   ChargeCategorySimplifiedTable,
 } from "@/components/ChargeCategoryRatesPanel";
-import { exportEquipmentBrochurePdf } from "@/lib/equipmentBrochurePdf";
+import { exportEquipmentBrochurePdf, partitionSpecifications } from "@/lib/equipmentBrochurePdf";
 import { DEFAULT_DEPARTMENT_NAME } from "@/lib/pdfLetterhead";
 
 /** Return black or white for readable text on the given hex background. */
@@ -163,20 +163,6 @@ type SpecItem = {
   spec_value: string;
   created_at: string;
 };
-
-function matchesSpecKey(specKey: string, patterns: string[]): boolean {
-  const key = (specKey || "").trim().toLowerCase();
-  return patterns.some((p) => key.includes(p));
-}
-
-function partitionSpecifications(specs: SpecItem[] | undefined | null) {
-  const list = Array.isArray(specs) ? specs : [];
-  const samplePatterns = ["sample requirement", "sample requirements", "sample prep", "sample preparation"];
-  const sample = list.filter((s) => matchesSpecKey(s.spec_key, samplePatterns));
-  const claimed = new Set(sample.map((s) => s.equipment_specification_id));
-  const general = list.filter((s) => !claimed.has(s.equipment_specification_id));
-  return { sample, general };
-}
 
 const EquipmentProfile = () => {
   const { id } = useParams<{ id: string }>();

@@ -4,6 +4,8 @@
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api";
+import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
+import { formatINR } from "@/lib/money";
 import {
   DEFAULT_DEPARTMENT_NAME,
   drawPdfLetterhead,
@@ -27,6 +29,7 @@ export type BrochureChargeRow = {
   category: string;
   primary?: string | null;
   secondary?: string | null;
+  note?: string | null;
 };
 
 export type EquipmentBrochurePdfInput = {
@@ -42,6 +45,93 @@ export type EquipmentBrochurePdfInput = {
   chargeRows: BrochureChargeRow[];
   contacts: BrochureContact[];
 };
+
+const SAMPLE_SPEC_PATTERNS = ["sample requirement", "sample requirements", "sample prep", "sample preparation"];
+
+/** Split specifications into sample-requirement rows and general technical specs. */
+export function partitionSpecifications<T extends { spec_key: string }>(
+  specs: T[] | undefined | null,
+): { sample: T[]; general: T[] } {
+  const list = Array.isArray(specs) ? specs : [];
+  const sample = list.filter((s) => {
+    const key = (s.spec_key || "").trim().toLowerCase();
+    return SAMPLE_SPEC_PATTERNS.some((p) => key.includes(p));
+  });
+  const claimed = new Set<T>(sample);
+  const general = list.filter((s) => !claimed.has(s));
+  return { sample, general };
+}
+
+export type BrochureSourceEquipment = NonNullable<Parameters<typeof buildChargeCategorySummaryRows>[0]> & {
+  equipment_id: number;
+  name: string;
+  code?: string | null;
+  description?: string | null;
+  important_instruction?: string | null;
+  location?: string | null;
+  internal_department_name?: string | null;
+  specifications?: Array<{ spec_key: string; spec_value: string }> | null;
+  managers?: Array<{
+    manager_name?: string | null;
+    manager_email?: string | null;
+    manager_phone?: string | null;
+  }> | null;
+  operators?: Array<{
+    operator_name?: string | null;
+    operator_email?: string | null;
+    operator_phone?: string | null;
+  }> | null;
+};
+
+function formatChargeAmount(value: string | null | undefined): string | null {
+  const s = String(value ?? "").trim();
+  if (!s || s === "—") return null;
+  const n = Number(s.replace(/,/g, ""));
+  return Number.isFinite(n) ? formatINR(n) : s;
+}
+
+/** Build brochure input from an equipment detail API payload. */
+export function buildEquipmentBrochureInput(
+  eq: BrochureSourceEquipment,
+  fallbackDepartmentName?: string,
+): EquipmentBrochurePdfInput {
+  const { sample, general } = partitionSpecifications(eq.specifications);
+  const toSpec = (s: { spec_key: string; spec_value: string }) => ({
+    spec_key: s.spec_key,
+    spec_value: s.spec_value,
+  });
+  return {
+    equipmentId: eq.equipment_id,
+    name: eq.name,
+    code: eq.code,
+    description: eq.description,
+    importantInstruction: eq.important_instruction,
+    location: eq.location,
+    departmentName: eq.internal_department_name || fallbackDepartmentName || DEFAULT_DEPARTMENT_NAME,
+    generalSpecs: general.map(toSpec),
+    sampleSpecs: sample.map(toSpec),
+    chargeRows: buildChargeCategorySummaryRows(eq).map((row) => ({
+      category: row.label || row.userType || "Category",
+      primary: row.displayText || formatChargeAmount(row.primary),
+      secondary: row.displayText ? null : formatChargeAmount(row.secondary),
+      note: row.displayText ? null : row.notes || null,
+    })),
+    contacts: [
+      ...(eq.managers ?? []).map((m) => ({
+        role: "Officer in-charge",
+        name: m.manager_name || "—",
+        email: m.manager_email,
+        phone: m.manager_phone,
+      })),
+      ...(eq.operators ?? []).map((o) => ({
+        role: "Lab operator",
+        name: o.operator_name || "—",
+        email: o.operator_email,
+        phone: o.operator_phone,
+      })),
+    ],
+  };
+}
 
 /** Helvetica (WinAnsi) cannot render Greek/math Unicode; map to ASCII so PDF text stays readable. */
 function pdfSafe(text: string): string {
@@ -206,28 +296,24 @@ function writeParagraph(
   return y;
 }
 
-export async function exportEquipmentBrochurePdf(
+function equipmentTitle(input: Pick<EquipmentBrochurePdfInput, "name" | "code">): string {
+  return [input.name, input.code ? `(${input.code})` : ""].filter(Boolean).join(" ");
+}
+
+/** Draws title, image and all brochure sections starting at `y`; returns the final Y. */
+async function renderEquipmentBrochure(
+  doc: jsPDF,
   input: EquipmentBrochurePdfInput,
-  options?: { filename?: string }
-): Promise<void> {
-  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  startY: number,
+): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
   const marginX = 48;
-  const dept =
-    String(input.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
-  const titleBits = [input.name, input.code ? `(${input.code})` : ""]
-    .filter(Boolean)
-    .join(" ");
-
-  let y = await drawPdfLetterhead(doc, {
-    departmentName: dept,
-    documentTitle: "Equipment Brochure",
-  });
+  let y = startY;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(...PDF_INK_RGB);
-  const nameLines = doc.splitTextToSize(pdfSafe(titleBits), pageW - marginX * 2);
+  const nameLines = doc.splitTextToSize(pdfSafe(equipmentTitle(input)), pageW - marginX * 2);
   doc.text(nameLines, pageW / 2, y, { align: "center" });
   y += nameLines.length * 16 + 12;
 
@@ -322,7 +408,9 @@ export async function exportEquipmentBrochurePdf(
       const parts = [row.category];
       if (row.primary) parts.push(pdfSafe(row.primary));
       if (row.secondary) parts.push(`Additional: ${pdfSafe(row.secondary)}`);
-      y = writeParagraph(doc, parts.filter(Boolean).join(" — "), y, marginX, { size: 9 });
+      let line = parts.filter(Boolean).join(" — ");
+      if (row.note) line += ` (${row.note})`;
+      y = writeParagraph(doc, line, y, marginX, { size: 9 });
     }
   }
   y += 10;
@@ -347,7 +435,124 @@ export async function exportEquipmentBrochurePdf(
       y = writeParagraph(doc, lines.join(" · "), y, marginX, { size: 9 });
     }
   }
+  return y;
+}
+
+export async function exportEquipmentBrochurePdf(
+  input: EquipmentBrochurePdfInput,
+  options?: { filename?: string }
+): Promise<void> {
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const dept =
+    String(input.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
+
+  const y = await drawPdfLetterhead(doc, {
+    departmentName: dept,
+    documentTitle: "Equipment Brochure",
+  });
+  await renderEquipmentBrochure(doc, input, y);
 
   const filename = options?.filename || defaultFilename(input.code, input.name);
+  doc.save(filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
+}
+
+/** Filename-safe "<Department> Facilities.pdf". */
+export function departmentBrochureFilename(departmentName: string): string {
+  const base = String(departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
+  const safe = base.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  return `${safe} Facilities.pdf`;
+}
+
+/**
+ * Combined brochure for a department: cover page with a linked contents list,
+ * then each equipment starting on its own page.
+ */
+export async function exportDepartmentBrochurePdf(
+  departmentName: string,
+  inputs: EquipmentBrochurePdfInput[],
+  options?: { filename?: string; onProgress?: (done: number, total: number) => void },
+): Promise<void> {
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 48;
+  const marginBottom = 48;
+  const rowH = 16;
+  const dept = String(departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
+
+  let y = await drawPdfLetterhead(doc, { departmentName: dept, documentTitle: "Facilities" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(
+    `${inputs.length} equipment · Generated on ${format(new Date(), "dd MMM yyyy")}`,
+    pageW / 2,
+    y,
+    { align: "center" },
+  );
+  y += 22;
+  y = writeSectionTitle(doc, "Contents", y, marginX);
+
+  const firstPageRows = Math.max(1, Math.floor((pageH - marginBottom - y) / rowH));
+  const laterPageRows = Math.floor((pageH - marginBottom - 48) / rowH);
+  const extraTocPages =
+    inputs.length > firstPageRows ? Math.ceil((inputs.length - firstPageRows) / laterPageRows) : 0;
+  for (let i = 0; i < extraTocPages; i++) doc.addPage();
+  const tocStartY = y;
+
+  const startPages: number[] = [];
+  for (let i = 0; i < inputs.length; i++) {
+    doc.addPage();
+    startPages.push(doc.getNumberOfPages());
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_BRAND_RGB);
+    doc.text(pdfSafe(`${dept} — Facilities`), marginX, 32);
+    doc.setDrawColor(...PDF_BRAND_RGB);
+    doc.setLineWidth(0.4);
+    doc.line(marginX, 38, pageW - marginX, 38);
+    await renderEquipmentBrochure(doc, inputs[i], 64);
+    options?.onProgress?.(i + 1, inputs.length);
+  }
+
+  let tocPage = 1;
+  let rowY = tocStartY;
+  let rowsLeft = firstPageRows;
+  doc.setPage(tocPage);
+  for (let i = 0; i < inputs.length; i++) {
+    if (rowsLeft <= 0) {
+      tocPage += 1;
+      doc.setPage(tocPage);
+      rowY = 48;
+      rowsLeft = laterPageRows;
+    }
+    const pageLabel = String(startPages[i]);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...PDF_INK_RGB);
+    const labelMaxW = pageW - marginX * 2 - 40;
+    const wrapped = doc.splitTextToSize(
+      pdfSafe(`${i + 1}. ${equipmentTitle(inputs[i])}`),
+      labelMaxW,
+    ) as string[];
+    const label = wrapped.length > 1 ? `${wrapped[0].replace(/\s+\S*$/, "")}...` : wrapped[0] || "";
+    doc.text(label, marginX, rowY);
+    doc.text(pageLabel, pageW - marginX, rowY, { align: "right" });
+    doc.link(marginX, rowY - 11, pageW - marginX * 2, rowH, { pageNumber: startPages[i] });
+    rowY += rowH;
+    rowsLeft -= 1;
+  }
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(pdfSafe(`${dept} Facilities`), marginX, pageH - 24);
+    doc.text(`Page ${p} of ${totalPages}`, pageW - marginX, pageH - 24, { align: "right" });
+  }
+
+  const filename = options?.filename || departmentBrochureFilename(dept);
   doc.save(filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
 }
