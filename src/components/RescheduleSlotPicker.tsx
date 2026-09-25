@@ -1,9 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
-import { apiClient } from "@/lib/api";
+import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -57,6 +64,8 @@ export interface RescheduleSlot {
 
 export interface RescheduleBooking {
   booking_id: number;
+  /** Numeric primary key when booking_id is a display value. */
+  real_booking_id?: number | null;
   equipment: number;
   start_time: string;
   end_time: string;
@@ -68,7 +77,8 @@ interface RescheduleSlotPickerProps {
   booking: RescheduleBooking;
   /** When set, slots API extends internal slot window by one week (maintenance reschedule policy). */
   maintenanceExtraWeekBookingId?: number;
-  onConfirm: (startTimeISO: string, endTimeISO: string) => void;
+  /** targetEquipmentId is set only when the user picked another equipment of the same group. */
+  onConfirm: (startTimeISO: string, endTimeISO: string, targetEquipmentId?: number) => void;
   onCancel: () => void;
   confirmLoading?: boolean;
 }
@@ -84,8 +94,34 @@ export default function RescheduleSlotPicker({
   /** Same week-nav extension as urgent “Select slot” on BookEquipment (prev / current / next / +1 week when applicable). */
   const useExtendedDisruptionWeekNav = maintenanceExtraWeekBookingId != null;
 
-  const requiredSlotCount = booking.daily_slots?.length ?? 1;
+  /** Same-group equipment offered by the backend (only populated when cross-equipment rescheduling is enabled). */
+  const [equipmentOptions, setEquipmentOptions] = useState<RescheduleEquipmentOption[]>([]);
+  const [targetEquipmentId, setTargetEquipmentId] = useState<number>(equipmentId);
+  const targetOption = equipmentOptions.find((o) => o.equipment_id === targetEquipmentId);
+  const isCrossEquipment = targetEquipmentId !== equipmentId;
+
+  const requiredSlotCount = isCrossEquipment && targetOption
+    ? Math.max(1, targetOption.required_slots)
+    : (booking.daily_slots?.length ?? 1);
   const currentBookingSlotIds = new Set((booking.daily_slots ?? []).map((s) => s.id));
+
+  const optionsBookingId = Number(booking.real_booking_id ?? booking.booking_id);
+  useEffect(() => {
+    let cancelled = false;
+    setTargetEquipmentId(equipmentId);
+    setEquipmentOptions([]);
+    if (!Number.isFinite(optionsBookingId) || optionsBookingId <= 0) return;
+    apiClient
+      .getBookingRescheduleOptions(optionsBookingId)
+      .then((res) => {
+        if (cancelled || !res.data?.cross_rescheduling_enabled) return;
+        setEquipmentOptions(res.data.options ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [optionsBookingId, equipmentId]);
 
   const [userType, setUserType] = useState<string | number | null>(null);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -277,7 +313,7 @@ export default function RescheduleSlotPicker({
     const weekEnd = addDays(weekStart, 7);
     const startStr = format(weekStart, "yyyy-MM-dd");
     const endStr = format(weekEnd, "yyyy-MM-dd");
-    const res = await apiClient.getEquipmentSlots(equipmentId, startStr, endStr, {
+    const res = await apiClient.getEquipmentSlots(targetEquipmentId, startStr, endStr, {
       maintenanceExtraWeekBookingId,
     });
     setLoadingSlots(false);
@@ -290,7 +326,7 @@ export default function RescheduleSlotPicker({
     setSlotWindowMinDate(res.data?.slot_window_min_date ?? null);
     setSlotWindowMaxDate(res.data?.slot_window_max_date ?? null);
     setSelectedSlots([]);
-  }, [equipmentId, weekStart, userType, maintenanceExtraWeekBookingId]);
+  }, [targetEquipmentId, weekStart, userType, maintenanceExtraWeekBookingId]);
 
   useEffect(() => {
     fetchSlots();
@@ -436,13 +472,46 @@ export default function RescheduleSlotPicker({
     );
     const startISO = parseISO(sorted[0].start_datetime).toISOString();
     const endISO = parseISO(sorted[sorted.length - 1].end_datetime).toISOString();
-    onConfirm(startISO, endISO);
+    onConfirm(startISO, endISO, isCrossEquipment ? targetEquipmentId : undefined);
   };
 
   const days = [0, 1, 2, 3, 4, 5, 6].map((d) => addDays(weekStart, d));
 
   return (
     <div className="space-y-4">
+      {equipmentOptions.length > 1 && (
+        <div className="space-y-1">
+          <Label className="text-sm font-medium">Equipment</Label>
+          <Select
+            value={String(targetEquipmentId)}
+            onValueChange={(v) => {
+              setTargetEquipmentId(Number(v));
+              setSelectedSlots([]);
+            }}
+            disabled={confirmLoading}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {equipmentOptions.map((o) => (
+                <SelectItem key={o.equipment_id} value={String(o.equipment_id)}>
+                  {o.name} ({o.code}){o.is_original ? " — current" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isCrossEquipment && targetOption && (
+            <p className="text-xs text-muted-foreground">
+              Your booking will move to {targetOption.name} (same equipment group). The amount already charged stays
+              unchanged.
+              {targetOption.dropped_fields && targetOption.dropped_fields.length > 0
+                ? ` Not carried over: ${targetOption.dropped_fields.map((f) => f.label).join(", ")}.`
+                : ""}
+            </p>
+          )}
+        </div>
+      )}
       <div className="rounded-md bg-muted/50 p-3 text-sm">
         <p className="font-medium text-muted-foreground mb-1">Current slot window</p>
         <p className="font-mono">

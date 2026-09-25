@@ -1263,7 +1263,7 @@ export function BookingDetailCard({
     }
   };
 
-  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string) => {
+  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string, targetEquipmentId?: number) => {
     if (!actionDialog.booking) return;
     setRescheduleLoading(true);
     try {
@@ -1271,8 +1271,8 @@ export function BookingDetailCard({
       if (bookingPk == null) throw new Error("Invalid booking reference.");
       // Admin / OIC / Lab Operator use staff reschedule (any booking); users use own-booking endpoint.
       const response = isOperator || isManagerOrAdmin
-        ? await apiClient.rescheduleBooking(bookingPk, startTimeISO, endTimeISO)
-        : await apiClient.userRescheduleBooking(bookingPk, startTimeISO, endTimeISO);
+        ? await apiClient.rescheduleBooking(bookingPk, startTimeISO, endTimeISO, targetEquipmentId)
+        : await apiClient.userRescheduleBooking(bookingPk, startTimeISO, endTimeISO, targetEquipmentId);
       if (response.error) {
         toast.error(response.error);
         return;
@@ -3797,7 +3797,9 @@ export function BookingDetailCard({
                   date: s.date,
                 })),
               }}
-              onConfirm={(startTimeISO, endTimeISO) => handleRescheduleConfirm(startTimeISO, endTimeISO)}
+              onConfirm={(startTimeISO, endTimeISO, targetEquipmentId) =>
+                handleRescheduleConfirm(startTimeISO, endTimeISO, targetEquipmentId)
+              }
               onCancel={closeActionDialog}
               confirmLoading={rescheduleLoading}
             />

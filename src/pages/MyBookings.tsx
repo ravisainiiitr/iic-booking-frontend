@@ -1164,7 +1164,7 @@ const MyBookings = () => {
     }
   };
 
-  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string) => {
+  const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string, targetEquipmentId?: number) => {
     if (!selectedBooking) return;
 
     setActionLoading(true);
@@ -1178,7 +1178,8 @@ const MyBookings = () => {
       const response = await apiClient.userRescheduleBooking(
         backendId,
         startTimeISO,
-        endTimeISO
+        endTimeISO,
+        targetEquipmentId
       );
 
       if (response.error) {

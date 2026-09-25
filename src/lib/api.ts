@@ -322,6 +322,53 @@ export interface FinanceReportDashboardData {
   };
 }
 
+export interface GroupEquipmentSummary {
+  equipment_id: number;
+  code: string;
+  name: string;
+  make?: string;
+  model_information?: string;
+  internal_department_name?: string | null;
+}
+
+/** One alternative offered by the backend when the requested equipment has no slot (409 GROUP_ALTERNATIVES_AVAILABLE). */
+export interface GroupAlternative extends GroupEquipmentSummary {
+  alternative_priority: number;
+  exact_match: boolean;
+  slot_ids: number[];
+  start: string;
+  end: string;
+  date: string;
+  required_minutes: number;
+  estimated_charge: string | null;
+  input_values: Record<string, string | boolean | string[]>;
+  dropped_fields: Array<{ key: string; label: string }>;
+  missing_required_fields: Array<{ key: string; label: string }>;
+  input_error: string | null;
+}
+
+export interface GroupAlternativesPayload {
+  error: string;
+  code: "GROUP_ALTERNATIVES_AVAILABLE";
+  original_error: string;
+  original_equipment: GroupEquipmentSummary;
+  alternatives: GroupAlternative[];
+}
+
+export interface GroupAllocatedAlternative {
+  original_equipment: GroupEquipmentSummary;
+  equipment: Pick<GroupEquipmentSummary, "equipment_id" | "code" | "name" | "make" | "model_information">;
+  start: string;
+  end: string;
+}
+
+export interface RescheduleEquipmentOption extends GroupEquipmentSummary {
+  is_original: boolean;
+  required_slots: number;
+  required_minutes: number;
+  dropped_fields?: Array<{ key: string; label: string }> | null;
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -934,10 +981,15 @@ class ApiClient {
             `HTTP error! status: ${response.status}`;
           
           return {
-            error: firstErrorMessage,
+            error:
+              errorData.code === "GROUP_ALTERNATIVES_AVAILABLE" && typeof errorData.error === "string"
+                ? errorData.error
+                : firstErrorMessage,
             status: response.status,
             errorCode: typeof errorData.code === "string" ? errorData.code : undefined,
             fieldErrors: fieldErrors,
+            // Callers test `data` before `error`; expose the body only for the alternatives offer.
+            ...(errorData.code === "GROUP_ALTERNATIVES_AVAILABLE" ? { data: data as T } : {}),
           };
         }
         
@@ -5035,14 +5087,28 @@ class ApiClient {
     });
   }
 
-  async rescheduleBooking(bookingId: number, startTime: string, endTime: string) {
+  async rescheduleBooking(bookingId: number, startTime: string, endTime: string, targetEquipmentId?: number) {
     return this.request<{
       message: string;
       booking: any;
+      cross_equipment?: boolean;
     }>(`/bookings/${bookingId}/reschedule/`, {
       method: 'POST',
-      body: JSON.stringify({ start_time: startTime, end_time: endTime }),
+      body: JSON.stringify({
+        start_time: startTime,
+        end_time: endTime,
+        ...(targetEquipmentId != null ? { target_equipment_id: targetEquipmentId } : {}),
+      }),
     });
+  }
+
+  /** Equipment a booking can be rescheduled onto (original + same-group alternatives when enabled). */
+  async getBookingRescheduleOptions(bookingId: number) {
+    return this.request<{
+      booking_id: number;
+      cross_rescheduling_enabled: boolean;
+      options: RescheduleEquipmentOption[];
+    }>(`/bookings/${bookingId}/reschedule-options/`);
   }
 
   async cancelBooking(
@@ -5131,13 +5197,18 @@ class ApiClient {
     });
   }
 
-  async userRescheduleBooking(bookingId: number, startTime: string, endTime: string) {
+  async userRescheduleBooking(bookingId: number, startTime: string, endTime: string, targetEquipmentId?: number) {
     return this.request<{
       message: string;
       booking: any;
+      cross_equipment?: boolean;
     }>(`/bookings/${bookingId}/user-reschedule/`, {
       method: 'POST',
-      body: JSON.stringify({ start_time: startTime, end_time: endTime }),
+      body: JSON.stringify({
+        start_time: startTime,
+        end_time: endTime,
+        ...(targetEquipmentId != null ? { target_equipment_id: targetEquipmentId } : {}),
+      }),
     });
   }
 
@@ -6040,6 +6111,12 @@ class ApiClient {
     print_analysis_id?: string;
     /** 3D print: ZIP batch id when multiple STL files were uploaded */
     print_analysis_batch_id?: string;
+    /** Ask the backend to offer same-group alternative equipment before waitlisting (feature-flagged). */
+    offer_group_alternatives?: boolean;
+    /** User chose "Continue to Waitlist" after alternatives were offered. */
+    skip_group_alternatives?: boolean;
+    /** Booking an alternative offered for this equipment (audit only; backend re-validates). */
+    alternative_of_equipment_id?: number;
   }) {
     return this.request<{
       id: number;
@@ -6057,6 +6134,7 @@ class ApiClient {
         points_used: string;
         discount_amount: string;
       };
+      allocated_alternative?: GroupAllocatedAlternative;
     }>(`/equipments/${equipmentId}/book/`, {
       method: 'POST',
       body: JSON.stringify(data),

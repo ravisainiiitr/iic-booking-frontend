@@ -2,7 +2,14 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { flushSync } from "react-dom";
 import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient, type PrintMaterial } from "@/lib/api";
+import {
+  apiClient,
+  type GroupAllocatedAlternative,
+  type GroupAlternative,
+  type GroupAlternativesPayload,
+  type PrintMaterial,
+} from "@/lib/api";
+import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
   classifyEquipmentAccessFailure,
@@ -176,10 +183,32 @@ interface DailySlot {
   updated_at: string;
 }
 
+function describeGroupSlotWindow(start: string, end: string): string {
+  try {
+    return `${format(parseISO(start), "EEE d MMM yyyy, HH:mm")} – ${format(parseISO(end), "HH:mm")}`;
+  } catch {
+    return `${start} – ${end}`;
+  }
+}
+
+/** sessionStorage handoff when the user opens the booking form for a same-group alternative. */
+const GROUP_ALT_PREFILL_KEY = "iic_group_alternative_prefill";
+
+type GroupAltPrefill = {
+  equipment_id: number;
+  from_equipment_id: number;
+  from_name: string;
+  input_values: Record<string, string | boolean | string[]>;
+  date: string;
+};
+
 interface EquipmentDetail {
   equipment_id: number;
   code: string;
   name: string;
+  /** Equipment Group alternatives active for this equipment (env flag + group switch). */
+  group_alternatives_enabled?: boolean;
+  group_cross_reschedule_enabled?: boolean;
   description: string;
   profile_type: string;
   profile_type_display: string;
@@ -1244,6 +1273,23 @@ const BookEquipment = () => {
     /** When true, show stronger copy to complete remaining optional (editable) parameters. */
     promptCompleteOptionalParams?: boolean;
   }>({ open: false, success: false, variant: "failure", message: "" });
+
+  /** Equipment Group: alternatives offered after a slot-unavailable failure (409 GROUP_ALTERNATIVES_AVAILABLE). */
+  const [groupAlternatives, setGroupAlternatives] = useState<{
+    payload: GroupAlternativesPayload;
+    /** Body of the original book request, reused for "Book this" / "Continue to waitlist". */
+    requestBody: Parameters<typeof apiClient.bookEquipment>[1];
+    originalEquipmentId: number;
+  } | null>(null);
+  const [groupAltBookingId, setGroupAltBookingId] = useState<number | null>(null);
+  const [groupAltWaitlistBusy, setGroupAltWaitlistBusy] = useState(false);
+  /** Banner shown when the form was opened for an alternative ("Alternative for …"). */
+  const [alternativeOf, setAlternativeOf] = useState<{
+    equipmentId: number;
+    name: string;
+    /** Equipment the form was opened for; the banner/audit only apply while it is selected. */
+    forEquipmentId: number;
+  } | null>(null);
 
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
   const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
@@ -2589,6 +2635,43 @@ const BookEquipment = () => {
       setShowSlots(false);
     }
   }, [equipmentDetail]);
+
+  // Equipment Group alternative: once the alternative's detail (and default inputs) are loaded,
+  // apply the carried-over inputs and jump to the offered week — exactly once per handoff.
+  const altFromParam = searchParams.get("alt_from");
+  useEffect(() => {
+    if (!altFromParam) {
+      setAlternativeOf(null);
+      return;
+    }
+    const eqId = equipmentDetail?.equipment_id;
+    if (eqId == null) return;
+    let prefill: GroupAltPrefill | null = null;
+    try {
+      const raw = sessionStorage.getItem(GROUP_ALT_PREFILL_KEY);
+      prefill = raw ? (JSON.parse(raw) as GroupAltPrefill) : null;
+    } catch {
+      prefill = null;
+    }
+    if (!prefill || Number(prefill.equipment_id) !== Number(eqId)) return;
+    try {
+      sessionStorage.removeItem(GROUP_ALT_PREFILL_KEY);
+    } catch {
+      // ignore
+    }
+    if (String(prefill.from_equipment_id) !== String(altFromParam)) return;
+    setInputFieldValues((prev) => ({ ...prev, ...prefill!.input_values }));
+    setAlternativeOf({
+      equipmentId: Number(prefill.from_equipment_id),
+      name: prefill.from_name,
+      forEquipmentId: Number(eqId),
+    });
+    try {
+      setCurrentWeekStart(startOfWeek(parseISO(prefill.date), { weekStartsOn: 1 }));
+    } catch {
+      // keep current week
+    }
+  }, [altFromParam, equipmentDetail?.equipment_id]);
 
   useEffect(() => {
     if (!isCalculateChargesFlow || !equipmentDetail) return;
@@ -5125,7 +5208,9 @@ const BookEquipment = () => {
         }
         const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
         const weekEnd = addDays(weekStart, 6);
-        const res = await apiClient.bookEquipment(selectedEquipment.id, {
+        const offerGroupAlternatives =
+          !!equipmentDetail?.group_alternatives_enabled && equipmentDetail?.profile_type !== "PRINT_3D";
+        const bookBody: Parameters<typeof apiClient.bookEquipment>[1] = {
           slot_ids: finalSlotIds,
           total_hours: totalHours,
           total_cost: totalCost,
@@ -5140,8 +5225,30 @@ const BookEquipment = () => {
               ...(isRushReliefMode ? { rush_relief: true } : {}),
           ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(alternativeOf && alternativeOf.forEquipmentId === Number(selectedEquipment.id)
+            ? { alternative_of_equipment_id: alternativeOf.equipmentId }
+            : {}),
           ...print3dBookExtras,
+        };
+        const res = await apiClient.bookEquipment(selectedEquipment.id, {
+          ...bookBody,
+          ...(offerGroupAlternatives ? { offer_group_alternatives: true } : {}),
         });
+        const altPayload = res.data as unknown as GroupAlternativesPayload | undefined;
+        if (
+          res.error &&
+          res.errorCode === "GROUP_ALTERNATIVES_AVAILABLE" &&
+          Array.isArray(altPayload?.alternatives) &&
+          altPayload.alternatives.length > 0
+        ) {
+          // Keep the form as-is so Cancel returns the user to their selection.
+          setGroupAlternatives({
+            payload: altPayload,
+            requestBody: bookBody,
+            originalEquipmentId: Number(selectedEquipment.id),
+          });
+          return;
+        }
         if (res.error) {
           const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string };
           const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
@@ -5179,6 +5286,7 @@ const BookEquipment = () => {
               points_used?: string;
               discount_amount?: string;
             };
+            allocated_alternative?: GroupAllocatedAlternative;
           };
         }).data;
         const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
@@ -5231,7 +5339,11 @@ const BookEquipment = () => {
             resData?.input_values ?? null
           ),
           message: (() => {
-            const baseMsg = resData?.input_values_adjusted
+            const allocated = resData?.allocated_alternative;
+            const baseMsg = allocated
+              ? `${allocated.original_equipment.name} was not available for your requested slot, so your booking was ` +
+                `allocated to ${allocated.equipment.name} (same equipment group) for ${describeGroupSlotWindow(allocated.start, allocated.end)}.`
+              : resData?.input_values_adjusted
               ? "Booking created successfully with reduced parameters (1 slot) as requested."
               : "Booking created successfully!";
             const pointsUsed = Number(resData?.reward?.points_used ?? 0);
@@ -5388,6 +5500,156 @@ const BookEquipment = () => {
     } finally {
       setIsSubmittingBooking(false);
     }
+  };
+
+  const handleBookGroupAlternative = async (alt: GroupAlternative) => {
+    if (!groupAlternatives) return;
+    const { requestBody, originalEquipmentId, payload } = groupAlternatives;
+    const {
+      book_any_available_slots: _anySlots,
+      book_even_if_single_slot_available: _singleSlot,
+      visible_week_start: _ws,
+      visible_week_end: _we,
+      total_cost: _cost,
+      total_hours: _hours,
+      ...rest
+    } = requestBody;
+    setGroupAltBookingId(alt.equipment_id);
+    try {
+      const res = await apiClient.bookEquipment(alt.equipment_id, {
+        ...rest,
+        slot_ids: alt.slot_ids,
+        input_values: alt.input_values,
+        waitlist_on_failure: false,
+        alternative_of_equipment_id: originalEquipmentId,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        setGroupAlternatives((prev) =>
+          prev
+            ? {
+                ...prev,
+                payload: {
+                  ...prev.payload,
+                  alternatives: prev.payload.alternatives.filter((a) => a.equipment_id !== alt.equipment_id),
+                },
+              }
+            : prev,
+        );
+        return;
+      }
+      logBookingServerTimings(res);
+      const resData = res.data as unknown as {
+        real_booking_id?: number;
+        id?: number;
+        virtual_booking_id?: string;
+        booking_id?: string | number;
+        payment_required?: boolean;
+        amount_due?: string;
+        require_istem_fbr?: boolean;
+        istem_fbr_status?: string | null;
+      } | undefined;
+      setGroupAlternatives(null);
+      const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
+      const viewQuery =
+        (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
+        (typeof resData?.booking_id === "string" && resData.booking_id.trim()) ||
+        (realId != null ? String(realId) : undefined);
+      if (resData?.payment_required && realId != null) {
+        resetBookingPageToDefaults();
+        navigate(`/bookings/${realId}/payment`);
+        toast.info(`Booking reserved on ${alt.name}. Please pay ₹${Number(resData.amount_due || 0).toFixed(2)} to confirm.`);
+        return;
+      }
+      if (realId != null && (resData?.require_istem_fbr === true || resData?.istem_fbr_status != null)) {
+        resetBookingPageToDefaults();
+        navigate(`/bookings/${realId}/next-steps`);
+        toast.success(`Booking confirmed on ${alt.name}. Complete I-STEM steps on the next page.`);
+        return;
+      }
+      resetBookingPageToDefaults();
+      setBookingResultDialog({
+        open: true,
+        success: true,
+        variant: "success",
+        bookingViewQuery: viewQuery,
+        bookingDisplayId: viewQuery,
+        message:
+          `Booking confirmed on ${alt.name} (alternative to ${payload.original_equipment.name}) for ` +
+          `${describeGroupSlotWindow(alt.start, alt.end)}.`,
+      });
+    } finally {
+      setGroupAltBookingId(null);
+    }
+  };
+
+  const handleGroupAltWaitlist = async () => {
+    if (!groupAlternatives) return;
+    const { requestBody, originalEquipmentId } = groupAlternatives;
+    setGroupAltWaitlistBusy(true);
+    try {
+      const res = await apiClient.bookEquipment(originalEquipmentId, {
+        ...requestBody,
+        skip_group_alternatives: true,
+      });
+      setGroupAlternatives(null);
+      resetBookingPageToDefaults();
+      if (res.error) {
+        const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string };
+        const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
+        const backendSaysWaitlisted = String(errRes.error || "").toLowerCase().includes("booking waitlisted");
+        const msg = waitlistLabel
+          ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}. You will be notified by email about your queue status and booking confirmation/failure.`
+          : errRes.error;
+        toast.error(msg);
+        setBookingResultDialog({
+          open: true,
+          success: false,
+          variant: (waitlistLabel || backendSaysWaitlisted) ? "waitlist" : "failure",
+          message: msg,
+        });
+        return;
+      }
+      const resData = res.data as unknown as { real_booking_id?: number; id?: number; virtual_booking_id?: string } | undefined;
+      const viewQuery =
+        (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
+        (resData?.real_booking_id != null ? String(resData.real_booking_id) : resData?.id != null ? String(resData.id) : undefined);
+      setBookingResultDialog({
+        open: true,
+        success: true,
+        variant: "success",
+        bookingViewQuery: viewQuery,
+        bookingDisplayId: viewQuery,
+        message: "Booking created successfully!",
+      });
+    } finally {
+      setGroupAltWaitlistBusy(false);
+    }
+  };
+
+  const handleOpenGroupAlternativeForm = (alt: GroupAlternative) => {
+    if (!groupAlternatives) return;
+    const prefill: GroupAltPrefill = {
+      equipment_id: alt.equipment_id,
+      from_equipment_id: groupAlternatives.originalEquipmentId,
+      from_name: groupAlternatives.payload.original_equipment.name,
+      input_values: alt.input_values,
+      date: alt.date,
+    };
+    try {
+      sessionStorage.setItem(GROUP_ALT_PREFILL_KEY, JSON.stringify(prefill));
+    } catch {
+      // Private mode / quota: the form still opens, only without prefilled inputs.
+    }
+    setGroupAlternatives(null);
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set("equipment_id", String(alt.equipment_id));
+      p.set("alt_from", String(prefill.from_equipment_id));
+      p.delete("repeatOf");
+      return p;
+    });
+    handleEquipmentSelect(alt.equipment_id);
   };
 
   if (!selectedEquipment || !equipmentDetail) {
@@ -6693,13 +6955,14 @@ const BookEquipment = () => {
                   setStatusChangeRescheduleOpen(false);
                   setStatusChangeRescheduleBooking(null);
                 }}
-                onConfirm={async (startTimeISO, endTimeISO) => {
+                onConfirm={async (startTimeISO, endTimeISO, targetEquipmentId) => {
                   setStatusChangeRescheduleLoading(true);
                   try {
                     const response = await apiClient.rescheduleBooking(
                       statusChangeRescheduleBooking.booking_id,
                       startTimeISO,
-                      endTimeISO
+                      endTimeISO,
+                      targetEquipmentId
                     );
                     if (response.error) {
                       toast.error(response.error);
@@ -7185,6 +7448,12 @@ const BookEquipment = () => {
                     </CollapsibleTrigger>
                   </div>
                   <CollapsibleContent className="space-y-2">
+                  {alternativeOf && alternativeOf.forEquipmentId === Number(selectedEquipment?.id) && (
+                    <div className="mb-2 p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sm text-sky-900 dark:text-sky-200">
+                      Alternative for <span className="font-medium">{alternativeOf.name}</span> (same equipment group).
+                      Compatible inputs were carried over — please review them; charges are recalculated for this equipment.
+                    </div>
+                  )}
                   {repeatSourceBooking && (
                     <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
                       Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
@@ -9458,6 +9727,18 @@ const BookEquipment = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <GroupAlternativesDialog
+          open={groupAlternatives != null}
+          payload={groupAlternatives?.payload ?? null}
+          busyEquipmentId={groupAltBookingId}
+          waitlistBusy={groupAltWaitlistBusy}
+          waitlistAvailable={groupAlternatives?.requestBody.waitlist_on_failure !== false}
+          onBook={handleBookGroupAlternative}
+          onOpenForm={handleOpenGroupAlternativeForm}
+          onContinueToWaitlist={handleGroupAltWaitlist}
+          onCancel={() => setGroupAlternatives(null)}
+        />
 
         <Dialog open={bookingResultDialog.open} onOpenChange={(open) => !open && setBookingResultDialog((p) => ({ ...p, open: false }))}>
           <DialogContent className="max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto">

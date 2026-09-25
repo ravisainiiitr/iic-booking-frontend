@@ -221,7 +221,7 @@ export default function AdminSection() {
   const [dailySlotDateFilter, setDailySlotDateFilter] = useState("");
   const [dailySlotEquipmentFilter, setDailySlotEquipmentFilter] = useState("");
   const [equipmentListForSlots, setEquipmentListForSlots] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
-  const [equipmentListForGroups, setEquipmentListForGroups] = useState<Array<{ equipment_id: number; code: string; name: string; equipment_group_id: number | null }>>([]);
+  const [equipmentListForGroups, setEquipmentListForGroups] = useState<Array<{ equipment_id: number; code: string; name: string; equipment_group_id: number | null; internal_department: number | null; internal_department_name: string | null }>>([]);
   const [equipmentSearchFilter, setEquipmentSearchFilter] = useState("");
   const [equipmentStatusFilter, setEquipmentStatusFilter] = useState("");
   const [equipmentProfileTypeFilter, setEquipmentProfileTypeFilter] = useState("");
@@ -389,13 +389,15 @@ export default function AdminSection() {
     if (sectionKey === "equipmentGroups") {
       apiClient.adminList("equipment").then((res) => {
         if (!res.error && Array.isArray(res.data)) {
-          const raw = res.data as Array<{ equipment_id?: number; id?: number; code?: string; name?: string; equipment_group_id?: number | null }>;
+          const raw = res.data as Array<{ equipment_id?: number; id?: number; code?: string; name?: string; equipment_group_id?: number | null; internal_department?: number | null; internal_department_name?: string | null }>;
           setEquipmentListForGroups(
             raw.map((e) => ({
               equipment_id: e.equipment_id ?? (e.id as number),
               code: String(e.code ?? ""),
               name: String(e.name ?? e.code ?? ""),
               equipment_group_id: e.equipment_group_id ?? null,
+              internal_department: e.internal_department ?? null,
+              internal_department_name: e.internal_department_name ?? null,
             }))
           );
         } else setEquipmentListForGroups([]);
@@ -791,6 +793,14 @@ export default function AdminSection() {
     setMenuDocumentFile(null);
     setModalOpen(true);
   };
+
+  // Equipment Groups are single-department: the first member fixes the department of the group.
+  const groupDepartmentAnchor =
+    sectionKey === "equipmentGroups"
+      ? ((formData.equipment || []) as Array<{ equipment_id: number }>)
+          .map((m) => equipmentListForGroups.find((e) => e.equipment_id === m.equipment_id))
+          .find((e) => e != null) ?? null
+      : null;
 
   const handleSave = async (payload?: Record<string, unknown>, documentFile?: File | null): Promise<Record<string, unknown> | null> => {
     if (!sectionKey) return null;
@@ -2303,7 +2313,14 @@ export default function AdminSection() {
                   )}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Equipment in this group</Label>
-                    <p className="text-xs text-muted-foreground">Add or remove equipment. Only equipment with no group or already in this group can be added.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Add or remove equipment. Only equipment with no group or already in this group can be added. All
+                      equipment in an Equipment Group must belong to the same department
+                      {groupDepartmentAnchor
+                        ? ` (this group: ${groupDepartmentAnchor.internal_department_name ?? "no department"})`
+                        : ""}
+                      .
+                    </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <Select
                         value="__add__"
@@ -2335,9 +2352,15 @@ export default function AdminSection() {
                                   (x) => x.equipment_id === e.equipment_id
                                 )
                             )
+                            .filter(
+                              (e) =>
+                                groupDepartmentAnchor == null ||
+                                e.internal_department === groupDepartmentAnchor.internal_department
+                            )
                             .map((e) => (
                               <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
                                 {e.code} – {e.name || "—"}
+                                {e.internal_department_name ? ` · ${e.internal_department_name}` : ""}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -2352,6 +2375,10 @@ export default function AdminSection() {
                             <span className="text-sm">
                               <strong>{eq.code}</strong> – {eq.name ?? "—"}
                               {eq.status_display != null ? ` (${eq.status_display})` : ""}
+                              {(() => {
+                                const deptName = equipmentListForGroups.find((e) => e.equipment_id === eq.equipment_id)?.internal_department_name;
+                                return deptName ? ` · ${deptName}` : "";
+                              })()}
                             </span>
                             <Button
                               type="button"
