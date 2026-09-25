@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -1891,6 +1891,18 @@ const Wallet = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isStudent && (
+                <div
+                  role="note"
+                  className="flex items-start gap-3 rounded-lg border-2 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+                >
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+                  <p className="text-sm sm:text-base font-bold leading-snug">
+                    Note: If your Faculty / Supervisor&apos;s name is not visible in the search, please ask your
+                    Supervisor to log in to the new portal using Channel I.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="faculty-search">Search Faculty by Name</Label>
                 <Popover open={facultySearchResults.length > 0 && facultySearchQuery.length >= 2}>
