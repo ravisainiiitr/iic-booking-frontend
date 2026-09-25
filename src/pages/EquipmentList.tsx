@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { type EquipmentData } from "@/data/equipmentData";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,6 +98,7 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
 
 const EquipmentList = () => {
   const navigate = useNavigate();
+  const embedded = useEmbeddedMode();
   const { user } = useAuth();
   const [rawEquipment, setRawEquipment] = useState<ApiEquipment[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -285,18 +287,20 @@ const EquipmentList = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-              <Package className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Browse Equipment</h1>
-              <p className="text-white/90 text-sm">Explore and book laboratory equipment</p>
+      <main className={embedded ? "container mx-auto px-3 py-4" : "container mx-auto px-4 py-8"}>
+        {!embedded && (
+          <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold">Browse Equipment</h1>
+                <p className="text-white/90 text-sm">Explore and book laboratory equipment</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
           Equipment catalog

@@ -57,6 +57,7 @@ function WorkspaceExitGuard({
 type DashboardWorkspaceProps = {
   initialPath: string;
   onClose: () => void;
+  onPathChange?: (pathname: string) => void;
 };
 
 /**
@@ -68,6 +69,7 @@ type DashboardWorkspaceProps = {
 export default function DashboardWorkspace({
   initialPath,
   onClose,
+  onPathChange,
 }: DashboardWorkspaceProps) {
   const handleClose = useCallback(() => {
     onClose();
@@ -168,6 +170,10 @@ export default function DashboardWorkspace({
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onPathChange?.(location.pathname);
+  }, [location.pathname, onPathChange]);
 
   // Keep the Book CTA / page header visible when drilling into equipment details
   useEffect(() => {

@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -286,6 +286,8 @@ const Dashboard = () => {
   /** In-dashboard workspace: open menu destinations on the right without full page switch. */
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [workspaceTitle, setWorkspaceTitle] = useState<string>("");
+  /** Current in-workspace route (changes when the embedded page navigates internally). */
+  const [workspaceCurrentPath, setWorkspaceCurrentPath] = useState<string>("");
   /** Remount MemoryRouter when a menu item opens a new section. */
   const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1285,15 +1287,22 @@ const Dashboard = () => {
     if (!path.startsWith("/")) path = `/${path}`;
     setMobileMenuOpen(false);
     setWorkspacePath(path);
+    setWorkspaceCurrentPath(path.split(/[?#]/)[0]);
     setWorkspaceTitle(title || path.replace(/^\//, "").replace(/[-_/]/g, " "));
     setWorkspaceEpoch((n) => n + 1);
+  }, []);
+
+  const closeWorkspace = useCallback(() => {
+    setMobileMenuOpen(false);
+    setWorkspacePath(null);
+    setWorkspaceTitle("");
+    setWorkspaceCurrentPath("");
   }, []);
 
   useEffect(() => {
     const onMsg = (event: MessageEvent) => {
       if (event?.data?.type === "iic-close-dashboard-embed") {
-        setWorkspacePath(null);
-        setWorkspaceTitle("");
+        closeWorkspace();
       }
     };
     window.addEventListener("message", onMsg);
@@ -1307,6 +1316,20 @@ const Dashboard = () => {
       </div>
     );
   }
+
+  const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(workspaceCurrentPath || workspacePath || "");
+  const dashboardHomeButton = (
+    <Button
+      type="button"
+      variant={workspacePath ? "outline" : "default"}
+      className="w-full justify-start gap-2 font-semibold"
+      aria-current={workspacePath ? undefined : "page"}
+      onClick={closeWorkspace}
+    >
+      <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
+      Dashboard
+    </Button>
+  );
 
   return (
     <div className="dashboard-page page-shell">
@@ -2547,7 +2570,7 @@ const Dashboard = () => {
 
         <MigrationPortalBanner variant="notice" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-3 items-start">
           <div className="lg:hidden sticky top-16 z-30 -mx-1 mb-2">
             <Button
               type="button"
@@ -2571,6 +2594,7 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-1.5 px-2.5 pb-3 dashboard-menu-nav">
+        {dashboardHomeButton}
         {isAccountsInChargeUser ? (
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
@@ -2669,11 +2693,9 @@ const Dashboard = () => {
                   <Package className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">{isOicUser ? "Create booking" : "Browse equipment"}</CardTitle>
+                  <CardTitle className="text-lg">Browse equipment</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
-                    {isOicUser
-                      ? "Create bookings for users on equipment you manage"
-                      : "Browse and book available laboratory equipment"}
+                    Browse and book available laboratory equipment
                   </CardDescription>
                 </div>
               </div>
@@ -2681,7 +2703,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
-                {isOicUser ? "Create booking" : "Browse equipment"}
+                Browse equipment
               </span>
             </CardContent>
           </Card>)}
@@ -4024,6 +4046,7 @@ const Dashboard = () => {
                   }
                 }}
               >
+        {dashboardHomeButton}
         {isAccountsInChargeUser ? (
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
@@ -4122,11 +4145,9 @@ const Dashboard = () => {
                   <Package className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">{isOicUser ? "Create booking" : "Browse equipment"}</CardTitle>
+                  <CardTitle className="text-lg">Browse equipment</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
-                    {isOicUser
-                      ? "Create bookings for users on equipment you manage"
-                      : "Browse and book available laboratory equipment"}
+                    Browse and book available laboratory equipment
                   </CardDescription>
                 </div>
               </div>
@@ -4134,7 +4155,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
-                {isOicUser ? "Create booking" : "Browse equipment"}
+                Browse equipment
               </span>
             </CardContent>
           </Card>)}
@@ -5461,37 +5482,37 @@ const Dashboard = () => {
           <div className="lg:col-span-9 xl:col-span-10 order-2 min-w-0 space-y-6">
             {workspacePath ? (
               <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
-                <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
-                <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between gap-3 space-y-0 px-4">
-                  <div className="min-w-0">
-                    <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight truncate capitalize">
-                      {workspaceTitle || "Workspace"}
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Staying on the dashboard — use Overview to return.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => {
-                      setWorkspacePath(null);
-                      setWorkspaceTitle("");
-                    }}
-                  >
-                    Overview
-                  </Button>
-                </CardHeader>
+                {!hideWorkspaceHeader && (
+                  <>
+                    <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
+                    <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between gap-3 space-y-0 px-4">
+                      <div className="min-w-0">
+                        <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight truncate capitalize">
+                          {workspaceTitle || "Workspace"}
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">
+                          Staying on the dashboard — use Dashboard to return.
+                        </CardDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1.5"
+                        onClick={closeWorkspace}
+                      >
+                        <LayoutDashboard className="h-4 w-4" aria-hidden />
+                        Dashboard
+                      </Button>
+                    </CardHeader>
+                  </>
+                )}
                 <CardContent className="p-0 sm:p-0">
                   <DashboardWorkspace
                     key={workspaceEpoch}
                     initialPath={workspacePath}
-                    onClose={() => {
-                      setWorkspacePath(null);
-                      setWorkspaceTitle("");
-                    }}
+                    onClose={closeWorkspace}
+                    onPathChange={setWorkspaceCurrentPath}
                   />
                 </CardContent>
               </Card>
@@ -5500,7 +5521,7 @@ const Dashboard = () => {
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
               <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
               <CardHeader className="pb-3">
-                <CardTitle className="text-xl sm:text-2xl font-semibold tracking-tight">Overview</CardTitle>
+                <CardTitle className="text-xl sm:text-2xl font-semibold tracking-tight">Dashboard</CardTitle>
                 <CardDescription>
                   {isAccountsInChargeUser
                     ? "Accounts tools and reports are listed in the menu. Open an item to continue."

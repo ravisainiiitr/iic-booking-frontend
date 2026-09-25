@@ -42,6 +42,7 @@ import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import EquipmentImage from "@/components/EquipmentImage";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import TicketForm from "@/components/TicketForm";
 import { cn } from "@/lib/utils";
@@ -180,6 +181,7 @@ function partitionSpecifications(specs: SpecItem[] | undefined | null) {
 const EquipmentProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const embedded = useEmbeddedMode();
   const { isAuthenticated, user } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -613,7 +615,7 @@ const EquipmentProfile = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-background to-background dark:from-background">
       <DashboardHeader />
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className={cn("flex-1 container mx-auto", embedded ? "px-2 py-3 sm:px-3" : "px-4 py-8")}>
 
         {(() => {
           const { sample: sampleSpecs, general: generalSpecs } =
@@ -1172,8 +1174,8 @@ const EquipmentProfile = () => {
           }
 
           return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 items-start">
-              <div className="lg:col-span-10 space-y-5 min-w-0 order-2 lg:order-2">
+            <div className="grid grid-cols-1 lg:grid-cols-[12.5rem_minmax(0,1fr)] gap-3 lg:gap-2.5 items-start">
+              <div className="space-y-5 min-w-0 order-2 lg:order-2">
                 <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                   <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                   <CardHeader className="pb-3">
@@ -1244,7 +1246,7 @@ const EquipmentProfile = () => {
                 </Card>
               </div>
 
-              <div className="lg:col-span-2 order-1 lg:order-1 min-w-0 w-full max-w-none lg:max-w-[12rem]">
+              <div className="order-1 lg:order-1 min-w-0 w-full">
                 <div className="lg:sticky lg:top-6 space-y-2">
                   {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
                     <button

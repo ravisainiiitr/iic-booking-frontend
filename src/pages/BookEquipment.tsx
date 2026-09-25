@@ -5533,7 +5533,7 @@ const BookEquipment = () => {
                     Select one or more dates in the month calendar (click individual days, or use &quot;Select week&quot; / &quot;Select entire month&quot;), then choose the desired status and click Apply. For &quot;Booking Not Utilized&quot; use Week view to select only booked slots; no refund is issued and emails are sent to the user and Supervisor. Other Reasons, Under Maintenance, or Operator Absent will cancel any bookings on those slots and refund users.
                   </p>
                 </div>
-                <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate('/equipments')}>
+                <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate(`/equipment/${selectedEquipment.id}`)}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
