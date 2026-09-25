@@ -369,6 +369,86 @@ export interface RescheduleEquipmentOption extends GroupEquipmentSummary {
   dropped_fields?: Array<{ key: string; label: string }> | null;
 }
 
+export interface ResultsBookingCard {
+  booking_id: number;
+  display_id: string;
+  virtual_booking_id: string | null;
+  status: string;
+  status_display: string;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  department_name: string | null;
+  booking_date: string | null;
+  completed_at: string | null;
+}
+
+export interface ResultsInboxItem extends ResultsBookingCard {
+  results_available_at: string | null;
+  viewed_at: string | null;
+  is_new: boolean;
+  locked_code: "not_completed" | "rating_required" | "istem_fbr_not_executed" | null;
+  locked_reason: string | null;
+  active_share_count: number;
+}
+
+export interface DataShareUserSummary {
+  id: number;
+  name: string;
+  email: string;
+  department: string | null;
+}
+
+export interface DataShareUserDetails extends DataShareUserSummary {
+  user_type: string;
+  user_type_label: string;
+  department_code: string | null;
+  id_number: string | null;
+  designation: string | null;
+  degree_name: string | null;
+  branch_name: string | null;
+  profile_picture: string | null;
+}
+
+export interface BookingDataShareRow {
+  id: number;
+  shared_with: DataShareUserDetails;
+  created_at: string;
+}
+
+export interface SharedWithMeItem extends ResultsBookingCard {
+  share_id: number;
+  shared_at: string;
+  shared_by: DataShareUserSummary;
+  total_time_minutes: number | null;
+  atmosphere_sensitive_sample: boolean;
+  inputs: Array<{ key: string; label: string; value: string }>;
+  results_available_at: string | null;
+  results_accessible: boolean;
+  viewed_at: string | null;
+  is_new: boolean;
+}
+
+export interface PublicEquipmentAvailabilityRow {
+  equipment_id: number;
+  code: string;
+  name: string;
+  department_id: number | null;
+  department_name: string | null;
+  next_available_at: string | null;
+  total_available_slots: number;
+  dates: Array<{ date: string; available_slots: number; first_slot_at: string }>;
+}
+
+export interface PublicEquipmentAvailability {
+  generated_at: string;
+  days: number;
+  until: string;
+  departments: Array<{ id: number; name: string }>;
+  equipment: PublicEquipmentAvailabilityRow[];
+  count: number;
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -5245,8 +5325,13 @@ class ApiClient {
     }>(`/bookings/${bookingId}/results/`);
   }
 
+  /**
+   * Download one result file. Pass `bookingId` so presigned S3 downloads (which bypass the API)
+   * are still recorded as viewed; proxied downloads are recorded by the backend.
+   */
   async downloadBookingResultFile(
-    file: { name: string; download_url: string; source?: string }
+    file: { name: string; download_url: string; source?: string },
+    bookingId?: number | null
   ): Promise<{ error?: string }> {
     const url = (file.download_url || "").trim();
     if (!url) return { error: "Missing download URL" };
@@ -5261,6 +5346,7 @@ class ApiClient {
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.click();
+      if (bookingId != null) await this.markBookingResultsViewed(bookingId);
       return {};
     }
     const token = this.getToken();
@@ -5394,6 +5480,76 @@ class ApiClient {
     onProgress?.(100);
     window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     return {};
+  }
+
+  /** Requester's bookings with results: not-yet-downloaded first, then most recent first. */
+  async getResultsInbox() {
+    return this.request<{
+      results: ResultsInboxItem[];
+      count: number;
+      new_count: number;
+      can_share: boolean;
+    }>("/results/inbox/");
+  }
+
+  async markBookingResultsViewed(bookingId: number) {
+    return this.request<{ booking_id: number; viewed_at: string | null }>(
+      `/bookings/${bookingId}/results/mark-viewed/`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+  }
+
+  /** Internal IIT Roorkee students/faculty eligible to receive shared research data (min 3 chars). */
+  async searchDataSharingUsers(q: string) {
+    return this.request<{ results: DataShareUserSummary[]; min_chars: number }>(
+      `/data-sharing/users/search/?${new URLSearchParams({ q }).toString()}`
+    );
+  }
+
+  async getDataSharingUser(userId: number) {
+    return this.request<DataShareUserDetails>(`/data-sharing/users/${userId}/`);
+  }
+
+  async getBookingDataShares(bookingId: number) {
+    return this.request<{
+      booking_id: number;
+      display_id: string;
+      can_share: boolean;
+      reason: string | null;
+      shares: BookingDataShareRow[];
+    }>(`/bookings/${bookingId}/shares/`);
+  }
+
+  async createBookingDataShare(bookingId: number, userId: number) {
+    return this.request<BookingDataShareRow>(`/bookings/${bookingId}/shares/`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, confirm: true }),
+    });
+  }
+
+  async revokeBookingDataShare(bookingId: number, shareId: number) {
+    return this.request<{ id: number; revoked_at: string | null }>(
+      `/bookings/${bookingId}/shares/${shareId}/revoke/`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+  }
+
+  async getSharedWithMe() {
+    return this.request<{ results: SharedWithMeItem[]; count: number; eligible: boolean }>(
+      "/data-sharing/shared-with-me/"
+    );
+  }
+
+  /** Public (no login) next available dates per equipment. */
+  async getPublicEquipmentAvailability(params?: { days?: number; search?: string; department?: number | string }) {
+    const qs = new URLSearchParams();
+    if (params?.days) qs.set("days", String(params.days));
+    if (params?.search?.trim()) qs.set("search", params.search.trim());
+    if (params?.department != null && params.department !== "") qs.set("department", String(params.department));
+    const query = qs.toString();
+    return this.request<PublicEquipmentAvailability>(
+      `/public/equipment-availability/${query ? `?${query}` : ""}`
+    );
   }
 
   async createBookingEventComment(bookingId: number, comment: string, sendNotification: boolean = true) {

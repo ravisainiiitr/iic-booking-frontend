@@ -1,6 +1,6 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Calendar, Search, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
+import { Calendar, CalendarClock, Search, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -235,6 +235,14 @@ const Hero = () => {
               >
                 <IndianRupee className="h-4 w-4" />
                 Analysis Charges
+              </Button>
+              <Button
+                size="lg"
+                className={primaryCtaClass}
+                onClick={() => navigate("/availability")}
+              >
+                <CalendarClock className="h-4 w-4" />
+                Equipment Availability
               </Button>
               <Button
                 size="lg"

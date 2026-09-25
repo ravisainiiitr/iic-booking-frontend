@@ -50,6 +50,7 @@ import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
+import { BookingShareButton } from "@/components/BookingShareButton";
 
 export interface BookingDetailCardBooking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -2816,6 +2817,19 @@ export function BookingDetailCard({
                   {resultsFolderLabel}
                 </Button>
               )}
+              {!resultsLoading && isBookingOwnerView && isCompleted && hasDownloadableResults && bookingPk != null && (
+                <BookingShareButton bookingId={bookingPk} bookingLabel={booking.virtual_booking_id || undefined} />
+              )}
+              {isBookingOwnerView && isCompleted && bookingPk != null && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate(`/book-equipment?equipment_id=${booking.equipment}&rebookOf=${bookingPk}`)}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Book again
+                </Button>
+              )}
               {/* Launch CTA lives in Analysis Workspace below — Actions keeps file folders only
                   (Raw Data / Analyzed Data) so users do not confuse Analyze Data with a download. */}
               {remoteAnalysisEnabled &&
@@ -3457,7 +3471,7 @@ export function BookingDetailCard({
                             variant="outline"
                             className="shrink-0"
                             onClick={async () => {
-                              const res = await apiClient.downloadBookingResultFile(file);
+                              const res = await apiClient.downloadBookingResultFile(file, bookingPk);
                               if (res.error) toast.error(res.error);
                             }}
                           >

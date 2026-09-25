@@ -1539,6 +1539,25 @@ const MyBookings = () => {
                                 {resultsLoadingId === booking.booking_id ? "…" : "Results"}
                               </Button>
                             )}
+                            {!isWaitlistedEntry(booking) &&
+                              booking.status.toUpperCase() === "COMPLETED" &&
+                              user?.id != null &&
+                              Number(booking.user) === Number(user.id) &&
+                              getRealBookingId(booking) != null && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Book this equipment again with the same inputs"
+                                onClick={() =>
+                                  navigate(
+                                    `/book-equipment?equipment_id=${booking.equipment}&rebookOf=${getRealBookingId(booking)}`
+                                  )
+                                }
+                              >
+                                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                                Book again
+                              </Button>
+                            )}
                             {!isAccountsFinanceUser &&
                               !isLabOperatorUser &&
                               (!currentUserType ||
@@ -1823,7 +1842,7 @@ const MyBookings = () => {
                           variant="outline"
                           className="shrink-0"
                           onClick={async () => {
-                            const res = await apiClient.downloadBookingResultFile(file);
+                            const res = await apiClient.downloadBookingResultFile(file, resultsDialogBookingId);
                             if (res.error) toast.error(res.error);
                           }}
                         >

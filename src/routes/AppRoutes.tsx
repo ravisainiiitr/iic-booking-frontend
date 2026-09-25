@@ -119,6 +119,9 @@ import ExternalDepartmentAdditionVerification from "@/pages/ExternalDepartmentAd
 import UserGuidePreview from "@/pages/UserGuidePreview";
 import AdminSettingsKnowledge from "@/pages/AdminSettingsKnowledge";
 import UserGuidePage from "@/pages/UserGuidePage";
+import ViewResults from "@/pages/ViewResults";
+import SharedWithMe from "@/pages/SharedWithMe";
+import EquipmentAvailability from "@/pages/EquipmentAvailability";
 
 /**
  * Shared route table for the main BrowserRouter and the dashboard in-panel MemoryRouter.
@@ -143,6 +146,9 @@ export default function AppRoutes() {
       <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
       <Route path="/equipment/:id" element={<EquipmentProfile />} />
       <Route path="/my-bookings" element={<MyBookings />} />
+      <Route path="/my-results" element={<ViewResults />} />
+      <Route path="/shared-data" element={<SharedWithMe />} />
+      <Route path="/availability" element={<EquipmentAvailability />} />
       <Route path="/booking-management" element={<BookingManagement />} />
       <Route path="/urgent-requests" element={<UrgentRequests />} />
       <Route path="/urgent-requests-wallet" element={<UrgentRequestsWallet />} />

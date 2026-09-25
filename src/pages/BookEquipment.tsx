@@ -2673,6 +2673,80 @@ const BookEquipment = () => {
     }
   }, [altFromParam, equipmentDetail?.equipment_id]);
 
+  // One-click rebooking: copy inputs from the user's own completed booking on the same equipment.
+  // Unlike repeatOf, inputs stay editable and charges are recalculated normally; the user picks slots.
+  const rebookOfParam = (searchParams.get("rebookOf") || "").trim();
+  const appliedRebookKeyRef = useRef<string | null>(null);
+  const [rebookSource, setRebookSource] = useState<{ equipmentId: number; label: string } | null>(null);
+  useEffect(() => {
+    if (!/^\d+$/.test(rebookOfParam) || searchParams.get("repeatOf")) {
+      setRebookSource(null);
+      return;
+    }
+    const eqId = equipmentDetail?.equipment_id;
+    if (eqId == null || userId == null) return;
+    const key = `${rebookOfParam}:${eqId}`;
+    if (appliedRebookKeyRef.current === key) return;
+    let cancelled = false;
+    (async () => {
+      const res = await apiClient.getBookings({ booking_id: Number(rebookOfParam), limit: 1 });
+      if (cancelled) return;
+      appliedRebookKeyRef.current = key;
+      const b = res.data?.bookings?.[0] as
+        | ({ equipment: number; user: number; virtual_booking_id?: string | null; input_values?: Record<string, unknown> } & {
+            atmosphere_sensitive_sample?: boolean;
+            sample_return_after_analysis?: boolean;
+          })
+        | undefined;
+      if (res.error || !b) {
+        toast.error("The booking to book again was not found.");
+        return;
+      }
+      if (Number(b.equipment) !== Number(eqId)) return;
+      if (Number(b.user) !== Number(userId)) {
+        toast.error("You can only book again from your own bookings.");
+        return;
+      }
+      const configured = new Set<string>();
+      (equipmentDetail?.input_fields ?? []).forEach((f: { field_key?: string }) => {
+        if (!f.field_key) return;
+        configured.add(f.field_key);
+        configured.add(`${f.field_key}_elements`);
+      });
+      const carried: Record<string, string | boolean | string[] | number> = {};
+      const dropped: string[] = [];
+      Object.entries(b.input_values || {}).forEach(([k, v]) => {
+        if (configured.has(k)) carried[k] = v as string | boolean | string[] | number;
+        else dropped.push(k);
+      });
+      setInputFieldValues((prev) => ({ ...prev, ...carried }));
+      setChargeCalculated(false);
+      setCalculatedCharge(null);
+      if (b.atmosphere_sensitive_sample && equipmentDetail?.atmosphere_sensitive_sample_enabled === true) {
+        setAtmosphereSensitiveSample(true);
+      }
+      if (typeof b.sample_return_after_analysis === "boolean") {
+        setSampleReturnAfterAnalysis(b.sample_return_after_analysis);
+      }
+      const label = (b.virtual_booking_id || "").trim() || `#${rebookOfParam}`;
+      setRebookSource({ equipmentId: Number(eqId), label });
+      toast.success(`Inputs copied from booking ${label}. Review them, then choose your slots.`);
+      if (dropped.length > 0) {
+        toast.info(`Some inputs from ${label} are no longer used for this equipment and were skipped: ${dropped.join(", ")}.`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    rebookOfParam,
+    searchParams,
+    equipmentDetail?.equipment_id,
+    equipmentDetail?.input_fields,
+    equipmentDetail?.atmosphere_sensitive_sample_enabled,
+    userId,
+  ]);
+
   useEffect(() => {
     if (!isCalculateChargesFlow || !equipmentDetail) return;
     const codes = CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((o) => o.code);
@@ -7452,6 +7526,12 @@ const BookEquipment = () => {
                     <div className="mb-2 p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sm text-sky-900 dark:text-sky-200">
                       Alternative for <span className="font-medium">{alternativeOf.name}</span> (same equipment group).
                       Compatible inputs were carried over — please review them; charges are recalculated for this equipment.
+                    </div>
+                  )}
+                  {rebookSource && rebookSource.equipmentId === Number(selectedEquipment?.id) && !repeatSourceBooking && (
+                    <div className="mb-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-900 dark:text-green-200">
+                      Booking again from <span className="font-medium">{rebookSource.label}</span>: inputs were copied
+                      from that booking. Review or change them — charges are calculated as for any new booking.
                     </div>
                   )}
                   {repeatSourceBooking && (

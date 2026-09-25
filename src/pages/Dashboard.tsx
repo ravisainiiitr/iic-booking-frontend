@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2 } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -398,6 +398,19 @@ const Dashboard = () => {
   const isInternalFacultyUser =
     isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
   const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
+  const canReceiveSharedData =
+    userTypeStr === "student" || userTypeStr === "individual_student" || isInternalFacultyUser;
+  const [newResultsCount, setNewResultsCount] = useState(0);
+  useEffect(() => {
+    if (!user || isOperatorOrManager) return;
+    let cancelled = false;
+    apiClient.getResultsInbox().then((res) => {
+      if (!cancelled && !res.error && res.data) setNewResultsCount(res.data.new_count);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isOperatorOrManager]);
 
   // OIC dashboard cards: Admin always; manager only when enabled in Django admin for that user.
   const canSeeOicTaNomination =
@@ -2876,6 +2889,61 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {!isOperatorOrManager && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-green-200 dark:hover:border-green-800"
+              onClick={() => openWorkspace("/my-results")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
+                    <FileCheck2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">View results</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Download results of your bookings, newest first
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {newResultsCount > 0 ? (
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                    {newResultsCount} new result{newResultsCount !== 1 ? "s" : ""} available
+                  </p>
+                ) : null}
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">View results</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && canReceiveSharedData && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/shared-data")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Share2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Shared with me</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Research data shared with you by IIT Roorkee colleagues
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open shared data</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {showFacultyUrgentWalletCard && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
@@ -4325,6 +4393,61 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-green-200 dark:hover:border-green-800"
+              onClick={() => openWorkspace("/my-results")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
+                    <FileCheck2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">View results</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Download results of your bookings, newest first
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {newResultsCount > 0 ? (
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                    {newResultsCount} new result{newResultsCount !== 1 ? "s" : ""} available
+                  </p>
+                ) : null}
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">View results</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && canReceiveSharedData && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/shared-data")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Share2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Shared with me</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Research data shared with you by IIT Roorkee colleagues
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open shared data</Button>
               </CardContent>
             </Card>
           )}
