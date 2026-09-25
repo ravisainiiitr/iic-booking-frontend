@@ -323,7 +323,7 @@ export default function MyPublications() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="impact_factor">Impact factor (optional)</Label>
+                <Label htmlFor="impact_factor">Current Impact factor (optional)</Label>
                 <Input
                   id="impact_factor"
                   inputMode="decimal"

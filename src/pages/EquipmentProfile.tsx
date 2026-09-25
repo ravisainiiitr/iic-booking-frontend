@@ -760,6 +760,7 @@ const EquipmentProfile = () => {
                 ) : (
                   emptyPanel("No general description has been published for this instrument yet.")
                 )}
+                {(equipment.accessories?.length ?? 0) > 0 || (equipment.additional_accessories?.length ?? 0) > 0 ? (
                 <div className="rounded-xl ring-1 ring-border/60 bg-card overflow-hidden">
                   <div className="px-5 pt-4 pb-1 flex items-center gap-2 text-base font-semibold text-foreground">
                     <Wrench className="h-4 w-4 text-primary" />
@@ -785,6 +786,7 @@ const EquipmentProfile = () => {
                     />
                   </div>
                 </div>
+                ) : null}
               </div>
             );
           } else if (activePanel === "specifications") {
