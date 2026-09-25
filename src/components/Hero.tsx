@@ -151,7 +151,7 @@ const Hero = () => {
       <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
         {/* pt clears fixed header (lg IITR banner); keep badge fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-28 sm:pb-5 sm:pt-32 md:pt-36">
-          <div className="max-w-5xl space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
+          <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">IIT Roorkee · Online Equipment Booking</span>
@@ -187,7 +187,7 @@ const Hero = () => {
               </p>
             </div>
 
-            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 sm:gap-2.5">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               {!isAuthenticated && (
                 <Button
                   size="lg"
