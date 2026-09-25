@@ -158,7 +158,11 @@ function loadSavedImapParams(): ImapSavedParams | null {
     return {
       email: typeof parsed.email === "string" ? parsed.email : "",
       password: typeof parsed.password === "string" ? parsed.password : "",
-      host: typeof parsed.host === "string" ? parsed.host : "imap.iitr.ac.in",
+      // imap.iitr.ac.in:993 is not reachable from the server; migrate saved configs.
+      host:
+        typeof parsed.host === "string" && parsed.host.trim() && parsed.host.trim() !== "imap.iitr.ac.in"
+          ? parsed.host
+          : "mapi.iitr.ac.in",
       port: typeof parsed.port === "number" ? parsed.port : 993,
       use_ssl: parsed.use_ssl === true || parsed.use_ssl === false ? parsed.use_ssl : true,
       folder: typeof parsed.folder === "string" ? parsed.folder : "INBOX",
@@ -286,7 +290,7 @@ const WalletRechargeParsePage = () => {
   // IMAP fetch from email
   const [imapEmail, setImapEmail] = useState("");
   const [imapPassword, setImapPassword] = useState("");
-  const [imapHost, setImapHost] = useState("imap.iitr.ac.in");
+  const [imapHost, setImapHost] = useState("mapi.iitr.ac.in");
   const [imapPort, setImapPort] = useState(993);
   const [imapUseSsl, setImapUseSsl] = useState(true);
   const [imapFolder, setImapFolder] = useState("INBOX");
@@ -410,7 +414,7 @@ const WalletRechargeParsePage = () => {
     const base = {
       email: em,
       password: pw,
-      host: imapHost.trim() || "imap.iitr.ac.in",
+      host: imapHost.trim() || "mapi.iitr.ac.in",
       port: imapPort,
       use_ssl: imapUseSsl,
       folder: imapFolder.trim() || "INBOX",
@@ -862,7 +866,7 @@ const WalletRechargeParsePage = () => {
     const imapParams = {
       email: imapEmail.trim(),
       password: imapPassword,
-      host: imapHost.trim() || "imap.iitr.ac.in",
+      host: imapHost.trim() || "mapi.iitr.ac.in",
       port: imapPort,
       use_ssl: imapUseSsl,
       folder: imapFolder.trim() || "INBOX",
@@ -1009,7 +1013,7 @@ const WalletRechargeParsePage = () => {
     const apiParams: ImapApiParams = {
       email: imapEmail.trim(),
       password: imapPassword,
-      host: imapHost.trim() || "imap.iitr.ac.in",
+      host: imapHost.trim() || "mapi.iitr.ac.in",
       port: imapPort,
       use_ssl: imapUseSsl,
       folder: imapFolder.trim() || "INBOX",
@@ -1056,7 +1060,7 @@ const WalletRechargeParsePage = () => {
         email: imapEmail.trim(),
         password: imapPassword,
         email_uid: uid,
-        host: imapHost.trim() || "imap.iitr.ac.in",
+        host: imapHost.trim() || "mapi.iitr.ac.in",
         port: imapPort,
         use_ssl: imapUseSsl,
         folder: imapFolder.trim() || "INBOX",
@@ -1082,7 +1086,7 @@ const WalletRechargeParsePage = () => {
         password: imapPassword,
         email_uid: uid,
         attachment_index: attachmentIndex,
-        host: imapHost.trim() || "imap.iitr.ac.in",
+        host: imapHost.trim() || "mapi.iitr.ac.in",
         port: imapPort,
         use_ssl: imapUseSsl,
         folder: imapFolder.trim() || "INBOX",
@@ -1115,7 +1119,7 @@ const WalletRechargeParsePage = () => {
     saveImapParamsToStorage({
       email: imapEmail.trim(),
       password: imapPassword,
-      host: imapHost.trim() || "imap.iitr.ac.in",
+      host: imapHost.trim() || "mapi.iitr.ac.in",
       port: imapPort,
       use_ssl: imapUseSsl,
       folder: imapFolder.trim() || "INBOX",
@@ -1602,7 +1606,7 @@ const WalletRechargeParsePage = () => {
                     type="text"
                     value={imapHost}
                     onChange={(e) => setImapHost(e.target.value)}
-                    placeholder="imap.iitr.ac.in"
+                    placeholder="mapi.iitr.ac.in"
                     readOnly={!isImapFieldEditable("host")}
                     className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${!isImapFieldEditable("host") ? "bg-muted/50 cursor-not-allowed" : ""}`}
                   />
@@ -2010,6 +2014,9 @@ const WalletRechargeParsePage = () => {
                           {row.processed ? (
                             <span className="inline-flex items-center text-green-600">
                               <CheckCircle2 className="h-4 w-4 mr-1" aria-hidden /> Yes
+                              {row.linked_request_display ? (
+                                <span className="ml-1 text-xs text-muted-foreground">({row.linked_request_display})</span>
+                              ) : null}
                             </span>
                           ) : (
                             <span className="inline-flex items-center text-muted-foreground">

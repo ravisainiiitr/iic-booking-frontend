@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, extractAdminListItems } from "@/lib/api";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -45,6 +45,10 @@ import {
   BadgeCheck,
   ExternalLink,
   UserRound,
+  FileSpreadsheet,
+  Upload,
+  Wand2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface AuditLog {
@@ -89,8 +93,26 @@ interface PaymentReceiptRow {
   created_at?: string | null;
 }
 
+interface CashbookEntry {
+  id: number;
+  receipt_no: string;
+  date: string | null;
+  amount: string;
+  emp_no: string;
+  name: string;
+  department: string;
+  credited_to_project_no: string;
+  payment: string;
+  emp_match?: boolean;
+}
+
 interface WalletRechargeRequestRow {
   id: number;
+  cashbook_receipt_no?: string;
+  cashbook_receipt_date?: string | null;
+  cashbook_matched_at?: string | null;
+  cashbook_entry?: CashbookEntry | null;
+  cashbook_candidates?: CashbookEntry[] | null;
   request_id?: string;
   transaction_number?: string;
   user: number;
@@ -157,6 +179,8 @@ const statusBadgeClass = (status: string) => {
   return "bg-amber-100 text-amber-800 border-amber-200";
 };
 
+const formatDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "—");
+
 const rechargeModeLabel = (mode?: string) => {
   if (mode === "direct_cash_deposit") return "Direct Cash Deposit / Bank Transfer";
   if (mode === "project_grant") return "Project Grant";
@@ -206,6 +230,13 @@ export default function AdminWalletRechargeRequests() {
   const [reasonText, setReasonText] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [cashbookFilter, setCashbookFilter] = useState<string>("__all__");
+  const [cashbookRow, setCashbookRow] = useState<WalletRechargeRequestRow | null>(null);
+  const [linkingEntryId, setLinkingEntryId] = useState<number | null>(null);
+  const [cashbookUploading, setCashbookUploading] = useState(false);
+  const [cashbookAutoMatching, setCashbookAutoMatching] = useState(false);
+  const cashbookFileRef = useRef<HTMLInputElement>(null);
+  const canLoadCashbook = isAdmin || isFinance;
 
   useEffect(() => {
     if (authLoading) return;
@@ -247,6 +278,7 @@ export default function AdminWalletRechargeRequests() {
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     if (projectGrant.trim()) params.project_grant = projectGrant.trim();
+    if (cashbookFilter !== "__all__") params.cashbook = cashbookFilter;
     const res = await apiClient.adminList<WalletRechargeRequestRow>("walletRechargeRequests", params);
     if (res.error) {
       toast.error(res.error);
@@ -261,9 +293,10 @@ export default function AdminWalletRechargeRequests() {
     if (!canAccess) return;
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter]);
+  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter]);
 
   const clearFilters = () => {
+    setCashbookFilter("__all__");
     setStatusFilter("__all__");
     setFundVerifiedFilter("__all__");
     setModeFilter("__all__");
@@ -360,6 +393,58 @@ export default function AdminWalletRechargeRequests() {
     fetchRows();
   };
 
+  const submitCashbookLink = async (entry: CashbookEntry) => {
+    if (!cashbookRow || linkingEntryId !== null) return;
+    setLinkingEntryId(entry.id);
+    const res = await apiClient.adminWalletRechargeRequestCashbookLink(cashbookRow.id, entry.id);
+    setLinkingEntryId(null);
+    if (res.error) {
+      toast.error(res.error);
+      fetchRows();
+      return;
+    }
+    toast.success(res.data?.message || "Cash-book entry applied");
+    setCashbookRow(null);
+    setDetailRow(null);
+    fetchRows();
+  };
+
+  const handleCashbookUpload = async (file: File) => {
+    setCashbookUploading(true);
+    const res = await apiClient.adminWalletRechargeCashbookUpload(file);
+    setCashbookUploading(false);
+    if (cashbookFileRef.current) cashbookFileRef.current.value = "";
+    if (res.error || !res.data) {
+      toast.error(res.error || "Upload failed");
+      return;
+    }
+    const d = res.data;
+    toast.success(
+      `${d.stored} cash-book row${d.stored === 1 ? "" : "s"} loaded` +
+        (d.skipped_without_emp_or_receipt ? ` (${d.skipped_without_emp_or_receipt} without receipt/Emp No. skipped)` : "") +
+        `; ${d.matched} request${d.matched === 1 ? "" : "s"} auto-matched.`
+    );
+    if (d.errors?.length) toast.message(d.errors.slice(0, 3).join("\n"));
+    fetchRows();
+  };
+
+  const handleCashbookAutoMatch = async () => {
+    setCashbookAutoMatching(true);
+    const res = await apiClient.adminWalletRechargeCashbookAutoMatch();
+    setCashbookAutoMatching(false);
+    if (res.error || !res.data) {
+      toast.error(res.error || "Auto-match failed");
+      return;
+    }
+    toast.success(
+      res.data.matched
+        ? `${res.data.matched} request${res.data.matched === 1 ? "" : "s"} matched to cash-book entries.`
+        : "No unambiguous matches. Use “Entry received” on a row to match manually."
+    );
+    if (res.data.errors?.length) toast.message(res.data.errors.slice(0, 3).join("\n"));
+    fetchRows();
+  };
+
   const roleCaption = useMemo(() => {
     if (isFinance) {
       return "Department Account In-charge view: verify physical receipts against the list, add remarks, and mark verified. Approve pending requests when appropriate.";
@@ -446,6 +531,20 @@ export default function AdminWalletRechargeRequests() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <Label>SRIC cash-book</Label>
+                <Select value={cashbookFilter} onValueChange={setCashbookFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All</SelectItem>
+                    <SelectItem value="received">Entry received (not applied)</SelectItem>
+                    <SelectItem value="matched">Matched to receipt</SelectItem>
+                    <SelectItem value="awaiting">Awaiting cash-book entry</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {isAdmin ? (
                 <div className="space-y-1">
                   <Label>Department</Label>
@@ -505,6 +604,51 @@ export default function AdminWalletRechargeRequests() {
                 {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
               </span>
             </div>
+            {canLoadCashbook ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-3">
+                <FileSpreadsheet className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium mr-2">SRIC cash-book (bills@sric TXT)</span>
+                <input
+                  ref={cashbookFileRef}
+                  type="file"
+                  accept=".txt,.csv,text/plain"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleCashbookUpload(f);
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={cashbookUploading}
+                  onClick={() => cashbookFileRef.current?.click()}
+                >
+                  {cashbookUploading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Upload cash-book TXT
+                </Button>
+                <Button size="sm" variant="outline" disabled={cashbookAutoMatching} onClick={handleCashbookAutoMatch}>
+                  {cashbookAutoMatching ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4 mr-2" />
+                  )}
+                  Auto-match
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => navigate("/admin-settings/wallet-recharge-parse")}>
+                  Mailbox &amp; full cash-book
+                  <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                </Button>
+                <span className="text-xs text-muted-foreground basis-full">
+                  Auto-match applies an entry only when amount, Credited to Project No. and Emp No. identify exactly
+                  one request. Each receipt can be used once; re-uploading the same file never credits twice.
+                </span>
+              </div>
+            ) : null}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -526,6 +670,7 @@ export default function AdminWalletRechargeRequests() {
                       <TableHead>Project grant</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Fund receipt</TableHead>
+                      <TableHead>Cash-book</TableHead>
                       <TableHead>Requested</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -591,6 +736,31 @@ export default function AdminWalletRechargeRequests() {
                             </div>
                           ) : (
                             <Badge variant="outline">Not verified</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {row.cashbook_receipt_no ? (
+                            <div>
+                              <Badge className="bg-primary/10 text-primary border-primary/20">Matched</Badge>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Rcpt {row.cashbook_receipt_no}
+                                {row.cashbook_receipt_date ? ` · ${formatDate(row.cashbook_receipt_date)}` : ""}
+                              </div>
+                            </div>
+                          ) : (row.cashbook_candidates?.length ?? 0) > 0 ? (
+                            <button type="button" onClick={() => setCashbookRow(row)} className="text-left">
+                              <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200">
+                                Entry received ({row.cashbook_candidates?.length})
+                              </Badge>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Rcpt {row.cashbook_candidates?.[0]?.receipt_no}
+                                {row.cashbook_candidates?.[0]?.emp_match ? "" : " · Emp No. differs"}
+                              </div>
+                            </button>
+                          ) : row.status === "PENDING" || row.status === "APPROVED" ? (
+                            <Badge variant="outline">Awaiting</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -776,6 +946,34 @@ export default function AdminWalletRechargeRequests() {
               </section>
 
               <section className="rounded-lg border p-3 space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  SRIC cash-book
+                </h3>
+                {detailRow.cashbook_receipt_no ? (
+                  <>
+                    <DetailField label="Receipt No." value={detailRow.cashbook_receipt_no} />
+                    <DetailField label="Receipt date" value={formatDate(detailRow.cashbook_receipt_date)} />
+                    <DetailField label="Amount" value={detailRow.cashbook_entry?.amount ? `₹${detailRow.cashbook_entry.amount}` : undefined} />
+                    <DetailField label="Emp No." value={detailRow.cashbook_entry?.emp_no} />
+                    <DetailField label="Credited to" value={detailRow.cashbook_entry?.credited_to_project_no} />
+                    <DetailField
+                      label="Matched at"
+                      value={detailRow.cashbook_matched_at ? new Date(detailRow.cashbook_matched_at).toLocaleString() : "—"}
+                    />
+                  </>
+                ) : (detailRow.cashbook_candidates?.length ?? 0) > 0 ? (
+                  <Button size="sm" onClick={() => setCashbookRow(detailRow)}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Review {detailRow.cashbook_candidates?.length} matching cash-book entr
+                    {detailRow.cashbook_candidates?.length === 1 ? "y" : "ies"}
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No matching cash-book entry received yet.</p>
+                )}
+              </section>
+
+              <section className="rounded-lg border p-3 space-y-2">
                 <h3 className="text-sm font-semibold">Uploaded / linked receipts</h3>
                 {(detailRow.payment_receipts || []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">
@@ -831,6 +1029,89 @@ export default function AdminWalletRechargeRequests() {
               </section>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!cashbookRow}
+        onOpenChange={(open) => {
+          if (!open && linkingEntryId === null) setCashbookRow(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Matching SRIC cash-book entries</DialogTitle>
+            <DialogDescription>
+              {cashbookRow?.transaction_number || cashbookRow?.request_id || `#${cashbookRow?.id}`} — ₹
+              {cashbookRow?.amount} · {cashbookRow?.user_name} (Emp {cashbookRow?.employee_number || cashbookRow?.user_emp_id || "—"}) ·
+              grant {cashbookRow?.department_grant_code || cashbookRow?.project_grant_code || "—"}.{" "}
+              {cashbookRow?.status === "PENDING"
+                ? "Applying an entry approves the request and credits the wallet once."
+                : "Applying an entry records the receipt and verifies the fund receipt (no further credit)."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Receipt</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Received from</TableHead>
+                  <TableHead>Credited to</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(cashbookRow?.cashbook_candidates || []).map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">{entry.receipt_no}</TableCell>
+                    <TableCell className="text-sm">{formatDate(entry.date)}</TableCell>
+                    <TableCell>₹{entry.amount}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>{entry.name || "—"}</div>
+                      <div className={`text-xs ${entry.emp_match ? "text-muted-foreground" : "text-amber-700"}`}>
+                        {entry.emp_match ? null : <AlertTriangle className="inline h-3 w-3 mr-1" />}
+                        Emp {entry.emp_no || "—"}
+                        {entry.emp_match ? " · matches requester" : " · differs from requester"}
+                      </div>
+                      {entry.payment ? (
+                        <div className="text-xs text-muted-foreground line-clamp-2" title={entry.payment}>
+                          {entry.payment}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-sm">{entry.credited_to_project_no || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {cashbookRow?.status === "PENDING" && cashbookRow.user_otp_verified !== false ? (
+                        <Button size="sm" disabled={linkingEntryId !== null} onClick={() => submitCashbookLink(entry)}>
+                          {linkingEntryId === entry.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                          Approve with this entry
+                        </Button>
+                      ) : cashbookRow?.status === "APPROVED" && canVerifyFundReceipt ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={linkingEntryId !== null}
+                          onClick={() => submitCashbookLink(entry)}
+                        >
+                          {linkingEntryId === entry.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BadgeCheck className="h-4 w-4 mr-2" />}
+                          Verify with this entry
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No action</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={linkingEntryId !== null} onClick={() => setCashbookRow(null)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

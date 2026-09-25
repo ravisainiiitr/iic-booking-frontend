@@ -793,6 +793,8 @@ export interface WalletRechargeParseRow {
   /** Credited to Project No. from cash-book TXT (e.g. IIC-000-002). */
   credited_to_project_no?: string;
   processed?: boolean;
+  /** Recharge request that consumed this receipt (e.g. "WRR-42"). */
+  linked_request_display?: string;
   matched_user: {
     id: number;
     email: string;
@@ -4328,7 +4330,51 @@ class ApiClient {
     return { data: data as { rows: WalletRechargeParseRow[]; count: number; message?: string }, error: undefined };
   }
 
-  /** Fetch legacy wallet balance for emp_id from legacy MySQL (admin). Uses server LEGACY_MYSQL_* env. */
+  /** Faculty recharge pipeline (OTP-verified). Admin or accounts-in-charge. */
+  async getWalletRechargePipelineRequests(filter?: 'all' | 'pending' | 'unmatched_no_parse') {
+    const q = filter && filter !== 'all' ? `?filter=${encodeURIComponent(filter)}` : '';
+    return this.request<{ requests: Record<string, unknown>[]; count: number; filter: string }>(
+      `/wallet/recharge-requests/pipeline/${q}`
+    );
+  }
+
+  /** Admin / accounts-in-charge: users eligible for an individual wallet (manual recharge pickers). */
+  async adminWalletEligibleUsers(search?: string) {
+    const q = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request<{
+      users: Array<{
+        id: number;
+        name: string;
+        email: string;
+        emp_id: string;
+        user_type: string;
+        department_name: string | null;
+        department_id: number | null;
+        phone_number?: string | null;
+        secondary_phone_number?: string | null;
+        contact_number?: string | null;
+      }>;
+      count: number;
+    }>(`/wallet/admin-eligible-users/${q}`);
+  }
+
+  /** Credit a wallet against a receipt (same duplicate guards as cash-book import); emails user. */
+  async adminManualWalletRecharge(payload: {
+    user_id: number;
+    amount: string;
+    department_id: number;
+    receipt_no: string;
+    date?: string | null;
+    payment?: string;
+    name?: string;
+  }) {
+    return this.request<{
+      message?: string;
+      rows?: WalletRechargeParseRow[];
+      processed_receipts?: string[];
+      errors?: string[];
+    }>('/wallet/admin-manual-recharge/', { method: 'POST', body: JSON.stringify(payload) });
+  }
 
   async processWalletRechargeRows(rows: WalletRechargeParseRow[], defaultDepartmentId?: number | null): Promise<{
     data?: { credited: number; skipped: number; errors: string[]; processed_receipts: string[] };
@@ -4805,6 +4851,36 @@ class ApiClient {
       `${endpoint}${id}/verify-fund-receipt/`,
       { method: 'POST', body: JSON.stringify({ remarks: remarks || '' }) }
     );
+  }
+
+  /** Apply one SRIC cash-book entry: approves + credits once (pending) or verifies (approved). */
+  async adminWalletRechargeRequestCashbookLink(id: number | string, parseEntryId: number) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ message?: string; outcome?: 'approved' | 'verified'; request?: unknown; error?: string }>(
+      `${endpoint}${id}/cashbook-link/`,
+      { method: 'POST', body: JSON.stringify({ parse_entry_id: parseEntryId }) }
+    );
+  }
+
+  async adminWalletRechargeCashbookAutoMatch() {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ matched: number; errors: string[] }>(`${endpoint}cashbook-auto-match/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async adminWalletRechargeCashbookUpload(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{
+      parsed: number;
+      stored: number;
+      skipped_without_emp_or_receipt: number;
+      matched: number;
+      errors: string[];
+    }>(`${endpoint}cashbook-upload/`, { method: 'POST', body: formData });
   }
 
   // Booking endpoints
