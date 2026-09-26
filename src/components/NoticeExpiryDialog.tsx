@@ -38,6 +38,8 @@ export function NoticeExpiryDialog({
   const [expiryLocal, setExpiryLocal] = useState("");
   const [unlimited, setUnlimited] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [draft, setDraft] = useState<{ title: string; description: string } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -46,17 +48,43 @@ export function NoticeExpiryDialog({
     }
   }, [open, noticeId]);
 
+  useEffect(() => {
+    if (!open || noticeId == null) {
+      setDraft(null);
+      return;
+    }
+    let cancelled = false;
+    setDraftLoading(true);
+    apiClient
+      .getNotice(noticeId)
+      .then((res) => {
+        if (cancelled) return;
+        setDraft(res.data?.title ? { title: res.data.title, description: res.data.description || "" } : null);
+      })
+      .catch(() => {
+        if (!cancelled) setDraft(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDraftLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, noticeId]);
+
   const reset = () => {
     setExpiryLocal("");
     setUnlimited(true);
   };
 
-  const noticeTitle = equipmentName
-    ? `${equipmentName} — Under Maintenance`
-    : "Equipment Under Maintenance";
-  const noticeBody = equipmentName
-    ? `${equipmentName} is currently under maintenance and unavailable for booking. This notice remains until the equipment is set back to Operational.`
-    : "This equipment is currently under maintenance and unavailable for booking. This notice remains until the equipment is set back to Operational.";
+  const noticeTitle =
+    draft?.title ||
+    (equipmentName ? `${equipmentName} — Under Maintenance` : "Equipment Under Maintenance");
+  const noticeBody =
+    draft?.description ||
+    (equipmentName
+      ? `${equipmentName} is under maintenance and is not available for booking until further notice.\nThis notice will be removed automatically once the equipment is back in operation.`
+      : "This equipment is under maintenance and is not available for booking until further notice.\nThis notice will be removed automatically once the equipment is back in operation.");
 
   const handleSubmit = async () => {
     if (noticeId == null) return;
@@ -109,11 +137,12 @@ export function NoticeExpiryDialog({
         </DialogHeader>
         <div className="space-y-4 py-1">
           <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Notice preview
+              {draftLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
             </p>
             <p className="text-sm font-semibold text-foreground">{noticeTitle}</p>
-            <p className="text-sm leading-snug text-muted-foreground">{noticeBody}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{noticeBody}</p>
             <p className="text-xs text-muted-foreground pt-1">
               Type: Warning · Linked equipment: {equipmentName || "—"}
             </p>

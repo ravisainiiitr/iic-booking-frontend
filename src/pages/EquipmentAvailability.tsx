@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CalendarClock, Loader2, RefreshCw, Search } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -14,6 +14,7 @@ import { apiClient, type PublicEquipmentAvailability } from "@/lib/api";
 
 const ALL_DEPARTMENTS = "all";
 const WINDOW_OPTIONS = [7, 14, 31];
+const DEFAULT_DEPARTMENT_PATTERN = /instrumentation cent(re|er)|\bIIC\b/i;
 
 function safeFormat(value: string | null | undefined, pattern: string): string {
   if (!value) return "—";
@@ -35,14 +36,21 @@ export default function EquipmentAvailability() {
   const [department, setDepartment] = useState(ALL_DEPARTMENTS);
   const [days, setDays] = useState(14);
   const [reloadKey, setReloadKey] = useState(0);
+  const defaultDepartmentResolvedRef = useRef(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 350);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
+  const handleDepartmentChange = (value: string) => {
+    defaultDepartmentResolvedRef.current = true;
+    setDepartment(value);
+  };
+
   useEffect(() => {
     let cancelled = false;
+    let handedOffToDefaultDepartment = false;
     setLoading(true);
     setError(null);
     apiClient
@@ -57,13 +65,23 @@ export default function EquipmentAvailability() {
           setError(res.error || "Could not load equipment availability.");
           return;
         }
+        if (!defaultDepartmentResolvedRef.current) {
+          defaultDepartmentResolvedRef.current = true;
+          const iic = res.data.departments.find((d) => DEFAULT_DEPARTMENT_PATTERN.test(d.name));
+          if (iic && department === ALL_DEPARTMENTS) {
+            handedOffToDefaultDepartment = true;
+            setData((prev) => prev ?? { ...res.data!, equipment: [], count: 0 });
+            setDepartment(String(iic.id));
+            return;
+          }
+        }
         setData(res.data);
       })
       .catch(() => {
         if (!cancelled) setError("Could not load equipment availability.");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !handedOffToDefaultDepartment) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -108,7 +126,7 @@ export default function EquipmentAvailability() {
             </div>
             <div className="space-y-2 md:col-span-4">
               <Label htmlFor="av-dept">Department</Label>
-              <Select value={department} onValueChange={setDepartment}>
+              <Select value={department} onValueChange={handleDepartmentChange}>
                 <SelectTrigger id="av-dept">
                   <SelectValue placeholder="All departments" />
                 </SelectTrigger>
@@ -152,7 +170,7 @@ export default function EquipmentAvailability() {
         </section>
 
         <section className="rounded-xl border border-border/70 bg-card shadow-sm">
-          {loading && !data ? (
+          {loading && rows.length === 0 ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
@@ -220,7 +238,7 @@ export default function EquipmentAvailability() {
               </Table>
             </div>
           )}
-          {data ? (
+          {data && !(loading && rows.length === 0) ? (
             <p className="border-t px-4 py-3 text-xs text-muted-foreground">
               Showing {data.count} equipment · availability until {safeFormat(data.until, "dd MMM yyyy")} · updated{" "}
               {safeFormat(data.generated_at, "hh:mm a")}. Slots reserved for home-department users are not shown.

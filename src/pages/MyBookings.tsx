@@ -43,6 +43,7 @@ import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { X, FolderDown, Download, Star, Filter, RotateCcw, Banknote } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
+import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import {
   Table,
   TableBody,
@@ -1539,20 +1540,17 @@ const MyBookings = () => {
                                 {resultsLoadingId === booking.booking_id ? "…" : "Results"}
                               </Button>
                             )}
-                            {!isWaitlistedEntry(booking) &&
-                              booking.status.toUpperCase() === "COMPLETED" &&
-                              user?.id != null &&
+                            {user?.id != null &&
                               Number(booking.user) === Number(user.id) &&
-                              getRealBookingId(booking) != null && (
+                              canRebook(booking as RebookSourceBooking) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="Book this equipment again with the same inputs"
-                                onClick={() =>
-                                  navigate(
-                                    `/book-equipment?equipment_id=${booking.equipment}&rebookOf=${getRealBookingId(booking)}`
-                                  )
-                                }
+                                title="Book this equipment again with the same details"
+                                onClick={() => {
+                                  const url = prepareRebook(booking as RebookSourceBooking);
+                                  if (url) navigate(url);
+                                }}
                               >
                                 <RotateCcw className="h-3.5 w-3.5 mr-1" />
                                 Book again

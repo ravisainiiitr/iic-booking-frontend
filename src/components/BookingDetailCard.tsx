@@ -50,6 +50,7 @@ import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
+import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 
 export interface BookingDetailCardBooking extends BookingRef {
@@ -2820,11 +2821,15 @@ export function BookingDetailCard({
               {!resultsLoading && isBookingOwnerView && isCompleted && hasDownloadableResults && bookingPk != null && (
                 <BookingShareButton bookingId={bookingPk} bookingLabel={booking.virtual_booking_id || undefined} />
               )}
-              {isBookingOwnerView && isCompleted && bookingPk != null && (
+              {isBookingOwnerView && canRebook(booking as RebookSourceBooking) && (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => navigate(`/book-equipment?equipment_id=${booking.equipment}&rebookOf=${bookingPk}`)}
+                  title="Open the booking page for this equipment with all details from this booking prefilled"
+                  onClick={() => {
+                    const url = prepareRebook(booking as RebookSourceBooking);
+                    if (url) navigate(url);
+                  }}
                 >
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Book again

@@ -1556,85 +1556,83 @@ const Dashboard = () => {
                   </div>
                 </div>
               ) : (
-                <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
                   <h2 className="text-xl font-bold tracking-tight text-white drop-shadow-sm sm:text-2xl">
                     {formatUserDisplayName(user) || "—"}
                   </h2>
-                  <div className="mt-1">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/20 px-2.5 py-0.5 text-xs font-medium shadow-inner shadow-black/10 backdrop-blur-md">
-                      <BadgeCheck className="h-3 w-3 shrink-0 opacity-95" />
-                      {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/20 px-3 py-1 text-xs font-semibold shadow-inner shadow-black/10 backdrop-blur-md">
+                    <BadgeCheck className="h-3.5 w-3.5 shrink-0 opacity-95" />
+                    {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
+                  </span>
                 </div>
               )}
               {!showsLabStyleDashboard && (
               <dl
                 className={cn(
-                  "mt-2.5 grid grid-cols-1 gap-2 rounded-xl border border-white/15 bg-black/20 px-3 py-2 shadow-inner backdrop-blur-md sm:gap-x-3 sm:gap-y-1.5 sm:py-2",
+                  "mt-3 grid grid-cols-1 gap-2.5 sm:gap-3",
                   userTypeStr === "student" || userTypeStr === "individual_student" || userTypeStr === "faculty"
-                    ? "sm:grid-cols-2 lg:grid-cols-4"
-                    : "sm:grid-cols-2 lg:grid-cols-3"
+                    ? "sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)]"
+                    : "sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.5fr)]"
                 )}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                    <Building2 className="h-3.5 w-3.5 text-white" />
+                <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 shadow-inner shadow-black/10 backdrop-blur-md">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/25">
+                    <Building2 className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Department</dt>
-                    <dd className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
+                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Department</dt>
+                    <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
                       {user?.department_name || "—"}
                     </dd>
                   </div>
                 </div>
                 {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                      <IdCard className="h-3.5 w-3.5 text-white" />
+                  <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 shadow-inner shadow-black/10 backdrop-blur-md">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/25">
+                      <IdCard className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Enrollment Number</dt>
-                      <dd className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
+                      <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Enrollment Number</dt>
+                      <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
                         {user?.emp_id || "—"}
                       </dd>
                     </div>
                   </div>
                 )}
                 {userTypeStr === "faculty" && (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                      <IdCard className="h-3.5 w-3.5 text-white" />
+                  <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 shadow-inner shadow-black/10 backdrop-blur-md">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/25">
+                      <IdCard className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Employee Number</dt>
-                      <dd className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
+                      <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Employee Number</dt>
+                      <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
                         {user?.emp_id || "—"}
                       </dd>
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                    <Phone className="h-3.5 w-3.5 text-white" />
+                <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 shadow-inner shadow-black/10 backdrop-blur-md">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/25">
+                    <Phone className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Mobile</dt>
+                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Mobile</dt>
                     <dd
-                      className="mt-0.5 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]"
+                      className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]"
                       title={user?.phone_number || user?.secondary_phone_number || undefined}
                     >
                       {user?.phone_number || user?.secondary_phone_number || "—"}
                     </dd>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                    <Mail className="h-3.5 w-3.5 text-white" />
+                <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 shadow-inner shadow-black/10 backdrop-blur-md">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/25">
+                    <Mail className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-white/65 leading-none">Email</dt>
-                    <dd className="mt-0.5 text-sm font-semibold leading-snug text-white break-all [overflow-wrap:anywhere]" title={user?.email || undefined}>
+                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Email</dt>
+                    <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.email || undefined}>
                       {user?.email || "—"}
                     </dd>
                   </div>

@@ -121,6 +121,7 @@ import {
 } from "@/lib/dynamicTableField";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
+import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { hasIncompleteOptionalEditableParams } from "@/lib/bookingInputValues";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
@@ -2673,13 +2674,14 @@ const BookEquipment = () => {
     }
   }, [altFromParam, equipmentDetail?.equipment_id]);
 
-  // One-click rebooking: copy inputs from the user's own completed booking on the same equipment.
-  // Unlike repeatOf, inputs stay editable and charges are recalculated normally; the user picks slots.
+  // One-click rebooking: copy inputs from any of the user's earlier bookings (any status) or
+  // waitlist requests on the same equipment. Unlike repeatOf, inputs stay editable and charges
+  // are recalculated normally, so the user can go straight to slot selection.
   const rebookOfParam = (searchParams.get("rebookOf") || "").trim();
   const appliedRebookKeyRef = useRef<string | null>(null);
   const [rebookSource, setRebookSource] = useState<{ equipmentId: number; label: string } | null>(null);
   useEffect(() => {
-    if (!/^\d+$/.test(rebookOfParam) || searchParams.get("repeatOf")) {
+    if (!/^(\d+|wl-\d+)$/.test(rebookOfParam) || searchParams.get("repeatOf")) {
       setRebookSource(null);
       return;
     }
@@ -2689,50 +2691,81 @@ const BookEquipment = () => {
     if (appliedRebookKeyRef.current === key) return;
     let cancelled = false;
     (async () => {
-      const res = await apiClient.getBookings({ booking_id: Number(rebookOfParam), limit: 1 });
+      let source: RebookPrefill | null = null;
+      if (rebookOfParam.startsWith("wl-")) {
+        source = readStashedRebookPrefill(rebookOfParam, Number(eqId));
+        if (!source) {
+          appliedRebookKeyRef.current = key;
+          toast.error("Could not load the waitlist request to book again. Open it from My Bookings and try again.");
+          return;
+        }
+      } else {
+        const res = await apiClient.getBookings({ booking_id: Number(rebookOfParam), limit: 1 });
+        if (cancelled) return;
+        const b = res.data?.bookings?.[0] as
+          | {
+              equipment: number;
+              user: number;
+              virtual_booking_id?: string | null;
+              input_values?: Record<string, unknown>;
+              atmosphere_sensitive_sample?: boolean;
+              sample_return_after_analysis?: boolean;
+            }
+          | undefined;
+        if (res.error || !b) {
+          appliedRebookKeyRef.current = key;
+          toast.error("The booking to book again was not found.");
+          return;
+        }
+        if (Number(b.equipment) !== Number(eqId)) return;
+        source = {
+          source: rebookOfParam,
+          equipment_id: Number(b.equipment),
+          user_id: Number(b.user),
+          label: (b.virtual_booking_id || "").trim() || `#${rebookOfParam}`,
+          input_values: b.input_values || {},
+          atmosphere_sensitive_sample: b.atmosphere_sensitive_sample,
+          sample_return_after_analysis: b.sample_return_after_analysis,
+        };
+      }
       if (cancelled) return;
       appliedRebookKeyRef.current = key;
-      const b = res.data?.bookings?.[0] as
-        | ({ equipment: number; user: number; virtual_booking_id?: string | null; input_values?: Record<string, unknown> } & {
-            atmosphere_sensitive_sample?: boolean;
-            sample_return_after_analysis?: boolean;
-          })
-        | undefined;
-      if (res.error || !b) {
-        toast.error("The booking to book again was not found.");
-        return;
-      }
-      if (Number(b.equipment) !== Number(eqId)) return;
-      if (Number(b.user) !== Number(userId)) {
+      if (source.user_id != null && Number(source.user_id) !== Number(userId)) {
         toast.error("You can only book again from your own bookings.");
         return;
       }
-      const configured = new Set<string>();
-      (equipmentDetail?.input_fields ?? []).forEach((f: { field_key?: string }) => {
-        if (!f.field_key) return;
-        configured.add(f.field_key);
-        configured.add(`${f.field_key}_elements`);
+      const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
+      const { carried, dropped } = sanitizeRebookInputValues(
+        source.input_values,
+        equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>,
+        // 3D print weight/material/time come from a fresh STL analysis, never from the old booking.
+        isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
+      );
+      setInputFieldValues((prev) => {
+        const next: Record<string, unknown> = { ...prev, ...carried };
+        applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
+        return next as Record<string, string | boolean | string[] | number>;
       });
-      const carried: Record<string, string | boolean | string[] | number> = {};
-      const dropped: string[] = [];
-      Object.entries(b.input_values || {}).forEach(([k, v]) => {
-        if (configured.has(k)) carried[k] = v as string | boolean | string[] | number;
-        else dropped.push(k);
-      });
-      setInputFieldValues((prev) => ({ ...prev, ...carried }));
       setChargeCalculated(false);
       setCalculatedCharge(null);
-      if (b.atmosphere_sensitive_sample && equipmentDetail?.atmosphere_sensitive_sample_enabled === true) {
-        setAtmosphereSensitiveSample(true);
+      lastCalculatedValuesRef.current = "";
+      setAtmosphereSensitiveSample(
+        source.atmosphere_sensitive_sample === true && equipmentDetail?.atmosphere_sensitive_sample_enabled === true
+      );
+      if (typeof source.sample_return_after_analysis === "boolean") {
+        setSampleReturnAfterAnalysis(source.sample_return_after_analysis);
       }
-      if (typeof b.sample_return_after_analysis === "boolean") {
-        setSampleReturnAfterAnalysis(b.sample_return_after_analysis);
-      }
-      const label = (b.virtual_booking_id || "").trim() || `#${rebookOfParam}`;
+      const label = source.label;
       setRebookSource({ equipmentId: Number(eqId), label });
-      toast.success(`Inputs copied from booking ${label}. Review them, then choose your slots.`);
+      toast.success(
+        isPrint3d
+          ? `Details copied from ${label}. Upload your STL file(s) again, then choose your slots.`
+          : `Details copied from ${label}. Charges are recalculated automatically; review them and choose your slots.`
+      );
       if (dropped.length > 0) {
-        toast.info(`Some inputs from ${label} are no longer used for this equipment and were skipped: ${dropped.join(", ")}.`);
+        toast.info(
+          `Some inputs from ${label} no longer match this equipment's current options and were reset: ${dropped.join(", ")}.`
+        );
       }
     })();
     return () => {
@@ -2743,6 +2776,7 @@ const BookEquipment = () => {
     searchParams,
     equipmentDetail?.equipment_id,
     equipmentDetail?.input_fields,
+    equipmentDetail?.profile_type,
     equipmentDetail?.atmosphere_sensitive_sample_enabled,
     userId,
   ]);

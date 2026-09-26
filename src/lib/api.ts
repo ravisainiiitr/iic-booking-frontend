@@ -7761,9 +7761,32 @@ class ApiClient {
         updated_at: string;
         created_by?: number;
         created_by_name?: string;
+        notice_type_display?: string;
+        expiry_unlimited?: boolean;
+        source?: string;
+        equipment?: number | null;
+        equipment_code?: string | null;
+        equipment_name?: string | null;
       }>;
       count: number;
     }>(endpoint);
+  }
+
+  async getNotice(noticeId: number | string) {
+    return this.request<{
+      notice_id: number;
+      title: string;
+      description: string;
+      content?: string | null;
+      notice_type: string;
+      notice_type_display?: string;
+      expiry_date?: string | null;
+      expiry_unlimited?: boolean;
+      source?: string;
+      equipment?: number | null;
+      equipment_code?: string | null;
+      equipment_name?: string | null;
+    }>(`/notices/${noticeId}/`);
   }
 
   // Notice Board endpoints (admin - requires authentication)

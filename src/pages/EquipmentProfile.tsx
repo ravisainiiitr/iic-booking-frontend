@@ -27,6 +27,7 @@ import {
   ClipboardList,
   LayoutGrid,
   CalendarClock,
+  CalendarDays,
   ScrollText,
   Download,
   Loader2,
@@ -34,6 +35,7 @@ import {
 import { toast } from "sonner";
 import BookEquipment from "@/pages/BookEquipment";
 import { InPanelRoute } from "@/components/InPanelRouter";
+import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
@@ -153,6 +155,7 @@ type ContentPanel =
   | "sample_requirements"
   | "view_charges"
   | "calc_charges"
+  | "availability"
   | "publications"
   | "brochure"
   | "contact";
@@ -617,6 +620,7 @@ const EquipmentProfile = () => {
             sample_requirements: { title: "Sample requirements", icon: <FlaskConical className="h-5 w-5" /> },
             view_charges: { title: "View charges", icon: <IndianRupee className="h-5 w-5" /> },
             calc_charges: { title: "Calculate charges", icon: <IndianRupee className="h-5 w-5" /> },
+            availability: { title: "Availability calendar", icon: <CalendarDays className="h-5 w-5" /> },
             publications: {
               title:
                 publicationCount > 0
@@ -1069,6 +1073,14 @@ const EquipmentProfile = () => {
                 />
               </div>
             );
+          } else if (activePanel === "availability") {
+            panelBody = (
+              <EquipmentAvailabilityCalendar
+                key={equipment.equipment_id}
+                equipmentId={equipment.equipment_id}
+                weeklyViewDisplay={getEffectiveWeeklyViewDisplay()}
+              />
+            );
           } else if (activePanel === "contact") {
             const managerEntries =
               equipment.managers && equipment.managers.length > 0
@@ -1291,6 +1303,11 @@ const EquipmentProfile = () => {
                         variant: "action",
                         active: activePanel === "calc_charges",
                         onClick: handleCalculateChargesClick,
+                      })}
+                      {navBtn("availability", "Availability calendar", {
+                        icon: <CalendarDays className="h-3 w-3" />,
+                        active: activePanel === "availability",
+                        onClick: () => setActivePanel("availability"),
                       })}
                       {navBtn(
                         "publications",
