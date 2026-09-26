@@ -560,7 +560,11 @@ function CopilotCards({
           return (
             <div key={idx} className="rounded-xl border border-emerald-300/50 bg-emerald-50/40 p-3 text-sm dark:bg-emerald-950/20">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-100">
-                Booking success
+                {card.action === "CANCEL_BOOKING"
+                  ? "Booking cancelled"
+                  : card.action === "RESCHEDULE_BOOKING"
+                    ? "Booking rescheduled"
+                    : "Booking confirmed"}
               </div>
               <div className="mt-1">Booking ID: {String(card.booking_id || "—")}</div>
             </div>
