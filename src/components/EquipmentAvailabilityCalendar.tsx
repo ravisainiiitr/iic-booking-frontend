@@ -3,7 +3,7 @@ import { addDays, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
-import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
+import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 
 type SlotsPayload = NonNullable<Awaited<ReturnType<typeof apiClient.getEquipmentSlots>>["data"]>;
 type CalendarSlot = SlotsPayload["slots"][number] & {
@@ -259,7 +259,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     let bg: string;
     let hover: string | undefined;
     if (!slot) {
-      label = holidayName ? HOLIDAY_LABEL : "—";
+      label = holidayName ? holidayCellLabel(holidayName) : "—";
       hover = holidayName ? holidayHoverText(holidayName) : undefined;
       bg = holidayName || dow === 6 || dow === 0 ? closedDayColor : slotColors.NOT_AVAILABLE;
     } else {
@@ -274,7 +274,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         label = "Booked";
         bg = slotColors.BOOKED;
       } else if (status === "NOT_AVAILABLE" && (holidayName || dow === 6 || dow === 0)) {
-        label = holidayName ? HOLIDAY_LABEL : "Not Available";
+        label = holidayName ? holidayCellLabel(holidayName) : "Not Available";
         hover = holidayName ? holidayHoverText(holidayName) : undefined;
         bg = closedDayColor;
       } else if (isPast) {

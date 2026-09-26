@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
 import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
-import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
+import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -758,7 +758,7 @@ export default function RescheduleSlotPicker({
                     // No slot exists for this date/time - show holiday label if it's a holiday
                     const raw = holidays[dateStr];
                     const name = typeof raw === "string" ? raw : (raw && typeof raw === "object" && "label" in raw ? (raw as { label: string }).label : "");
-                    label = name ? HOLIDAY_LABEL : "—";
+                    label = name ? holidayCellLabel(name) : "—";
                     holidayHover = name ? holidayHoverText(name) : undefined;
                   }
 

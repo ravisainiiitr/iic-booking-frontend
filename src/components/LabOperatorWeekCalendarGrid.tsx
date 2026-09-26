@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
-import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
+import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 function parseTimeToMinutes(timeStr: string): number {
@@ -412,7 +412,7 @@ export function LabOperatorWeekCalendarGrid({
                     return start || rowLabel || "";
                   })();
 
-                  let displayStatus: ReactNode = holidayName ? HOLIDAY_LABEL : "—";
+                  let displayStatus: ReactNode = holidayName ? holidayCellLabel(holidayName) : "—";
                   const considerBooked = hasBookedStatus;
 
                   const bookingCompleted = bookingStatusText.toUpperCase() === "COMPLETED";
@@ -438,7 +438,7 @@ export function LabOperatorWeekCalendarGrid({
                       displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                     }
                   } else {
-                    displayStatus = holidayName ? HOLIDAY_LABEL : "—";
+                    displayStatus = holidayName ? holidayCellLabel(holidayName) : "—";
                   }
 
                   const statusOverridesHolidayBg =

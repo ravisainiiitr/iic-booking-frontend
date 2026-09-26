@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
-import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
+import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -747,7 +747,7 @@ export default function TAAssignments() {
                                       : dayOfWeek === 0
                                         ? sundayColor
                                         : holidayDefault;
-                                  displayStatus = holidayLabel ? HOLIDAY_LABEL : "—";
+                                  displayStatus = holidayLabel ? holidayCellLabel(holidayLabel) : "—";
                                   cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                                 }
 
