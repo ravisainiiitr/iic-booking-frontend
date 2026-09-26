@@ -19,6 +19,7 @@ import BookingNextSteps from "@/pages/BookingNextSteps";
 import MyBookings from "@/pages/MyBookings";
 import BookingManagement from "@/pages/BookingManagement";
 import UrgentRequests from "@/pages/UrgentRequests";
+import RepeatSampleRequests from "@/pages/RepeatSampleRequests";
 import UrgentRequestsWallet from "@/pages/UrgentRequestsWallet";
 import MyUrgentRequests from "@/pages/MyUrgentRequests";
 import MyPublications from "@/pages/MyPublications";
@@ -155,6 +156,7 @@ export default function AppRoutes() {
       <Route path="/availability" element={<EquipmentAvailability />} />
       <Route path="/booking-management" element={<BookingManagement />} />
       <Route path="/urgent-requests" element={<UrgentRequests />} />
+      <Route path="/repeat-sample-requests" element={<RepeatSampleRequests />} />
       <Route path="/urgent-requests-wallet" element={<UrgentRequestsWallet />} />
       <Route path="/my-urgent-requests" element={<MyUrgentRequests />} />
       <Route path="/my-publications" element={<MyPublications />} />

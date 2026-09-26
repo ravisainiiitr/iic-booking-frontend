@@ -71,7 +71,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, FlaskConical } from "lucide-react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
@@ -1202,13 +1202,22 @@ const BookEquipment = () => {
   const [bulkEmailTemplatesLoading, setBulkEmailTemplatesLoading] = useState(false);
   const [sendingBulkEmail, setSendingBulkEmail] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
-  const [researchWorkspaceId, setResearchWorkspaceId] = useState<string | null>(null);
+  const researchWorkspaceFromUrl = searchParams.get("research_workspace");
+  const [researchWorkspaceId, setResearchWorkspaceId] = useState<string | null>(researchWorkspaceFromUrl);
+  const researchFolderId =
+    researchWorkspaceId && researchWorkspaceId === researchWorkspaceFromUrl ? searchParams.get("research_folder") : null;
+  const researchFolderLabel = researchFolderId ? searchParams.get("research_folder_name") : null;
+  const researchReturnPath = (() => {
+    const raw = searchParams.get("research_return") || "";
+    return raw.startsWith("/my-research/") ? raw : null;
+  })();
   const bookingForAnotherUser = adminManageMode === "book" && Boolean(adminBookForUserId);
   /** Separate call after the booking succeeded; never affects the booking itself. */
-  const linkBookingToResearchWorkspace = (realBookingId: number) => {
+  const linkBookingToResearchWorkspace = (realBookingIds: number | number[]) => {
     const workspaceId = researchWorkspaceId;
-    if (!workspaceId || bookingForAnotherUser) return;
-    void apiClient.linkResearchBookings(workspaceId, [realBookingId]).then((res) => {
+    const ids = (Array.isArray(realBookingIds) ? realBookingIds : [realBookingIds]).filter((id) => Number.isFinite(id));
+    if (!workspaceId || bookingForAnotherUser || ids.length === 0) return;
+    void apiClient.linkResearchBookings(workspaceId, ids, researchFolderId).then((res) => {
       if (res.error) {
         toast.warning("Booking confirmed, but it could not be added to your research workspace. You can add it from My Research.");
       }
@@ -5575,14 +5584,21 @@ const BookEquipment = () => {
         throw new Error(message);
       }
 
-      const firstData = (results[0] as {
-        data?: {
-          virtual_booking_id?: string;
-          booking_id?: string | number;
-          real_booking_id?: number;
-          id?: number;
-        };
-      })?.data;
+      type MultiRangeData = {
+        virtual_booking_id?: string;
+        booking_id?: string | number;
+        real_booking_id?: number;
+        id?: number;
+      };
+      linkBookingToResearchWorkspace(
+        results
+          .map((r) => {
+            const d = (r as { data?: MultiRangeData }).data;
+            return d?.real_booking_id ?? (typeof d?.id === "number" ? d.id : undefined);
+          })
+          .filter((id): id is number => typeof id === "number"),
+      );
+      const firstData = (results[0] as { data?: MultiRangeData })?.data;
       const multiViewQuery =
         (typeof firstData?.virtual_booking_id === "string" && firstData.virtual_booking_id.trim()) ||
         (typeof firstData?.booking_id === "string" && firstData.booking_id.trim()) ||
@@ -9400,7 +9416,12 @@ const BookEquipment = () => {
                     )}
 
                     {!bookingForAnotherUser && (
-                      <ResearchWorkspacePicker className="mt-6" value={researchWorkspaceId} onChange={setResearchWorkspaceId} />
+                      <ResearchWorkspacePicker
+                        className="mt-6"
+                        value={researchWorkspaceId}
+                        onChange={setResearchWorkspaceId}
+                        folderLabel={researchFolderLabel}
+                      />
                     )}
 
                     {/* Action Buttons */}
@@ -9956,6 +9977,19 @@ const BookEquipment = () => {
                     Complete Booking Details
                   </Button>
                 )}
+              {bookingResultDialog.success && researchReturnPath && researchWorkspaceId && !bookingForAnotherUser && (
+                <Button
+                  variant="secondary"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    setBookingResultDialog((p) => ({ ...p, open: false }));
+                    navigate(researchReturnPath);
+                  }}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  Back to research workspace
+                </Button>
+              )}
               {bookingResultDialog.success && bookingResultDialog.bookingViewQuery && (
                 <Button
                   variant="secondary"

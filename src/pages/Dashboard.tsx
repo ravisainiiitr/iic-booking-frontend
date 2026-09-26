@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2 } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -296,6 +296,7 @@ const Dashboard = () => {
   const [brochureDialogOpen, setBrochureDialogOpen] = useState(false);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
+  const [repeatSamplePendingCount, setRepeatSamplePendingCount] = useState<number>(0);
   const [facultyUrgentPendingCount, setFacultyUrgentPendingCount] = useState<number>(0);
   const [loadingFacultyUrgentCount, setLoadingFacultyUrgentCount] = useState(false);
   const [myUrgentRequestsCount, setMyUrgentRequestsCount] = useState<number>(0);
@@ -698,11 +699,18 @@ const Dashboard = () => {
         if (isCurrentUserOperatorOrManager && currentUserTypeStr !== "operator") {
           tasks.push(fetchUrgentRequestsPendingCount().then(() => {}));
         }
-        if (isCurrentUserOperatorOrManager || currentUserTypeStr === "admin" || currentUserTypeStr === "faculty") {
-          tasks.push(fetchPublicationClaimsPendingCount().then(() => {}));
+        if (isCurrentUserOperatorOrManager) {
+          tasks.push(fetchRepeatSamplePendingCount().then(() => {}));
         }
         const facultyDeptInternal =
           String(user?.department_type ?? "").toLowerCase() === "internal";
+        if (
+          isCurrentUserOperatorOrManager ||
+          currentUserTypeStr === "admin" ||
+          (currentUserTypeStr === "faculty" && !facultyDeptInternal)
+        ) {
+          tasks.push(fetchPublicationClaimsPendingCount().then(() => {}));
+        }
         if (currentUserTypeStr === "faculty" && !facultyDeptInternal) {
           tasks.push(fetchFacultyUrgentPendingCount().then(() => {}));
         }
@@ -1074,6 +1082,15 @@ const Dashboard = () => {
       setUrgentRequestsPendingCount(0);
     } finally {
       setLoadingUrgentCount(false);
+    }
+  };
+
+  const fetchRepeatSamplePendingCount = async () => {
+    try {
+      const res = await apiClient.listRepeatSampleRequests({ status: "PENDING" });
+      setRepeatSamplePendingCount(res.data?.repeat_sample_requests?.length ?? 0);
+    } catch {
+      setRepeatSamplePendingCount(0);
     }
   };
 
@@ -3375,6 +3392,36 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {isOperatorOrManager && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/repeat-sample-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                    <RotateCcw className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Repeat sample requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Approve or reject complimentary repeat sample requests from users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {repeatSamplePendingCount > 0 ? (
+                  <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
+                    {repeatSamplePendingCount} pending request{repeatSamplePendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Review repeat samples</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {(isOicUser || isAdmin) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
@@ -4904,6 +4951,36 @@ const Dashboard = () => {
                   </p>
                 ) : null}
                 <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isOperatorOrManager && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/repeat-sample-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                    <RotateCcw className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Repeat sample requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Approve or reject complimentary repeat sample requests from users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {repeatSamplePendingCount > 0 ? (
+                  <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
+                    {repeatSamplePendingCount} pending request{repeatSamplePendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Review repeat samples</Button>
               </CardContent>
             </Card>
           )}

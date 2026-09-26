@@ -3491,6 +3491,14 @@ class ApiClient {
     });
   }
 
+  /** Approvals waiting on the signed-in staff member (repeat samples, urgent requests, leave, claims, notices). */
+  async getPendingActions() {
+    return this.request<{
+      items: Array<{ key: string; label: string; count: number; link: string; description: string }>;
+      total: number;
+    }>('/notifications/pending-actions/');
+  }
+
   /** List IMAP folders with message counts (staff only). */
   async listInboxFolders() {
     return this.request<{ folders: Array<{ name: string; count: number }> }>('/inbox-folders/');
@@ -5089,60 +5097,6 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ notes }),
     });
-  }
-
-  async getBookingMigrationSettlement(bookingId: number) {
-    return this.request<{
-      booking_id?: number;
-      booking_status?: string;
-      settlement_type?: string;
-      eligibility?: string;
-      original_amount?: string;
-      refundable_amount?: string;
-      status?: string | null;
-      reference?: string | null;
-      refund_amount?: string | null;
-      processed_by?: string | null;
-      processed_by_role?: string | null;
-      processed_at?: string | null;
-      can_issue?: boolean;
-      migration_window_open?: boolean;
-      end_user_booking_enabled?: boolean;
-      error?: string;
-    }>(`/bookings/${bookingId}/migration-settlement/`);
-  }
-
-  async issueBookingMigrationRefund(bookingId: number, opts?: { reason?: string; confirm?: boolean }) {
-    return this.request<{
-      message: string;
-      settlement: any;
-      safety?: Record<string, boolean>;
-      error?: string;
-      error_code?: string;
-    }>(`/bookings/${bookingId}/migration-refund/`, {
-      method: 'POST',
-      body: JSON.stringify({
-        confirm: opts?.confirm !== false,
-        reason: opts?.reason || '',
-      }),
-    });
-  }
-
-  async getPortalMigrationSettlementsReport(params?: Record<string, string | number | undefined>) {
-    const q = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && String(v) !== '') q.set(k, String(v));
-      });
-    }
-    const qs = q.toString();
-    return this.request<{
-      migration_window_open: boolean;
-      counts: Record<string, number>;
-      count: number;
-      results: any[];
-      scope: string;
-    }>(`/portal-migration/admin/settlements/${qs ? `?${qs}` : ''}`);
   }
 
   async markBookingNotUtilized(bookingId: number, sendEmailToWalletOwner: boolean = true) {
@@ -8420,10 +8374,13 @@ class ApiClient {
     return this.request<{ results: ResearchBooking[] }>(`/v1/my-research/workspaces/${workspaceId}/linkable-bookings/${qs}`);
   }
 
-  async linkResearchBookings(workspaceId: string, bookingIds: number[]) {
+  async linkResearchBookings(workspaceId: string, bookingIds: number[], folderId?: string | null) {
     return this.request<{ linked: number[]; already_linked: number[]; rejected: number[] }>(
       `/v1/my-research/workspaces/${workspaceId}/bookings/`,
-      { method: 'POST', body: JSON.stringify({ booking_ids: bookingIds }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({ booking_ids: bookingIds, ...(folderId ? { folder_id: folderId } : {}) }),
+      },
     );
   }
 

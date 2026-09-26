@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BookOpen,
   CalendarCheck,
+  CalendarPlus,
   Eye,
   FileText,
   FlaskConical,
@@ -50,6 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookFromWorkspaceDialog } from "@/components/my-research/BookFromWorkspaceDialog";
 import { CreateWorkspaceDialog } from "@/components/my-research/CreateWorkspaceDialog";
 import { FilesTab } from "@/components/my-research/FilesTab";
 import { downloadResearchFile } from "@/components/my-research/downloadResearchFile";
@@ -100,6 +102,7 @@ export default function ResearchWorkspace() {
   const [editOpen, setEditOpen] = useState(false);
   const [linkBookingsOpen, setLinkBookingsOpen] = useState(false);
   const [linkPubsOpen, setLinkPubsOpen] = useState(false);
+  const [bookFrom, setBookFrom] = useState<{ folderId: string | null; folderLabel: string | null } | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
@@ -444,8 +447,15 @@ export default function ResearchWorkspace() {
                   </Button>
                   {canEdit ? (
                     <>
+                      <Button
+                        variant="outline"
+                        className="justify-start gap-2"
+                        onClick={() => setBookFrom({ folderId: null, folderLabel: null })}
+                      >
+                        <CalendarPlus className="h-4 w-4" /> Book equipment for this project
+                      </Button>
                       <Button variant="outline" className="justify-start gap-2" onClick={() => setLinkBookingsOpen(true)}>
-                        <CalendarCheck className="h-4 w-4" /> Add bookings
+                        <CalendarCheck className="h-4 w-4" /> Add existing bookings
                       </Button>
                       <Button variant="outline" className="justify-start gap-2" onClick={() => setLinkPubsOpen(true)}>
                         <BookOpen className="h-4 w-4" /> Link publications
@@ -473,6 +483,8 @@ export default function ResearchWorkspace() {
               onClearBookingFilter={() => setBookingFilter(null)}
               onChanged={refresh}
               initialFolderId={searchParams.get("folder")}
+              onSelectBooking={setBookingFilter}
+              onBookEquipment={(folderId, folderLabel) => setBookFrom({ folderId, folderLabel })}
             />
           </TabsContent>
 
@@ -481,9 +493,18 @@ export default function ResearchWorkspace() {
               <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-base">Bookings in this project</CardTitle>
                 {canEdit ? (
-                  <Button size="sm" className="gap-1.5" onClick={() => setLinkBookingsOpen(true)}>
-                    <Plus className="h-4 w-4" /> Add bookings
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setLinkBookingsOpen(true)}>
+                      <Plus className="h-4 w-4" /> Add existing bookings
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gap-1.5 bg-violet-600 hover:bg-violet-700"
+                      onClick={() => setBookFrom({ folderId: null, folderLabel: null })}
+                    >
+                      <CalendarPlus className="h-4 w-4" /> Book equipment
+                    </Button>
+                  </div>
                 ) : null}
               </CardHeader>
               <CardContent className="p-0">
@@ -506,6 +527,16 @@ export default function ResearchWorkspace() {
                             {b.department_name ? ` · ${b.department_name}` : ""} · {b.file_count ?? 0} file
                             {b.file_count === 1 ? "" : "s"}
                           </p>
+                          {b.folder_id && b.folder_path?.length ? (
+                            <button
+                              type="button"
+                              className="mt-0.5 flex items-center gap-1 text-xs text-violet-700 hover:underline dark:text-violet-300"
+                              onClick={() => setSearchParams(new URLSearchParams({ tab: "files", folder: b.folder_id! }), { replace: true })}
+                            >
+                              <Folder className="h-3 w-3" />
+                              {b.folder_path.map((c) => c.name).join(" / ")}
+                            </button>
+                          ) : null}
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -674,6 +705,17 @@ export default function ResearchWorkspace() {
         initial={{ name: workspace.name, description: workspace.description }}
       />
       <LinkBookingsDialog workspaceId={workspace.id} open={linkBookingsOpen} onOpenChange={setLinkBookingsOpen} onLinked={refresh} />
+      {canEdit ? (
+        <BookFromWorkspaceDialog
+          workspaceId={workspace.id}
+          folderId={bookFrom?.folderId ?? null}
+          folderLabel={bookFrom?.folderLabel ?? null}
+          open={bookFrom !== null}
+          onOpenChange={(open) => {
+            if (!open) setBookFrom(null);
+          }}
+        />
+      ) : null}
       <LinkPublicationsDialog workspaceId={workspace.id} open={linkPubsOpen} onOpenChange={setLinkPubsOpen} onLinked={refresh} />
       <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
         <AlertDialogContent>

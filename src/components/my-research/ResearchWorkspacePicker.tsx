@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FlaskConical, Loader2, Plus } from "lucide-react";
+import { FlaskConical, Folder, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
 import type { ResearchWorkspaceOption } from "@/lib/myResearchTypes";
@@ -16,10 +16,11 @@ interface Props {
   value: string | null;
   onChange: (workspaceId: string | null) => void;
   className?: string;
+  folderLabel?: string | null;
 }
 
 /** Optional workspace selector shown on the booking page; renders nothing for users without My Research. */
-export function ResearchWorkspacePicker({ value, onChange, className }: Props) {
+export function ResearchWorkspacePicker({ value, onChange, className, folderLabel }: Props) {
   const { available, bootstrap } = useMyResearchAvailability();
   const [options, setOptions] = useState<ResearchWorkspaceOption[] | null>(null);
   const [creating, setCreating] = useState(false);
@@ -112,8 +113,14 @@ export function ResearchWorkspacePicker({ value, onChange, className }: Props) {
           </Button>
         </div>
       ) : null}
+      {value && folderLabel && !creating ? (
+        <p className="flex items-center gap-1.5 text-xs font-medium text-violet-800 dark:text-violet-200">
+          <Folder className="h-3.5 w-3.5" /> Folder: {folderLabel}
+        </p>
+      ) : null}
       <p className="text-xs text-muted-foreground">
-        The booking is added to this private workspace after it is confirmed. It does not change the booking itself.
+        The booking is added to this private workspace{value && folderLabel ? " and folder" : ""} after it is confirmed. It
+        does not change the booking itself.
       </p>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  CalendarPlus,
   ChevronRight,
   Download,
   Eye,
@@ -62,9 +63,21 @@ interface Props {
   onClearBookingFilter: () => void;
   onChanged: () => void;
   initialFolderId?: string | null;
+  onSelectBooking?: (booking: ResearchBooking) => void;
+  onBookEquipment?: (folderId: string | null, folderLabel: string | null) => void;
 }
 
-export function FilesTab({ workspaceId, canEdit, bookings, bookingFilter, onClearBookingFilter, onChanged, initialFolderId = null }: Props) {
+export function FilesTab({
+  workspaceId,
+  canEdit,
+  bookings,
+  bookingFilter,
+  onClearBookingFilter,
+  onChanged,
+  initialFolderId = null,
+  onSelectBooking,
+  onBookEquipment,
+}: Props) {
   const [folderId, setFolderId] = useState<string | null>(initialFolderId);
   const [breadcrumbs, setBreadcrumbs] = useState<ResearchBreadcrumb[]>([]);
   const [folders, setFolders] = useState<ResearchFolder[]>([]);
@@ -232,6 +245,8 @@ export function FilesTab({ workspaceId, canEdit, bookings, bookingFilter, onClea
   };
 
   const expandPath = breadcrumbs.map((c) => c.id);
+  const currentFolderLabel = folderId && breadcrumbs.length ? breadcrumbs.map((c) => c.name).join(" / ") : null;
+  const folderBookings = folderId ? bookings.filter((b) => b.folder_id === folderId) : [];
 
   return (
     <div className="grid gap-4 lg:grid-cols-[250px,1fr]">
@@ -306,6 +321,17 @@ export function FilesTab({ workspaceId, canEdit, bookings, bookingFilter, onClea
                 <FolderPlus className="h-4 w-4" /> New folder
               </Button>
             ) : null}
+            {canEdit && !bookingFilter && onBookEquipment ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                title={currentFolderLabel ? `Book equipment and file it in ${currentFolderLabel}` : "Book equipment for this project"}
+                onClick={() => onBookEquipment(folderId, currentFolderLabel)}
+              >
+                <CalendarPlus className="h-4 w-4" /> Book equipment
+              </Button>
+            ) : null}
             {canEdit ? (
               <>
                 <Button size="sm" className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-700" onClick={() => inputRef.current?.click()}>
@@ -327,6 +353,25 @@ export function FilesTab({ workspaceId, canEdit, bookings, bookingFilter, onClea
         </div>
 
         <UploadQueuePanel items={uploads.items} onCancel={uploads.cancel} onRetry={uploads.retry} onClear={uploads.clearFinished} />
+
+        {!bookingFilter && folderId && folderBookings.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 text-xs dark:border-violet-900/40 dark:bg-violet-950/20">
+            <span className="font-medium text-muted-foreground">Bookings in this folder:</span>
+            {folderBookings.map((b) => (
+              <button
+                key={b.booking_id}
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 hover:bg-muted"
+                onClick={() => onSelectBooking?.(b)}
+                title="Show files for this booking"
+              >
+                <Link2 className="h-3 w-3 text-violet-600" />
+                {b.equipment_name} · {b.display_id}
+                <span className="text-muted-foreground">({b.status_display})</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="overflow-hidden rounded-lg border bg-card">
           {loading && files.length === 0 && folders.length === 0 ? (

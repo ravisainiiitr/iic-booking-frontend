@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasRbacPermission } from "@/lib/rbac";
@@ -127,8 +127,13 @@ const NOTICE_TYPES = [
   { value: "urgent", label: "Urgent" },
 ];
 
+const COMMUNICATION_TABS = ["templates", "logs", "notices", "equipment-groups"];
+
 const AdminCommunication = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab") ?? "";
+  const initialTab = COMMUNICATION_TABS.includes(tabParam) ? tabParam : "templates";
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
@@ -653,7 +658,7 @@ const AdminCommunication = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="templates" className="space-y-4">
+        <Tabs key={initialTab} defaultValue={initialTab} className="space-y-4">
           <TabsList className="grid w-full max-w-3xl grid-cols-4">
             <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>

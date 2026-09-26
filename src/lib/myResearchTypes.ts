@@ -145,6 +145,8 @@ export interface ResearchBooking {
   booking_date: string | null;
   completed_at: string | null;
   file_count?: number;
+  folder_id?: string | null;
+  folder_path?: ResearchBreadcrumb[];
 }
 
 export interface ResearchEquipment {

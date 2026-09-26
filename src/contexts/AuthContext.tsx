@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
+import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
 
 export interface User {
   id: number;
@@ -259,6 +260,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       if (uid != null && Number.isFinite(uid)) {
         clearUserGuideAutoShownThisLogin(uid);
+        clearPendingActionsShownThisLogin(uid);
       }
       // Clear local state regardless of API response
       apiClient.setToken(null);

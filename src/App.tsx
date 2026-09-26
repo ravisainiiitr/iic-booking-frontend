@@ -10,6 +10,7 @@ import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ThemeProvider } from "next-themes";
 import ChatWidget from "./components/ChatWidget";
 import ResearchCopilot from "./components/ResearchCopilot";
+import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
 
 const queryClient = new QueryClient({
@@ -49,6 +50,7 @@ const App = () => (
               <EmbedChrome />
               <ChatWidget />
               <ResearchCopilot />
+              <PendingActionsPrompt />
               <AppRoutes />
             </NotificationProvider>
             </UserGuideProvider>
