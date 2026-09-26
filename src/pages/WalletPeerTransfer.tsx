@@ -231,7 +231,7 @@ export default function WalletPeerTransfer() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="container mx-auto px-4 py-5 max-w-4xl">
         <Button variant="ghost" size="sm" className="mb-3" onClick={() => navigate("/wallet")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Wallet
@@ -245,7 +245,7 @@ export default function WalletPeerTransfer() {
           no admin approval is needed.
         </p>
 
-        <Card className="mb-8">
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>{step === "form" ? "New transfer" : "Verify OTP"}</CardTitle>
             <CardDescription>

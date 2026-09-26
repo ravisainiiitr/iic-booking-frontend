@@ -37,7 +37,7 @@ const AdminSettings = () => {
   if (!panelOk && !isAdmin) {
     return (
       <PageShell>
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-5">
           <PageHero title="Admin Settings" description="Admin Panel access is not enabled for your user type in this department.">
             <Button
               variant="ghost"
@@ -56,7 +56,7 @@ const AdminSettings = () => {
 
   return (
     <PageShell>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <PageHero
           title="Admin Settings"
           description={

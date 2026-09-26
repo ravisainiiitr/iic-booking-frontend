@@ -1361,7 +1361,7 @@ const Dashboard = () => {
     <div className="dashboard-page page-shell">
       <DashboardHeader />
 
-      <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-8 sm:px-6 lg:px-8">
+      <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-5 sm:px-6 lg:px-8">
         {externalProfileNeedsAddress && (
           <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-primary/70 bg-primary/5 dark:bg-primary/10">
             <CardHeader className="pb-3">
@@ -1387,7 +1387,7 @@ const Dashboard = () => {
         <div
           className={cn(
             "dashboard-hero-card relative overflow-hidden border border-white/25 bg-gradient-to-br from-primary via-primary to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20",
-            showsLabStyleDashboard ? "mb-10 rounded-3xl" : "mb-6 rounded-2xl"
+            showsLabStyleDashboard ? "mb-6 rounded-3xl" : "mb-6 rounded-2xl"
           )}
         >
           <div
@@ -1666,7 +1666,7 @@ const Dashboard = () => {
         )}
 
         {false && showsLabStyleDashboard && (
-          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
+          <Card className="mb-6 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
             <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-primary/[0.08] via-background to-background pb-6 pt-6 sm:pt-8">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="flex gap-4 min-w-0">
@@ -1725,7 +1725,7 @@ const Dashboard = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-10 p-6 sm:p-8">
+            <CardContent className="space-y-6 p-6 sm:p-8">
               {labOperatorDashLoading && !labOperatorDash ? (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -2414,7 +2414,7 @@ const Dashboard = () => {
                           </Button>
                         </div>
                       </div>
-                      <div className="space-y-10">
+                      <div className="space-y-6">
                         {labEquipmentSummariesForScope.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-8">
                             {isOicUser
@@ -2529,7 +2529,7 @@ const Dashboard = () => {
                   {labDashSelectedBookingId != null && (
                     <div
                       id="lab-booking-detail-section"
-                      className="mt-8 scroll-mt-8 rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-6"
+                      className="mt-6 scroll-mt-8 rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-6"
                     >
                       {labDashDetailLoading ? (
                         <Card className="border shadow-sm">
@@ -2567,7 +2567,7 @@ const Dashboard = () => {
 
         {/* Pending rating prompt for bookable end-users only (not staff / Dept Admin / Account In-charge) */}
         {!isOperatorOrManager && !isDeptAdmin && !isAccountsInChargeUser && pendingRatingBookings.length > 0 && (
-          <Card className="dashboard-notice-card dashboard-notice-warning mb-8 border-primary/25 bg-primary/5 dark:border-primary/40 dark:bg-primary/15 shadow-md">
+          <Card className="dashboard-notice-card dashboard-notice-warning mb-6 border-primary/25 bg-primary/5 dark:border-primary/40 dark:bg-primary/15 shadow-md">
             <CardContent className="py-5 px-6">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary dark:text-sky-300">
@@ -5669,7 +5669,7 @@ const Dashboard = () => {
             </Card>
 
         {showsLabStyleDashboard && (
-          <Card className="mb-10 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
+          <Card className="mb-6 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
             <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-primary/[0.08] via-background to-background pb-6 pt-6 sm:pt-8">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="flex gap-4 min-w-0">
@@ -5728,7 +5728,7 @@ const Dashboard = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-10 p-6 sm:p-8">
+            <CardContent className="space-y-6 p-6 sm:p-8">
               {labOperatorDashLoading && !labOperatorDash ? (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -6451,7 +6451,7 @@ const Dashboard = () => {
                   {labDashSelectedBookingId != null && (
                     <div
                       id="lab-booking-detail-section"
-                      className="mt-8 scroll-mt-8 rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-6"
+                      className="mt-6 scroll-mt-8 rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-6"
                     >
                       {labDashDetailLoading ? (
                         <Card className="border shadow-sm">
@@ -6489,11 +6489,11 @@ const Dashboard = () => {
 
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && (
-          <section className="mt-12 space-y-8">
-            <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider mb-6">
+          <section className="mt-6 space-y-5">
+            <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Your activity
             </p>
-            <div className="dashboard-uniform-cards grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="dashboard-uniform-cards grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Upcoming Bookings Section */}
               <Card className="overflow-hidden border-0 shadow-lg shadow-primary/10 bg-card rounded-2xl">
                 <CardHeader className="pb-4 border-b bg-gradient-to-r from-primary/10 to-accent/10">

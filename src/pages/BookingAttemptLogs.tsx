@@ -398,7 +398,7 @@ const BookingAttemptLogs = () => {
     return (
       <div className="page-shell">
         <DashboardHeader />
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-5">
           <Card className="max-w-md mx-auto">
             <CardHeader>
               <CardTitle>Access denied</CardTitle>
@@ -422,8 +422,8 @@ const BookingAttemptLogs = () => {
       style={{ minHeight: "100vh", backgroundColor: "var(--background, #f8fafc)", color: "var(--foreground, #0f172a)" }}
     >
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8" style={{ display: "block" }}>
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <main className="container mx-auto px-4 py-5" style={{ display: "block" }}>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Booking Attempt Log</h1>
             <p className="text-muted-foreground mt-1">

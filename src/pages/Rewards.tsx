@@ -46,7 +46,7 @@ export default function Rewards() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto px-4 py-5 space-y-6">
         <div>
           <h1 className="text-3xl font-bold">TA Reward Points</h1>
           <p className="text-muted-foreground mt-1">Track earned points and redemptions.</p>

@@ -150,7 +150,7 @@ export default function AgentInstallerPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <main className="container mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <main className="container mx-auto max-w-5xl space-y-6 px-4 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">

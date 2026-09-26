@@ -131,7 +131,7 @@ const LegacyWalletImportTest = () => {
     return (
       <div className="page-shell">
         <DashboardHeader />
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-5">
           <p className="text-muted-foreground">Admin access required.</p>
           <Button variant="outline" className="mt-4" onClick={() => navigate("/dashboard")}>
             Back to Dashboard
@@ -144,7 +144,7 @@ const LegacyWalletImportTest = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-5 max-w-6xl">
         <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Admin Settings

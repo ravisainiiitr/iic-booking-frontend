@@ -96,7 +96,7 @@ export default function IcpmsStandardsTest() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto px-4 py-5 space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <CardTitle>ICPMS Standards Coverage Test</CardTitle>

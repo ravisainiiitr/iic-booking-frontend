@@ -410,8 +410,8 @@ const Reports = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
+      <main className="container mx-auto px-4 py-5 max-w-7xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
           </h1>
@@ -425,7 +425,7 @@ const Reports = () => {
         </div>
 
         {isFacultyUser && !isLabInchargeUser && (
-          <Card className="mb-10 overflow-hidden border-primary/25 shadow-md dark:border-primary/40 rounded-2xl">
+          <Card className="mb-6 overflow-hidden border-primary/25 shadow-md dark:border-primary/40 rounded-2xl">
             <div className="border-b bg-gradient-to-r from-primary via-primary to-accent px-6 py-5 text-white">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -825,7 +825,7 @@ const Reports = () => {
 
         {/* My bookings stats — hidden for Lab Incharge (operators see equipment section only) */}
         {!isLabInchargeUser && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <Link to="/reports/bookings" className="block group">
             <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -897,7 +897,7 @@ const Reports = () => {
         )}
 
         {!isLabInchargeUser && (
-        <div className="grid lg:grid-cols-2 gap-8 mb-8">
+        <div className="grid lg:grid-cols-2 gap-8 mb-6">
           <Card>
             <CardHeader>
               <CardTitle>Booking Status (Pie Chart)</CardTitle>
@@ -955,7 +955,7 @@ const Reports = () => {
         )}
 
         {!isLabInchargeUser && (
-        <Card className="mb-8">
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>Booking Status Breakdown</CardTitle>
             <CardDescription>
@@ -993,7 +993,7 @@ const Reports = () => {
           <>
             {!isLabInchargeUser && (
               <>
-                <h2 className="text-2xl font-bold mb-2 mt-10">Equipment performance reports</h2>
+                <h2 className="text-2xl font-bold mb-2 mt-6">Equipment performance reports</h2>
                 <p className="text-muted-foreground mb-6">
                   Monthly-style performance metrics (users, samples from input A, hours, working-window availability, ratings) with PDF/Excel export.
                   Scheduled emails go to each equipment&apos;s Officer(s) in charge and Lab operator(s) (one PDF per equipment).
@@ -1353,7 +1353,7 @@ const Reports = () => {
                   </Card>
                 </div>
 
-                <div className="space-y-8 mb-10">
+                <div className="space-y-6 mb-6">
                   {equipmentReportData.equipment.map((eq) => {
                     const capBar = [
                       { label: "Available (work window)", h: Number(eq.available_hours_working_window ?? 0), fill: "#1e4d8c" },

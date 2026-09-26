@@ -41,10 +41,10 @@ const features = [
 
 const Features = () => {
   return (
-    <section id="features" className="py-10 sm:py-14 relative overflow-hidden">
+    <section id="features" className="pt-4 pb-8 sm:pt-5 sm:pb-10 relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(215_40%_90%/0.5),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom,hsl(215_30%_20%/0.25),transparent_55%)]" />
       <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6">
-        <div className="mb-8 max-w-3xl space-y-2 sm:mb-10">
+        <div className="mb-5 max-w-3xl space-y-2 sm:mb-6">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary dark:text-sky-300">
             Why book here
           </p>

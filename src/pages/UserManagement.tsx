@@ -242,8 +242,8 @@ export default function UserManagement() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <main className="container mx-auto px-4 py-5">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <Button
               variant="ghost"

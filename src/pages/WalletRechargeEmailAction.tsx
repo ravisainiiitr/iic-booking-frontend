@@ -222,7 +222,7 @@ const WalletRechargeEmailAction = () => {
   return (
     <div className="page-shell min-h-screen">
       <DashboardHeader />
-      <main className="container mx-auto max-w-2xl px-4 py-10">
+      <main className="container mx-auto max-w-2xl px-4 py-6">
         {loading || (autoApproving && !doneMessage && !terminal && !error) ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

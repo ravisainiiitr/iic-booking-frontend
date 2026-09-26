@@ -639,8 +639,8 @@ const AdminCommunication = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <main className="container mx-auto px-4 py-5">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
               <ArrowLeft className="h-4 w-4 mr-2" />

@@ -211,7 +211,7 @@ export default function BookingPayment() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container max-w-lg py-8 space-y-6">
+      <main className="container max-w-lg py-5 space-y-6">
         <Button variant="ghost" onClick={() => navigate("/my-bookings")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           My bookings

@@ -269,7 +269,7 @@ export default function CmsPageView() {
     return (
       <div className="page-shell flex flex-col">
         <Header />
-        <main className="flex-1 pt-24 pb-12 container mx-auto px-4">
+        <main className="flex-1 pt-32 pb-8 md:pt-36 container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 flex items-center justify-center min-h-[200px]">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -288,7 +288,7 @@ export default function CmsPageView() {
     return (
       <div className="page-shell flex flex-col">
         <Header />
-        <main className="flex-1 pt-24 pb-12 container mx-auto px-4">
+        <main className="flex-1 pt-32 pb-8 md:pt-36 container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 flex items-center justify-center min-h-[200px]">
               <div className="text-center space-y-4">
@@ -312,7 +312,7 @@ export default function CmsPageView() {
   return (
     <div className="page-shell flex flex-col">
       <Header />
-      <main className="flex-1 pt-24 pb-12 container mx-auto px-4">
+      <main className="flex-1 pt-32 pb-8 md:pt-36 container mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <Button
@@ -324,7 +324,7 @@ export default function CmsPageView() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <h1 className="text-3xl font-bold text-foreground mb-8">{page.title}</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-6">{page.title}</h1>
             <div className="prose prose-neutral dark:prose-invert max-w-none">
               {page.content.map((block, idx) => (
                 <BlockRenderer key={idx} block={block} />

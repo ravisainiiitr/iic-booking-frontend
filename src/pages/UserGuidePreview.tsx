@@ -33,7 +33,7 @@ const UserGuidePreview = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
-      <div className="container mx-auto max-w-3xl px-4 py-10 space-y-6">
+      <div className="container mx-auto max-w-3xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link to="/">

@@ -366,8 +366,8 @@ const FinanceReports = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
+      <main className="container mx-auto px-4 py-5 max-w-7xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Finance Reports</h1>
           <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
             Departmental revenue, wallet recharges, and payment analytics for{" "}
@@ -496,7 +496,7 @@ const FinanceReports = () => {
             </div>
 
             {/* KPI summary cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
               <KpiCard
                 label="Total revenue"
                 value={fmtMoney(data.summary.total_revenue)}

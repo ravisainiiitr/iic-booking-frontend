@@ -188,7 +188,7 @@ export default function RdpPathDiagnosticsPage() {
     return (
       <div className="min-h-screen bg-background">
         <DashboardHeader />
-        <main className="container mx-auto max-w-3xl px-4 py-8">
+        <main className="container mx-auto max-w-3xl px-4 py-5">
           <Card>
             <CardHeader>
               <CardTitle>Permission denied</CardTitle>
@@ -208,7 +208,7 @@ export default function RdpPathDiagnosticsPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <main className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <main className="container mx-auto max-w-5xl px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Administration · Remote Analysis</p>

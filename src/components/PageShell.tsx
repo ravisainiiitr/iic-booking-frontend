@@ -37,7 +37,7 @@ export function PageHero({
   return (
     <div
       className={cn(
-        "mb-8 rounded-2xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 p-6 sm:p-8 text-white shadow-xl shadow-primary/25",
+        "mb-6 rounded-2xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 p-6 sm:p-8 text-white shadow-xl shadow-primary/25",
         className
       )}
     >

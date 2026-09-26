@@ -275,7 +275,7 @@ export default function TANominationCall() {
   return (
     <div className="page-shell flex flex-col">
       <DashboardHeader />
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+      <main className="flex-1 container mx-auto px-4 py-5 max-w-4xl">
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"
@@ -447,7 +447,7 @@ export default function TANominationCall() {
           </CardContent>
         </Card>
 
-        <Card className="mt-8 border-0 shadow-lg overflow-hidden">
+        <Card className="mt-6 border-0 shadow-lg overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">

@@ -526,7 +526,7 @@ const Profile = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <div className="mb-6 max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">My Profile</h1>
           <p className="mt-1 text-white/85 text-sm">Update your personal information and preferences</p>

@@ -941,7 +941,7 @@ const EquipmentProfile = () => {
                 }
               };
               panelBody = (
-                <div className="space-y-10 print:space-y-6">
+                <div className="space-y-6 print:space-y-6">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between rounded-xl border bg-primary/5 px-5 py-4 sm:px-7">
                     <p className="text-base sm:text-lg text-foreground leading-relaxed">
                       Consolidated brochure for{" "}

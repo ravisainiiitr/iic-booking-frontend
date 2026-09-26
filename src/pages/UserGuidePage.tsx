@@ -20,7 +20,7 @@ export default function UserGuidePage() {
     return (
       <div className="page-shell">
         {!embedded ? <DashboardHeader /> : null}
-        <main className="container mx-auto max-w-3xl px-4 py-10">
+        <main className="container mx-auto max-w-3xl px-4 py-6">
           <Card>
             <CardHeader>
               <CardTitle>User Guide</CardTitle>
@@ -35,7 +35,7 @@ export default function UserGuidePage() {
   return (
     <div className="page-shell">
       {!embedded ? <DashboardHeader /> : null}
-      <main className="container mx-auto max-w-3xl px-4 py-6 sm:py-8 space-y-6">
+      <main className="container mx-auto max-w-3xl px-4 py-6 sm:py-6 space-y-6">
         <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-primary/5 via-card to-accent/10 p-5 sm:p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">

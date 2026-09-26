@@ -466,7 +466,7 @@ export default function RemoteAnalysis() {
     return (
       <div className="min-h-screen bg-background">
         <DashboardHeader />
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-5">
           <Card>
             <CardHeader>
               <CardTitle>Remote Analysis</CardTitle>
@@ -486,7 +486,7 @@ export default function RemoteAnalysis() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">

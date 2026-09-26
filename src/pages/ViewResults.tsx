@@ -52,7 +52,7 @@ export default function ViewResults() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">

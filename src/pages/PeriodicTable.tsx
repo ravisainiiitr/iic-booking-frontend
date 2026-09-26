@@ -108,7 +108,7 @@ const PeriodicTable = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">

@@ -115,7 +115,7 @@ export default function AdminWalletWithdrawalRequests() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <div className="mb-6">
           <Button variant="ghost" size="sm" onClick={() => navigate("/user-management")} className="mb-2">
             <ArrowLeft className="h-4 w-4 mr-2" />

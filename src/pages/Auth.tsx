@@ -844,12 +844,12 @@ const Auth = () => {
   }
 
   return (
-    <div className="page-shell flex items-center justify-center p-4 sm:p-6 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(215_50%_40%/0.14),transparent)] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(215_40%_30%/0.2),transparent)]">
+    <div className="page-shell flex items-center justify-center p-4 sm:px-6 sm:py-4 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(215_50%_40%/0.14),transparent)] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(215_40%_30%/0.2),transparent)]">
       <div className="w-full max-w-2xl">
         {/* Card */}
         <Card className="overflow-hidden border border-border/60 shadow-[var(--shadow-elegant)] bg-card/95 backdrop-blur-sm rounded-2xl">
           {/* Header */}
-          <div className="relative px-6 sm:px-8 pt-6 pb-4 text-center border-b border-border/50 bg-gradient-to-b from-primary/5 to-transparent dark:from-primary/15">
+          <div className="relative px-6 sm:px-8 pt-5 pb-3 text-center border-b border-border/50 bg-gradient-to-b from-primary/5 to-transparent dark:from-primary/15">
             <Button
               variant="ghost"
               size="icon"
@@ -870,7 +870,7 @@ const Auth = () => {
               <img
                 src="https://en.wikipedia.org/wiki/Special:FilePath/Indian_Institute_of_Technology_Roorkee_Logo.svg"
                 alt="IIT Roorkee logo"
-                className="h-24 w-auto mx-auto object-contain sm:h-28"
+                className="h-20 w-auto mx-auto object-contain sm:h-24"
               />
             </a>
             <p className="mt-3 text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
@@ -884,9 +884,9 @@ const Auth = () => {
             </p>
           </div>
 
-          <CardContent className="p-6 sm:p-8 text-base">
+          <CardContent className="px-6 pt-4 pb-6 sm:px-8 sm:pt-5 sm:pb-7 text-base">
             {/* Channel i — primary CTA */}
-            <div className="mb-6">
+            <div className="mb-4">
               <Button
                 onClick={handleOmniportLogin}
                 disabled={loading}
@@ -903,13 +903,13 @@ const Auth = () => {
                   {loading ? "Connecting..." : `Sign in with ${CHANNEL_I_DISPLAY_NAME} IITR`}
                 </span>
               </Button>
-              <p className="mt-3 text-xs text-muted-foreground text-center leading-relaxed">
+              <p className="mt-2 text-xs text-muted-foreground text-center leading-relaxed">
                 Official IIT Roorkee authentication. You will be redirected to {CHANNEL_I_DISPLAY_NAME} to sign in.
               </p>
             </div>
 
             {/* Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border/80" />
               </div>
@@ -939,7 +939,7 @@ const Auth = () => {
                 </TabsTrigger>
               </TabsList>
             
-            <TabsContent value="signin" className="mt-6 focus-visible:outline-none">
+            <TabsContent value="signin" className="mt-4 focus-visible:outline-none">
               {forgotPasswordStep !== null ? (
                 <div className="space-y-5">
                   <Button
@@ -1184,30 +1184,24 @@ const Auth = () => {
                         </Button>
                       </div>
                     </div>
-                    <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loading}>
-                      {loading ? "Signing in..." : "Sign In"}
-                    </Button>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loading}>
+                        {loading ? "Signing in..." : "Sign In"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full h-11 rounded-xl gap-2 border-border/80 font-medium hover:bg-muted/50"
+                        onClick={() => {
+                          setLoginOtpEmail(email.trim() || loginOtpEmail);
+                          setLoginViaOtpStep("email");
+                        }}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Login via OTP (email)
+                      </Button>
+                    </div>
                   </form>
-                  <div className="relative my-5">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-border/80" />
-                    </div>
-                    <div className="relative flex justify-center">
-                      <span className="bg-card px-3 text-xs text-muted-foreground">Or</span>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-11 rounded-xl gap-2 border-border/80 font-medium hover:bg-muted/50"
-                    onClick={() => {
-                      setLoginOtpEmail(email.trim() || loginOtpEmail);
-                      setLoginViaOtpStep("email");
-                    }}
-                  >
-                    <Mail className="h-4 w-4" />
-                    Login via OTP (email)
-                  </Button>
                 </>
               )}
             </TabsContent>
@@ -2104,17 +2098,6 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
-
-          <div className="mt-6 pt-6 border-t border-border/50">
-            <Button
-              variant="outline"
-              className="w-full h-11 rounded-xl border-border/80 font-medium hover:bg-muted/50"
-              onClick={() => navigate("/")}
-            >
-              <Home className="h-4 w-4 mr-2" />
-              Go to Home
-            </Button>
-          </div>
         </CardContent>
       </Card>
       </div>

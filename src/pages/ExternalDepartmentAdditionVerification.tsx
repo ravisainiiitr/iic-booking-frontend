@@ -351,7 +351,7 @@ const ExternalDepartmentAdditionVerification = () => {
   return (
     <div className="page-shell flex flex-col">
       <DashboardHeader />
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
+      <main className="flex-1 container mx-auto px-4 py-5 max-w-5xl">
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"

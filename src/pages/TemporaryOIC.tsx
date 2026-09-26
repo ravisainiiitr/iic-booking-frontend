@@ -204,7 +204,7 @@ export default function TemporaryOIC() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container max-w-4xl mx-auto p-4 pb-8 space-y-6">
+      <main className="container max-w-4xl mx-auto p-4 pb-5 space-y-6">
         <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"

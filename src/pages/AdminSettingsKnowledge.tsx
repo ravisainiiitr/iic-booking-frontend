@@ -176,7 +176,7 @@ const AdminSettingsKnowledge = () => {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")}>
             <ArrowLeft className="h-4 w-4 mr-2" />

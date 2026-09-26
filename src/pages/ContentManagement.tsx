@@ -43,7 +43,7 @@ const ContentManagement = () => {
 
   return (
     <PageShell>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <PageHero
           title="Content Management"
           description="Manage menu, pages, home content, and hero images for the public site."

@@ -82,7 +82,7 @@ export default function DepartmentAdministrationHub() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <main className="container mx-auto max-w-5xl px-4 py-5 space-y-6">
         <div>
           <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-2" />

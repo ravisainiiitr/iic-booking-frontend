@@ -1141,8 +1141,8 @@ const WalletRechargeParsePage = () => {
       />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:3rem_3rem] opacity-40 dark:opacity-25" />
       <DashboardHeader />
-      <main className="relative mx-auto w-full max-w-[min(100%,1920px)] px-4 py-8 sm:px-6 lg:px-8 xl:px-10 sm:py-10">
-        <div className="mb-8 sm:mb-10">
+      <main className="relative mx-auto w-full max-w-[min(100%,1920px)] px-4 py-5 sm:px-6 lg:px-8 xl:px-10 sm:py-6">
+        <div className="mb-5 sm:mb-6">
           <Button
             variant="ghost"
             size="sm"

@@ -127,7 +127,7 @@ export default function AdminRewardsConfig() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto px-4 py-5 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">

@@ -121,8 +121,8 @@ const AdminPanel = () => {
   return (
     <div className="page-shell flex flex-col">
       <DashboardHeader />
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
-        <div className="flex flex-wrap items-center gap-4 mb-8">
+      <main className="flex-1 container mx-auto px-4 py-5 max-w-5xl">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
           <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard

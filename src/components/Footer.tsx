@@ -19,9 +19,9 @@ const Footer = () => {
   }
 
   return (
-    <footer className="bg-card border-t border-border py-8 sm:py-10">
+    <footer className="bg-card border-t border-border py-6 sm:py-8">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <FlaskConical className="h-6 w-6 text-primary" />
@@ -108,7 +108,7 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
+        <div className="pt-5 border-t border-border text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} Institute Equipment Booking Portal, IIT Roorkee. All rights reserved.</p>
         </div>
       </div>

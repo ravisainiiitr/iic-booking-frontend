@@ -371,7 +371,7 @@ export default function OICMultiMode() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+      <main className="container mx-auto px-4 py-5 max-w-4xl space-y-6">
         <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <Button
             variant="ghost"

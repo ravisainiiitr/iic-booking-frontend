@@ -121,7 +121,7 @@ const NoticeBoardRequests = () => {
     return (
       <div className="min-h-screen bg-background">
         <DashboardHeader />
-        <div className="container mx-auto px-4 py-10 max-w-lg text-center space-y-4">
+        <div className="container mx-auto px-4 py-6 max-w-lg text-center space-y-4">
           <p className="text-muted-foreground">
             Only Officer In Charge (OIC) can manage notice board requests.
           </p>

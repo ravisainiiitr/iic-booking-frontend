@@ -528,7 +528,7 @@ export default function TAAssignments() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto px-4 py-5 space-y-6">
         <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <h1 className="text-2xl font-semibold tracking-tight">TA duty assignments</h1>
           <p className="mt-2 text-sm text-white/85">

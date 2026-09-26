@@ -1261,8 +1261,8 @@ const MyBookings = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">My Bookings</h1>
+      <main className="container mx-auto px-4 py-5">
+        <h1 className="text-3xl font-bold mb-6">My Bookings</h1>
 
         <Card className="mb-6">
           <CardHeader className="pb-3">

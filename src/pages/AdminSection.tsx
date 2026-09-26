@@ -1203,7 +1203,7 @@ export default function AdminSection() {
     return (
       <div className="page-shell flex flex-col">
         <DashboardHeader />
-        <main className="flex-1 container mx-auto px-4 py-8">
+        <main className="flex-1 container mx-auto px-4 py-5">
           <p className="text-destructive">Invalid section.</p>
           <Button variant="outline" onClick={() => navigate("/admin")}>Back to Admin</Button>
         </main>
@@ -1216,7 +1216,7 @@ export default function AdminSection() {
   return (
     <div className="page-shell flex flex-col">
       <DashboardHeader />
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
+      <main className="flex-1 container mx-auto px-4 py-5 max-w-6xl">
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
             <ArrowLeft className="h-4 w-4 mr-2" />

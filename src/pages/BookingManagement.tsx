@@ -351,8 +351,8 @@ const BookingManagement = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
+      <main className="container mx-auto px-4 py-5">
+        <div className="mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
             <div>
               <h1 className="text-3xl font-bold">Booking Management</h1>

@@ -17,7 +17,7 @@ const Index = () => {
       <Header />
       <Hero />
 
-      <section id="equipment" className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+      <section id="equipment" className="mx-auto w-full max-w-7xl px-4 sm:px-6 pt-6 pb-2 sm:pt-8 sm:pb-3">
         <div className="mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wider text-primary dark:text-sky-300 mb-0.5">

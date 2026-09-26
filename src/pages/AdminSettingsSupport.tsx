@@ -132,7 +132,7 @@ const AdminSettingsSupport = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-5 max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => navigate("/admin-settings")}>
             <ArrowLeft className="h-4 w-4 mr-2" />

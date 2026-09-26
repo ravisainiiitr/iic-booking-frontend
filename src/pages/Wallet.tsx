@@ -1872,8 +1872,8 @@ const Wallet = () => {
     return (
       <div className="page-shell">
         <DashboardHeader />
-        <main className="container mx-auto px-4 py-8">
-          <div className="mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <main className="container mx-auto px-4 py-5">
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Request Wallet Access</h1>
             <p className="mt-2 text-white/85 text-sm">
               Link to a faculty wallet to fund equipment bookings.
@@ -2191,8 +2191,8 @@ const Wallet = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-5xl">
-        <div className="mb-6 sm:mb-8 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 sm:p-7 text-white shadow-xl">
+      <main className="container mx-auto px-4 py-6 sm:py-6 max-w-5xl">
+        <div className="mb-6 sm:mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 sm:p-7 text-white shadow-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Wallet</h1>
@@ -2223,7 +2223,7 @@ const Wallet = () => {
           </div>
         </div>
 
-        <Card className="mb-6 sm:mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+        <Card className="mb-6 sm:mb-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/50 pb-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -2931,7 +2931,7 @@ const Wallet = () => {
 
         {/* External users: Withdraw/transfer wallet balance to bank */}
         {isExternalUser && !isShared && (
-          <Card className="mb-8">
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Landmark className="h-5 w-5" />
@@ -3118,7 +3118,7 @@ const Wallet = () => {
         )}
 
         {/* Department Sub-Wallets */}
-        <Card className="mb-6 sm:mb-8 border-border/70 shadow-[var(--shadow-card)] rounded-2xl">
+        <Card className="mb-6 sm:mb-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -3236,7 +3236,7 @@ const Wallet = () => {
         {/* Join Requests for Students and Other Users */}
         {/* Show for students and Other users (not individual students) */}
         {shouldShowFacultyWalletSection && (
-          <Card className="mb-8">
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle>Faculty Wallet Requests</CardTitle>
               <CardDescription>
@@ -3377,7 +3377,7 @@ const Wallet = () => {
 
         {/* Join Requests for Faculty */}
         {isFacultyEffective && (
-          <Card className="mb-8">
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle>Wallet Join Requests</CardTitle>
               <CardDescription>
@@ -3598,7 +3598,7 @@ const Wallet = () => {
 
         {/* Recharge Request History */}
         {!isShared && (
-          <Card className="mb-8">
+          <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>

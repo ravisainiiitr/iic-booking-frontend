@@ -462,7 +462,7 @@ export default function AdminWalletRechargeRequests() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-5">
         <div className="mb-6">
           <Button
             variant="ghost"

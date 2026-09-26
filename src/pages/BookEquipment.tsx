@@ -5805,7 +5805,7 @@ const BookEquipment = () => {
       {!isEmbedFlow && <DashboardHeader />}
       <main className={isEmbedFlow ? "w-full px-0 py-1 text-base leading-relaxed" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8 text-base md:text-lg leading-relaxed"}>
         {!isEmbedFlow && (
-        <div className="max-w-6xl mx-auto mb-8">
+        <div className="max-w-6xl mx-auto mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
@@ -5859,7 +5859,7 @@ const BookEquipment = () => {
 
         {/* Admin: mode selector (Manage this Equipment) */}
         {canAccessManageEquipmentModes() && adminManageMode === null && !isCalculateChargesFlow && (
-          <div className="max-w-2xl mx-auto mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="max-w-2xl mx-auto mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {canBookForOtherUsers() && (
               <Card
                 className="cursor-pointer hover:shadow-lg transition-shadow"
@@ -5894,7 +5894,7 @@ const BookEquipment = () => {
 
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <Card className="w-full max-w-none mx-auto mb-8 overflow-hidden border border-primary/20 shadow-lg bg-gradient-to-b from-card to-card/95">
+          <Card className="w-full max-w-none mx-auto mb-6 overflow-hidden border border-primary/20 shadow-lg bg-gradient-to-b from-card to-card/95">
             <div className="bg-gradient-to-r from-primary via-primary to-accent px-5 py-4 text-white">
               <div className="flex justify-between items-start flex-wrap gap-3">
                 <div className="min-w-0 flex-1">
@@ -6636,7 +6636,7 @@ const BookEquipment = () => {
         )}
 
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <div className="sticky bottom-2 sm:bottom-4 z-30 w-full max-w-none mx-auto mb-6 sm:mb-10 rounded-2xl border border-primary/25 bg-card/95 shadow-xl backdrop-blur-sm">
+          <div className="sticky bottom-2 sm:bottom-4 z-30 w-full max-w-none mx-auto mb-4 sm:mb-6 rounded-2xl border border-primary/25 bg-card/95 shadow-xl backdrop-blur-sm">
             <div className="border-b border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 px-4 py-3 sm:px-5 sm:py-4 dark:border-primary/40 dark:from-primary/10 dark:to-accent/10">
               <h3 className="text-base sm:text-lg font-semibold text-foreground">Apply changes</h3>
               <p className="text-sm text-muted-foreground mt-1">Select slots or dates above, choose an operation, then apply.</p>
