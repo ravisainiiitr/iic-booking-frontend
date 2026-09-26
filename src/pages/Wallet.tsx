@@ -373,9 +373,12 @@ const Wallet = () => {
           deptId = parsed;
         }
       }
+      const amountRaw = searchParams.get("amount");
+      const amount = amountRaw && /^\d{1,8}(\.\d{1,2})?$/.test(amountRaw) ? amountRaw : null;
       navigate("/wallet", { replace: true });
       setTimeout(() => {
         openRechargeDialog(deptId);
+        if (amount) setRechargeAmount(amount);
       }, 300);
       return;
     }

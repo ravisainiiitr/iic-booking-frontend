@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, BookOpen, Loader2, RefreshCw, Search, Sprout } from "lucide-react";
 import { toast } from "sonner";
+import EquipmentManualsPanel from "@/components/admin/EquipmentManualsPanel";
 
 type KnowledgeDoc = {
   id: string;
@@ -239,6 +240,8 @@ const AdminSettingsKnowledge = () => {
             </Card>
           </div>
         )}
+
+        <EquipmentManualsPanel />
 
         <Card>
           <CardHeader>

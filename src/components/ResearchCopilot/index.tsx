@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Bot,
   Copy,
+  FileText,
   Loader2,
   MessageSquarePlus,
   Send,
@@ -52,8 +53,56 @@ type CopilotCard = {
   portal_href?: string;
   error?: string;
   department?: string;
+  department_id?: number | null;
   user_type?: string | number;
+  can_book?: boolean;
+  sub_wallets?: Array<{ department_id?: number | null; department?: string | null; balance?: string | null }>;
 };
+
+type CopilotAction = {
+  id: string;
+  label: string;
+  href?: string;
+  prompt?: string;
+  enabled?: boolean;
+  hint?: string;
+  requires_confirmation?: boolean;
+  proposal_id?: string;
+  confirmation_token?: string;
+  mutation_action?: string;
+  type?: string;
+  payload?: { equipment_id?: number; slot_ids?: number[]; number_of_samples?: number };
+};
+
+type CopilotEnvelope = {
+  content?: string;
+  cards?: CopilotCard[];
+  suggested_actions?: CopilotAction[];
+  escalate_hint?: boolean;
+  response_kind?: string;
+};
+
+type PendingConfirm = {
+  proposal_id: string;
+  confirmation_token: string;
+  mutation_action?: string;
+  label: string;
+  card?: CopilotCard;
+  idempotency_key: string;
+};
+
+const CONFIRM_WARNINGS: Record<string, string> = {
+  CREATE_BOOKING: "This books the slot in your name. Charges are debited from your wallet under the usual portal rules.",
+  CANCEL_BOOKING: "This cancels the booking. Any refund follows the portal cancellation policy.",
+  RESCHEDULE_BOOKING: "This moves your booking to the new slot and releases the old one.",
+  WALLET_CREDIT: "This submits a wallet credit request. The Main Administrator must approve it.",
+  WALLET_RECHARGE: "This starts a wallet recharge.",
+};
+
+function newIdempotencyKey(): string {
+  const c = typeof crypto !== "undefined" ? (crypto as Crypto & { randomUUID?: () => string }) : undefined;
+  return c?.randomUUID ? c.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 type CopilotMessage = {
   id: string;
@@ -62,26 +111,21 @@ type CopilotMessage = {
   confidence?: number | null;
   escalate_hint?: boolean;
   citations?: Array<{
+    n?: number;
     source_id?: string;
+    document_id?: string;
     title: string;
     snippet?: string;
     score?: number;
     url?: string;
     category?: string;
     source_type?: string;
+    page?: number | null;
+    page_label?: string;
+    has_file?: boolean;
+    file_endpoint?: string;
   }>;
-  suggested_actions?: Array<{
-    id: string;
-    label: string;
-    href?: string;
-    prompt?: string;
-    enabled?: boolean;
-    hint?: string;
-    requires_confirmation?: boolean;
-    proposal_id?: string;
-    confirmation_token?: string;
-    mutation_action?: string;
-  }>;
+  suggested_actions?: CopilotAction[];
   cards?: CopilotCard[];
   response_kind?: string;
 };
@@ -193,10 +237,14 @@ function CopilotCards({
   cards,
   onNavigate,
   onPrompt,
+  onBookSlot,
+  busy,
 }: {
   cards?: CopilotCard[];
   onNavigate: (href: string) => void;
   onPrompt?: (prompt: string) => void;
+  onBookSlot?: (equipmentId: number, slotId: number) => void;
+  busy?: boolean;
 }) {
   if (!cards?.length) return null;
   return (
@@ -310,12 +358,24 @@ function CopilotCards({
                   const day = String(item.date || "");
                   const start = String(item.start || "").slice(11, 16);
                   const end = String(item.end || "").slice(11, 16);
+                  const slotId = Number(item.slot_id);
+                  const canBook = Boolean(card.can_book && onBookSlot && card.equipment_id && slotId);
                   return (
-                    <li key={i} className="flex justify-between gap-2 border-b border-border/40 py-1 last:border-0">
+                    <li key={i} className="flex items-center justify-between gap-2 border-b border-border/40 py-1 last:border-0">
                       <span>{day}</span>
-                      <span className="text-muted-foreground">
+                      <span className="flex items-center gap-2 text-muted-foreground">
                         {start}
                         {end ? `–${end}` : ""}
+                        {canBook ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                            onClick={() => onBookSlot?.(Number(card.equipment_id), slotId)}
+                          >
+                            Book
+                          </button>
+                        ) : null}
                       </span>
                     </li>
                   );
@@ -333,6 +393,35 @@ function CopilotCards({
               </div>
             </div>
           );
+        }
+        if (card.type === "recharge_guidance") {
+          return (
+            <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {card.title || "Recharge your wallet"}
+              </div>
+              {card.wallet_balance != null ? (
+                <div className="mt-1 font-semibold">Balance: ₹{String(card.wallet_balance)}</div>
+              ) : null}
+              {card.sub_wallets?.length ? (
+                <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                  {card.sub_wallets.slice(0, 6).map((s, i) => (
+                    <li key={i}>
+                      {s.department || "Department"}: ₹{String(s.balance ?? "—")}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {card.portal_href ? (
+                <Button type="button" size="sm" className="mt-2 h-8 text-xs" onClick={() => onNavigate(card.portal_href!)}>
+                  {card.amount ? `Recharge ₹${String(card.amount)}` : "Open recharge form"}
+                </Button>
+              ) : null}
+            </div>
+          );
+        }
+        if (card.type === "manual_sources") {
+          return null;
         }
         if (card.type === "transactions") {
           return (
@@ -460,8 +549,7 @@ function CopilotCards({
               </ul>
               {!card.executable ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Mutation execute is currently OFF. Confirm will not move money or change bookings until an administrator
-                  enables the matching flag after controlled E2E.
+                  Copilot can&apos;t complete this action for your account yet. Use the portal link instead.
                 </p>
               ) : null}
             </div>
@@ -515,6 +603,7 @@ export default function ResearchCopilot() {
   const hideOnAnalysisDesktop =
     location.pathname.startsWith("/analysis-launch") ||
     location.pathname.startsWith("/analysis-workspace");
+  const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
@@ -531,7 +620,91 @@ export default function ResearchCopilot() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
   const [reportMessageId, setReportMessageId] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [usedProposals, setUsedProposals] = useState<Set<string>>(() => new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const appendEnvelope = useCallback((envelope: CopilotEnvelope | undefined, fallback: string, isError = false) => {
+    setMessages((m) => [
+      ...m,
+      {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        content: envelope?.content || fallback,
+        cards: envelope?.cards || [],
+        suggested_actions: envelope?.suggested_actions,
+        escalate_hint: isError || Boolean(envelope?.escalate_hint),
+        response_kind: envelope?.response_kind,
+      },
+    ]);
+  }, []);
+
+  const prepareBooking = async (equipmentId: number, slotIds: number[], samples?: number) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const res = await apiClient.researchCopilotPrepareMutation({
+        action: "CREATE_BOOKING",
+        equipment_id: equipmentId,
+        slot_ids: slotIds,
+        number_of_samples: samples,
+        conversation_id: conversationId,
+      });
+      if (res.error || !res.data) {
+        appendEnvelope(undefined, copilotErrorMessage(res), true);
+        return;
+      }
+      appendEnvelope(
+        res.data.response as CopilotEnvelope | undefined,
+        String((res.data as { message?: string }).message || "Could not prepare that booking."),
+        !res.data.ok,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runConfirm = async (pc: PendingConfirm) => {
+    setPendingConfirm(null);
+    setUsedProposals((s) => new Set(s).add(pc.proposal_id));
+    setLoading(true);
+    try {
+      const res = await apiClient.researchCopilotConfirmMutation({
+        proposal_id: pc.proposal_id,
+        confirmation_token: pc.confirmation_token,
+        action: pc.mutation_action,
+        idempotency_key: pc.idempotency_key,
+      });
+      if (res.error || !res.data) {
+        setUsedProposals((s) => {
+          const next = new Set(s);
+          next.delete(pc.proposal_id);
+          return next;
+        });
+        appendEnvelope(undefined, copilotErrorMessage(res), true);
+        return;
+      }
+      const data = res.data as { ok?: boolean; message?: string; response?: CopilotEnvelope };
+      appendEnvelope(data.response, String(data.message || "Confirmation processed."), !data.ok);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openManual = async (documentId: string, page?: number | null) => {
+    // Open synchronously so the browser treats it as user-initiated, then point it at the signed URL.
+    const win = window.open("", "_blank");
+    if (win) win.opener = null;
+    const res = await apiClient.researchCopilotManualFileUrl(documentId);
+    if (!res.data?.url) {
+      win?.close();
+      appendEnvelope(undefined, res.error || "This manual could not be opened right now.", true);
+      return;
+    }
+    const href = page ? `${res.data.url}#page=${page}` : res.data.url;
+    if (win) win.location.href = href;
+    else window.location.assign(href);
+  };
 
   const isCopilotEnabled = isViteCopilotEnabled && backendEnabled !== false;
 
@@ -779,15 +952,16 @@ export default function ResearchCopilot() {
   };
 
   if (!isCopilotEnabled) return null;
-  if (hideOnAnalysisDesktop) return null;
+  if (hideOnAnalysisDesktop || isEmbed) return null;
 
   return (
     <>
+      {/* Stacked above the support ChatWidget button (bottom-6 right-6). */}
       <Button
         type="button"
         aria-label={open ? "Close Research Copilot" : "Open Research Copilot"}
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-[9999] h-14 gap-2 rounded-full px-5 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
+        className="fixed bottom-24 right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         <span className="hidden sm:inline text-sm font-semibold">Research Copilot</span>
@@ -795,8 +969,8 @@ export default function ResearchCopilot() {
 
       {open && (
         <div
-          className="fixed bottom-24 right-6 z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl"
-          style={{ height: "min(640px, 78vh)" }}
+          className="fixed bottom-40 right-3 z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl sm:right-6"
+          style={{ height: "min(620px, calc(100vh - 11.5rem))" }}
         >
           {/* History (signed-in only) */}
           {isAuthenticated ? (
@@ -892,20 +1066,43 @@ export default function ResearchCopilot() {
                                 navigate(href);
                               }}
                               onPrompt={(prompt) => void send(prompt)}
+                              onBookSlot={
+                                isAuthenticated ? (eqId, slotId) => void prepareBooking(eqId, [slotId]) : undefined
+                              }
+                              busy={loading}
                             />
                           )}
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                             <div className="mt-3 border-t border-border/60 pt-2">
                               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Sources · Knowledge document
+                                {msg.citations.some((c) => c.source_type === "manual")
+                                  ? "Sources · Equipment manual"
+                                  : "Sources · Knowledge document"}
                               </div>
                               <ul className="mt-1 space-y-1">
                                 {msg.citations.map((c, idx) => (
                                   <li key={`${c.source_id || c.title}-${idx}`} className="text-xs">
                                     <span className="mr-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
-                                      {(c.source_type || c.category || "document").toString()}
+                                      {c.source_type === "manual"
+                                        ? `[${c.n ?? idx + 1}] manual`
+                                        : (c.source_type || c.category || "document").toString()}
                                     </span>
-                                    {c.url ? (
+                                    {c.source_type === "manual" ? (
+                                      <span>
+                                        {c.title}
+                                        {c.page_label ? <span className="text-muted-foreground">, {c.page_label}</span> : null}
+                                        {c.has_file && c.document_id ? (
+                                          <button
+                                            type="button"
+                                            className="ml-2 inline-flex items-center gap-1 text-amber-800 underline-offset-2 hover:underline dark:text-amber-200"
+                                            onClick={() => void openManual(c.document_id!, c.page)}
+                                          >
+                                            <FileText className="h-3 w-3" />
+                                            Open manual{c.page ? ` at p. ${c.page}` : ""}
+                                          </button>
+                                        ) : null}
+                                      </span>
+                                    ) : c.url ? (
                                       <button
                                         type="button"
                                         className="text-left text-amber-800 underline-offset-2 hover:underline dark:text-amber-200"
@@ -958,12 +1155,15 @@ export default function ResearchCopilot() {
                           )}
                           {msg.role === "assistant" && msg.suggested_actions && msg.suggested_actions.length > 0 && (
                             <div className="mt-3 space-y-2">
-                              {msg.suggested_actions.some((a) => a.requires_confirmation) && (
+                              {msg.suggested_actions.some((a) => a.proposal_id) ? (
                                 <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
-                                  Suggested action — opens the portal so you can review and confirm. Copilot does not
-                                  change bookings, wallet, or reservations by itself.
+                                  Nothing changes until you press confirm and approve the summary.
                                 </p>
-                              )}
+                              ) : msg.suggested_actions.some((a) => a.requires_confirmation && !a.type) ? (
+                                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                                  Suggested action — opens the portal so you can review and confirm.
+                                </p>
+                              ) : null}
                               <div className="flex flex-wrap gap-2">
                                 {msg.suggested_actions.map((a) => (
                                   <Button
@@ -977,42 +1177,28 @@ export default function ResearchCopilot() {
                                           ? "outline"
                                           : "secondary"
                                     }
-                                    disabled={a.enabled === false || (!a.href && !a.prompt)}
-                                    title={
-                                      a.requires_confirmation
-                                        ? `${a.hint || a.label} — you must confirm in the portal before anything changes.`
-                                        : a.hint
+                                    disabled={
+                                      a.enabled === false ||
+                                      (loading && Boolean(a.proposal_id || a.type)) ||
+                                      Boolean(a.proposal_id && usedProposals.has(a.proposal_id)) ||
+                                      (!a.href && !a.prompt && !a.proposal_id && a.type !== "copilot_prepare_booking")
                                     }
+                                    title={a.hint}
                                     className="h-8 text-xs"
                                     onClick={() => {
+                                      if (a.type === "copilot_prepare_booking" && a.payload?.equipment_id && a.payload.slot_ids?.length) {
+                                        void prepareBooking(a.payload.equipment_id, a.payload.slot_ids, a.payload.number_of_samples);
+                                        return;
+                                      }
                                       if (a.proposal_id && a.confirmation_token) {
-                                        void (async () => {
-                                          setLoading(true);
-                                          try {
-                                            const res = await apiClient.researchCopilotConfirmMutation({
-                                              proposal_id: a.proposal_id!,
-                                              confirmation_token: a.confirmation_token!,
-                                              action: a.mutation_action,
-                                            });
-                                            const envelope = (res.data as { response?: { content?: string; cards?: CopilotCard[]; suggested_actions?: CopilotMessage["suggested_actions"] } } | undefined)?.response;
-                                            const content =
-                                              envelope?.content ||
-                                              String((res.data as { message?: string } | undefined)?.message || res.error || "Confirmation processed.");
-                                            setMessages((m) => [
-                                              ...m,
-                                              {
-                                                id: `a-${Date.now()}`,
-                                                role: "assistant",
-                                                content,
-                                                cards: (envelope?.cards as CopilotCard[]) || [],
-                                                suggested_actions: envelope?.suggested_actions,
-                                                escalate_hint: Boolean(res.error),
-                                              },
-                                            ]);
-                                          } finally {
-                                            setLoading(false);
-                                          }
-                                        })();
+                                        setPendingConfirm({
+                                          proposal_id: a.proposal_id,
+                                          confirmation_token: a.confirmation_token,
+                                          mutation_action: a.mutation_action,
+                                          label: a.label,
+                                          card: msg.cards?.find((c) => c.proposal_id === a.proposal_id),
+                                          idempotency_key: newIdempotencyKey(),
+                                        });
                                         return;
                                       }
                                       if (a.prompt) {
@@ -1025,7 +1211,9 @@ export default function ResearchCopilot() {
                                       }
                                     }}
                                   >
-                                    {a.id === "confirm_proposal" ? a.label : a.requires_confirmation ? `Review & confirm: ${a.label}` : a.label}
+                                    {a.id === "confirm_proposal" || a.type || !a.requires_confirmation
+                                      ? a.label
+                                      : `Review & confirm: ${a.label}`}
                                   </Button>
                                 ))}
                               </div>
@@ -1141,6 +1329,50 @@ export default function ResearchCopilot() {
                 </div>
               </>
           </div>
+
+          {pendingConfirm && (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="copilot-confirm-title"
+            >
+              <div className="w-full max-w-sm rounded-xl border bg-card p-4 shadow-xl">
+                <div id="copilot-confirm-title" className="text-sm font-semibold">
+                  {pendingConfirm.card?.title || pendingConfirm.label}
+                </div>
+                <ul className="mt-2 space-y-1 text-xs">
+                  {pendingConfirm.card?.equipment_name ? <li>Equipment: {pendingConfirm.card.equipment_name}</li> : null}
+                  {pendingConfirm.card?.booking_id ? <li>Booking: {String(pendingConfirm.card.booking_id)}</li> : null}
+                  {pendingConfirm.card?.date ? <li>Date: {pendingConfirm.card.date}</li> : null}
+                  {pendingConfirm.card?.start_time ? (
+                    <li>
+                      Time: {String(pendingConfirm.card.start_time).slice(11, 16)}
+                      {pendingConfirm.card.end_time ? `–${String(pendingConfirm.card.end_time).slice(11, 16)}` : ""}
+                    </li>
+                  ) : null}
+                  {pendingConfirm.card?.sample_count ? <li>Samples: {pendingConfirm.card.sample_count}</li> : null}
+                  {pendingConfirm.card?.estimated_amount != null ? (
+                    <li>Estimated charge: ₹{String(pendingConfirm.card.estimated_amount)}</li>
+                  ) : null}
+                  {pendingConfirm.card?.requested_amount != null ? (
+                    <li>Requested credit: ₹{String(pendingConfirm.card.requested_amount)}</li>
+                  ) : null}
+                </ul>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {CONFIRM_WARNINGS[pendingConfirm.mutation_action || ""] || "Copilot will carry out this action for you."}
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setPendingConfirm(null)}>
+                    Go back
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => void runConfirm(pendingConfirm)} disabled={loading}>
+                    {pendingConfirm.label}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

@@ -872,6 +872,26 @@ export interface SampleTraceEvent {
   created_by_name: string | null;
 }
 
+/** Equipment manual (PDF) indexed for Research Copilot answers. */
+export interface CopilotManual {
+  id: string;
+  title: string;
+  equipment_id: number | null;
+  equipment_name?: string | null;
+  original_filename?: string;
+  file_size?: number | null;
+  page_count?: number | null;
+  security_level: string;
+  version?: string;
+  status: string;
+  index_status: string;
+  chunk_count?: number;
+  error_message?: string;
+  created_at?: string | null;
+  indexed_at?: string | null;
+  has_file?: boolean;
+}
+
 /** Legacy wallet balance lookup (direct MySQL by emp_id). */
 export interface LegacyWalletLookupResult {
   emp_id_input: string;
@@ -8643,6 +8663,66 @@ class ApiClient {
 
   async researchCopilotKnowledgeJobs() {
     return this.request<Record<string, unknown>>('/v1/research-copilot/knowledge/jobs/');
+  }
+
+  async researchCopilotPrepareMutation(payload: {
+    action: 'CREATE_BOOKING';
+    equipment_id: number;
+    slot_ids: number[];
+    number_of_samples?: number;
+    conversation_id?: string | null;
+  }) {
+    return this.request<Record<string, unknown> & { response?: Record<string, unknown> }>(
+      '/v1/research-copilot/mutations/prepare/',
+      { method: 'POST', body: JSON.stringify(payload) },
+    );
+  }
+
+  async researchCopilotManualFileUrl(documentId: string) {
+    return this.request<{ url: string; expires_in: number; filename?: string; page_count?: number | null }>(
+      `/v1/research-copilot/knowledge/documents/${documentId}/file/`,
+    );
+  }
+
+  async researchCopilotListManuals(params?: { equipment_id?: number; include_archived?: boolean }) {
+    const qs = new URLSearchParams();
+    if (params?.equipment_id) qs.set('equipment_id', String(params.equipment_id));
+    if (params?.include_archived) qs.set('include_archived', '1');
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<{ count: number; results: CopilotManual[]; storage_configured: boolean }>(
+      `/v1/research-copilot/knowledge/manuals/${suffix}`,
+    );
+  }
+
+  async researchCopilotUploadManual(params: {
+    file: File;
+    equipment_id: number;
+    title?: string;
+    security_level?: string;
+    version?: string;
+  }) {
+    const fd = new FormData();
+    fd.append('file', params.file);
+    fd.append('equipment_id', String(params.equipment_id));
+    if (params.title) fd.append('title', params.title);
+    if (params.security_level) fd.append('security_level', params.security_level);
+    if (params.version) fd.append('version', params.version);
+    return this.request<CopilotManual & { duplicate?: boolean }>('/v1/research-copilot/knowledge/manuals/', {
+      method: 'POST',
+      body: fd,
+    });
+  }
+
+  async researchCopilotReindexManual(documentId: string) {
+    return this.request<CopilotManual>(`/v1/research-copilot/knowledge/manuals/${documentId}/reindex/`, {
+      method: 'POST',
+    });
+  }
+
+  async researchCopilotArchiveManual(documentId: string) {
+    return this.request<CopilotManual>(`/v1/research-copilot/knowledge/manuals/${documentId}/archive/`, {
+      method: 'POST',
+    });
   }
 
   async registerPushDevice(params: {

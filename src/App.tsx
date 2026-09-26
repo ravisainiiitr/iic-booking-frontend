@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ThemeProvider } from "next-themes";
 import ChatWidget from "./components/ChatWidget";
+import ResearchCopilot from "./components/ResearchCopilot";
 import AppRoutes from "./routes/AppRoutes";
 
 const queryClient = new QueryClient({
@@ -47,6 +48,7 @@ const App = () => (
               <Sonner />
               <EmbedChrome />
               <ChatWidget />
+              <ResearchCopilot />
               <AppRoutes />
             </NotificationProvider>
             </UserGuideProvider>
