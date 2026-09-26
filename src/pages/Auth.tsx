@@ -853,11 +853,12 @@ const Auth = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-3 top-4 h-12 w-12 rounded-xl text-muted-foreground hover:text-foreground"
+              className="absolute left-2 top-3 h-16 w-16 rounded-2xl text-slate-600 hover:bg-primary/10 hover:text-primary dark:text-slate-300 [&_svg]:size-10"
               onClick={() => navigate("/")}
               title="Go to Home"
+              aria-label="Go to Home"
             >
-              <Home className="h-8 w-8" strokeWidth={2.25} />
+              <Home strokeWidth={2} />
             </Button>
             <a
               href="https://en.wikipedia.org/wiki/IIT_Roorkee"
