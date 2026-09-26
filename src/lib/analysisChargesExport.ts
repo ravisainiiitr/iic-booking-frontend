@@ -379,12 +379,12 @@ export async function exportAnalysisChargesPdf(
     },
     columnStyles: pivot.hasParameters
       ? {
-          0: { cellWidth: 26, halign: "center" },
+          0: { cellWidth: 34, halign: "center" },
           1: { cellWidth: useLandscape ? 100 : 80, textColor: [15, 76, 129], fontStyle: "bold" },
           2: { cellWidth: 70, fontStyle: "bold" },
         }
       : {
-          0: { cellWidth: 28, halign: "center" },
+          0: { cellWidth: 34, halign: "center" },
           1: { cellWidth: useLandscape ? 110 : 90, textColor: [15, 76, 129], fontStyle: "bold" },
         },
     didDrawPage: (data) => {
