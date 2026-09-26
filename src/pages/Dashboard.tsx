@@ -3447,7 +3447,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {(isAdmin || isOicUser || userTypeStr === "faculty") && (
+          {(isAdmin || isOicUser || (isFacultyUser && !isInternalFacultyUser)) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => openWorkspace("/publication-claims")}
@@ -5010,7 +5010,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {(isAdmin || isOicUser || userTypeStr === "faculty") && (
+          {(isAdmin || isOicUser || (isFacultyUser && !isInternalFacultyUser)) && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => openWorkspace("/publication-claims")}
