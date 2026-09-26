@@ -3,7 +3,7 @@
  * Layout: department header; rows = equipment (+ parameter for multi-param);
  * columns = user categories.
  */
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
@@ -226,12 +226,69 @@ export function exportAnalysisChargesExcel(
       ]
     : [{ wch: 8 }, { wch: 36 }, ...pivot.categories.map(() => ({ wch: 28 }))];
   const lastCol = Math.max(header.length - 1, 1);
-  ws["!merges"] = [
+  const headerRow = 5;
+  const firstDataRow = headerRow + 1;
+  const merges: XLSX.Range[] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
     { s: { r: 3, c: 0 }, e: { r: 3, c: lastCol } },
   ];
+  pivot.rows.forEach((r, i) => {
+    if (r.isFirstOfEquipment && r.equipmentRowSpan > 1) {
+      const top = firstDataRow + i;
+      const bottom = top + r.equipmentRowSpan - 1;
+      merges.push({ s: { r: top, c: 0 }, e: { r: bottom, c: 0 } });
+      merges.push({ s: { r: top, c: 1 }, e: { r: bottom, c: 1 } });
+    }
+  });
+  ws["!merges"] = merges;
+
+  const border = {
+    top: { style: "thin", color: { rgb: "B4BEC8" } },
+    bottom: { style: "thin", color: { rgb: "B4BEC8" } },
+    left: { style: "thin", color: { rgb: "B4BEC8" } },
+    right: { style: "thin", color: { rgb: "B4BEC8" } },
+  };
+  const setStyle = (r: number, c: number, s: Record<string, unknown>) => {
+    const ref = XLSX.utils.encode_cell({ r, c });
+    if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+    ws[ref].s = s;
+  };
+  setStyle(0, 0, { font: { bold: true, sz: 14, color: { rgb: "0F4C81" } } });
+  setStyle(3, 0, { font: { bold: true, color: { rgb: "92400E" } }, alignment: { wrapText: true } });
+  for (let c = 0; c <= lastCol; c++) {
+    setStyle(headerRow, c, {
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: "0F4C81" } },
+      alignment: { horizontal: c === 0 ? "center" : "left", vertical: "center", wrapText: true },
+      border,
+    });
+  }
+  pivot.rows.forEach((r, i) => {
+    const row = firstDataRow + i;
+    const fill = r.serialNumber % 2 === 0 ? { patternType: "solid", fgColor: { rgb: "F5F8FC" } } : undefined;
+    for (let c = 0; c <= lastCol; c++) {
+      const isSerial = c === 0;
+      const isEquipment = c === 1;
+      const isParameter = pivot.hasParameters && c === 2;
+      setStyle(row, c, {
+        font: isEquipment
+          ? { bold: true, color: { rgb: "0F4C81" } }
+          : isParameter
+            ? { bold: true }
+            : {},
+        alignment: {
+          horizontal: isSerial ? "center" : "left",
+          vertical: isSerial || isEquipment ? "center" : "top",
+          wrapText: true,
+        },
+        border,
+        ...(fill ? { fill } : {}),
+      });
+    }
+  });
+
   const wb = XLSX.utils.book_new();
   const sheetName = dept.slice(0, 31) || "Analysis Charges";
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -273,22 +330,27 @@ export async function exportAnalysisChargesPdf(
       ? ["S.No.", "Equipment", "Parameter", ...pivot.categories.map((c) => pdfSafeMoney(c))]
       : ["S.No.", "Equipment", ...pivot.categories.map((c) => pdfSafeMoney(c))],
   ];
-  const body = pivot.rows.map((r) => {
+  type PdfCell = string | { content: string; rowSpan: number; styles: { valign: "middle" } };
+  const spanned = (content: string, rowSpan: number): PdfCell =>
+    rowSpan > 1 ? { content, rowSpan, styles: { valign: "middle" } } : content;
+  const body: PdfCell[][] = pivot.rows.map((r) => {
     const amounts = pivot.categories.map((cat) => {
       const cell = r.cells[cat];
       if (!cell) return "—";
       return pdfSafeMoney(cellExportText(cell));
     });
     if (pivot.hasParameters) {
-      return [
-        r.isFirstOfEquipment ? String(r.serialNumber) : "",
-        r.isFirstOfEquipment ? pdfSafeMoney(r.equipmentName) : "",
-        pdfSafeMoney(r.parameter || "—"),
-        ...amounts,
-      ];
+      const lead: PdfCell[] = r.isFirstOfEquipment
+        ? [
+            spanned(String(r.serialNumber), r.equipmentRowSpan),
+            spanned(pdfSafeMoney(r.equipmentName), r.equipmentRowSpan),
+          ]
+        : [];
+      return [...lead, pdfSafeMoney(r.parameter || "—"), ...amounts];
     }
     return [String(r.serialNumber), pdfSafeMoney(r.equipmentName), ...amounts];
   });
+  const rowShaded = pivot.rows.map((r) => r.serialNumber % 2 === 0);
 
   autoTable(doc, {
     startY: tableStartY,
@@ -311,8 +373,9 @@ export async function exportAnalysisChargesPdf(
       lineColor: [15, 76, 129],
       lineWidth: 0.4,
     },
-    alternateRowStyles: {
-      fillColor: [245, 248, 252],
+    didParseCell: (data) => {
+      if (data.section !== "body") return;
+      data.cell.styles.fillColor = rowShaded[data.row.index] ? [245, 248, 252] : [255, 255, 255];
     },
     columnStyles: pivot.hasParameters
       ? {

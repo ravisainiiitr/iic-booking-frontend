@@ -14,6 +14,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useNotifications, Notification } from "@/contexts/NotificationContext";
+import { PendingActionList, type PendingItem } from "@/components/PendingActions/PendingActionList";
+import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
@@ -34,14 +36,16 @@ const NotificationPanel = () => {
   const navigate = useNavigate();
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead, removeNotification, refreshNotifications } = useNotifications();
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<PendingItem[]>([]);
 
-  // Refresh notifications when panel opens
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
       refreshNotifications();
+      apiClient.getPendingActions().then((res) => setPending(res.data?.items ?? []));
     }
   };
+  const pendingTotal = pending.reduce((sum, i) => sum + i.count, 0);
 
   const getNotificationIcon = (type: Notification["type"]) => {
     switch (type) {
@@ -156,6 +160,21 @@ const NotificationPanel = () => {
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="h-[calc(100vh-140px)]">
+          {pending.length > 0 ? (
+            <div className="border-b bg-amber-50/50 p-4 dark:bg-amber-950/10">
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-600" /> Needs your attention ({pendingTotal})
+              </h3>
+              <PendingActionList
+                compact
+                items={pending}
+                onOpen={(link) => {
+                  setOpen(false);
+                  navigate(link);
+                }}
+              />
+            </div>
+          ) : null}
           {loading && notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-center h-full">
               <RefreshCw className="h-8 w-8 text-muted-foreground mb-2 animate-spin" />

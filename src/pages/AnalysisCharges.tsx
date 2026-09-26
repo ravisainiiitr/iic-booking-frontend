@@ -71,8 +71,8 @@ export default function AnalysisCharges() {
   const [equipments, setEquipments] = useState<AnalysisEquipment[]>([]);
   const [departmentId, setDepartmentId] = useState<string>("");
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<number[]>([]);
-  /** Empty = All user types */
-  const [selectedUserTypes, setSelectedUserTypes] = useState<string[]>([]);
+  /** null = all user types; [] = none selected */
+  const [selectedUserTypes, setSelectedUserTypes] = useState<string[] | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
   const selectedDepartment = useMemo(
@@ -109,7 +109,7 @@ export default function AnalysisCharges() {
       setUserTypeOptions(Array.isArray(res.data.user_types) ? res.data.user_types : []);
       setEquipments(list);
       setSelectedEquipmentIds(list.map((e) => Number(e.equipment_id)));
-      setSelectedUserTypes([]);
+      setSelectedUserTypes(null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to load analysis charges.");
     } finally {
@@ -158,7 +158,7 @@ export default function AnalysisCharges() {
   }, [equipments, selectedEquipmentIds]);
 
   const filterUserTypes = useMemo(() => {
-    if (selectedUserTypes.length === 0) return null;
+    if (selectedUserTypes === null) return null;
     return new Set(selectedUserTypes.map((c) => c.toLowerCase()));
   }, [selectedUserTypes]);
 
@@ -236,15 +236,21 @@ export default function AnalysisCharges() {
 
   const toggleUserType = (code: string, checked: boolean) => {
     setSelectedUserTypes((prev) => {
-      if (prev.length === 0 && checked) return [code];
-      if (checked) return prev.includes(code) ? prev : [...prev, code];
-      return prev.filter((x) => x !== code);
+      const allCodes = userTypeOptions.map((o) => o.code);
+      const current = prev ?? allCodes;
+      const next = checked
+        ? current.includes(code)
+          ? current
+          : [...current, code]
+        : current.filter((x) => x !== code);
+      return allCodes.length > 0 && allCodes.every((c) => next.includes(c)) ? null : next;
     });
   };
 
   const allEquipmentSelected =
     equipments.length > 0 && selectedEquipmentIds.length === equipments.length;
-  const allUserTypesSelected = selectedUserTypes.length === 0;
+  const allUserTypesSelected = selectedUserTypes === null;
+  const noUserTypesSelected = selectedUserTypes !== null && selectedUserTypes.length === 0;
 
   const handleDownloadExcel = () => {
     if (!tableRows.length) {
@@ -374,21 +380,23 @@ export default function AnalysisCharges() {
                   size="sm"
                   className="h-7 text-xs"
                   disabled={userTypeOptions.length === 0}
-                  onClick={() => setSelectedUserTypes([])}
+                  onClick={() => setSelectedUserTypes(allUserTypesSelected ? [] : null)}
                 >
-                  All
+                  {allUserTypesSelected ? "Clear all" : "Select all"}
                 </Button>
               </div>
               <div className="max-h-44 overflow-y-auto rounded-lg border border-border/60 bg-muted/20 p-2">
                 <p className="mb-2 px-1.5 text-xs text-muted-foreground">
                   {allUserTypesSelected
                     ? "Showing all user categories (default)."
-                    : `${selectedUserTypes.length} selected.`}
+                    : noUserTypesSelected
+                      ? "No user category selected."
+                      : `${selectedUserTypes?.length ?? 0} selected.`}
                 </p>
                 <ul className="space-y-1.5">
                   {userTypeOptions.map((ut) => {
                     const checked =
-                      allUserTypesSelected || selectedUserTypes.includes(ut.code);
+                      allUserTypesSelected || (selectedUserTypes ?? []).includes(ut.code);
                     return (
                       <li
                         key={ut.code}
@@ -397,18 +405,7 @@ export default function AnalysisCharges() {
                         <Checkbox
                           id={`ut-${ut.code}`}
                           checked={checked}
-                          onCheckedChange={(v) => {
-                            if (allUserTypesSelected && v !== true) {
-                              setSelectedUserTypes(
-                                userTypeOptions
-                                  .map((o) => o.code)
-                                  .filter((c) => c !== ut.code)
-                              );
-                              return;
-                            }
-                            if (allUserTypesSelected && v === true) return;
-                            toggleUserType(ut.code, v === true);
-                          }}
+                          onCheckedChange={(v) => toggleUserType(ut.code, v === true)}
                         />
                         <label
                           htmlFor={`ut-${ut.code}`}
@@ -461,7 +458,9 @@ export default function AnalysisCharges() {
           </div>
         ) : tableRows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center text-sm text-muted-foreground">
-            Select one or more equipment to view charges by user category.
+            {noUserTypesSelected
+              ? "Select one or more user types to view charges."
+              : "Select one or more equipment to view charges by user category."}
           </div>
         ) : (
           <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">

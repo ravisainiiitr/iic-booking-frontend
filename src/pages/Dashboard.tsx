@@ -28,6 +28,7 @@ import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import DashboardWorkspace from "@/components/DashboardWorkspace";
 import { MigrationPortalBanner } from "@/components/MigrationPortalBanner";
@@ -1402,6 +1403,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+        <PendingActionsSummary className="mb-4" />
         {/* Profile hero — compact for standard users; Lab Incharge & OIC keep richer instrument layout */}
         <div
           className={cn(
@@ -2704,7 +2706,7 @@ const Dashboard = () => {
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     View booking and financial reports
                   </CardDescription>
@@ -2936,7 +2938,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {!isOperatorOrManager && canReceiveSharedData && (
+          {!isOperatorOrManager && canReceiveSharedData && !myResearchAvailable && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => openWorkspace("/shared-data")}
@@ -2974,7 +2976,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">My Research</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Private project workspaces for files, bookings and publications
+                      Project workspaces, data shared with you, and your publications
                     </CardDescription>
                   </div>
                 </div>
@@ -3112,7 +3114,7 @@ const Dashboard = () => {
             userTypeStr === "institute" ||
             userTypeStr === "startup_incubated_iitr" ||
             userTypeStr === "external_startup_msme" ||
-            userTypeStr === "other") && (
+            userTypeStr === "other") && !myResearchAvailable && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => openWorkspace("/my-publications")}
@@ -3203,7 +3205,7 @@ const Dashboard = () => {
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     View your booking history and statistics
                   </CardDescription>
@@ -4267,7 +4269,7 @@ const Dashboard = () => {
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     View booking and financial reports
                   </CardDescription>
@@ -4499,7 +4501,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {!isOperatorOrManager && canReceiveSharedData && (
+          {!isOperatorOrManager && canReceiveSharedData && !myResearchAvailable && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => openWorkspace("/shared-data")}
@@ -4537,7 +4539,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">My Research</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Private project workspaces for files, bookings and publications
+                      Project workspaces, data shared with you, and your publications
                     </CardDescription>
                   </div>
                 </div>
@@ -4675,7 +4677,7 @@ const Dashboard = () => {
             userTypeStr === "institute" ||
             userTypeStr === "startup_incubated_iitr" ||
             userTypeStr === "external_startup_msme" ||
-            userTypeStr === "other") && (
+            userTypeStr === "other") && !myResearchAvailable && (
             <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
               onClick={() => openWorkspace("/my-publications")}
@@ -4766,7 +4768,7 @@ const Dashboard = () => {
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports</CardTitle>
+                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
                   <CardDescription className="text-sm mt-0.5">
                     View your booking history and statistics
                   </CardDescription>

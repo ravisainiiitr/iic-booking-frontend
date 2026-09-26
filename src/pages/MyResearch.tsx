@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Activity,
   ArrowLeft,
+  BookOpen,
   CalendarCheck,
   Eye,
   FileText,
@@ -13,6 +14,7 @@ import {
   Microscope,
   Plus,
   RefreshCw,
+  Share2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -83,9 +85,28 @@ export default function MyResearch() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [sharedData, setSharedData] = useState<{ total: number; fresh: number } | null>(null);
+  const [publications, setPublications] = useState<{ total: number; pending: number; approved: number } | null>(null);
+
+  const loadSideSummaries = useCallback(async () => {
+    const [shared, pubs] = await Promise.all([apiClient.getSharedWithMe(), apiClient.listMyPublicationClaims()]);
+    if (shared.data) {
+      const rows = shared.data.results ?? [];
+      setSharedData({ total: rows.length, fresh: rows.filter((r) => r.is_new).length });
+    }
+    if (pubs.data) {
+      const rows = pubs.data.results ?? [];
+      setPublications({
+        total: rows.length,
+        pending: rows.filter((r) => String(r.status).toLowerCase() === "pending").length,
+        approved: rows.filter((r) => String(r.status).toLowerCase() === "approved").length,
+      });
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
+    void loadSideSummaries();
     const res = await apiClient.myResearchHome();
     setLoading(false);
     if (res.error || !res.data) {
@@ -213,7 +234,7 @@ export default function MyResearch() {
 
               <section className="space-y-3">
                 <h2 className="flex items-center gap-2 text-lg font-semibold">
-                  <Users className="h-5 w-5 text-violet-600" /> Shared with me
+                  <Users className="h-5 w-5 text-violet-600" /> Workspaces shared with me
                 </h2>
                 {home.shared_with_me.length === 0 ? (
                   <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
@@ -228,6 +249,56 @@ export default function MyResearch() {
                 )}
               </section>
             </div>
+
+            <div className="space-y-5">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Share2 className="h-4 w-4 text-sky-600" /> Shared data
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Booking results that IIT Roorkee colleagues have shared with you.
+                </p>
+                {sharedData ? (
+                  <p className="text-sm">
+                    <span className="font-semibold">{sharedData.total}</span> shared
+                    {sharedData.fresh > 0 ? (
+                      <Badge className="ml-2 bg-sky-600 hover:bg-sky-600">{sharedData.fresh} new</Badge>
+                    ) : null}
+                  </p>
+                ) : null}
+                <Button variant="outline" className="w-full gap-2" onClick={() => navigate("/shared-data")}>
+                  <Share2 className="h-4 w-4" /> Open shared data
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BookOpen className="h-4 w-4 text-blue-600" /> My publications
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Submit journal references that used the facility; approved entries appear on the equipment page.
+                </p>
+                {publications ? (
+                  <p className="text-sm">
+                    <span className="font-semibold">{publications.total}</span> submitted
+                    {publications.approved > 0 ? ` · ${publications.approved} approved` : ""}
+                    {publications.pending > 0 ? (
+                      <Badge variant="secondary" className="ml-2">{publications.pending} awaiting review</Badge>
+                    ) : null}
+                  </p>
+                ) : null}
+                <Button variant="outline" className="w-full gap-2" onClick={() => navigate("/my-publications")}>
+                  <BookOpen className="h-4 w-4" /> Open My publications
+                </Button>
+              </CardContent>
+            </Card>
 
             <Card className="h-fit">
               <CardHeader className="pb-2">
@@ -260,6 +331,7 @@ export default function MyResearch() {
                 )}
               </CardContent>
             </Card>
+            </div>
           </div>
         ) : null}
       </main>

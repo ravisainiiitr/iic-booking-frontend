@@ -3494,7 +3494,14 @@ class ApiClient {
   /** Approvals waiting on the signed-in staff member (repeat samples, urgent requests, leave, claims, notices). */
   async getPendingActions() {
     return this.request<{
-      items: Array<{ key: string; label: string; count: number; link: string; description: string }>;
+      items: Array<{
+        key: string;
+        label: string;
+        count: number;
+        link: string;
+        description: string;
+        details?: string[];
+      }>;
       total: number;
     }>('/notifications/pending-actions/');
   }
