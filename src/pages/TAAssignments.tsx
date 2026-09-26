@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
+import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -746,7 +747,7 @@ export default function TAAssignments() {
                                       : dayOfWeek === 0
                                         ? sundayColor
                                         : holidayDefault;
-                                  displayStatus = holidayLabel || "—";
+                                  displayStatus = holidayLabel ? HOLIDAY_LABEL : "—";
                                   cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                                 }
 
@@ -783,7 +784,9 @@ export default function TAAssignments() {
                                           ? canAllocateTa
                                             ? "Click to add or remove this slot (multi-select)"
                                             : "Click to select this booking for allocation"
-                                          : undefined
+                                          : !slotData && holidayLabel
+                                            ? holidayHoverText(holidayLabel)
+                                            : undefined
                                     }
                                   >
                                     <span className="text-center leading-tight px-1">{displayStatus}</span>

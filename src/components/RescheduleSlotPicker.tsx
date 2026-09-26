@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
 import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
+import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -681,6 +682,7 @@ export default function RescheduleSlotPicker({
                         (selectedSlots.length > 0 && !isConsecutive(slot, selectedSlots))));
 
                   let label: string;
+                  let holidayHover: string | undefined;
                   if (slot) {
                     if (selected) label = "Selected";
                     else if (currentBooking) label = "Current Booking";
@@ -755,7 +757,9 @@ export default function RescheduleSlotPicker({
                   } else {
                     // No slot exists for this date/time - show holiday label if it's a holiday
                     const raw = holidays[dateStr];
-                    label = typeof raw === "string" ? raw : (raw && typeof raw === "object" && "label" in raw ? (raw as { label: string }).label : "—");
+                    const name = typeof raw === "string" ? raw : (raw && typeof raw === "object" && "label" in raw ? (raw as { label: string }).label : "");
+                    label = name ? HOLIDAY_LABEL : "—";
+                    holidayHover = name ? holidayHoverText(name) : undefined;
                   }
 
                   const rawHoliday = holidays[dateStr];
@@ -768,6 +772,7 @@ export default function RescheduleSlotPicker({
                       key={`${day.getTime()}-${timeStr}`}
                       type="button"
                       disabled={disabled}
+                      title={holidayHover}
                       onClick={() => slot && toggleSlot(slot)}
                       className={`
                         p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center

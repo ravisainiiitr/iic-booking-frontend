@@ -2,6 +2,7 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
+import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 function parseTimeToMinutes(timeStr: string): number {
@@ -411,7 +412,7 @@ export function LabOperatorWeekCalendarGrid({
                     return start || rowLabel || "";
                   })();
 
-                  let displayStatus: ReactNode = holidayName || "—";
+                  let displayStatus: ReactNode = holidayName ? HOLIDAY_LABEL : "—";
                   const considerBooked = hasBookedStatus;
 
                   const bookingCompleted = bookingStatusText.toUpperCase() === "COMPLETED";
@@ -437,7 +438,7 @@ export function LabOperatorWeekCalendarGrid({
                       displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                     }
                   } else {
-                    displayStatus = holidayName || "—";
+                    displayStatus = holidayName ? HOLIDAY_LABEL : "—";
                   }
 
                   const statusOverridesHolidayBg =
@@ -512,7 +513,13 @@ export function LabOperatorWeekCalendarGrid({
                     <button
                       key={dayOffset}
                       type="button"
-                      title={tooltipLines.length ? tooltipLines.join("\n") : undefined}
+                      title={
+                        tooltipLines.length
+                          ? tooltipLines.join("\n")
+                          : !slotExists && holidayName
+                            ? holidayHoverText(holidayName)
+                            : undefined
+                      }
                       onClick={() => {
                         if (canOpenBooking) onBookedSlotClick(bookingPk);
                       }}

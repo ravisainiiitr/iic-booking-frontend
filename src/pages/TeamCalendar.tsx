@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
+import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
 import {
   ABSENCE_FILTER_KEYS,
   ABSENCE_META,
@@ -95,7 +96,9 @@ function AbsenceChip({
         compact ? "py-0.5 text-[10px]" : "py-1 text-[11px]",
       )}
     >
-      <span className="truncate">{compact ? meta.short : absence.label}</span>
+      <span className="truncate">
+        {compact ? meta.short : absence.category === "holiday" ? HOLIDAY_LABEL : absence.label}
+      </span>
       {half ? <span className="shrink-0 opacity-80">·{half}</span> : null}
     </span>
   );
@@ -750,8 +753,8 @@ export default function TeamCalendar() {
                               {format(parseISO(d), "EEE")}
                             </div>
                             {h?.kind === "holiday" ? (
-                              <div className="mt-0.5 truncate text-[9px] text-slate-600" title={h.reason}>
-                                {h.reason}
+                              <div className="mt-0.5 truncate text-[9px] text-slate-600" title={holidayHoverText(h.reason)}>
+                                {HOLIDAY_LABEL}
                               </div>
                             ) : null}
                           </div>

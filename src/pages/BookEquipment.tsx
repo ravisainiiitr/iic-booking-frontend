@@ -37,6 +37,7 @@ import {
   roundToStepPrecision,
 } from "@/lib/numericFieldLimits";
 import { formatINR } from "@/lib/money";
+import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
@@ -357,6 +358,9 @@ function unavailableBookingSlotReason(opts: {
     if (isSundayCol) return "Sunday — no booking slots on this day.";
     return "This slot is not available for booking.";
   }
+  if (holidayName && slotStatusUpper === "NOT_AVAILABLE") {
+    return `Holiday (${holidayName}). This slot is not available for booking.`;
+  }
   if (isPast && !isAdminOrOic) {
     return "This slot time has expired and is no longer available for booking.";
   }
@@ -380,7 +384,6 @@ function unavailableBookingSlotReason(opts: {
     return "Operator is absent for this slot.";
   }
   if (slotStatusUpper === "NOT_AVAILABLE") {
-    if (holidayName) return `Holiday (${holidayName}). This slot is not available for booking.`;
     if (isSaturdayCol || isSundayCol) return "Weekend — this slot is not available for booking.";
     return slotStatusLabel || "This slot is marked as Not Available.";
   }
@@ -6355,6 +6358,7 @@ const BookEquipment = () => {
                         holidayLabel != null && holidayLabel !== "" ? (
                           <div
                             className="text-[9px] truncate mt-0.5 leading-tight"
+                            title={holidayHoverText(holidayLabel)}
                             style={{
                               backgroundColor: holidayColor ?? adminHolDefault,
                               color: getContrastTextColor(holidayColor ?? adminHolDefault),
@@ -6362,7 +6366,7 @@ const BookEquipment = () => {
                               borderRadius: 3,
                             }}
                           >
-                            {holidayLabel}
+                            {HOLIDAY_LABEL}
                           </div>
                         ) : isSatHeader ? (
                           <div
@@ -6477,7 +6481,7 @@ const BookEquipment = () => {
                               slotStatusUpper === "AVAILABLE");
                           const calendarDayLabel =
                             holidayName && holidayName !== ""
-                              ? holidayName
+                              ? HOLIDAY_LABEL
                               : isSaturdayCol
                                 ? "Sat"
                                 : isSundayCol
@@ -6529,6 +6533,11 @@ const BookEquipment = () => {
                                           if (slotSelectable) toggleStatusChangeSlotSelection(slot.id);
                                         }}
                                         disabled={!slotSelectable}
+                                        title={
+                                          holidayName && useCalendarDayStyling && userDetailLines.length === 0
+                                            ? holidayHoverText(holidayName)
+                                            : undefined
+                                        }
                                         className={cn(
                                           "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
                                           !slotSelectable && "cursor-not-allowed opacity-70",
@@ -6600,6 +6609,7 @@ const BookEquipment = () => {
                               ) : (
                                 <div
                                   className="w-full min-h-[28px] px-1 py-0.5 rounded text-[10px] font-medium flex items-center justify-center truncate"
+                                  title={holidayName ? holidayHoverText(holidayName) : undefined}
                                   style={
                                     emptyCellBg
                                       ? {
@@ -9015,7 +9025,7 @@ const BookEquipment = () => {
                           
                           // Determine the actual status to display: booking status > holiday name > slot status (never N/A)
                           // If slot exists on holiday/Saturday/Sunday and has booking, show BOOKED status
-                          let displayStatus = holidayName || "—";
+                          let displayStatus = holidayName ? HOLIDAY_LABEL : "—";
                           let isDisabled = true;
                           
                           if (slotExists) {
@@ -9024,7 +9034,7 @@ const BookEquipment = () => {
                               // Holiday clarity: when the slot is closed due to a holiday/weekend (NOT_AVAILABLE),
                               // show the holiday name instead of the generic status label.
                               if (holidayName && slotStatusUpper === "NOT_AVAILABLE") {
-                                displayStatus = holidayName;
+                                displayStatus = HOLIDAY_LABEL;
                               } else {
                                 displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                               }
@@ -9057,7 +9067,7 @@ const BookEquipment = () => {
                               isDisabled = false;
                             }
                           } else {
-                            displayStatus = holidayName || "—";
+                            displayStatus = holidayName ? HOLIDAY_LABEL : "—";
                           }
 
                           const deptBlockedForUser =
@@ -9160,8 +9170,9 @@ const BookEquipment = () => {
                           }
 
                           if (externalCalendarDayOverlay) {
-                            displayStatus =
-                              holidayName || (isSaturdayCol ? "Saturday" : isSundayCol ? "Sunday" : "—");
+                            displayStatus = holidayName
+                              ? HOLIDAY_LABEL
+                              : isSaturdayCol ? "Saturday" : isSundayCol ? "Sunday" : "—";
                             isDisabled = true;
                             if (holidayColor) {
                               cellStyle = {

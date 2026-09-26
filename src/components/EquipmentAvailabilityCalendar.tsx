@@ -3,6 +3,7 @@ import { addDays, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
+import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
 
 type SlotsPayload = NonNullable<Awaited<ReturnType<typeof apiClient.getEquipmentSlots>>["data"]>;
 type CalendarSlot = SlotsPayload["slots"][number] & {
@@ -256,8 +257,10 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
 
     let label: string;
     let bg: string;
+    let hover: string | undefined;
     if (!slot) {
-      label = holidayName || "—";
+      label = holidayName ? HOLIDAY_LABEL : "—";
+      hover = holidayName ? holidayHoverText(holidayName) : undefined;
       bg = holidayName || dow === 6 || dow === 0 ? closedDayColor : slotColors.NOT_AVAILABLE;
     } else {
       const status = String(slot.status || "").toUpperCase();
@@ -271,7 +274,8 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         label = "Booked";
         bg = slotColors.BOOKED;
       } else if (status === "NOT_AVAILABLE" && (holidayName || dow === 6 || dow === 0)) {
-        label = holidayName || "Not Available";
+        label = holidayName ? HOLIDAY_LABEL : "Not Available";
+        hover = holidayName ? holidayHoverText(holidayName) : undefined;
         bg = closedDayColor;
       } else if (isPast) {
         label = "Past";
@@ -302,6 +306,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         key={dateStr}
         className="flex min-h-[48px] w-full items-center justify-center rounded-md border-2 border-white/50 p-2 text-center text-xs font-medium leading-tight shadow-sm sm:text-sm"
         style={style}
+        title={hover}
       >
         {label}
       </div>
