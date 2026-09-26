@@ -52,6 +52,7 @@ import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequi
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
+import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
 
 export interface BookingDetailCardBooking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -2820,6 +2821,9 @@ export function BookingDetailCard({
               )}
               {!resultsLoading && isBookingOwnerView && isCompleted && hasDownloadableResults && bookingPk != null && (
                 <BookingShareButton bookingId={bookingPk} bookingLabel={booking.virtual_booking_id || undefined} />
+              )}
+              {isBookingOwnerView && isCompleted && bookingPk != null && (
+                <UploadToMyResearchButton bookingId={bookingPk} bookingLabel={booking.virtual_booking_id || `#${bookingPk}`} />
               )}
               {isBookingOwnerView && canRebook(booking as RebookSourceBooking) && (
                 <Button

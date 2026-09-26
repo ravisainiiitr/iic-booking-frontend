@@ -28,6 +28,7 @@ import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import DashboardWorkspace from "@/components/DashboardWorkspace";
 import { MigrationPortalBanner } from "@/components/MigrationPortalBanner";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
@@ -400,6 +401,7 @@ const Dashboard = () => {
   const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
   const canReceiveSharedData =
     userTypeStr === "student" || userTypeStr === "individual_student" || isInternalFacultyUser;
+  const { available: myResearchAvailable } = useMyResearchAvailability(Boolean(user) && canReceiveSharedData);
   const [newResultsCount, setNewResultsCount] = useState(0);
   useEffect(() => {
     if (!user || isOperatorOrManager) return;
@@ -2942,6 +2944,31 @@ const Dashboard = () => {
             </Card>
           )}
 
+          {!isOperatorOrManager && myResearchAvailable && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/my-research")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg">
+                    <FlaskConical className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My Research</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Private project workspaces for files, bookings and publications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Open My Research</Button>
+              </CardContent>
+            </Card>
+          )}
+
           {showFacultyUrgentWalletCard && (
             <Card 
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
@@ -4446,6 +4473,31 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open shared data</Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!isOperatorOrManager && myResearchAvailable && (
+            <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/my-research")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg">
+                    <FlaskConical className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My Research</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Private project workspaces for files, bookings and publications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Open My Research</Button>
               </CardContent>
             </Card>
           )}

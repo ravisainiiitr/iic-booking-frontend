@@ -1,4 +1,22 @@
 import { type BookingRef } from "@/lib/bookingRef";
+import type {
+  MyResearchBootstrap,
+  MyResearchHome,
+  ResearchActivity,
+  ResearchBooking,
+  ResearchBreadcrumb,
+  ResearchEquipment,
+  ResearchFile,
+  ResearchFolder,
+  ResearchMember,
+  ResearchPagination,
+  ResearchPermissions,
+  ResearchPublication,
+  ResearchSearchResult,
+  ResearchUploadInitiateResponse,
+  ResearchWorkspaceCard,
+  ResearchWorkspaceOption,
+} from "@/lib/myResearchTypes";
 
 // API client for Django REST API
 // Support runtime configuration via window.__RUNTIME_CONFIG__ (for Docker/production)
@@ -8232,6 +8250,223 @@ class ApiClient {
         ...(params.public_email != null && { public_email: params.public_email }),
       }),
     });
+  }
+
+  // --- My Research (private research workspaces) ---
+  async myResearchBootstrap() {
+    return this.request<MyResearchBootstrap>('/v1/my-research/bootstrap/');
+  }
+
+  async myResearchHome() {
+    return this.request<MyResearchHome>('/v1/my-research/');
+  }
+
+  async myResearchWorkspaceOptions(bookingId?: number) {
+    const q = bookingId ? `?booking=${bookingId}` : '';
+    return this.request<{ results: ResearchWorkspaceOption[] }>(`/v1/my-research/workspaces/${q}`);
+  }
+
+  async createResearchWorkspace(input: { name: string; description?: string }) {
+    return this.request<ResearchWorkspaceCard>('/v1/my-research/workspaces/', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async getResearchWorkspace(workspaceId: string) {
+    return this.request<ResearchWorkspaceCard>(`/v1/my-research/workspaces/${workspaceId}/`);
+  }
+
+  async updateResearchWorkspace(workspaceId: string, input: { name?: string; description?: string }) {
+    return this.request<ResearchWorkspaceCard>(`/v1/my-research/workspaces/${workspaceId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async setResearchWorkspaceArchived(workspaceId: string, archived: boolean) {
+    return this.request<{ status: string; archived_at: string | null; permissions: ResearchPermissions }>(
+      `/v1/my-research/workspaces/${workspaceId}/${archived ? 'archive' : 'restore'}/`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  async listResearchFolders(workspaceId: string, parentId: string | null) {
+    const q = parentId ? `?parent=${encodeURIComponent(parentId)}` : '';
+    return this.request<{
+      parent: ResearchFolder | null;
+      breadcrumbs: ResearchBreadcrumb[];
+      results: ResearchFolder[];
+      pagination: ResearchPagination;
+    }>(`/v1/my-research/workspaces/${workspaceId}/folders/${q}`);
+  }
+
+  async createResearchFolder(workspaceId: string, name: string, parentId: string | null) {
+    return this.request<ResearchFolder>(`/v1/my-research/workspaces/${workspaceId}/folders/`, {
+      method: 'POST',
+      body: JSON.stringify({ name, parent_id: parentId }),
+    });
+  }
+
+  async updateResearchFolder(folderId: string, input: { name?: string; parent_id?: string | null }) {
+    return this.request<ResearchFolder>(`/v1/my-research/folders/${folderId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteResearchFolder(folderId: string) {
+    return this.request<{ deleted: boolean; folders: number; files: number }>(`/v1/my-research/folders/${folderId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchFiles(
+    workspaceId: string,
+    params: { folder?: string | null; booking?: number; sort?: string; page?: number; page_size?: number } = {},
+  ) {
+    const q = new URLSearchParams();
+    if (params.booking) q.set('booking', String(params.booking));
+    else if (params.folder) q.set('folder', params.folder);
+    if (params.sort) q.set('sort', params.sort);
+    if (params.page) q.set('page', String(params.page));
+    if (params.page_size) q.set('page_size', String(params.page_size));
+    const qs = q.toString();
+    return this.request<{ results: ResearchFile[]; pagination: ResearchPagination }>(
+      `/v1/my-research/workspaces/${workspaceId}/files/${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  async updateResearchFile(fileId: string, input: { name?: string; folder_id?: string | null; booking_id?: number | null }) {
+    return this.request<ResearchFile>(`/v1/my-research/files/${fileId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteResearchFile(fileId: string) {
+    return this.request<{ deleted: boolean }>(`/v1/my-research/files/${fileId}/`, { method: 'DELETE' });
+  }
+
+  async getResearchFileUrl(fileId: string, disposition: 'inline' | 'attachment') {
+    return this.request<{ url: string; expires_in: number; disposition: string; content_type: string }>(
+      `/v1/my-research/files/${fileId}/download/`,
+      { method: 'POST', body: JSON.stringify({ disposition }) },
+    );
+  }
+
+  async getResearchFileTextPreview(fileId: string) {
+    return this.request<{ kind: 'text' | 'csv'; content: string; truncated: boolean; size_bytes: number }>(
+      `/v1/my-research/files/${fileId}/preview/`,
+    );
+  }
+
+  async initiateResearchUpload(
+    workspaceId: string,
+    input: { filename: string; size: number; content_type?: string; folder_id?: string | null; booking_id?: number | null; sha256?: string },
+  ) {
+    return this.request<ResearchUploadInitiateResponse>(`/v1/my-research/workspaces/${workspaceId}/uploads/initiate/`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async presignResearchUploadParts(fileId: string, partNumbers: number[]) {
+    return this.request<{ parts: Array<{ part_number: number; url: string }>; expires_in: number }>(
+      `/v1/my-research/uploads/${fileId}/parts/`,
+      { method: 'POST', body: JSON.stringify({ part_numbers: partNumbers }) },
+    );
+  }
+
+  async completeResearchUpload(fileId: string, parts?: Array<{ part_number: number; etag: string }>) {
+    return this.request<ResearchFile>(`/v1/my-research/uploads/${fileId}/complete/`, {
+      method: 'POST',
+      body: JSON.stringify(parts ? { parts } : {}),
+    });
+  }
+
+  async abortResearchUpload(fileId: string) {
+    return this.request<{ cancelled: boolean }>(`/v1/my-research/uploads/${fileId}/abort/`, { method: 'POST', body: '{}' });
+  }
+
+  async listResearchBookings(workspaceId: string) {
+    return this.request<{ results: ResearchBooking[]; pagination: ResearchPagination }>(
+      `/v1/my-research/workspaces/${workspaceId}/bookings/?page_size=200`,
+    );
+  }
+
+  async listLinkableResearchBookings(workspaceId: string, q = '') {
+    const qs = q ? `?${new URLSearchParams({ q }).toString()}` : '';
+    return this.request<{ results: ResearchBooking[] }>(`/v1/my-research/workspaces/${workspaceId}/linkable-bookings/${qs}`);
+  }
+
+  async linkResearchBookings(workspaceId: string, bookingIds: number[]) {
+    return this.request<{ linked: number[]; already_linked: number[]; rejected: number[] }>(
+      `/v1/my-research/workspaces/${workspaceId}/bookings/`,
+      { method: 'POST', body: JSON.stringify({ booking_ids: bookingIds }) },
+    );
+  }
+
+  async unlinkResearchBooking(workspaceId: string, bookingId: number) {
+    return this.request<{ removed: boolean }>(`/v1/my-research/workspaces/${workspaceId}/bookings/${bookingId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchEquipment(workspaceId: string) {
+    return this.request<{ results: ResearchEquipment[] }>(`/v1/my-research/workspaces/${workspaceId}/equipment/`);
+  }
+
+  async listResearchPublications(workspaceId: string) {
+    return this.request<{ results: ResearchPublication[] }>(`/v1/my-research/workspaces/${workspaceId}/publications/`);
+  }
+
+  async listLinkableResearchPublications(workspaceId: string) {
+    return this.request<{ results: ResearchPublication[] }>(
+      `/v1/my-research/workspaces/${workspaceId}/linkable-publications/`,
+    );
+  }
+
+  async linkResearchPublications(workspaceId: string, claimIds: number[]) {
+    return this.request<{ linked: number[]; rejected: number[] }>(`/v1/my-research/workspaces/${workspaceId}/publications/`, {
+      method: 'POST',
+      body: JSON.stringify({ claim_ids: claimIds }),
+    });
+  }
+
+  async unlinkResearchPublication(workspaceId: string, claimId: number) {
+    return this.request<{ removed: boolean }>(`/v1/my-research/workspaces/${workspaceId}/publications/${claimId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchMembers(workspaceId: string) {
+    return this.request<{ results: ResearchMember[] }>(`/v1/my-research/workspaces/${workspaceId}/members/`);
+  }
+
+  async addResearchViewer(workspaceId: string, userId: number) {
+    return this.request<ResearchMember>(`/v1/my-research/workspaces/${workspaceId}/members/`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, confirm: true }),
+    });
+  }
+
+  async removeResearchMember(workspaceId: string, memberId: number) {
+    return this.request<{ removed: boolean }>(`/v1/my-research/workspaces/${workspaceId}/members/${memberId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchActivity(workspaceId: string, page = 1) {
+    return this.request<{ results: ResearchActivity[]; pagination: ResearchPagination }>(
+      `/v1/my-research/workspaces/${workspaceId}/activity/?page=${page}`,
+    );
+  }
+
+  async searchResearchWorkspace(workspaceId: string, q: string) {
+    return this.request<ResearchSearchResult>(
+      `/v1/my-research/workspaces/${workspaceId}/search/?${new URLSearchParams({ q }).toString()}`,
+    );
   }
 
   // --- IIC Research Copilot ---

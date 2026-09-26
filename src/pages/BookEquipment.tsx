@@ -10,6 +10,7 @@ import {
   type PrintMaterial,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
+import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
   classifyEquipmentAccessFailure,
@@ -1198,6 +1199,18 @@ const BookEquipment = () => {
   const [bulkEmailTemplatesLoading, setBulkEmailTemplatesLoading] = useState(false);
   const [sendingBulkEmail, setSendingBulkEmail] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [researchWorkspaceId, setResearchWorkspaceId] = useState<string | null>(null);
+  const bookingForAnotherUser = adminManageMode === "book" && Boolean(adminBookForUserId);
+  /** Separate call after the booking succeeded; never affects the booking itself. */
+  const linkBookingToResearchWorkspace = (realBookingId: number) => {
+    const workspaceId = researchWorkspaceId;
+    if (!workspaceId || bookingForAnotherUser) return;
+    void apiClient.linkResearchBookings(workspaceId, [realBookingId]).then((res) => {
+      if (res.error) {
+        toast.warning("Booking confirmed, but it could not be added to your research workspace. You can add it from My Research.");
+      }
+    });
+  };
   const [bookingProgressStepIndex, setBookingProgressStepIndex] = useState(0);
   const [bookingSubmitElapsedSec, setBookingSubmitElapsedSec] = useState(0);
   const [bookAnyAvailableSlots, setBookAnyAvailableSlots] = useState(false);
@@ -5398,6 +5411,7 @@ const BookEquipment = () => {
           };
         }).data;
         const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
+        if (realId != null) linkBookingToResearchWorkspace(realId);
         const bookingViewQuery =
           (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
           (typeof resData?.booking_id === "string" && resData.booking_id.trim()) ||
@@ -5659,6 +5673,7 @@ const BookEquipment = () => {
       } | undefined;
       setGroupAlternatives(null);
       const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
+      if (realId != null) linkBookingToResearchWorkspace(realId);
       const viewQuery =
         (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
         (typeof resData?.booking_id === "string" && resData.booking_id.trim()) ||
@@ -9371,6 +9386,10 @@ const BookEquipment = () => {
                         ) : null}
                       </div>
                     </div>
+                    )}
+
+                    {!bookingForAnotherUser && (
+                      <ResearchWorkspacePicker className="mt-6" value={researchWorkspaceId} onChange={setResearchWorkspaceId} />
                     )}
 
                     {/* Action Buttons */}

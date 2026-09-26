@@ -121,6 +121,8 @@ import AdminSettingsKnowledge from "@/pages/AdminSettingsKnowledge";
 import UserGuidePage from "@/pages/UserGuidePage";
 import ViewResults from "@/pages/ViewResults";
 import SharedWithMe from "@/pages/SharedWithMe";
+import MyResearch from "@/pages/MyResearch";
+import ResearchWorkspace from "@/pages/ResearchWorkspace";
 import EquipmentAvailability from "@/pages/EquipmentAvailability";
 
 /**
@@ -148,6 +150,8 @@ export default function AppRoutes() {
       <Route path="/my-bookings" element={<MyBookings />} />
       <Route path="/my-results" element={<ViewResults />} />
       <Route path="/shared-data" element={<SharedWithMe />} />
+      <Route path="/my-research" element={<MyResearch />} />
+      <Route path="/my-research/:workspaceId" element={<ResearchWorkspace />} />
       <Route path="/availability" element={<EquipmentAvailability />} />
       <Route path="/booking-management" element={<BookingManagement />} />
       <Route path="/urgent-requests" element={<UrgentRequests />} />

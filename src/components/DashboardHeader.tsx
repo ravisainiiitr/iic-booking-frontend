@@ -12,13 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen } from "lucide-react";
+import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
+import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -44,6 +45,9 @@ const DashboardHeader = () => {
   const isInternalFaculty =
     isFaculty && String(user?.department_type ?? '').toLowerCase() === 'internal';
   const showFacultyUrgentWalletMenu = isFaculty && !isInternalFaculty;
+  const mayUseMyResearch =
+    isAuthenticated && (userTypeStr === 'student' || userTypeStr === 'individual_student' || isInternalFaculty);
+  const { available: myResearchAvailable } = useMyResearchAvailability(mayUseMyResearch);
   const isOnDashboard =
     location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
   
@@ -369,6 +373,12 @@ const DashboardHeader = () => {
                       : "My Booking"}
                 </span>
               </DropdownMenuItem>
+              {myResearchAvailable && (
+                <DropdownMenuItem onClick={() => safeNavigate("/my-research")}>
+                  <FlaskConical className="mr-2 h-4 w-4" />
+                  <span>My Research</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                 <UserIcon className="mr-2 h-4 w-4" />
                 <span>Profile</span>
