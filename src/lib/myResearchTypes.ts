@@ -25,6 +25,8 @@ export interface MyResearchBootstrap {
     user_storage_quota: number;
     workspace_storage_quota: number;
   };
+  groups_available?: boolean;
+  can_create_group?: boolean;
 }
 
 export interface ResearchWorkspaceStats {

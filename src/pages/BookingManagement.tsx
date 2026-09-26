@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -130,7 +130,10 @@ const BookingManagement = () => {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("BOOKED");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const expandId = searchParams.get("expand");
+  const [statusFilter, setStatusFilter] = useState<string>(() => (expandId ? "all" : "BOOKED"));
+  const fetchSeqRef = useRef(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -147,9 +150,6 @@ const BookingManagement = () => {
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const expandId = searchParams.get("expand");
 
   // Check if user is operator, manager, admin, or department administrator
   const userType: any = user?.user_type;
@@ -181,24 +181,41 @@ const BookingManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, navigate, authLoading, isAuthenticated, user?.id, isOperatorOrManager]);
 
-  // When landing with ?expand=booking_id (e.g. from Change slot status page), fetch that booking and show detail
+  // ?expand=<booking pk or display id> (repeat sample / urgent requests, Change slot status): open that booking
+  // whatever its status, and list it by clearing the status filter and searching for its booking ID.
   useEffect(() => {
     if (!expandId || !isAuthenticated || !user?.id || !isOperatorOrManager) return;
-    const id = expandId;
+    const id = expandId.trim();
     let cancelled = false;
-    apiClient.getBookings({ search: id, limit: 1 }).then((res) => {
-      if (cancelled || res.error) return;
-      const b = res.data?.bookings?.[0];
-      if (b) {
-        setOverrideBooking(b);
-        setDetailBooking(null);
-        setSelectedBookingId(b.booking_id);
-        setTimeout(() => {
-          document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 200);
+    (async () => {
+      let b: Booking | undefined;
+      if (/^\d+$/.test(id)) {
+        const exact = await apiClient.getBookings({ booking_id: Number(id), limit: 1 });
+        if (!exact.error) b = exact.data?.bookings?.[0] as Booking | undefined;
       }
-    });
+      if (!b) {
+        const bySearch = await apiClient.getBookings({ search: id, limit: 1 });
+        if (!bySearch.error) b = bySearch.data?.bookings?.[0] as Booking | undefined;
+      }
+      if (cancelled) return;
+      if (!b) {
+        toast.error("Booking not found or not in your scope.");
+        return;
+      }
+      const ref = b.virtual_booking_id || String(b.booking_id);
+      setStatusFilter("all");
+      setSearchQuery(ref);
+      setPage(1);
+      void fetchBookings(1, { filters: { status: "all", search: ref } });
+      setOverrideBooking(b);
+      setDetailBooking(null);
+      setSelectedBookingId(b.booking_id);
+      setTimeout(() => {
+        document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 200);
+    })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandId, isAuthenticated, user?.id, isOperatorOrManager]);
 
   // When a row is clicked, fetch full booking for the detail card (list_view data is lightweight and missing daily_slots, etc.)
@@ -234,20 +251,26 @@ const BookingManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBookingId, overrideBooking?.booking_id]);
 
-  const fetchBookings = async (pageOverride?: number, opts?: { silent?: boolean }) => {
+  const fetchBookings = async (
+    pageOverride?: number,
+    opts?: { silent?: boolean; filters?: { status?: string; search?: string } }
+  ) => {
+    const seq = ++fetchSeqRef.current;
     try {
       if (!opts?.silent) setLoadingBookings(true);
       const currentPage = pageOverride ?? page;
+      const effectiveStatus = opts?.filters?.status ?? statusFilter;
+      const effectiveSearch = (opts?.filters?.search ?? searchQuery).trim();
       const params: any = {
         limit: PAGE_SIZE,
         offset: (currentPage - 1) * PAGE_SIZE,
         list_view: true,
       };
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
+      if (effectiveStatus !== "all") {
+        params.status = effectiveStatus;
       }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
+      if (effectiveSearch) {
+        params.search = effectiveSearch;
       }
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
@@ -258,6 +281,7 @@ const BookingManagement = () => {
       if (!isLabInchargeUser && ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
       if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
       const response = await apiClient.getBookings(params);
+      if (seq !== fetchSeqRef.current) return;
       if (response.data && response.data.bookings) {
         setBookings(response.data.bookings);
         setTotalCount(response.data.total_count ?? response.data.bookings.length);
@@ -266,10 +290,11 @@ const BookingManagement = () => {
         setTotalCount(0);
       }
     } catch (error) {
+      if (seq !== fetchSeqRef.current) return;
       console.error("Error fetching bookings:", error);
       toast.error("Failed to fetch bookings");
     } finally {
-      if (!opts?.silent) setLoadingBookings(false);
+      if (!opts?.silent && seq === fetchSeqRef.current) setLoadingBookings(false);
     }
   };
 
@@ -666,9 +691,11 @@ const BookingManagement = () => {
                 </div>
               )}
             </Card>
+          </>
+        )}
 
-            {/* Detailed view – shown only when a booking ID is clicked */}
-            {selectedBookingId != null && (() => {
+        {/* Detailed view – shown when a booking ID is clicked or opened via ?expand= (even if the list is empty) */}
+        {!loadingBookings && selectedBookingId != null && (() => {
               if (detailLoading) {
                 return (
                   <Card id="booking-detail-section" className="border shadow-sm">
@@ -699,8 +726,6 @@ const BookingManagement = () => {
                 />
               );
             })()}
-          </>
-        )}
 
       </main>
     </div>

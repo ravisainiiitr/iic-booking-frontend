@@ -1423,8 +1423,17 @@ const BookEquipment = () => {
     total_charge: string | number;
     total_time_minutes: number;
     charge_breakdown: Array<{ description: string; amount: number }>;
+    /** Approved repeat request: slots must start at or after this instant (approval + 48h). */
+    bookable_from?: string | null;
+    extra_week_granted?: boolean;
   } | null>(null);
   const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
+  const repeatBookableFromMs = useMemo(() => {
+    const iso = repeatSourceBooking?.bookable_from;
+    if (!iso) return null;
+    const ms = new Date(iso).getTime();
+    return Number.isNaN(ms) ? null : ms;
+  }, [repeatSourceBooking?.bookable_from]);
 
   useEffect(() => {
     return () => {
@@ -2609,6 +2618,8 @@ const BookEquipment = () => {
         total_charge: 0,
         total_time_minutes: b.total_time_minutes || 0,
         charge_breakdown: zeroBreakdown,
+        bookable_from: eligibilityRes.data.bookable_from ?? null,
+        extra_week_granted: !!eligibilityRes.data.extra_week_granted,
       });
       setInputFieldValues(b.input_values || {});
       setChargeCalculated(true);
@@ -2624,6 +2635,7 @@ const BookEquipment = () => {
       setChargeCalculationFailed(false);
       setSelectedSlots([]);
       setAutoSlotSelection(false);
+      setLastFetchedWeek(null);
     })();
     return () => { cancelled = true; };
   }, [searchParams, selectedEquipment?.id]);
@@ -3334,7 +3346,12 @@ const BookEquipment = () => {
         selectedEquipment.id,
         startDateStr,
         endDateStr,
-        { urgentWeekExtension: allowUrgentWeekExtension }
+        {
+          urgentWeekExtension: allowUrgentWeekExtension,
+          ...(repeatSourceBooking?.extra_week_granted
+            ? { repeatSampleBookingId: repeatSourceBooking.real_booking_id }
+            : {}),
+        }
       );
 
       if ((slotsResponse as any)?.error) {
@@ -3429,7 +3446,7 @@ const BookEquipment = () => {
       setLoadingSlots(false);
       fetchingSlotsRef.current = false;
     }
-  }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, allowUrgentWeekExtension]);
+  }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, allowUrgentWeekExtension, repeatSourceBooking?.extra_week_granted, repeatSourceBooking?.real_booking_id]);
 
   // After changing slots in mode=status, switching to booking (mode=book or UI) must reload Step 3 slot data
   useEffect(() => {
@@ -3908,9 +3925,24 @@ const BookEquipment = () => {
   };
 
 
+  const slotStartsBeforeRepeatWindow = (date: Date, time: string, slotData?: DailySlot): boolean => {
+    if (repeatBookableFromMs == null) return false;
+    let startMs: number | null = null;
+    if (slotData?.start_datetime) {
+      startMs = parseISO(slotData.start_datetime).getTime();
+    } else if (time.includes(":")) {
+      const [h, m] = time.split(":").map(Number);
+      const d = new Date(date);
+      d.setHours(h, m || 0, 0, 0);
+      startMs = d.getTime();
+    }
+    return startMs != null && !Number.isNaN(startMs) && startMs < repeatBookableFromMs;
+  };
+
   const isSlotBooked = (date: Date, time: string): boolean => {
     const slotData = getSlotData(date, time);
     if (!slotData) return false;
+    if (slotStartsBeforeRepeatWindow(date, time, slotData)) return true;
     const slotStatus = String(slotData.status || "").toUpperCase();
     const hasBookedStatus = slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED";
     // Admin/OIC booking for external target: same bookability as external (AVAILABLE / available_for_external)
@@ -4566,7 +4598,9 @@ const BookEquipment = () => {
         );
       }
       const minDate = parseISO(minDateStr);
-      const maxDate = parseISO(maxDateStr);
+      const maxDate = repeatSourceBooking?.extra_week_granted
+        ? addDays(parseISO(maxDateStr), 7)
+        : parseISO(maxDateStr);
       const weekSunday = addDays(weekStartNormalized, 6);
       return weekSunday >= minDate && weekStartNormalized <= maxDate;
     }
@@ -4592,7 +4626,14 @@ const BookEquipment = () => {
       for (let i = -4; i <= 52; i++) {
         weeks.push(i === 0 ? currentWeek : i < 0 ? subWeeks(currentWeek, -i) : addWeeks(currentWeek, i));
       }
-      return weeks;
+      if (repeatBookableFromMs == null) return weeks;
+      const earliestWeek = startOfWeek(new Date(Math.max(repeatBookableFromMs, now.getTime())), { weekStartsOn: 1 });
+      const maxDateStr = equipmentDetail?.slot_window_max_date ?? null;
+      const maxDate = maxDateStr ? parseISO(maxDateStr) : null;
+      const bounded = weeks.filter(
+        (w) => w.getTime() >= earliestWeek.getTime() && (!maxDate || w.getTime() <= maxDate.getTime()),
+      );
+      return bounded.length > 0 ? bounded : [earliestWeek];
     }
     if (isAdminOrOIC()) {
       const now = new Date();
@@ -4690,7 +4731,7 @@ const BookEquipment = () => {
     if (!isAllowed) {
       setCurrentWeekStart(startOfWeek(allowed[0], { weekStartsOn: 1 }));
     }
-  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart, allowUrgentWeekExtension]);
+  }, [equipmentDetail?.slot_window_min_date, equipmentDetail?.slot_window_max_date, userType, currentWeekStart, allowUrgentWeekExtension, repeatBookableFromMs]);
 
   // Default to current week whenever an equipment is selected for booking (internal / external users)
   useEffect(() => {
@@ -7612,6 +7653,13 @@ const BookEquipment = () => {
                   {repeatSourceBooking && (
                     <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
                       Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
+                      {repeatBookableFromMs != null && (
+                        <div className="mt-1 font-medium">
+                          Approved repeat: choose slots starting on or after{" "}
+                          {format(new Date(repeatBookableFromMs), "dd MMM yyyy, hh:mm a")} (48 hours after approval).
+                          {repeatSourceBooking.extra_week_granted ? " One additional week of slot access has been granted." : ""}
+                        </div>
+                      )}
                     </div>
                   )}
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
@@ -8925,11 +8973,11 @@ const BookEquipment = () => {
                           const slotData = useWeeklySlots() ? getSlotData(day, time) : undefined;
                           const slotExists = slotData !== undefined;
                           // Past: use slot start datetime when available; else parse time "HH:mm" for TIME mode
-                          const isPast = slotData?.start_datetime
+                          const isPast = (slotData?.start_datetime
                             ? parseISO(slotData.start_datetime) < new Date()
                             : (time.includes(":")
                               ? (() => { const [h, m] = time.split(":").map(Number); const d = new Date(day); d.setHours(h, m || 0, 0, 0); return d < new Date(); })()
-                              : false);
+                              : false)) || slotStartsBeforeRepeatWindow(day, time, slotData);
                           
                           // Get slot status from the actual slot data; prefer booking status if booking exists, else slot status (never empty when slot exists)
                           const slotStatus = slotData?.status ?? "";

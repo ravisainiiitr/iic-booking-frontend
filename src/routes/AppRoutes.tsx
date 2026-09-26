@@ -124,6 +124,7 @@ import ViewResults from "@/pages/ViewResults";
 import SharedWithMe from "@/pages/SharedWithMe";
 import MyResearch from "@/pages/MyResearch";
 import ResearchWorkspace from "@/pages/ResearchWorkspace";
+import ResearchGroup from "@/pages/ResearchGroup";
 import EquipmentAvailability from "@/pages/EquipmentAvailability";
 
 /**
@@ -152,6 +153,7 @@ export default function AppRoutes() {
       <Route path="/my-results" element={<ViewResults />} />
       <Route path="/shared-data" element={<SharedWithMe />} />
       <Route path="/my-research" element={<MyResearch />} />
+      <Route path="/my-research/groups/:groupId" element={<ResearchGroup />} />
       <Route path="/my-research/:workspaceId" element={<ResearchWorkspace />} />
       <Route path="/availability" element={<EquipmentAvailability />} />
       <Route path="/booking-management" element={<BookingManagement />} />

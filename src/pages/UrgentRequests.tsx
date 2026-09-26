@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
+import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
 
@@ -375,8 +376,12 @@ const UrgentRequests = () => {
                         {row.request_type === "REVIEWER_URGENT" ? "Reviewer urgent" : "No slot"}
                       </TableCell>
                       <TableCell className="py-3">
-                        <div className="font-medium">{row.user_name}</div>
-                        <div className="text-xs text-muted-foreground">{row.user_email}</div>
+                        <RequesterIdentityButton
+                          userId={row.user_id}
+                          name={row.user_name}
+                          email={row.user_email}
+                          userNotes={row.reviewer_comment}
+                        />
                       </TableCell>
                       <TableCell className="py-3">
                         <div>{row.equipment_name}</div>
@@ -472,8 +477,14 @@ const UrgentRequests = () => {
                     <span className="text-muted-foreground">Type:</span>{" "}
                     {detailRow.request_type === "REVIEWER_URGENT" ? "Urgent comment from reviewer" : "Unable to get slot despite trials"}
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">User:</span> {detailRow.user_name} ({detailRow.user_email})
+                  <div className="flex items-start gap-1">
+                    <span className="text-muted-foreground">User:</span>
+                    <RequesterIdentityButton
+                      userId={detailRow.user_id}
+                      name={detailRow.user_name}
+                      email={detailRow.user_email}
+                      userNotes={detailRow.reviewer_comment}
+                    />
                   </div>
                   <div>
                     <span className="text-muted-foreground">Equipment:</span> {detailRow.equipment_name} ({detailRow.equipment_code})

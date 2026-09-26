@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { format } from "date-fns";
 import { apiClient, type PrintAnalysisResult } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { formatINR } from "@/lib/money";
@@ -635,7 +636,10 @@ export function BookingDetailCard({
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const [actionSubmitLoading, setActionSubmitLoading] = useState(false);
-  const [repeatEligibility, setRepeatEligibility] = useState<{ can_create_repeat: boolean } | null>(null);
+  const [repeatEligibility, setRepeatEligibility] = useState<{
+    can_create_repeat: boolean;
+    bookable_from?: string | null;
+  } | null>(null);
   const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
   const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
   const [extendHoldReasonCode, setExtendHoldReasonCode] = useState<string>("");
@@ -934,7 +938,10 @@ export function BookingDetailCard({
       if (bookingPk == null) return;
       apiClient.getRepeatSampleEligibility(bookingPk).then((res) => {
         if (!res.error && res.data)
-          setRepeatEligibility({ can_create_repeat: (res.data as { can_create_repeat?: boolean }).can_create_repeat ?? false });
+          setRepeatEligibility({
+            can_create_repeat: res.data.can_create_repeat ?? false,
+            bookable_from: res.data.bookable_from ?? null,
+          });
         else setRepeatEligibility({ can_create_repeat: false });
       });
     } else {
@@ -2673,9 +2680,20 @@ export function BookingDetailCard({
                 !booking.source_booking_id &&
                 !isExternalSelfView &&
                 repeatEligibility?.can_create_repeat && (
-                  <Button size="sm" variant="outline" onClick={handleCreateRepeatBooking}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCreateRepeatBooking}
+                    title={
+                      repeatEligibility.bookable_from
+                        ? `Approved repeat (free, same parameters): slots from ${format(new Date(repeatEligibility.bookable_from), "dd MMM yyyy, hh:mm a")}`
+                        : undefined
+                    }
+                  >
                     <CopyPlus className="h-4 w-4 mr-2" />
-                    Repeat sample
+                    {repeatEligibility.bookable_from
+                      ? `Book repeat sample (from ${format(new Date(repeatEligibility.bookable_from), "dd MMM, hh:mm a")})`
+                      : "Repeat sample"}
                   </Button>
                 )}
               {!resultsLoading && showRawOrResultsAction && (

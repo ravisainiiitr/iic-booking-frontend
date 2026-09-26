@@ -165,6 +165,13 @@ declare global {
   }
 }
 
+const CASH_UNDERTAKING_IITR_STUDENT =
+  "I undertake that no project funds are currently available to fund this recharge and that I have sufficient personal funds to meet the requested recharge amount.";
+const CASH_UNDERTAKING_IITR_FACULTY =
+  "I undertake that no project funds are currently available to fund this recharge, or that I have already availed the applicable temporary credit facility.";
+const CASH_UNDERTAKING_DEFAULT =
+  "This option should be used only when no active project grant is available for funding the requested recharge. Direct Cash Deposit / Bank Transfer should be chosen only in such situations.";
+
 const Wallet = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -335,6 +342,11 @@ const Wallet = () => {
   const isIitrStudentReceiptOffline = isStudent && iitrStudentRechargeEnabled;
   const isProjectGrantMode = offlineRechargeMode === "project_grant";
   const isCashDepositMode = offlineRechargeMode === "direct_cash_deposit";
+  const cashUndertakingText = useMemo(() => {
+    if (String(user?.user_type ?? "").toLowerCase() === "student") return CASH_UNDERTAKING_IITR_STUDENT;
+    if (isFacultyEffective) return CASH_UNDERTAKING_IITR_FACULTY;
+    return CASH_UNDERTAKING_DEFAULT;
+  }, [user, isFacultyEffective]);
   const sricDestinationLabel = isCashDepositMode ? "SRIC Bill Section" : "SRIC Office";
 
   const openRechargeDialog = useCallback((departmentId?: number | null) => {
@@ -2811,17 +2823,23 @@ const Wallet = () => {
                         )}
 
                         {isCashDepositMode && (
-                          <div className="flex items-start gap-3 rounded-md border border-input p-3">
-                            <Checkbox
-                              id="cash-undertaking"
-                              checked={cashUndertakingAccepted}
-                              onCheckedChange={(checked) => setCashUndertakingAccepted(checked === true)}
-                              disabled={sendingOtp}
-                              className="mt-0.5"
-                            />
-                            <Label htmlFor="cash-undertaking" className="text-sm font-normal leading-snug cursor-pointer">
-                              This option should be used only when no active project grant is available for funding the requested recharge. Direct Cash Deposit / Bank Transfer should be chosen only in such situations.
-                            </Label>
+                          <div className="rounded-md border border-primary/30 bg-primary/[0.03] p-3">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary">Undertaking</p>
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                id="cash-undertaking"
+                                checked={cashUndertakingAccepted}
+                                onCheckedChange={(checked) => setCashUndertakingAccepted(checked === true)}
+                                disabled={sendingOtp}
+                                className="mt-0.5 shrink-0"
+                              />
+                              <Label
+                                htmlFor="cash-undertaking"
+                                className="min-w-0 cursor-pointer break-words text-sm font-normal leading-snug text-foreground"
+                              >
+                                {cashUndertakingText}
+                              </Label>
+                            </div>
                           </div>
                         )}
 

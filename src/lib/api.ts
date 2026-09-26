@@ -17,6 +17,30 @@ import type {
   ResearchWorkspaceCard,
   ResearchWorkspaceOption,
 } from "@/lib/myResearchTypes";
+import type {
+  GroupActivity,
+  GroupActivityInput,
+  GroupAssigneeInput,
+  GroupAttachment,
+  GroupAttachmentInitiateResponse,
+  GroupBookingRef,
+  GroupCategory,
+  GroupEquipmentRef,
+  GroupEvent,
+  GroupLinkedWorkspace,
+  GroupMember,
+  GroupMemberDetail,
+  GroupMemberType,
+  GroupPaginated,
+  GroupPublicUser,
+  GroupRole,
+  GroupUpdateRequest,
+  GroupUpdateSubmission,
+  ResearchGroupCardData,
+  ResearchGroupDetail,
+  ResearchGroupsHome,
+  UpdatesState,
+} from "@/lib/researchGroupTypes";
 
 // API client for Django REST API
 // Support runtime configuration via window.__RUNTIME_CONFIG__ (for Docker/production)
@@ -38,6 +62,19 @@ const getApiBaseUrl = (): string => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+export interface UserIdentityCard {
+  user_id: number;
+  name: string;
+  email: string;
+  phone_number: string;
+  department_name: string;
+  programme: string;
+  supervisor_name: string;
+  user_type_display: string;
+  emp_id: string;
+  profile_picture_url: string | null;
+}
 
 export interface PrintMaterial {
   id: number;
@@ -2578,6 +2615,8 @@ class ApiClient {
     options?: {
       urgentWeekExtension?: boolean;
       maintenanceExtraWeekBookingId?: number;
+      /** Original booking of an approved repeat-sample request (grants the extra week of slot access). */
+      repeatSampleBookingId?: number;
       /**
        * Enforce Equipment.weekly_view_time_from/to on the slots payload.
        * Used by Lab operator + OIC dashboard weekly calendar to restrict the visible time axis.
@@ -2600,6 +2639,9 @@ class ApiClient {
     }
     if (options?.maintenanceExtraWeekBookingId != null) {
       params.append('maintenance_extra_week_booking_id', String(options.maintenanceExtraWeekBookingId));
+    }
+    if (options?.repeatSampleBookingId != null) {
+      params.append('repeat_sample_booking_id', String(options.repeatSampleBookingId));
     }
     if (options?.applyWeeklyViewTimeFilter) {
       params.append('apply_weekly_view_time_filter', '1');
@@ -6481,7 +6523,14 @@ class ApiClient {
 
   /** Get repeat sample eligibility (new flow): can_create_repeat, reason. */
   async getRepeatSampleEligibility(bookingId: number) {
-    return this.request<{ can_create_repeat: boolean; reason: string | null }>(
+    return this.request<{
+      can_create_repeat: boolean;
+      reason: string | null;
+      repeat_sample_request_id?: number | null;
+      /** Approved repeat request: earliest slot start the user may book (ISO). */
+      bookable_from?: string | null;
+      extra_week_granted?: boolean;
+    }>(
       `/bookings/${bookingId}/repeat-sample-eligibility/`
     );
   }
@@ -6532,12 +6581,17 @@ class ApiClient {
     );
   }
 
-  /** Approve repeat sample request – creates free booking and notifies user (admin/OIC only). */
-  async approveRepeatSampleRequest(requestId: number) {
-    return this.request<{ message: string; repeat_sample_request: any; new_booking: any }>(
+  /** Approve repeat sample request (admin/OIC only). No booking is created; the user books the complimentary repeat themselves. */
+  async approveRepeatSampleRequest(requestId: number, adminNotes?: string) {
+    return this.request<{ message: string; repeat_sample_request: any }>(
       `/repeat-sample-requests/${requestId}/approve/`,
-      { method: 'POST' }
+      { method: 'POST', body: JSON.stringify({ admin_notes: adminNotes ?? '' }) }
     );
+  }
+
+  /** Staff: identity card for a requesting user (repeat sample, urgent booking requests). */
+  async getUserIdentityCard(userId: number) {
+    return this.request<UserIdentityCard>(`/staff/users/${userId}/identity-card/`);
   }
 
   /** Reject repeat sample request (admin/OIC only). */
@@ -8451,6 +8505,264 @@ class ApiClient {
     return this.request<ResearchSearchResult>(
       `/v1/my-research/workspaces/${workspaceId}/search/?${new URLSearchParams({ q }).toString()}`,
     );
+  }
+
+  // --- My Research: Research Groups (behind MY_RESEARCH_GROUPS_ENABLED) ---
+  async researchGroupsHome() {
+    return this.request<ResearchGroupsHome>('/v1/my-research/groups/home/');
+  }
+
+  async createResearchGroup(input: { name: string; short_code?: string; description?: string }) {
+    return this.request<ResearchGroupCardData>('/v1/my-research/groups/', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async getResearchGroup(groupId: string) {
+    return this.request<ResearchGroupDetail>(`/v1/my-research/groups/${groupId}/`);
+  }
+
+  async updateResearchGroup(groupId: string, input: { name?: string; short_code?: string; description?: string }) {
+    return this.request<ResearchGroupDetail>(`/v1/my-research/groups/${groupId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async archiveResearchGroup(groupId: string) {
+    return this.request<{ status: string; archived_at: string | null }>(`/v1/my-research/groups/${groupId}/archive/`, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+
+  async listResearchGroupMembers(groupId: string, includeLeft = false) {
+    return this.request<{ owner: GroupPublicUser; results: GroupMember[] }>(
+      `/v1/my-research/groups/${groupId}/members/${includeLeft ? '?include_left=1' : ''}`,
+    );
+  }
+
+  async addResearchGroupMember(
+    groupId: string,
+    input: { user_id: number; member_type: GroupMemberType; category_id?: number | null; role?: GroupRole },
+  ) {
+    return this.request<GroupMember>(`/v1/my-research/groups/${groupId}/members/`, {
+      method: 'POST',
+      body: JSON.stringify({ ...input, confirm: true }),
+    });
+  }
+
+  async getResearchGroupMember(groupId: string, memberId: number) {
+    return this.request<GroupMemberDetail>(`/v1/my-research/groups/${groupId}/members/${memberId}/`);
+  }
+
+  async updateResearchGroupMember(
+    groupId: string,
+    memberId: number,
+    input: { member_type?: GroupMemberType; category_id?: number | null; role?: GroupRole },
+  ) {
+    return this.request<GroupMemberDetail>(`/v1/my-research/groups/${groupId}/members/${memberId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async removeResearchGroupMember(groupId: string, memberId: number) {
+    return this.request<{ removed: boolean }>(`/v1/my-research/groups/${groupId}/members/${memberId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchGroupCategories(groupId: string) {
+    return this.request<{ results: GroupCategory[] }>(`/v1/my-research/groups/${groupId}/categories/`);
+  }
+
+  async createResearchGroupCategory(groupId: string, input: { name: string; description?: string }) {
+    return this.request<GroupCategory>(`/v1/my-research/groups/${groupId}/categories/`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateResearchGroupCategory(
+    groupId: string,
+    categoryId: number,
+    input: { name?: string; description?: string; active?: boolean },
+  ) {
+    return this.request<GroupCategory>(`/v1/my-research/groups/${groupId}/categories/${categoryId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async reorderResearchGroupCategories(groupId: string, ids: number[]) {
+    return this.request<{ results: GroupCategory[] }>(`/v1/my-research/groups/${groupId}/categories/reorder/`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async listResearchGroupActivities(
+    groupId: string,
+    params: { state?: 'open' | 'closed'; category?: number; assignee?: number } = {},
+  ) {
+    const q = new URLSearchParams();
+    if (params.state) q.set('state', params.state);
+    if (params.category) q.set('category', String(params.category));
+    if (params.assignee) q.set('assignee', String(params.assignee));
+    const qs = q.toString();
+    return this.request<{ results: GroupActivity[] }>(
+      `/v1/my-research/groups/${groupId}/activities/${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  async createResearchGroupActivity(groupId: string, input: GroupActivityInput) {
+    return this.request<GroupActivity>(`/v1/my-research/groups/${groupId}/activities/`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateResearchGroupActivity(activityId: string, input: GroupActivityInput | GroupAssigneeInput) {
+    return this.request<GroupActivity>(`/v1/my-research/activities/${activityId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async listResearchGroupUpdates(groupId: string, state?: UpdatesState, assignee?: number) {
+    const q = new URLSearchParams();
+    if (state) q.set('state', state);
+    if (assignee) q.set('assignee', String(assignee));
+    const qs = q.toString();
+    return this.request<GroupPaginated<GroupUpdateRequest>>(
+      `/v1/my-research/groups/${groupId}/updates/${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  async createResearchUpdateRequests(
+    groupId: string,
+    input: { title: string; instructions?: string; due_date?: string | null; assigned_user_ids: number[]; activity_id?: string | null },
+  ) {
+    return this.request<{ results: GroupUpdateRequest[] }>(`/v1/my-research/groups/${groupId}/update-requests/`, {
+      method: 'POST',
+      body: JSON.stringify({ ...input, recurrence: 'NONE' }),
+    });
+  }
+
+  async getResearchUpdateRequest(requestId: string) {
+    return this.request<GroupUpdateRequest>(`/v1/my-research/update-requests/${requestId}/`);
+  }
+
+  async submitResearchUpdate(requestId: string, input: GroupUpdateSubmission) {
+    return this.request<GroupUpdateRequest>(`/v1/my-research/update-requests/${requestId}/submit/`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async reviewResearchUpdate(requestId: string, comment: string) {
+    return this.request<GroupUpdateRequest>(`/v1/my-research/update-requests/${requestId}/review/`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+  }
+
+  async cancelResearchUpdateRequest(requestId: string) {
+    return this.request<GroupUpdateRequest>(`/v1/my-research/update-requests/${requestId}/cancel/`, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+
+  async initiateResearchUpdateAttachment(requestId: string, input: { filename: string; size: number; content_type: string }) {
+    return this.request<GroupAttachmentInitiateResponse>(`/v1/my-research/update-requests/${requestId}/attachments/`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async completeResearchUpdateAttachment(attachmentId: string) {
+    return this.request<GroupAttachment>(`/v1/my-research/update-attachments/${attachmentId}/complete/`, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+
+  async getResearchUpdateAttachmentUrl(attachmentId: string) {
+    return this.request<{ url: string; expires_in: number }>(
+      `/v1/my-research/update-attachments/${attachmentId}/download/`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  async deleteResearchUpdateAttachment(attachmentId: string) {
+    return this.request<{ deleted: boolean }>(`/v1/my-research/update-attachments/${attachmentId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchGroupWorkspaces(groupId: string) {
+    return this.request<{ results: GroupLinkedWorkspace[] }>(`/v1/my-research/groups/${groupId}/workspaces/`);
+  }
+
+  async listLinkableGroupWorkspaces(groupId: string) {
+    return this.request<{ results: GroupLinkedWorkspace[] }>(`/v1/my-research/groups/${groupId}/linkable-workspaces/`);
+  }
+
+  async linkResearchGroupWorkspaces(groupId: string, workspaceIds: string[]) {
+    return this.request<{ results: GroupLinkedWorkspace[] }>(`/v1/my-research/groups/${groupId}/workspaces/`, {
+      method: 'POST',
+      body: JSON.stringify({ workspace_ids: workspaceIds }),
+    });
+  }
+
+  async unlinkResearchGroupWorkspace(groupId: string, workspaceId: string) {
+    return this.request<{ removed: boolean }>(`/v1/my-research/groups/${groupId}/workspaces/${workspaceId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listResearchGroupPublications(groupId: string) {
+    return this.request<{ results: ResearchPublication[] }>(`/v1/my-research/groups/${groupId}/publications/`);
+  }
+
+  async listLinkableGroupPublications(groupId: string) {
+    return this.request<{ results: ResearchPublication[] }>(`/v1/my-research/groups/${groupId}/linkable-publications/`);
+  }
+
+  async linkResearchGroupPublications(groupId: string, claimIds: number[]) {
+    return this.request<{ results: ResearchPublication[] }>(`/v1/my-research/groups/${groupId}/publications/`, {
+      method: 'POST',
+      body: JSON.stringify({ claim_ids: claimIds }),
+    });
+  }
+
+  async unlinkResearchGroupPublication(groupId: string, claimId: number) {
+    return this.request<{ removed: boolean }>(`/v1/my-research/groups/${groupId}/publications/${claimId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listLinkableGroupBookings(groupId: string, params: { q?: string; user_id?: number } = {}) {
+    const q = new URLSearchParams();
+    if (params.q) q.set('q', params.q);
+    if (params.user_id) q.set('user_id', String(params.user_id));
+    const qs = q.toString();
+    return this.request<{ results: GroupBookingRef[] }>(
+      `/v1/my-research/groups/${groupId}/linkable-bookings/${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  async listLinkableGroupEquipment(groupId: string, q: string) {
+    return this.request<{ results: GroupEquipmentRef[] }>(
+      `/v1/my-research/groups/${groupId}/linkable-equipment/?${new URLSearchParams({ q }).toString()}`,
+    );
+  }
+
+  async listResearchGroupFeed(groupId: string, page = 1) {
+    return this.request<GroupPaginated<GroupEvent>>(`/v1/my-research/groups/${groupId}/feed/?page=${page}`);
   }
 
   // --- IIC Research Copilot ---
