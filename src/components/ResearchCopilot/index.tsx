@@ -21,6 +21,7 @@ import {
 type CopilotCard = {
   type?: string;
   title?: string;
+  message?: string;
   window?: string;
   equipment_id?: number;
   balance?: number | string | null;
@@ -622,7 +623,10 @@ export default function ResearchCopilot() {
   const [reportMessageId, setReportMessageId] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [usedProposals, setUsedProposals] = useState<Set<string>>(() => new Set());
+  const [quickOpen, setQuickOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasUserMessages = messages.some((m) => m.role === "user");
+  const showQuick = !hasUserMessages || quickOpen;
 
   const appendEnvelope = useCallback((envelope: CopilotEnvelope | undefined, fallback: string, isError = false) => {
     setMessages((m) => [
@@ -706,7 +710,7 @@ export default function ResearchCopilot() {
     else window.location.assign(href);
   };
 
-  const isCopilotEnabled = isViteCopilotEnabled && backendEnabled !== false;
+  const isCopilotEnabled = isViteCopilotEnabled && backendEnabled === true;
 
   const welcome = useMemo(
     () =>
@@ -804,13 +808,13 @@ export default function ResearchCopilot() {
         setConversationId(id);
         setMessages(
           (res.data.messages || []).map((m) => ({
-            id: m.id,
+            id: String(m.id),
             role: m.role as "user" | "assistant",
-            content: m.content,
-            confidence: m.confidence,
-            escalate_hint: m.escalate_hint,
-            citations: m.citations,
-            suggested_actions: m.suggested_actions,
+            content: String(m.content ?? ""),
+            confidence: m.confidence as number | null | undefined,
+            escalate_hint: Boolean(m.escalate_hint),
+            citations: m.citations as CopilotMessage["citations"],
+            suggested_actions: m.suggested_actions as CopilotAction[] | undefined,
             cards: ((m.metadata as { cards?: CopilotCard[] } | undefined)?.cards ?? []) as CopilotCard[],
           })),
         );
@@ -836,6 +840,7 @@ export default function ResearchCopilot() {
     const text = (textOverride ?? input).trim();
     if (!text || loading) return;
     setInput("");
+    setQuickOpen(false);
     setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", content: text }]);
     setLoading(true);
     try {
@@ -1238,11 +1243,24 @@ export default function ResearchCopilot() {
                   </div>
                 </ScrollArea>
 
-                {commands.length > 0 && (
+                {hasUserMessages && (commands.length > 0 || suggested.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => setQuickOpen((v) => !v)}
+                    aria-expanded={quickOpen}
+                    className="border-t px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted"
+                  >
+                    {quickOpen ? "Hide quick actions" : "Show quick actions"}
+                  </button>
+                )}
+
+                {showQuick && commands.length > 0 && (
                   <div className="border-t px-3 py-2">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Quick actions
-                    </div>
+                    {!hasUserMessages && (
+                      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Quick actions
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       {commands.map((c) => (
                         <button
@@ -1270,7 +1288,7 @@ export default function ResearchCopilot() {
                   </div>
                 )}
 
-                {suggested.length > 0 && (
+                {showQuick && suggested.length > 0 && (
                   <div className="flex flex-wrap gap-2 border-t px-3 py-2">
                     {suggested.slice(0, 4).map((s) => (
                       <button
