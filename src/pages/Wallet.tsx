@@ -2274,10 +2274,11 @@ const Wallet = () => {
                             toast.error("No transactions match the current filters.");
                             return;
                           }
-                          exportWalletTransactionsExcel(filteredTransactions, {
+                          void exportWalletTransactionsExcel(filteredTransactions, {
                             sheetTitle: "Transactions",
-                          });
-                          toast.success("Excel file downloaded.");
+                          })
+                            .then(() => toast.success("Excel file downloaded."))
+                            .catch(() => toast.error("Could not export the Excel file."));
                         }}
                       >
                         <FileSpreadsheet className="h-4 w-4 mr-2" />

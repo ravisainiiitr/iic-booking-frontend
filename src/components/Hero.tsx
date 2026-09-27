@@ -143,6 +143,8 @@ const Hero = () => {
           alt="IIT Roorkee Main Building"
           className="h-full w-full object-cover object-center"
           loading="eager"
+          decoding="async"
+          {...{ fetchpriority: "high" }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_55%_8%/0.88)] via-[hsl(215_50%_14%/0.55)] to-[hsl(210_45%_12%/0.25)]" />
         <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.75)] via-transparent to-[hsl(210_45%_12%/0.2)]" />

@@ -1,7 +1,7 @@
 /**
  * Export an equipment brochure as a letterheaded PDF.
  */
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
@@ -442,6 +442,7 @@ export async function exportEquipmentBrochurePdf(
   input: EquipmentBrochurePdfInput,
   options?: { filename?: string }
 ): Promise<void> {
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const dept =
     String(input.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
@@ -472,6 +473,7 @@ export async function exportDepartmentBrochurePdf(
   inputs: EquipmentBrochurePdfInput[],
   options?: { filename?: string; onProgress?: (done: number, total: number) => void },
 ): Promise<void> {
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();

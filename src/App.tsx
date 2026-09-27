@@ -8,7 +8,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ThemeProvider } from "next-themes";
-import ResearchCopilot from "./components/ResearchCopilot";
+import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
 import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
 
@@ -47,7 +47,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <EmbedChrome />
-              <ResearchCopilot />
+              <ResearchCopilotLauncher />
               <PendingActionsPrompt />
               <AppRoutes />
             </NotificationProvider>

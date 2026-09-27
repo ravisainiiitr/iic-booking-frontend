@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -20,9 +20,13 @@ import {
   type PrintAnalysisResult,
   type PrintMaterial,
 } from "@/lib/api";
-import { StlModelPreview } from "@/components/StlModelPreview";
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
 import { ChevronLeft, ChevronRight, FileUp, Upload, X } from "lucide-react";
+
+// three.js viewer: loaded only when a model is previewed (this module is also imported for helpers).
+const StlModelPreview = lazy(() =>
+  import("@/components/StlModelPreview").then((m) => ({ default: m.StlModelPreview })),
+);
 
 const MAX_STL_BYTES = 100 * 1024 * 1024;
 const SETTINGS_RECALC_DEBOUNCE_MS = 400;
@@ -745,7 +749,11 @@ export function Print3DBookingPanel({
                 </Button>
               </div>
             )}
-            <StlModelPreview buffer={currentPreviewBuffer} bedSize={bedSize} />
+            <Suspense
+              fallback={<div className="h-[360px] w-full animate-pulse rounded-lg border bg-muted" aria-label="Loading 3D preview" />}
+            >
+              <StlModelPreview buffer={currentPreviewBuffer} bedSize={bedSize} />
+            </Suspense>
           </div>
         )}
 

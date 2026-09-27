@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { INTELLIGENCE_CARD_TYPES, IntelligenceCard, renderedChoiceKeys } from "./IntelligenceCards";
+import { isViteCopilotEnabled } from "./softGate";
 
 const FEEDBACK_REASONS: Array<{ value: string; label: string }> = [
   { value: "incorrect", label: "Wrong answer" },
@@ -208,27 +209,6 @@ type CommandAction = {
   prompt?: string;
   choice?: { kind: string; value: string };
 };
-
-/**
- * Soft gate: backend `enabled` is authoritative.
- * Build/runtime may explicitly set false to hide the FAB without calling the API.
- * Default (unset) → allow bootstrap so production Copilot is not blocked by a missing Vite flag.
- */
-function readCopilotSoftGate(): boolean {
-  const runtime =
-    typeof window !== "undefined"
-      ? (window as unknown as { __RUNTIME_CONFIG__?: { VITE_RESEARCH_COPILOT_ENABLED?: string | boolean } })
-          .__RUNTIME_CONFIG__?.VITE_RESEARCH_COPILOT_ENABLED
-      : undefined;
-  const raw =
-    runtime !== undefined && runtime !== null && String(runtime) !== ""
-      ? String(runtime)
-      : String(import.meta.env.VITE_RESEARCH_COPILOT_ENABLED || "");
-  if (!raw) return true;
-  return raw.toLowerCase() !== "false" && raw !== "0";
-}
-
-const isViteCopilotEnabled = readCopilotSoftGate();
 
 const DEFAULT_COMMANDS: CommandAction[] = [
   { id: "find_equipment", label: "Find equipment", prompt: "Help me find suitable equipment for my sample." },
@@ -723,7 +703,17 @@ function CopilotCards({
   );
 }
 
-export default function ResearchCopilot() {
+type ResearchCopilotProps = {
+  /** Mount with the panel already open (the lazy launcher loads this module on first click). */
+  initialOpen?: boolean;
+  /** Enabled flag already resolved by the launcher; skips the duplicate mount-time bootstrap. */
+  initialBackendEnabled?: boolean | null;
+};
+
+export default function ResearchCopilot({
+  initialOpen = false,
+  initialBackendEnabled = null,
+}: ResearchCopilotProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
@@ -732,10 +722,11 @@ export default function ResearchCopilot() {
     location.pathname.startsWith("/analysis-launch") ||
     location.pathname.startsWith("/analysis-workspace");
   const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
-  const [backendEnabled, setBackendEnabled] = useState<boolean | null>(null);
+  const [backendEnabled, setBackendEnabled] = useState<boolean | null>(initialBackendEnabled);
+  const skipMountGate = useRef(initialBackendEnabled !== null);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -941,6 +932,10 @@ export default function ResearchCopilot() {
 
   useEffect(() => {
     if (!isViteCopilotEnabled) return;
+    if (skipMountGate.current) {
+      skipMountGate.current = false;
+      return;
+    }
     void (async () => {
       const res = isAuthenticated
         ? await apiClient.researchCopilotBootstrap()

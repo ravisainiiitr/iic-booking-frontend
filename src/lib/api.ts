@@ -1139,6 +1139,8 @@ export interface CopilotUsage {
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
+  /** In-flight GETs shared by concurrent callers (see sharedGet); entries are dropped once settled. */
+  private inFlightGets = new Map<string, Promise<ApiResponse<unknown>>>();
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
@@ -1148,6 +1150,21 @@ class ApiClient {
 
   /** Called when the API returns 401 (e.g. session expired or invalidated). Set by AuthProvider to logout and redirect. */
   onUnauthorized: (() => void) | null = null;
+
+  /**
+   * GET that concurrent callers (e.g. a page and its header mounting together) share instead of
+   * issuing duplicates. Not a cache: every call after the request settles hits the server again.
+   */
+  private sharedGet<T>(endpoint: string): Promise<ApiResponse<T>> {
+    const key = `${this.getToken() ?? ''} ${endpoint}`;
+    const existing = this.inFlightGets.get(key);
+    if (existing) return existing as Promise<ApiResponse<T>>;
+    const promise = this.request<T>(endpoint).finally(() => {
+      if (this.inFlightGets.get(key) === promise) this.inFlightGets.delete(key);
+    });
+    this.inFlightGets.set(key, promise);
+    return promise;
+  }
 
   private async request<T>(
     endpoint: string,
@@ -1891,7 +1908,7 @@ class ApiClient {
   }
 
   async getCurrentUser() {
-    return this.request<User>('/auth/user/');
+    return this.sharedGet<User>('/auth/user/');
   }
 
   /** Admin only: get auth settings (global + per user type timeout in seconds). */
@@ -2321,7 +2338,7 @@ class ApiClient {
     const forUt = (options?.forUserType || "").trim();
     if (forUt) q.set("for_user_type", forUt);
     const suffix = q.toString() ? `?${q.toString()}` : "";
-    return this.request<{
+    return this.sharedGet<{
       equipment_id: number;
       code: string;
       name: string;
@@ -2942,7 +2959,7 @@ class ApiClient {
   }
 
   async getWalletBalance() {
-    return this.request<{ balance: string }>('/wallet/balance/');
+    return this.sharedGet<{ balance: string }>('/wallet/balance/');
   }
 
   /** Sub-wallet balance for equipment's department (booking debit target). Admin may pass userId. */
@@ -3662,7 +3679,7 @@ class ApiClient {
 
   /** Approvals waiting on the signed-in staff member (repeat samples, urgent requests, leave, claims, notices). */
   async getPendingActions() {
-    return this.request<{
+    return this.sharedGet<{
       items: Array<{
         key: string;
         label: string;
@@ -10602,11 +10619,15 @@ class ApiClient {
     }>(`${endpoint}${equipmentId}/booking-requesters/`, { method: 'GET' });
   }
 
-  /** Path for the equipment image proxy (stable; streams bytes — does not expire). */
-  getEquipmentImageProxyPath(equipmentId: number): string {
+  /**
+   * Path for the equipment image proxy (stable; streams bytes — does not expire).
+   * `width` requests a downscaled WebP thumbnail; older backends ignore it and return the original.
+   */
+  getEquipmentImageProxyPath(equipmentId: number, width?: number): string {
     const base = this.baseURL.replace(/\/$/, '');
     // Cache-bust epoch: bump when catalog images are replaced so browsers drop cached dark studio shots.
-    return `${base}/equipments/${equipmentId}/image/?v=bg20260921`;
+    const path = `${base}/equipments/${equipmentId}/image/?v=bg20260921`;
+    return width ? `${path}&w=${width}` : path;
   }
 
   /** Stable API URL for equipment images. Prefer proxy path without auth token (images are public). */

@@ -1,7 +1,13 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
-type Props = { children: ReactNode; fallbackTitle?: string; backPath?: string };
+type Props = {
+  children: ReactNode;
+  fallbackTitle?: string;
+  backPath?: string;
+  /** When this value changes, a caught error is cleared (e.g. pass the pathname). */
+  resetKey?: unknown;
+};
 
 type State = { hasError: boolean; error?: Error };
 
@@ -20,6 +26,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, errorInfo);
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined });
+    }
   }
 
   render() {

@@ -1,5 +1,3 @@
-import JSZip from "jszip";
-
 export interface ZipStlEntry {
   filename: string;
   buffer: ArrayBuffer;
@@ -7,6 +5,7 @@ export interface ZipStlEntry {
 
 /** Extract .stl files from a ZIP archive for local 3D preview (same rules as backend). */
 export async function extractStlFilesFromZip(file: File): Promise<ZipStlEntry[]> {
+  const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(file);
   const entries: ZipStlEntry[] = [];
 

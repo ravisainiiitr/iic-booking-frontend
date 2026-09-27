@@ -10134,10 +10134,11 @@ const BookEquipment = () => {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={() => {
-                          exportWalletTransactionsExcel(userTransactionHistory.transactions, {
+                          void exportWalletTransactionsExcel(userTransactionHistory.transactions, {
                             sheetTitle: "Transactions",
-                          });
-                          toast.success("Excel file downloaded.");
+                          })
+                            .then(() => toast.success("Excel file downloaded."))
+                            .catch(() => toast.error("Could not export the Excel file."));
                         }}
                       >
                         <FileSpreadsheet className="h-4 w-4 mr-2" />

@@ -1,9 +1,6 @@
 /**
  * Export wallet / sub-wallet transaction rows to Excel (.xlsx) or PDF.
  */
-import * as XLSX from "xlsx";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { DEFAULT_DEPARTMENT_NAME, drawPdfLetterhead } from "@/lib/pdfLetterhead";
 
@@ -49,11 +46,13 @@ function defaultFilename(prefix: string, ext: "xlsx" | "pdf"): string {
 /**
  * Export transactions as Excel workbook (opens in Microsoft Excel / LibreOffice).
  */
-export function exportWalletTransactionsExcel(
+export async function exportWalletTransactionsExcel(
   rows: WalletTransactionExportRow[],
   options?: { filename?: string; sheetTitle?: string }
-): void {
+): Promise<void> {
   if (!rows.length) return;
+  // Export libraries load on demand so the Wallet / booking pages don't ship them up front.
+  const XLSX = await import("xlsx");
   const header = [
     "Equipment Name",
     "Booked by",
@@ -100,6 +99,10 @@ export async function exportWalletTransactionsPdf(
   options?: { filename?: string; title?: string; departmentName?: string }
 ): Promise<void> {
   if (!rows.length) return;
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const title = options?.title ?? "Wallet transaction history";
   const startY = await drawPdfLetterhead(doc, {

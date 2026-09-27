@@ -79,7 +79,8 @@ export default function Publications() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+          // Full-viewport placeholder keeps the footer below the fold until the list arrives (CLS).
+          <div className="flex min-h-[100svh] items-start justify-center gap-2 py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading publications…
           </div>

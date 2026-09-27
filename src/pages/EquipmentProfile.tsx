@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { Suspense, lazy, useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
@@ -33,7 +33,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import BookEquipment from "@/pages/BookEquipment";
 import { InPanelRoute } from "@/components/InPanelRouter";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +57,9 @@ import {
 } from "@/components/ChargeCategoryRatesPanel";
 import { exportEquipmentBrochurePdf, partitionSpecifications } from "@/lib/equipmentBrochurePdf";
 import { DEFAULT_DEPARTMENT_NAME } from "@/lib/pdfLetterhead";
+
+// Only needed for the in-panel charge calculator, so it is not part of the profile page chunk.
+const BookEquipment = lazy(() => import("@/pages/BookEquipment"));
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -739,6 +741,8 @@ const EquipmentProfile = () => {
                     enabled
                     alt={equipment.name}
                     className="w-full h-full object-contain"
+                    sizes="(min-width: 1280px) 900px, (min-width: 1024px) 66vw, 100vw"
+                    priority
                   />
                 </div>
                 {equipment.important_instruction ? (
@@ -975,6 +979,7 @@ const EquipmentProfile = () => {
                       equipmentId={equipment.equipment_id}
                       alt={equipment.name}
                       className="mx-auto max-h-72 w-full object-contain bg-white dark:bg-muted/20"
+                      sizes="(min-width: 1024px) 768px, 100vw"
                     />
                   </div>
                   {brochureSection(
@@ -1068,7 +1073,18 @@ const EquipmentProfile = () => {
                 <InPanelRoute
                   initialPath={`/book-equipment?equipment_id=${equipment.equipment_id}&mode=calculate&embed=1`}
                   path="/book-equipment"
-                  element={<BookEquipment />}
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="flex min-h-[24rem] items-center justify-center" role="status">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+                          <span className="sr-only">Loading charge calculator…</span>
+                        </div>
+                      }
+                    >
+                      <BookEquipment />
+                    </Suspense>
+                  }
                   onClose={() => setActivePanel("view_charges")}
                 />
               </div>

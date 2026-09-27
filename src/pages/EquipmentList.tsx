@@ -149,22 +149,25 @@ const EquipmentList = () => {
   }, [rawEquipment, expandedParentId, searchQuery]);
 
 
+  // Only Department Administrators are pinned to their department; keeping other users' department
+  // out of the deps stops the user object hydrating from re-issuing the catalog request.
+  const deptAdminDepartmentId = isDeptAdmin ? daDepartmentId : null;
   const fetchEquipment = useCallback(
     async (search?: string, departmentId: DepartmentFilterValue = "all") => {
       const effectiveDept: DepartmentFilterValue =
-        isDeptAdmin && daDepartmentId != null ? daDepartmentId : departmentId;
+        deptAdminDepartmentId != null ? deptAdminDepartmentId : departmentId;
       const response = await apiClient.getEquipments(search, undefined, undefined, true, effectiveDept, isOic ? oicCatalogScope : null);
       if (response.error) {
         throw new Error(response.error || "Failed to load equipment");
       }
       const rawList = response.data?.equipments;
       let list = Array.isArray(rawList) ? rawList : [];
-      if (isDeptAdmin && daDepartmentId != null) {
-        list = list.filter((eq) => Number(eq.internal_department) === Number(daDepartmentId));
+      if (deptAdminDepartmentId != null) {
+        list = list.filter((eq) => Number(eq.internal_department) === Number(deptAdminDepartmentId));
       }
       return list as ApiEquipment[];
     },
-    [isDeptAdmin, daDepartmentId, isOic, oicCatalogScope],
+    [deptAdminDepartmentId, isOic, oicCatalogScope],
   );
 
   useEffect(() => {
@@ -409,10 +412,11 @@ const EquipmentList = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {equipment.map((item) => (
+            {equipment.map((item, index) => (
               <EquipmentCatalogCard
                 key={item.id}
                 item={item}
+                imagePriority={index < 3}
                 accent={accentForEquipmentId(item.id)}
                 canChangeSlotStatus={canChangeEquipmentStatus}
                 canBookForOtherUsers={canBookForOtherUsers}

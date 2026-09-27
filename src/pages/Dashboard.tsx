@@ -618,6 +618,8 @@ const Dashboard = () => {
     const checkAuthAndLoadData = async () => {
       // Check authentication using AuthContext
       if (!isAuthenticated) {
+        // Stored session still being verified: redirecting now bounces signed-in users via /auth.
+        if (authLoading) return;
         if (!hasRedirected) {
           hasRedirected = true;
           navigate("/auth");

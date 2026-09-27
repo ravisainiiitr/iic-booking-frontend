@@ -1,4 +1,3 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   DEFAULT_DEPARTMENT_NAME,
   loadPdfMastheadBytes,
@@ -17,6 +16,8 @@ function checkbox(label: string, checked: boolean): string {
 }
 
 export async function generateExternalEquipmentRequisitionFormPdf(booking: BookingDetailCardBooking): Promise<Blob> {
+  // pdf-lib (~350 KB) loads only when a form is generated, not with every booking card.
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]); // A4 portrait (pt)
   const { width, height } = page.getSize();

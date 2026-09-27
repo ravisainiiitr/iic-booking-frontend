@@ -67,7 +67,11 @@ type Props = {
   onRequestStatusChange?: (next: { equipmentId: number; equipmentName: string; newStatus: "ACTIVE" | "REPAIR" }) => void;
   /** Return true to prevent default navigation to equipment detail. */
   onOpenEquipment?: (equipmentId: number) => boolean | void;
+  /** First visible row: load the photo eagerly (it can be the page's LCP element). */
+  imagePriority?: boolean;
 };
+
+const CARD_IMAGE_SIZES = "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw";
 
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
@@ -88,6 +92,7 @@ export default function EquipmentCatalogCard({
   statusUpdatingId,
   onRequestStatusChange,
   onOpenEquipment,
+  imagePriority = false,
 }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -178,6 +183,8 @@ export default function EquipmentCatalogCard({
                 enabled={item.hasImage !== false && !!item.image}
                 alt={item.name}
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                sizes={CARD_IMAGE_SIZES}
+                priority={imagePriority}
               />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/55 via-slate-950/10 to-transparent" />
               {item.video ? (
