@@ -1009,6 +1009,133 @@ export interface WalletRechargeParseRow {
   source_imap_uid?: string;
 }
 
+export interface CopilotCommandAction {
+  id: string;
+  label: string;
+  href?: string;
+  prompt?: string;
+  choice?: { kind: string; value: string };
+}
+
+export interface CopilotCommandGroup {
+  id: string;
+  label: string;
+  actions: CopilotCommandAction[];
+}
+
+export interface CopilotAnswerInput {
+  title: string;
+  question?: string;
+  answer: string;
+  category?: string;
+  keywords?: string[];
+  audience?: string;
+  related_feature?: string;
+  status?: 'draft' | 'pending_approval' | 'approved';
+  related_equipment_ids?: number[];
+}
+
+export interface CopilotAnswer {
+  id: string;
+  title: string;
+  question: string;
+  answer: string;
+  category: string;
+  keywords: string[];
+  audience: string;
+  related_feature: string;
+  source: string;
+  source_ticket_id: number | null;
+  status: 'draft' | 'pending_approval' | 'approved' | 'inactive';
+  version: number;
+  created_by: string | null;
+  updated_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  usage_count: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  last_used_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  related_equipment?: Array<{ id: number; name: string }>;
+  versions?: Array<{
+    version: number;
+    title: string;
+    question: string;
+    answer: string;
+    status: string;
+    change: string;
+    changed_by: string | null;
+    created_at: string | null;
+  }>;
+}
+
+export interface CopilotAnswerListResponse {
+  count: number;
+  results: CopilotAnswer[];
+  can_approve: boolean;
+  categories: Array<{ value: string; label: string }>;
+  audiences: Array<{ value: string; label: string }>;
+  statuses: Array<{ value: string; label: string }>;
+}
+
+export interface CopilotUnanswered {
+  id: string;
+  question: string;
+  reason: string;
+  intent: string;
+  status: string;
+  user: string | null;
+  conversation_id: string | null;
+  resolved_article_id: string | null;
+  created_at: string | null;
+}
+
+export interface CopilotEscalationRow {
+  id: string;
+  ticket_id: number | null;
+  ticket_status: string | null;
+  ticket_href: string | null;
+  question: string;
+  intent: string;
+  reason: string;
+  user: string | null;
+  equipment_id: number | null;
+  booking_id: number | null;
+  created_at: string | null;
+}
+
+export interface CopilotFeedbackRow {
+  id: string;
+  rating: 'up' | 'down';
+  reason: string;
+  comment: string;
+  intent: string;
+  answer_excerpt: string;
+  knowledge_article_id: string | null;
+  knowledge_article_title: string | null;
+  user: string | null;
+  conversation_id: string;
+  created_at: string | null;
+}
+
+export interface CopilotUsage {
+  days: number;
+  conversations: number;
+  user_messages: number;
+  assistant_messages: number;
+  by_intent: Record<string, number>;
+  by_message_type: Record<string, number>;
+  feedback_up: number;
+  feedback_down: number;
+  feedback_reasons: Record<string, number>;
+  escalations: number;
+  open_unanswered: number;
+  articles: { approved: number; pending: number };
+  top_articles: Array<{ id: string; title: string; usage_count: number; helpful_count: number; not_helpful_count: number }>;
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -8775,6 +8902,14 @@ class ApiClient {
       tools_available?: Array<Record<string, unknown>>;
       capabilities?: Record<string, unknown>;
       command_actions?: Array<{ id: string; label: string; href?: string; prompt?: string }>;
+      command_groups?: CopilotCommandGroup[];
+      intelligence?: {
+        enabled: boolean;
+        knowledge: boolean;
+        actions: boolean;
+        can_manage_knowledge: boolean;
+        can_approve_knowledge: boolean;
+      };
     }>('/v1/research-copilot/bootstrap/');
   }
 
@@ -8809,11 +8944,113 @@ class ApiClient {
     });
   }
 
-  async researchCopilotListConversations() {
+  async researchCopilotListConversations(archived = false) {
     return this.request<{
       count: number;
-      results: Array<{ id: string; title: string; updated_at?: string | null }>;
-    }>('/v1/research-copilot/conversations/');
+      results: Array<{
+        id: string;
+        title: string;
+        updated_at?: string | null;
+        created_at?: string | null;
+        is_archived?: boolean;
+        last_query?: string;
+      }>;
+    }>(`/v1/research-copilot/conversations/${archived ? '?archived=1' : ''}`);
+  }
+
+  async researchCopilotArchiveConversation(conversationId: string, archived = true) {
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/conversations/${conversationId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_archived: archived }),
+    });
+  }
+
+  async researchCopilotEscalate(
+    conversationId: string,
+    params: { message_id?: string; reason?: string; note?: string; question?: string },
+  ) {
+    return this.request<{ ok: boolean; ticket_id: number; duplicate: boolean; href: string; message: string }>(
+      `/v1/research-copilot/conversations/${conversationId}/escalate/`,
+      { method: 'POST', body: JSON.stringify(params) },
+    );
+  }
+
+  async copilotAnswersList(params?: { status?: string; category?: string; q?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.category) qs.set('category', params.category);
+    if (params?.q) qs.set('q', params.q);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<CopilotAnswerListResponse>(`/v1/research-copilot/answers/${suffix}`);
+  }
+
+  async copilotAnswerDetail(articleId: string) {
+    return this.request<CopilotAnswer>(`/v1/research-copilot/answers/${articleId}/`);
+  }
+
+  async copilotAnswerCreate(payload: CopilotAnswerInput) {
+    return this.request<CopilotAnswer>('/v1/research-copilot/answers/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async copilotAnswerUpdate(articleId: string, payload: Partial<CopilotAnswerInput>) {
+    return this.request<CopilotAnswer>(`/v1/research-copilot/answers/${articleId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async copilotAnswerApprove(articleId: string) {
+    return this.request<CopilotAnswer>(`/v1/research-copilot/answers/${articleId}/approve/`, { method: 'POST' });
+  }
+
+  async copilotAnswerDeactivate(articleId: string) {
+    return this.request<CopilotAnswer>(`/v1/research-copilot/answers/${articleId}/deactivate/`, { method: 'POST' });
+  }
+
+  async copilotAnswerFromTicketDraft(ticketId: number) {
+    return this.request<CopilotAnswerInput & { can_approve: boolean }>(
+      `/v1/research-copilot/answers/from-ticket/${ticketId}/`,
+    );
+  }
+
+  async copilotAnswerFromTicket(ticketId: number, payload: Partial<CopilotAnswerInput>) {
+    return this.request<CopilotAnswer>(`/v1/research-copilot/answers/from-ticket/${ticketId}/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async copilotConsoleUnanswered(status = 'open') {
+    return this.request<{ count: number; results: CopilotUnanswered[] }>(
+      `/v1/research-copilot/console/unanswered/?status=${encodeURIComponent(status)}`,
+    );
+  }
+
+  async copilotConsoleResolveUnanswered(
+    gapId: string,
+    payload: { dismiss?: boolean; article_id?: string } & Partial<CopilotAnswerInput>,
+  ) {
+    return this.request<Record<string, unknown>>(`/v1/research-copilot/console/unanswered/${gapId}/resolve/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async copilotConsoleEscalations() {
+    return this.request<{ count: number; results: CopilotEscalationRow[] }>('/v1/research-copilot/console/escalations/');
+  }
+
+  async copilotConsoleFeedback(rating: 'up' | 'down' | 'all' = 'down') {
+    return this.request<{ count: number; results: CopilotFeedbackRow[] }>(
+      `/v1/research-copilot/console/feedback/?rating=${rating}`,
+    );
+  }
+
+  async copilotConsoleUsage(days = 30) {
+    return this.request<CopilotUsage>(`/v1/research-copilot/console/usage/?days=${days}`);
   }
 
   async researchCopilotCreateConversation(title?: string) {
@@ -8834,7 +9071,11 @@ class ApiClient {
     }>(`/v1/research-copilot/conversations/${conversationId}/`);
   }
 
-  async researchCopilotSendMessage(conversationId: string, content: string) {
+  async researchCopilotSendMessage(
+    conversationId: string,
+    content: string,
+    choice?: { kind: string; value: string } | null,
+  ) {
     return this.request<{
       conversation_id: string;
       message: Record<string, unknown>;
@@ -8844,7 +9085,7 @@ class ApiClient {
       response_kind?: string;
     }>(`/v1/research-copilot/conversations/${conversationId}/messages/`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(choice ? { content, choice } : { content }),
     });
   }
 
@@ -8862,9 +9103,9 @@ class ApiClient {
 
   async researchCopilotFeedback(
     conversationId: string,
-    params: { rating: 'up' | 'down'; comment?: string; message_id?: string },
+    params: { rating: 'up' | 'down'; comment?: string; message_id?: string; reason?: string },
   ) {
-    return this.request<{ id: string; rating: string }>(
+    return this.request<{ id: string; rating: string; reason?: string }>(
       `/v1/research-copilot/conversations/${conversationId}/feedback/`,
       {
         method: 'POST',

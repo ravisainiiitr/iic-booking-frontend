@@ -189,6 +189,14 @@ const AdminSettings = () => {
               onClick={() => navigate("/admin-settings/knowledge")}
             />
           )}
+          {(isAdmin || userTypeStr === "dept_admin" || userTypeStr === "manager") && (
+            <SettingsTile
+              icon={<MessageSquare className="h-5 w-5" />}
+              title="Copilot Answers & Console"
+              description="Approved answers, unanswered questions, escalations, feedback and usage"
+              onClick={() => navigate("/admin-settings/copilot-answers")}
+            />
+          )}
           {can("admin_settings.rewards") && (
             <SettingsTile
               icon={<Trophy className="h-5 w-5" />}

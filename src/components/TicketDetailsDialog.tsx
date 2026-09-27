@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { apiClient } from "@/lib/api";
+import { apiClient, type CopilotAnswerInput } from "@/lib/api";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -161,6 +162,10 @@ export default function TicketDetailsDialog({
   const [assignees, setAssignees] = useState<AssigneeOption[]>([]);
   const [assigneeLoading, setAssigneeLoading] = useState(false);
   const [reassigning, setReassigning] = useState(false);
+  const [answerDraft, setAnswerDraft] = useState<(CopilotAnswerInput & { can_approve: boolean }) | null>(null);
+  const [answerFormOpen, setAnswerFormOpen] = useState(false);
+  const [answerSaving, setAnswerSaving] = useState(false);
+  const [answerSavedId, setAnswerSavedId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!ticket?.ticket_id) return;
@@ -204,6 +209,53 @@ export default function TicketDetailsDialog({
       window.clearTimeout(t);
     };
   }, [assigneeOpen, assigneeQuery, isStaff]);
+
+  const isResolved = detail?.status === "resolved" || detail?.status === "closed";
+  const mayDraftAnswer = Boolean(
+    detail && isResolved && (isStaff || (user?.id != null && detail.assigned_to === user.id)),
+  );
+
+  useEffect(() => {
+    setAnswerDraft(null);
+    setAnswerFormOpen(false);
+    setAnswerSavedId(null);
+    if (!open || !mayDraftAnswer || !detail?.ticket_id) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await apiClient.copilotAnswerFromTicketDraft(detail.ticket_id);
+      if (!cancelled && res.data) setAnswerDraft(res.data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mayDraftAnswer, detail?.ticket_id]);
+
+  const saveAsCopilotAnswer = async () => {
+    if (!detail || !answerDraft || !answerDraft.title.trim() || !answerDraft.answer.trim()) return;
+    setAnswerSaving(true);
+    const res = await apiClient.copilotAnswerFromTicket(detail.ticket_id, {
+      title: answerDraft.title.trim(),
+      question: answerDraft.question?.trim() || "",
+      answer: answerDraft.answer.trim(),
+      category: answerDraft.category,
+      audience: answerDraft.audience,
+      related_equipment_ids: answerDraft.related_equipment_ids,
+    });
+    setAnswerSaving(false);
+    if (res.error || !res.data) {
+      toast({ title: "Could not save answer", description: res.error, variant: "destructive" });
+      return;
+    }
+    setAnswerSavedId(res.data.id);
+    setAnswerFormOpen(false);
+    toast({
+      title: "Copilot answer saved",
+      description:
+        res.data.status === "approved"
+          ? "The answer is approved and can now be used by Copilot."
+          : "The answer is pending approval and will not be shown to users until approved.",
+    });
+  };
 
   const conversationComments = useMemo(() => {
     // Keep human conversation; system lifecycle lines still show but styled quieter
@@ -598,6 +650,77 @@ export default function TicketDetailsDialog({
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Mark resolved
                   </Button>
+                </section>
+              )}
+
+              {answerDraft && (
+                <section className="space-y-3 rounded-xl border border-amber-200/70 bg-amber-50/30 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold">Research Copilot knowledge</h3>
+                    {!answerFormOpen && !answerSavedId && (
+                      <Button type="button" size="sm" variant="outline" onClick={() => setAnswerFormOpen(true)}>
+                        Save as Copilot answer
+                      </Button>
+                    )}
+                  </div>
+                  {answerSavedId ? (
+                    <p className="text-sm text-muted-foreground">
+                      Saved to the Copilot knowledge base and waiting for approval.
+                      {answerDraft.can_approve ? " You can approve it in the Copilot knowledge console." : ""}
+                    </p>
+                  ) : answerFormOpen ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Rewrite the resolution as a general answer and remove any personal details. Copilot shows
+                        it to users only after it is approved.
+                      </p>
+                      <div className="space-y-1">
+                        <Label htmlFor="copilot-answer-title">Title</Label>
+                        <Input
+                          id="copilot-answer-title"
+                          value={answerDraft.title}
+                          maxLength={255}
+                          onChange={(e) => setAnswerDraft({ ...answerDraft, title: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="copilot-answer-question">Question users ask</Label>
+                        <Textarea
+                          id="copilot-answer-question"
+                          rows={2}
+                          value={answerDraft.question || ""}
+                          onChange={(e) => setAnswerDraft({ ...answerDraft, question: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="copilot-answer-body">Answer</Label>
+                        <Textarea
+                          id="copilot-answer-body"
+                          rows={5}
+                          value={answerDraft.answer}
+                          onChange={(e) => setAnswerDraft({ ...answerDraft, answer: e.target.value })}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={answerSaving || !answerDraft.title.trim() || !answerDraft.answer.trim()}
+                          onClick={() => void saveAsCopilotAnswer()}
+                        >
+                          {answerSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Save answer
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setAnswerFormOpen(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Turn this resolution into a reviewed answer that Copilot can reuse for similar questions.
+                    </p>
+                  )}
                 </section>
               )}
             </div>

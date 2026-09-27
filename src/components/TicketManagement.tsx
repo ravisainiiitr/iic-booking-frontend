@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ const TicketManagement = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const userTypeLower = String(user?.user_type ?? "").toLowerCase();
   const isTicketStaff = userTypeLower === "admin" || userTypeLower === "dept_admin";
 
@@ -81,6 +83,25 @@ const TicketManagement = () => {
   useEffect(() => {
     if (isAuthenticated) void loadTickets();
   }, [isAuthenticated, statusFilter, typeFilter]);
+
+  const deepLinkTicketId = searchParams.get("ticket");
+  useEffect(() => {
+    if (!isAuthenticated || !deepLinkTicketId || !/^\d+$/.test(deepLinkTicketId)) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await apiClient.getTicket(deepLinkTicketId);
+      if (cancelled) return;
+      if (res.data) {
+        setSelectedTicket(res.data as unknown as Ticket);
+        setDetailOpen(true);
+      } else {
+        toast({ title: "Ticket not found", description: res.error || "This ticket could not be opened.", variant: "destructive" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, deepLinkTicketId, toast]);
 
   const handleViewTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket);
@@ -230,7 +251,14 @@ const TicketManagement = () => {
         open={detailOpen}
         onOpenChange={(open) => {
           setDetailOpen(open);
-          if (!open) setSelectedTicket(null);
+          if (!open) {
+            setSelectedTicket(null);
+            if (searchParams.has("ticket")) {
+              const next = new URLSearchParams(searchParams);
+              next.delete("ticket");
+              setSearchParams(next, { replace: true });
+            }
+          }
         }}
         isStaff={isTicketStaff}
         onUpdated={() => void loadTickets()}

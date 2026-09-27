@@ -119,6 +119,7 @@ import OrganizationUsersManagement from "@/pages/OrganizationUsersManagement";
 import ExternalDepartmentAdditionVerification from "@/pages/ExternalDepartmentAdditionVerification";
 import UserGuidePreview from "@/pages/UserGuidePreview";
 import AdminSettingsKnowledge from "@/pages/AdminSettingsKnowledge";
+import AdminSettingsCopilotAnswers from "@/pages/AdminSettingsCopilotAnswers";
 import UserGuidePage from "@/pages/UserGuidePage";
 import ViewResults from "@/pages/ViewResults";
 import SharedWithMe from "@/pages/SharedWithMe";
@@ -218,6 +219,7 @@ export default function AppRoutes() {
       <Route path="/content-management" element={<ContentManagement />} />
       <Route path="/admin-settings" element={<AdminSettings />} />
       <Route path="/admin-settings/knowledge" element={<AdminSettingsKnowledge />} />
+      <Route path="/admin-settings/copilot-answers" element={<AdminSettingsCopilotAnswers />} />
       <Route
         path="/admin-settings/admin-panel-access"
         element={
