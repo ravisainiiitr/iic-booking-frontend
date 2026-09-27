@@ -1170,12 +1170,11 @@ export default function ResearchCopilot() {
 
   return (
     <>
-      {/* Stacked above the support ChatWidget button (bottom-6 right-6). */}
       <Button
         type="button"
         aria-label={open ? "Close Research Copilot" : "Open Research Copilot"}
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-24 right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
+        className="fixed bottom-6 right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         <span className="hidden sm:inline text-sm font-semibold">Research Copilot</span>
@@ -1183,8 +1182,8 @@ export default function ResearchCopilot() {
 
       {open && (
         <div
-          className="fixed bottom-40 right-3 z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl sm:right-6"
-          style={{ height: "min(620px, calc(100vh - 11.5rem))" }}
+          className="fixed bottom-20 right-3 z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl sm:right-6"
+          style={{ height: "min(640px, calc(100vh - 7rem))" }}
         >
           {/* History (signed-in only) */}
           {isAuthenticated ? (
