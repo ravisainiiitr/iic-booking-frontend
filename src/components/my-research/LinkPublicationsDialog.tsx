@@ -68,7 +68,7 @@ export function LinkPublicationsDialog({ workspaceId, open, onOpenChange, onLink
           <DialogTitle>Link publications</DialogTitle>
           <DialogDescription>
             Pick from the publications you have submitted to IIC.{" "}
-            <Link to="/my-publications" className="text-violet-700 underline underline-offset-2 dark:text-violet-300">
+            <Link to="/my-publications" className="text-primary underline underline-offset-2 dark:text-sky-300">
               Submit a new publication
             </Link>{" "}
             first if it is not listed.

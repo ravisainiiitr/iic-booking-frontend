@@ -4,7 +4,6 @@ import {
   Activity,
   Archive,
   ArchiveRestore,
-  ArrowLeft,
   BookOpen,
   CalendarCheck,
   CalendarPlus,
@@ -16,6 +15,7 @@ import {
   Loader2,
   Lock,
   Microscope,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -35,7 +35,7 @@ import type {
   ResearchSearchResult,
   ResearchWorkspaceCard,
 } from "@/lib/myResearchTypes";
-import DashboardHeader from "@/components/DashboardHeader";
+import { PageHero, PageShell, heroButtonClass } from "@/components/PageShell";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +49,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookFromWorkspaceDialog } from "@/components/my-research/BookFromWorkspaceDialog";
 import { CreateWorkspaceDialog } from "@/components/my-research/CreateWorkspaceDialog";
@@ -58,7 +66,16 @@ import { downloadResearchFile } from "@/components/my-research/downloadResearchF
 import { LinkBookingsDialog } from "@/components/my-research/LinkBookingsDialog";
 import { LinkPublicationsDialog } from "@/components/my-research/LinkPublicationsDialog";
 import { ShareWorkspaceDialog } from "@/components/my-research/ShareWorkspaceDialog";
-import { RESEARCH_GRADIENT, formatBytes, formatDate, timeAgo } from "@/components/my-research/researchUtils";
+import { formatBytes, formatDate, timeAgo } from "@/components/my-research/researchUtils";
+import {
+  EmptyState,
+  HeroBadge,
+  RESEARCH_TAB_TRIGGER_CLASS,
+  RESEARCH_TABS_LIST_CLASS,
+  ResearchBreadcrumbs,
+  StatStrip,
+  type StatItem,
+} from "@/components/my-research/researchUi";
 
 const TABS = ["overview", "files", "bookings", "equipment", "publications", "members"] as const;
 type Tab = (typeof TABS)[number];
@@ -69,7 +86,7 @@ function ActivityList({ items }: { items: ResearchActivity[] }) {
     <ul className="divide-y">
       {items.map((a) => (
         <li key={a.id} className="flex items-start gap-3 py-2.5">
-          <Activity className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+          <Activity className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0 text-sm">
             <p>
               <span className="font-medium">{a.actor?.name ?? "Someone"}</span>{" "}
@@ -212,125 +229,148 @@ export default function ResearchWorkspace() {
     else refresh();
   };
 
-  const stats = useMemo(
-    () =>
-      workspace
-        ? [
-            { label: "Files", value: workspace.stats.files, icon: FileText },
-            { label: "Folders", value: workspace.stats.folders, icon: Folder },
-            { label: "Bookings", value: workspace.stats.bookings, icon: CalendarCheck },
-            { label: "Equipment", value: workspace.stats.equipment, icon: Microscope },
-            { label: "Publications", value: workspace.stats.publications, icon: BookOpen },
-            { label: "Storage", value: formatBytes(workspace.stats.storage_bytes), icon: HardDrive },
-          ]
-        : [],
-    [workspace],
-  );
+  const stats = useMemo<StatItem[]>(() => {
+    if (!workspace) return [];
+    const items: StatItem[] = [
+      { label: "Members", value: members.length || workspace.stats.viewers + 1, icon: Users },
+      { label: "Files", value: workspace.stats.files, icon: FileText },
+      { label: "Bookings", value: workspace.stats.bookings, icon: CalendarCheck },
+      { label: "Equipment", value: workspace.stats.equipment, icon: Microscope },
+      { label: "Publications", value: workspace.stats.publications, icon: BookOpen },
+    ];
+    if (workspace.stats.storage_bytes > 0) items.push({ label: "Storage used", value: formatBytes(workspace.stats.storage_bytes), icon: HardDrive });
+    return items;
+  }, [workspace, members.length]);
 
   if (!user) return null;
 
+  const crumbs = [
+    { label: "Dashboard", to: "/dashboard" },
+    { label: "My Research", to: "/my-research" },
+    { label: workspace?.name ?? "Workspace" },
+  ];
+
   if (loadError) {
     return (
-      <div className="page-shell">
-        <DashboardHeader />
-        <main className="container mx-auto px-4 py-5">
-          <Card className="mx-auto max-w-lg">
-            <CardContent className="space-y-4 py-12 text-center">
-              <Lock className="mx-auto h-10 w-10 text-muted-foreground/60" />
-              <p className="text-muted-foreground">{loadError}</p>
-              <Button variant="outline" onClick={() => navigate("/my-research")}>
+      <PageShell>
+        <main className="container mx-auto space-y-4 px-4 py-5">
+          <ResearchBreadcrumbs items={crumbs} />
+          <EmptyState
+            icon={Lock}
+            title={loadError}
+            action={
+              <Button variant="outline" size="sm" onClick={() => navigate("/my-research")}>
                 Back to My Research
               </Button>
-            </CardContent>
-          </Card>
+            }
+          />
         </main>
-      </div>
+      </PageShell>
     );
   }
 
   if (!workspace) {
     return (
-      <div className="page-shell">
-        <DashboardHeader />
-        <div className="flex justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
+      <PageShell>
+        <main className="container mx-auto space-y-4 px-4 py-5" aria-busy="true">
+          <ResearchBreadcrumbs items={crumbs} />
+          <Skeleton className="h-[84px] w-full rounded-xl" />
+          <Skeleton className="h-14 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-48 w-full rounded-lg" />
+        </main>
+      </PageShell>
     );
   }
 
-  return (
-    <div className="page-shell">
-      <DashboardHeader />
-      <main className="container mx-auto space-y-4 px-4 py-5">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/my-research")} className="gap-2">
-          <ArrowLeft className="h-4 w-4" /> My Research
-        </Button>
+  const canManage = canEdit || Boolean(perms?.can_archive || perms?.can_restore);
 
-        <Card className="overflow-hidden border-0 shadow-lg">
-          <div className={`bg-gradient-to-r ${RESEARCH_GRADIENT} px-5 py-5 text-white`}>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex min-w-0 items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25">
-                  <FlaskConical className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl font-bold leading-tight sm:text-2xl">{workspace.name}</h1>
-                    {!isOwner ? (
-                      <Badge className="gap-1 border-white/30 bg-white/20 text-white hover:bg-white/20">
-                        <Eye className="h-3 w-3" /> READ-ONLY
-                      </Badge>
-                    ) : null}
-                    {archived ? <Badge className="border-amber-200 bg-amber-400 text-amber-950 hover:bg-amber-400">Archived</Badge> : null}
-                  </div>
-                  {workspace.description ? <p className="mt-1 max-w-3xl text-sm text-white/85">{workspace.description}</p> : null}
-                  <p className="mt-1 text-xs text-white/75">
-                    {isOwner ? "You own this workspace" : `Owner: ${workspace.owner.name}`} · Updated {timeAgo(workspace.last_activity_at)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {perms?.can_share && !archived ? (
-                  <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setShareOpen(true)}>
-                    <Share2 className="h-4 w-4" /> Share
-                  </Button>
-                ) : null}
-                {canEdit ? (
-                  <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setEditOpen(true)}>
-                    <Pencil className="h-4 w-4" /> Edit
-                  </Button>
-                ) : null}
-                {perms?.can_archive || perms?.can_restore ? (
-                  <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setArchiveOpen(true)}>
-                    {archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                    {archived ? "Restore" : "Archive"}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-          {!isOwner ? (
-            <div className="flex items-center gap-2 border-b bg-violet-50 px-5 py-2 text-sm text-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
-              <Eye className="h-4 w-4 shrink-0" />
-              You have read-only access. You can view and download files but cannot upload, edit, delete, or share.
-            </div>
-          ) : archived ? (
-            <div className="flex items-center gap-2 border-b bg-amber-50 px-5 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-              <Archive className="h-4 w-4 shrink-0" />
-              This workspace is archived. Files stay available to view and download. Restore it to make changes.
-            </div>
-          ) : null}
-          <div className="relative border-b px-5 py-3">
-            <Search className="absolute left-8 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  return (
+    <PageShell>
+      <main className="container mx-auto space-y-4 px-4 py-5">
+        <div className="space-y-3">
+          <ResearchBreadcrumbs items={crumbs} />
+          <PageHero
+            compact
+            title={workspace.name}
+            icon={<FlaskConical className="h-5 w-5" />}
+            badges={
+              <>
+                {!isOwner ? <HeroBadge icon={Eye}>Read only</HeroBadge> : null}
+                {archived ? <HeroBadge icon={Archive}>Archived</HeroBadge> : null}
+              </>
+            }
+            description={workspace.description || undefined}
+            meta={
+              <>
+                <span>Research workspace</span>
+                <span>Owner: {isOwner ? "You" : workspace.owner.name}</span>
+                {workspace.owner.department ? <span>Department: {workspace.owner.department}</span> : null}
+                <span>Updated {timeAgo(workspace.last_activity_at)}</span>
+              </>
+            }
+            actions={
+              perms?.can_share && !archived || canManage ? (
+                <>
+                  {perms?.can_share && !archived ? (
+                    <Button size="sm" className={`gap-1.5 ${heroButtonClass.primary}`} onClick={() => setShareOpen(true)}>
+                      <Share2 className="h-4 w-4" aria-hidden /> Share
+                    </Button>
+                  ) : null}
+                  {canManage ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline" className={`gap-1.5 ${heroButtonClass.secondary}`} aria-label="Manage workspace">
+                          <MoreHorizontal className="h-4 w-4" aria-hidden /> Manage
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {canEdit ? (
+                          <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                            <Pencil className="mr-2 h-4 w-4" aria-hidden /> Edit details
+                          </DropdownMenuItem>
+                        ) : null}
+                        {canEdit && (perms?.can_archive || perms?.can_restore) ? <DropdownMenuSeparator /> : null}
+                        {perms?.can_archive || perms?.can_restore ? (
+                          <DropdownMenuItem onClick={() => setArchiveOpen(true)}>
+                            {archived ? <ArchiveRestore className="mr-2 h-4 w-4" aria-hidden /> : <Archive className="mr-2 h-4 w-4" aria-hidden />}
+                            {archived ? "Restore workspace" : "Archive workspace"}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </>
+              ) : null
+            }
+          />
+        </div>
+
+        {!isOwner ? (
+          <p className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+            <Eye className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            You have read-only access. You can view and download files but cannot upload, edit, delete, or share.
+          </p>
+        ) : archived ? (
+          <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+            <Archive className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            This workspace is archived. Files stay available to view and download. Restore it to make changes.
+          </p>
+        ) : null}
+
+        <StatStrip items={stats} />
+
+        <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search files, folders, bookings and publications in this workspace"
-              className="pl-9"
+              aria-label="Search this workspace"
+              className="bg-card pl-9"
             />
             {query.trim() && (searchResult || searching) ? (
-              <div className="absolute left-5 right-5 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border bg-popover p-2 shadow-xl">
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border bg-popover p-2 shadow-xl">
                 {searching && !searchResult ? (
                   <Loader2 className="mx-auto my-4 h-5 w-5 animate-spin text-muted-foreground" />
                 ) : searchResult &&
@@ -349,7 +389,7 @@ export default function ResearchWorkspace() {
                           setSearchParams(params, { replace: true });
                         }}
                       >
-                        <Folder className="h-4 w-4 text-violet-600" />
+                        <Folder className="h-4 w-4 text-primary" aria-hidden />
                         <span className="truncate">{f.path.join(" / ")}</span>
                       </button>
                     ))}
@@ -401,33 +441,19 @@ export default function ResearchWorkspace() {
                 ) : null}
               </div>
             ) : null}
-          </div>
-        </Card>
+        </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-muted/60 p-1">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="files">Files ({workspace.stats.files})</TabsTrigger>
-            <TabsTrigger value="bookings">Bookings ({workspace.stats.bookings})</TabsTrigger>
-            <TabsTrigger value="equipment">Equipment ({workspace.stats.equipment})</TabsTrigger>
-            <TabsTrigger value="publications">Publications ({workspace.stats.publications})</TabsTrigger>
-            <TabsTrigger value="members">Members ({members.length})</TabsTrigger>
+          <TabsList className={RESEARCH_TABS_LIST_CLASS}>
+            <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="overview">Overview</TabsTrigger>
+            <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="files">Files ({workspace.stats.files})</TabsTrigger>
+            <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="bookings">Bookings ({workspace.stats.bookings})</TabsTrigger>
+            <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="equipment">Equipment ({workspace.stats.equipment})</TabsTrigger>
+            <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="publications">Publications ({workspace.stats.publications})</TabsTrigger>
+            <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="members">Members ({members.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {stats.map((s) => (
-                <Card key={s.label} className="border-violet-100 dark:border-violet-900/40">
-                  <CardContent className="flex items-center gap-3 p-3">
-                    <s.icon className="h-5 w-5 shrink-0 text-violet-600" />
-                    <div className="min-w-0">
-                      <p className="text-lg font-semibold leading-tight">{s.value}</p>
-                      <p className="text-xs text-muted-foreground">{s.label}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
             <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
               <Card>
                 <CardHeader className="pb-2">
@@ -499,7 +525,7 @@ export default function ResearchWorkspace() {
                     </Button>
                     <Button
                       size="sm"
-                      className="gap-1.5 bg-violet-600 hover:bg-violet-700"
+                      className="gap-1.5"
                       onClick={() => setBookFrom({ folderId: null, folderLabel: null })}
                     >
                       <CalendarPlus className="h-4 w-4" /> Book equipment
@@ -509,7 +535,7 @@ export default function ResearchWorkspace() {
               </CardHeader>
               <CardContent className="p-0">
                 {bookings.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-muted-foreground">No bookings added yet.</p>
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">No bookings added yet.</p>
                 ) : (
                   <ul className="divide-y">
                     {bookings.map((b) => (
@@ -530,7 +556,7 @@ export default function ResearchWorkspace() {
                           {b.folder_id && b.folder_path?.length ? (
                             <button
                               type="button"
-                              className="mt-0.5 flex items-center gap-1 text-xs text-violet-700 hover:underline dark:text-violet-300"
+                              className="mt-0.5 flex items-center gap-1 text-xs text-primary hover:underline dark:text-sky-300"
                               onClick={() => setSearchParams(new URLSearchParams({ tab: "files", folder: b.folder_id! }), { replace: true })}
                             >
                               <Folder className="h-3 w-3" />
@@ -571,13 +597,13 @@ export default function ResearchWorkspace() {
               </CardHeader>
               <CardContent className="p-0">
                 {equipment.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-muted-foreground">Add bookings to see the equipment used.</p>
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">Add bookings to see the equipment used.</p>
                 ) : (
                   <ul className="divide-y">
                     {equipment.map((e) => (
                       <li key={e.equipment_id} className="flex items-center justify-between gap-3 px-5 py-3">
                         <div className="flex min-w-0 items-center gap-3">
-                          <Microscope className="h-5 w-5 shrink-0 text-violet-600" />
+                          <Microscope className="h-5 w-5 shrink-0 text-primary" aria-hidden />
                           <div className="min-w-0">
                             <p className="truncate font-medium">{e.name}</p>
                             <p className="text-xs text-muted-foreground">
@@ -609,7 +635,7 @@ export default function ResearchWorkspace() {
               </CardHeader>
               <CardContent className="p-0">
                 {publications.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-muted-foreground">No publications linked yet.</p>
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">No publications linked yet.</p>
                 ) : (
                   <ul className="divide-y">
                     {publications.map((p) => (
@@ -629,7 +655,7 @@ export default function ResearchWorkspace() {
                                 href={`https://doi.org/${encodeURIComponent(p.doi)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-violet-700 hover:underline dark:text-violet-300"
+                                className="text-primary hover:underline dark:text-sky-300"
                               >
                                 DOI {p.doi}
                               </a>
@@ -741,6 +767,6 @@ export default function ResearchWorkspace() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   );
 }

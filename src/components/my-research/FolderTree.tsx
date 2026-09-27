@@ -48,7 +48,7 @@ function FolderNode({ workspaceId, folder, depth, selectedId, expandPath, disabl
       <div
         className={cn(
           "group flex items-center gap-1 rounded-md py-1 pr-2 text-sm",
-          selectedId === folder.id ? "bg-violet-100 font-medium text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" : "hover:bg-muted",
+          selectedId === folder.id ? "bg-primary/10 font-medium text-primary dark:bg-primary/20 dark:text-sky-100" : "hover:bg-muted",
           disabled && "pointer-events-none opacity-40",
         )}
         style={{ paddingLeft: depth * 14 + 4 }}
@@ -64,9 +64,9 @@ function FolderNode({ workspaceId, folder, depth, selectedId, expandPath, disabl
         </button>
         <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 text-left" onClick={() => onSelect(folder)}>
           {selectedId === folder.id ? (
-            <FolderOpen className="h-4 w-4 shrink-0 text-violet-600" />
+            <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
           ) : (
-            <Folder className="h-4 w-4 shrink-0 text-violet-500/80" />
+            <Folder className="h-4 w-4 shrink-0 text-primary/70" />
           )}
           <span className="truncate">{folder.name}</span>
         </button>
@@ -124,10 +124,10 @@ export function FolderTree({
         onClick={() => onSelect(null)}
         className={cn(
           "flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm",
-          selectedId === null ? "bg-violet-100 font-medium text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" : "hover:bg-muted",
+          selectedId === null ? "bg-primary/10 font-medium text-primary dark:bg-primary/20 dark:text-sky-100" : "hover:bg-muted",
         )}
       >
-        <Home className="h-4 w-4 text-violet-600" />
+        <Home className="h-4 w-4 text-primary" />
         {rootLabel}
       </button>
       {loading && !children ? (

@@ -54,7 +54,7 @@ export function UploadQueuePanel({ items, onCancel, onRetry, onClear }: Props) {
                 ) : item.status === "failed" ? (
                   <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                 ) : active ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-600" />
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
                 ) : (
                   <X className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}

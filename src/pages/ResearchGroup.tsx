@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Lock, RefreshCw } from "lucide-react";
+import { Activity, Loader2, Lock, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import type { GroupMember, ResearchGroupDetail } from "@/lib/researchGroupTypes";
-import DashboardHeader from "@/components/DashboardHeader";
+import { PageShell } from "@/components/PageShell";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,8 +17,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  EmptyState,
+  InlineError,
+  RESEARCH_TAB_TRIGGER_CLASS,
+  RESEARCH_TABS_LIST_CLASS,
+  ResearchBreadcrumbs,
+  SectionHeader,
+} from "@/components/my-research/researchUi";
 import { CreateResearchGroupDialog } from "@/components/my-research/groups/CreateResearchGroupDialog";
 import { ResearchActivities } from "@/components/my-research/groups/ResearchActivities";
 import { ResearchGroupCategories } from "@/components/my-research/groups/ResearchGroupCategories";
@@ -29,7 +37,7 @@ import { ResearchNeedsAttention } from "@/components/my-research/groups/Research
 import { ResearchUpdates } from "@/components/my-research/groups/ResearchUpdates";
 import { GroupEventList } from "@/components/my-research/groups/groupUi";
 
-const TABS = ["members", "activities", "updates", "workspaces"] as const;
+const TABS = ["overview", "members", "activities", "updates", "workspaces"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ResearchGroup() {
@@ -40,15 +48,17 @@ export default function ResearchGroup() {
   const [group, setGroup] = useState<ResearchGroupDetail | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [blocked, setBlocked] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
 
   const tabParam = params.get("tab");
   const isManager = group ? group.my_role !== "MEMBER" : false;
-  const defaultTab: Tab = isManager ? "members" : "activities";
+  const defaultTab: Tab = isManager ? "overview" : "activities";
   const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : defaultTab;
   const focusRequestId = params.get("request");
   const focusActivityId = params.get("activity");
@@ -85,10 +95,11 @@ export default function ResearchGroup() {
               ? g.error || "Research Groups are available only to IIT Roorkee students and faculty."
               : "This research group does not exist or you are not a member.",
         );
-      } else toast.error(g.error || "Could not load the research group.");
+      } else setLoadFailed(true);
       return;
     }
     setBlocked(null);
+    setLoadFailed(false);
     setGroup(g.data);
     setMembers(m.data?.results ?? []);
   }, [groupId]);
@@ -101,6 +112,16 @@ export default function ResearchGroup() {
     }
     void load();
   }, [authLoading, user, navigate, load]);
+
+  const composition = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const m of members) {
+      const entry = counts.get(m.member_type) ?? { label: m.member_type_label, count: 0 };
+      entry.count += 1;
+      counts.set(m.member_type, entry);
+    }
+    return [...counts.values()].sort((a, b) => b.count - a.count);
+  }, [members]);
 
   const archive = async () => {
     setArchiving(true);
@@ -118,45 +139,57 @@ export default function ResearchGroup() {
   if (!user) return null;
 
   const canManage = Boolean(group?.permissions.can_manage);
+  const crumbs = [
+    { label: "Dashboard", to: "/dashboard" },
+    { label: "My Research", to: "/my-research" },
+    { label: group?.name ?? "Research group" },
+  ];
 
   return (
-    <div className="page-shell">
-      <DashboardHeader />
+    <PageShell>
       <main className="container mx-auto space-y-4 px-4 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/my-research")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" aria-hidden /> My Research
-          </Button>
-          {!blocked ? (
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="gap-2">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden /> Refresh
-            </Button>
-          ) : null}
-        </div>
+        <ResearchBreadcrumbs items={crumbs} />
 
         {blocked ? (
-          <Card>
-            <CardContent className="py-14 text-center text-muted-foreground">
-              <Lock className="mx-auto mb-2 h-10 w-10 opacity-50" aria-hidden />
-              <p>{blocked}</p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Lock}
+            title={blocked}
+            action={
+              <Button variant="outline" size="sm" onClick={() => navigate("/my-research")}>
+                Back to My Research
+              </Button>
+            }
+          />
+        ) : loadFailed && !group ? (
+          <InlineError message="Unable to load this research group." onRetry={() => void load()} />
         ) : loading && !group ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton className="h-[84px] w-full rounded-xl" />
+            <Skeleton className="h-14 w-full rounded-lg" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <Skeleton className="h-48 w-full rounded-lg" />
           </div>
         ) : group ? (
           <>
+            {loadFailed ? <InlineError message="Unable to refresh this research group." onRetry={() => void load()} /> : null}
             <ResearchGroupOverview
               group={group}
               onEdit={() => setEditOpen(true)}
               onManageCategories={() => setCategoriesOpen(true)}
               onArchive={() => setArchiveOpen(true)}
+              onAddMember={() => {
+                setTab("members");
+                setAddMemberOpen(true);
+              }}
+              onRefresh={() => void load()}
+              refreshing={loading}
             />
 
             {group.needs_attention ? (
               <ResearchNeedsAttention
                 data={group.needs_attention}
+                limit={3}
+                onViewAll={() => setTab("updates")}
                 onOpenRequest={(r) => {
                   const p = new URLSearchParams(params);
                   p.set("tab", "updates");
@@ -172,59 +205,104 @@ export default function ResearchGroup() {
               />
             ) : null}
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr),300px]">
-              <Tabs value={tab} onValueChange={setTab} className="min-w-0">
-                <TabsList className="flex h-auto w-full flex-wrap justify-start sm:w-auto">
-                  <TabsTrigger value="members">Members</TabsTrigger>
-                  <TabsTrigger value="activities">{isManager ? "Activities" : "My Activities"}</TabsTrigger>
-                  <TabsTrigger value="updates">{isManager ? "Updates" : "My Updates"}</TabsTrigger>
-                  <TabsTrigger value="workspaces">Workspaces</TabsTrigger>
-                </TabsList>
-                <TabsContent value="members" className="mt-3">
-                  <ResearchGroupMembers
-                    groupId={group.id}
-                    groupName={group.name}
-                    owner={group.owner_details}
-                    members={members}
-                    categories={group.categories}
-                    canManage={canManage}
-                    isManager={isManager}
-                    isOwner={group.permissions.is_owner}
-                    onChanged={() => void load()}
-                  />
-                </TabsContent>
-                <TabsContent value="activities" className="mt-3">
-                  <ResearchActivities
-                    groupId={group.id}
-                    canManage={canManage}
-                    isManager={isManager}
-                    members={members}
-                    categories={group.categories}
-                    focusActivityId={focusActivityId}
-                    onChanged={() => void load()}
-                  />
-                </TabsContent>
-                <TabsContent value="updates" className="mt-3">
-                  <ResearchUpdates
-                    groupId={group.id}
-                    canManage={canManage}
-                    isManager={isManager}
-                    members={members}
-                    focusRequestId={focusRequestId}
-                    onFocusHandled={clearRequestFocus}
-                    onChanged={() => void load()}
-                  />
-                </TabsContent>
-                <TabsContent value="workspaces" className="mt-3">
-                  <ResearchGroupWorkspaceList groupId={group.id} canManage={canManage} />
-                </TabsContent>
-              </Tabs>
+            <Tabs value={tab} onValueChange={setTab} className="min-w-0">
+              <TabsList className={RESEARCH_TABS_LIST_CLASS}>
+                <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="overview">
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="members">
+                  Members ({group.counts.members})
+                </TabsTrigger>
+                <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="activities">
+                  {isManager ? "Activities" : "My Activities"}
+                </TabsTrigger>
+                <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="updates">
+                  {isManager ? "Updates" : "My Updates"}
+                </TabsTrigger>
+                <TabsTrigger className={RESEARCH_TAB_TRIGGER_CLASS} value="workspaces">
+                  Workspaces
+                </TabsTrigger>
+              </TabsList>
 
-              <aside className="space-y-2 rounded-xl border bg-card p-3 sm:p-4" aria-label="Recent group activity">
-                <h2 className="text-sm font-semibold">Recent activity</h2>
-                <GroupEventList events={group.recent_events} />
-              </aside>
-            </div>
+              <TabsContent value="overview" className="mt-4">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+                  <section className="space-y-3" aria-labelledby="team-composition-heading">
+                    <SectionHeader
+                      id="team-composition-heading"
+                      icon={UsersRound}
+                      title="Team composition"
+                      action={
+                        <Button variant="ghost" size="sm" className="h-8 text-primary dark:text-sky-300" onClick={() => setTab("members")}>
+                          View members
+                        </Button>
+                      }
+                    />
+                    {composition.length === 0 ? (
+                      <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">No members yet.</p>
+                    ) : (
+                      <dl className="divide-y rounded-lg border bg-card text-sm">
+                        {composition.map((c) => (
+                          <div key={c.label} className="flex items-center justify-between gap-3 px-4 py-2">
+                            <dt className="text-muted-foreground">{c.label}</dt>
+                            <dd className="font-semibold tabular-nums">{c.count}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Lock className="h-3 w-3 shrink-0" aria-hidden />
+                      Group membership does not automatically grant access to research workspaces.
+                    </p>
+                  </section>
+                  <section className="space-y-3" aria-labelledby="group-activity-heading">
+                    <SectionHeader id="group-activity-heading" icon={Activity} title="Recent activity" />
+                    <div className="rounded-lg border bg-card p-3 sm:p-4">
+                      <GroupEventList events={group.recent_events} />
+                    </div>
+                  </section>
+                </div>
+              </TabsContent>
+              <TabsContent value="members" className="mt-4">
+                <ResearchGroupMembers
+                  groupId={group.id}
+                  groupName={group.name}
+                  owner={group.owner_details}
+                  members={members}
+                  categories={group.categories}
+                  canManage={canManage}
+                  isManager={isManager}
+                  isOwner={group.permissions.is_owner}
+                  onChanged={() => void load()}
+                  addOpen={addMemberOpen}
+                  onAddOpenChange={setAddMemberOpen}
+                />
+              </TabsContent>
+              <TabsContent value="activities" className="mt-4">
+                <ResearchActivities
+                  groupId={group.id}
+                  canManage={canManage}
+                  isManager={isManager}
+                  members={members}
+                  categories={group.categories}
+                  focusActivityId={focusActivityId}
+                  onChanged={() => void load()}
+                />
+              </TabsContent>
+              <TabsContent value="updates" className="mt-4">
+                <ResearchUpdates
+                  groupId={group.id}
+                  canManage={canManage}
+                  isManager={isManager}
+                  members={members}
+                  focusRequestId={focusRequestId}
+                  onFocusHandled={clearRequestFocus}
+                  onChanged={() => void load()}
+                />
+              </TabsContent>
+              <TabsContent value="workspaces" className="mt-4">
+                <ResearchGroupWorkspaceList groupId={group.id} canManage={canManage} />
+              </TabsContent>
+            </Tabs>
           </>
         ) : null}
       </main>
@@ -265,6 +343,6 @@ export default function ResearchGroup() {
           </AlertDialog>
         </>
       ) : null}
-    </div>
+    </PageShell>
   );
 }

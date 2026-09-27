@@ -122,7 +122,7 @@ export function AddGroupMemberDialog({
 
         {selected ? (
           <div className="space-y-4">
-            <div className="space-y-2 rounded-lg border bg-violet-50/60 p-4 dark:bg-violet-950/20">
+            <div className="space-y-2 rounded-lg border bg-muted/40 p-4">
               <p className="text-sm font-medium">Confirm the person before adding:</p>
               <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
                 <dt className="text-muted-foreground">Name</dt>
@@ -222,7 +222,7 @@ export function AddGroupMemberDialog({
                           {u.department ? ` · ${u.department}` : ""}
                         </span>
                       </span>
-                      <UserPlus className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
+                      <UserPlus className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     </button>
                   </li>
                 ))}

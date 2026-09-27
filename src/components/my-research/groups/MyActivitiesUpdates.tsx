@@ -17,9 +17,9 @@ export function MyActivitiesUpdates({ work }: { work: GroupMyWork }) {
         <EmptyHint>No open activities or update requests. Work your supervisor assigns will appear here.</EmptyHint>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-xl border bg-card">
+          <div className="rounded-lg border bg-card">
             <h3 className="flex items-center gap-2 border-b px-3 py-2 text-sm font-semibold">
-              <MessageSquareText className="h-4 w-4 text-violet-600" aria-hidden /> Updates requested ({requests.length})
+              <MessageSquareText className="h-4 w-4 text-primary" aria-hidden /> Updates requested ({requests.length})
             </h3>
             {requests.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground">No updates requested.</p>
@@ -38,6 +38,7 @@ export function MyActivitiesUpdates({ work }: { work: GroupMyWork }) {
                       <RequestStatusBadge status={r.status} />
                       <Button
                         size="sm"
+                        variant="outline"
                         className="h-8"
                         onClick={() => navigate(groupPath(r.group_id, "updates", { request: r.id }))}
                       >
@@ -49,9 +50,9 @@ export function MyActivitiesUpdates({ work }: { work: GroupMyWork }) {
               </ul>
             )}
           </div>
-          <div className="rounded-xl border bg-card">
+          <div className="rounded-lg border bg-card">
             <h3 className="flex items-center gap-2 border-b px-3 py-2 text-sm font-semibold">
-              <ClipboardList className="h-4 w-4 text-violet-600" aria-hidden /> My activities ({work.activities.length})
+              <ClipboardList className="h-4 w-4 text-primary" aria-hidden /> My activities ({work.activities.length})
             </h3>
             {work.activities.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground">No open activities.</p>

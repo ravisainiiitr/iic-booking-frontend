@@ -1,66 +1,60 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, UsersRound } from "lucide-react";
+import { Lock, Plus, UsersRound } from "lucide-react";
 import type { ResearchGroupCardData } from "@/lib/researchGroupTypes";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { EmptyState, SectionHeader } from "../researchUi";
 import { ResearchGroupCard } from "./ResearchGroupCard";
-import { EmptyHint, SectionHeading } from "./groupUi";
 
 const INITIAL_VISIBLE = 3;
 
 interface Props {
   title: string;
+  description?: string;
   groups: ResearchGroupCardData[];
+  emptyTitle: string;
   emptyText: string;
   canCreate?: boolean;
   onCreate?: () => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-/** Compact grid of group cards with "View all" and an archived toggle. */
-export function ResearchGroupList({ title, groups, emptyText, canCreate, onCreate, children }: Props) {
+/** Compact grid of the most recent group cards with "View all". */
+export function ResearchGroupList({ title, description, groups, emptyTitle, emptyText, canCreate, onCreate, children }: Props) {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const archivedCount = groups.filter((g) => g.status === "ARCHIVED").length;
-  const visibleGroups = groups.filter((g) => showArchived || g.status === "ACTIVE");
-  const shown = showAll ? visibleGroups : visibleGroups.slice(0, INITIAL_VISIBLE);
+  const shown = showAll ? groups : groups.slice(0, INITIAL_VISIBLE);
 
   return (
-    <section className="space-y-3" aria-label={title}>
-      <SectionHeading
+    <section className="space-y-3" aria-labelledby="research-groups-heading">
+      <SectionHeader
+        id="research-groups-heading"
         icon={UsersRound}
         title={title}
-        count={visibleGroups.length || undefined}
+        description={description}
+        count={groups.length || undefined}
         action={
-          <div className="flex flex-wrap items-center gap-3">
-            {archivedCount > 0 ? (
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Switch checked={showArchived} onCheckedChange={setShowArchived} aria-label="Show archived groups" />
-                Archived ({archivedCount})
-              </label>
-            ) : null}
-            {visibleGroups.length > INITIAL_VISIBLE ? (
-              <Button variant="link" size="sm" className="h-auto px-0" onClick={() => setShowAll((v) => !v)}>
-                {showAll ? "Show less" : `View all (${visibleGroups.length})`}
-              </Button>
-            ) : null}
-          </div>
+          groups.length > INITIAL_VISIBLE ? (
+            <Button variant="ghost" size="sm" className="h-8 text-primary dark:text-sky-300" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show fewer" : `View all (${groups.length})`}
+            </Button>
+          ) : null
         }
       />
       {children}
-      {visibleGroups.length === 0 ? (
-        canCreate ? (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-6 text-center">
-            <p className="text-sm text-muted-foreground">{emptyText}</p>
-            <Button size="sm" className="gap-2" onClick={onCreate}>
-              <Plus className="h-4 w-4" aria-hidden /> New Research Group
-            </Button>
-          </div>
-        ) : (
-          <EmptyHint>{emptyText}</EmptyHint>
-        )
+      {groups.length === 0 ? (
+        <EmptyState
+          icon={UsersRound}
+          title={emptyTitle}
+          description={emptyText}
+          action={
+            canCreate ? (
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreate}>
+                <Plus className="h-4 w-4" aria-hidden /> New Research Group
+              </Button>
+            ) : null
+          }
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((g) => (
@@ -68,6 +62,10 @@ export function ResearchGroupList({ title, groups, emptyText, canCreate, onCreat
           ))}
         </div>
       )}
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Lock className="h-3 w-3 shrink-0" aria-hidden />
+        Group membership does not automatically grant access to research workspaces.
+      </p>
     </section>
   );
 }

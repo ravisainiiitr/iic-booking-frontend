@@ -23,14 +23,15 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDate, timeAgo } from "../researchUtils";
+import { SectionHeader } from "../researchUi";
 import { REQUEST_STATUS_LABEL, activityStatusLabel, eventSentence } from "./groupLabels";
 
 const ACTIVITY_STATUS_STYLE: Record<GroupActivityStatus, { icon: LucideIcon; className: string }> = {
   NOT_STARTED: { icon: Circle, className: "border-slate-300 text-slate-700 dark:text-slate-300" },
   IN_PROGRESS: { icon: CircleDashed, className: "border-sky-300 text-sky-800 dark:text-sky-300" },
   WAITING: { icon: Hourglass, className: "border-amber-300 text-amber-800 dark:text-amber-300" },
-  SUBMITTED: { icon: Send, className: "border-violet-300 text-violet-800 dark:text-violet-300" },
-  UNDER_REVIEW: { icon: Eye, className: "border-violet-300 text-violet-800 dark:text-violet-300" },
+  SUBMITTED: { icon: Send, className: "border-blue-300 text-blue-800 dark:text-blue-300" },
+  UNDER_REVIEW: { icon: Eye, className: "border-blue-300 text-blue-800 dark:text-blue-300" },
   COMPLETED: { icon: CheckCircle2, className: "border-emerald-300 text-emerald-800 dark:text-emerald-300" },
   CANCELLED: { icon: XCircle, className: "border-slate-300 text-slate-500" },
 };
@@ -47,9 +48,9 @@ export function ActivityStatusBadge({ status, label }: { status: GroupActivitySt
 }
 
 const REQUEST_STATUS_STYLE: Record<UpdateRequestStatus, { icon: LucideIcon; className: string }> = {
-  PENDING: { icon: Clock, className: "border-sky-300 text-sky-800 dark:text-sky-300" },
+  PENDING: { icon: Clock, className: "border-amber-300 text-amber-800 dark:text-amber-300" },
   OVERDUE: { icon: AlertTriangle, className: "border-rose-300 text-rose-800 dark:text-rose-300" },
-  SUBMITTED: { icon: Send, className: "border-violet-300 text-violet-800 dark:text-violet-300" },
+  SUBMITTED: { icon: Send, className: "border-blue-300 text-blue-800 dark:text-blue-300" },
   REVIEWED: { icon: CheckCircle2, className: "border-emerald-300 text-emerald-800 dark:text-emerald-300" },
   CANCELLED: { icon: XCircle, className: "border-slate-300 text-slate-500" },
 };
@@ -87,7 +88,7 @@ export function ProgressLine({ value, label }: { value: number; label?: string }
         aria-valuenow={pct}
         aria-label={label ?? "Progress"}
       >
-        <div className="h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full bg-primary dark:bg-sky-400" style={{ width: `${pct}%` }} />
       </div>
       <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">{pct}%</span>
     </div>
@@ -111,40 +112,32 @@ export function DueLabel({ date, overdue, daysOverdue }: { date: string | null; 
 }
 
 export function SectionHeading({
-  icon: Icon,
+  icon,
   title,
+  description,
   count,
   action,
 }: {
   icon: LucideIcon;
   title: string;
+  description?: string;
   count?: number;
   action?: ReactNode;
 }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
-        <Icon className="h-5 w-5 text-violet-600" aria-hidden /> {title}
-        {count != null ? <span className="text-sm font-normal text-muted-foreground">({count})</span> : null}
-      </h2>
-      {action}
-    </div>
-  );
+  return <SectionHeader icon={icon} title={title} description={description} count={count} action={action} />;
 }
 
 export function EmptyHint({ children }: { children: ReactNode }) {
-  return (
-    <p className="rounded-lg border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">{children}</p>
-  );
+  return <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{children}</p>;
 }
 
 export function GroupEventList({ events, showGroup, onOpen }: { events: GroupEvent[]; showGroup?: boolean; onOpen?: (e: GroupEvent) => void }) {
-  if (events.length === 0) return <EmptyHint>No activity yet.</EmptyHint>;
+  if (events.length === 0) return <EmptyHint>No recent activity.</EmptyHint>;
   return (
     <ol className="relative space-y-3 border-l pl-4">
       {events.map((e) => (
         <li key={e.id} className="relative text-sm">
-          <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-violet-400" aria-hidden />
+          <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-primary/60" aria-hidden />
           <button
             type="button"
             disabled={!onOpen}

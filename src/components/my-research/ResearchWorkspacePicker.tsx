@@ -60,12 +60,12 @@ export function ResearchWorkspacePicker({ value, onChange, className, folderLabe
   return (
     <div
       className={cn(
-        "w-full space-y-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3 dark:border-violet-900/50 dark:bg-violet-950/20",
+        "w-full space-y-2 rounded-lg border bg-muted/40 p-3",
         className,
       )}
     >
       <label className="flex items-center gap-2 text-sm font-medium">
-        <FlaskConical className="h-4 w-4 text-violet-600" />
+        <FlaskConical className="h-4 w-4 text-primary" />
         Research workspace <span className="font-normal text-muted-foreground">(optional)</span>
       </label>
       <Select
@@ -114,7 +114,7 @@ export function ResearchWorkspacePicker({ value, onChange, className, folderLabe
         </div>
       ) : null}
       {value && folderLabel && !creating ? (
-        <p className="flex items-center gap-1.5 text-xs font-medium text-violet-800 dark:text-violet-200">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-primary dark:text-sky-200">
           <Folder className="h-3.5 w-3.5" /> Folder: {folderLabel}
         </p>
       ) : null}

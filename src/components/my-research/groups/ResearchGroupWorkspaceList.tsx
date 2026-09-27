@@ -117,7 +117,7 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
       <section className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <FlaskConical className="h-4 w-4 text-violet-600" aria-hidden /> Linked workspaces ({workspaces.length})
+            <FlaskConical className="h-4 w-4 text-primary" aria-hidden /> Linked workspaces ({workspaces.length})
           </h3>
           {canManage ? (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void openPicker("workspaces")}>
@@ -161,7 +161,7 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
       <section className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <BookOpen className="h-4 w-4 text-violet-600" aria-hidden /> Group publications ({publications.length})
+            <BookOpen className="h-4 w-4 text-primary" aria-hidden /> Group publications ({publications.length})
           </h3>
           {canManage ? (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void openPicker("publications")}>

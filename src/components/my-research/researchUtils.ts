@@ -44,5 +44,3 @@ export function fileIcon(file: Pick<ResearchFile, "detected_type" | "name">): Lu
   if (["zip", "gzip"].includes(file.detected_type) || ["zip", "gz", "tar", "7z", "rar"].includes(ext)) return FileArchive;
   return FileIcon;
 }
-
-export const RESEARCH_GRADIENT = "from-violet-600 to-fuchsia-600";

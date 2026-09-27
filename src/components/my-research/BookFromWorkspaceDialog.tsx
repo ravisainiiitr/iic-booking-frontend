@@ -67,7 +67,7 @@ export function BookFromWorkspaceDialog({ workspaceId, folderId, folderLabel, op
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CalendarPlus className="h-5 w-5 text-violet-600" /> Book equipment
+            <CalendarPlus className="h-5 w-5 text-primary" /> Book equipment
           </DialogTitle>
           <DialogDescription>
             The new booking is added to this workspace automatically
@@ -75,8 +75,8 @@ export function BookFromWorkspaceDialog({ workspaceId, folderId, folderLabel, op
           </DialogDescription>
         </DialogHeader>
         {folderLabel ? (
-          <div className="flex items-center gap-2 rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-900/50 dark:bg-violet-950/20">
-            <Folder className="h-4 w-4 shrink-0 text-violet-600" />
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            <Folder className="h-4 w-4 shrink-0 text-primary" />
             <span className="truncate">{folderLabel}</span>
           </div>
         ) : null}
@@ -104,7 +104,7 @@ export function BookFromWorkspaceDialog({ workspaceId, folderId, folderLabel, op
                     className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted"
                     onClick={() => choose(eq)}
                   >
-                    <Microscope className="h-4 w-4 shrink-0 text-violet-600" />
+                    <Microscope className="h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{eq.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">

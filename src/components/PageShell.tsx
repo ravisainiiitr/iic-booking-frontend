@@ -22,18 +22,66 @@ export function PageShell({
   );
 }
 
+/** Button classes for controls placed on the navy PageHero background. */
+export const heroButtonClass = {
+  primary: "bg-white text-primary shadow-sm hover:bg-white/90 hover:text-primary",
+  secondary: "border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white",
+  icon: "text-white/80 hover:bg-white/10 hover:text-white",
+};
+
 /** Navy Ocean page intro banner used across wallet, catalog, admin hubs. */
 export function PageHero({
   title,
   description,
   children,
   className,
+  compact = false,
+  icon,
+  badges,
+  meta,
+  actions,
 }: {
   title: string;
   description?: string;
   children?: ReactNode;
   className?: string;
+  /** Section-page header: smaller padding and type, with actions beside the title. */
+  compact?: boolean;
+  icon?: ReactNode;
+  badges?: ReactNode;
+  meta?: ReactNode;
+  actions?: ReactNode;
 }) {
+  if (compact) {
+    return (
+      <header
+        className={cn(
+          "rounded-xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-5",
+          className
+        )}
+      >
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6">
+          <div className="flex min-w-0 items-start gap-3">
+            {icon ? (
+              <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/15 sm:flex" aria-hidden>
+                {icon}
+              </div>
+            ) : null}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
+                {badges}
+              </div>
+              {description ? <p className="mt-0.5 max-w-3xl text-sm text-white/85">{description}</p> : null}
+              {meta ? <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/75">{meta}</div> : null}
+            </div>
+          </div>
+          {actions ? <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:justify-end">{actions}</div> : null}
+        </div>
+        {children}
+      </header>
+    );
+  }
   return (
     <div
       className={cn(

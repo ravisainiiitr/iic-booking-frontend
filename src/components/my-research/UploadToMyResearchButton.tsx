@@ -19,7 +19,7 @@ export function UploadToMyResearchButton({ bookingId, bookingLabel }: Props) {
       <Button
         size="sm"
         variant="outline"
-        className="border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40"
+        className="border-primary/30 text-primary hover:bg-primary/5 dark:border-primary/50 dark:text-sky-300 dark:hover:bg-primary/10"
         title="Save your own files for this booking in a private My Research workspace"
         onClick={() => setOpen(true)}
       >

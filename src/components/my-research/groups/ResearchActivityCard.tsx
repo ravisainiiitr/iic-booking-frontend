@@ -18,7 +18,7 @@ export function ResearchActivityCard({ activity: a, highlighted, onEdit, onUpdat
   return (
     <article
       id={`activity-${a.id}`}
-      className={`space-y-2 rounded-xl border bg-card p-3 sm:p-4 ${highlighted ? "ring-2 ring-violet-400" : ""}`}
+      className={`space-y-2 rounded-xl border bg-card p-3 sm:p-4 ${highlighted ? "ring-2 ring-primary/60" : ""}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -43,7 +43,7 @@ export function ResearchActivityCard({ activity: a, highlighted, onEdit, onUpdat
             a.workspace.accessible && onOpenWorkspace ? (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 text-violet-700 hover:underline dark:text-violet-300"
+                className="inline-flex items-center gap-1 text-primary hover:underline dark:text-sky-300"
                 onClick={() => onOpenWorkspace(a.workspace!.id)}
               >
                 <FlaskConical className="h-3.5 w-3.5" aria-hidden /> {a.workspace.name}

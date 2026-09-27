@@ -89,7 +89,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FlaskConical className="h-5 w-5 text-violet-600" /> Upload to My Research
+            <FlaskConical className="h-5 w-5 text-primary" /> Upload to My Research
           </DialogTitle>
           <DialogDescription>
             Save your own files for booking {bookingLabel} in a private research workspace. The booking is added to the
@@ -142,7 +142,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
             ) : null}
             {workspaceId ? (
               <>
-                <Button className="w-full gap-2 bg-violet-600 hover:bg-violet-700" onClick={() => inputRef.current?.click()}>
+                <Button className="w-full gap-2" onClick={() => inputRef.current?.click()}>
                   <Upload className="h-4 w-4" /> Choose files
                 </Button>
                 <input
@@ -163,7 +163,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
 
         <DialogFooter className="gap-2 sm:justify-between">
           {workspaceId && !uploads.busy ? (
-            <Button asChild variant="link" className="gap-1 px-0 text-violet-700 dark:text-violet-300">
+            <Button asChild variant="link" className="gap-1 px-0 text-primary dark:text-sky-300">
               <Link to={`/my-research/${workspaceId}?tab=files`}>
                 Open workspace <ExternalLink className="h-3.5 w-3.5" />
               </Link>

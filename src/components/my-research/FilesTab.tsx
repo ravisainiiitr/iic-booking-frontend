@@ -264,7 +264,7 @@ export function FilesTab({
       </aside>
 
       <section
-        className={cn("min-w-0 space-y-3 rounded-lg", dragging && "ring-2 ring-violet-500 ring-offset-2")}
+        className={cn("min-w-0 space-y-3 rounded-lg", dragging && "ring-2 ring-primary ring-offset-2")}
         onDragOver={(e) => {
           if (!canEdit) return;
           e.preventDefault();
@@ -276,7 +276,7 @@ export function FilesTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           {bookingFilter ? (
             <div className="flex min-w-0 items-center gap-2">
-              <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
+              <Badge className="gap-1 bg-primary hover:bg-primary">
                 <Link2 className="h-3 w-3" />
                 {bookingFilter.equipment_name} · {bookingFilter.display_id}
               </Badge>
@@ -286,7 +286,7 @@ export function FilesTab({
             </div>
           ) : (
             <nav className="flex min-w-0 flex-wrap items-center gap-1 text-sm" aria-label="Folder path">
-              <button type="button" className="font-medium text-violet-700 hover:underline dark:text-violet-300" onClick={() => setFolderId(null)}>
+              <button type="button" className="font-medium text-primary hover:underline dark:text-sky-300" onClick={() => setFolderId(null)}>
                 All files
               </button>
               {breadcrumbs.map((crumb, i) => (
@@ -295,7 +295,7 @@ export function FilesTab({
                   {i === breadcrumbs.length - 1 ? (
                     <span className="font-medium">{crumb.name}</span>
                   ) : (
-                    <button type="button" className="text-violet-700 hover:underline dark:text-violet-300" onClick={() => setFolderId(crumb.id)}>
+                    <button type="button" className="text-primary hover:underline dark:text-sky-300" onClick={() => setFolderId(crumb.id)}>
                       {crumb.name}
                     </button>
                   )}
@@ -334,7 +334,7 @@ export function FilesTab({
             ) : null}
             {canEdit ? (
               <>
-                <Button size="sm" className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-700" onClick={() => inputRef.current?.click()}>
+                <Button size="sm" className="h-8 gap-1.5" onClick={() => inputRef.current?.click()}>
                   <Upload className="h-4 w-4" /> Upload files
                 </Button>
                 <input
@@ -355,7 +355,7 @@ export function FilesTab({
         <UploadQueuePanel items={uploads.items} onCancel={uploads.cancel} onRetry={uploads.retry} onClear={uploads.clearFinished} />
 
         {!bookingFilter && folderId && folderBookings.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 text-xs dark:border-violet-900/40 dark:bg-violet-950/20">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs">
             <span className="font-medium text-muted-foreground">Bookings in this folder:</span>
             {folderBookings.map((b) => (
               <button
@@ -365,7 +365,7 @@ export function FilesTab({
                 onClick={() => onSelectBooking?.(b)}
                 title="Show files for this booking"
               >
-                <Link2 className="h-3 w-3 text-violet-600" />
+                <Link2 className="h-3 w-3 text-primary" />
                 {b.equipment_name} · {b.display_id}
                 <span className="text-muted-foreground">({b.status_display})</span>
               </button>
@@ -375,12 +375,12 @@ export function FilesTab({
 
         <div className="overflow-hidden rounded-lg border bg-card">
           {loading && files.length === 0 && folders.length === 0 ? (
-            <div className="flex justify-center py-14">
-              <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : folders.length === 0 && files.length === 0 ? (
-            <div className="px-6 py-14 text-center text-sm text-muted-foreground">
-              <Folder className="mx-auto mb-2 h-10 w-10 opacity-40" />
+            <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+              <Folder className="mx-auto mb-2 h-7 w-7 opacity-40" aria-hidden />
               {bookingFilter
                 ? "No files are associated with this booking yet."
                 : canEdit
@@ -392,7 +392,7 @@ export function FilesTab({
               {folders.map((folder) => (
                 <li key={folder.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40">
                   <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setFolderId(folder.id)}>
-                    <Folder className="h-5 w-5 shrink-0 fill-violet-100 text-violet-600 dark:fill-violet-900/40" />
+                    <Folder className="h-5 w-5 shrink-0 fill-primary/10 text-primary dark:fill-primary/20" />
                     <span className="truncate font-medium">{folder.name}</span>
                     {folder.file_count ? (
                       <span className="shrink-0 text-xs text-muted-foreground">

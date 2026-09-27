@@ -137,7 +137,7 @@ export function ShareWorkspaceDialog({
             This workspace is archived. Restore it to add viewers. You can still remove access below.
           </p>
         ) : selected ? (
-          <div className="space-y-3 rounded-lg border bg-violet-50/60 p-4 dark:bg-violet-950/20">
+          <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
             <p className="text-sm font-medium">Please confirm the person before sharing:</p>
             <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
               <dt className="text-muted-foreground">Name</dt>
@@ -200,7 +200,7 @@ export function ShareWorkspaceDialog({
                           {u.department ? ` · ${u.department}` : ""}
                         </span>
                       </span>
-                      <UserPlus className="h-4 w-4 shrink-0 text-violet-600" />
+                      <UserPlus className="h-4 w-4 shrink-0 text-primary" />
                     </button>
                   </li>
                 ))}
