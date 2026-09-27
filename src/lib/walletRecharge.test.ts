@@ -257,7 +257,18 @@ describe("recharge request summary", () => {
         { status: "REJECTED", user_otp_verified: true },
         { status: "CANCELLED", user_otp_verified: true },
       ]),
-    ).toEqual({ pending: 2, approved: 1, rejected: 1, awaitingOtp: 1 });
+    ).toEqual({ pending: 2, approved: 1, rejected: 1, awaitingOtp: 1, declinedToCredit: 0, creditOutstanding: 0 });
+  });
+
+  it("counts SRIC declines and sums outstanding auto-approved credit", () => {
+    expect(
+      summarizeRechargeRequests([
+        { status: "CANCELLED", cancellation_source: "sric_declined", decline_credit_outstanding: "5000.00" },
+        { status: "CANCELLED", cancellation_source: "sric_declined", decline_credit_outstanding: "250.50" },
+        { status: "CANCELLED", cancellation_source: "user" },
+        { status: "APPROVED", decline_credit_outstanding: "0.00" },
+      ]),
+    ).toEqual({ pending: 0, approved: 1, rejected: 0, awaitingOtp: 0, declinedToCredit: 2, creditOutstanding: 5250.5 });
   });
 
   it("labels recharge modes", () => {

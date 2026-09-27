@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Mail } from "lucide-react";
@@ -18,6 +19,11 @@ interface WalletSricSettingsData {
   project_grant_cc_emails?: string;
   cash_deposit_cc_emails?: string;
   grant_code_for_credit: string;
+  ar_sric_emails?: string;
+  dean_sric_emails?: string;
+  decline_converts_to_credit?: boolean;
+  auto_read_cashbook_mailbox?: boolean;
+  cashbook_sender_emails?: string;
 }
 
 const CC_HELP =
@@ -40,6 +46,11 @@ export default function AdminWalletSricSettings() {
   const [projectGrantCcEmails, setProjectGrantCcEmails] = useState("");
   const [cashDepositCcEmails, setCashDepositCcEmails] = useState("");
   const [grantCode, setGrantCode] = useState("IIC-000-002");
+  const [arSricEmails, setArSricEmails] = useState("");
+  const [deanSricEmails, setDeanSricEmails] = useState("");
+  const [declineToCredit, setDeclineToCredit] = useState(true);
+  const [autoReadMailbox, setAutoReadMailbox] = useState(true);
+  const [cashbookSenders, setCashbookSenders] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -70,6 +81,11 @@ export default function AdminWalletSricSettings() {
           setProjectGrantCcEmails(res.data.project_grant_cc_emails ?? "");
           setCashDepositCcEmails(res.data.cash_deposit_cc_emails ?? "");
           setGrantCode(res.data.grant_code_for_credit ?? "IIC-000-002");
+          setArSricEmails(res.data.ar_sric_emails ?? "");
+          setDeanSricEmails(res.data.dean_sric_emails ?? "");
+          setDeclineToCredit(res.data.decline_converts_to_credit ?? true);
+          setAutoReadMailbox(res.data.auto_read_cashbook_mailbox ?? true);
+          setCashbookSenders(res.data.cashbook_sender_emails ?? "");
         }
       })
       .catch(() => toast.error("Failed to load SRIC office settings."))
@@ -85,6 +101,11 @@ export default function AdminWalletSricSettings() {
           project_grant_cc_emails: projectGrantCcEmails,
           cash_deposit_cc_emails: cashDepositCcEmails,
           grant_code_for_credit: grantCode.trim(),
+          ar_sric_emails: arSricEmails,
+          dean_sric_emails: deanSricEmails,
+          decline_converts_to_credit: declineToCredit,
+          auto_read_cashbook_mailbox: autoReadMailbox,
+          cashbook_sender_emails: cashbookSenders,
         }
       : { bill_section_emails: billSectionEmails, cash_deposit_cc_emails: cashDepositCcEmails };
     const res = await apiClient.adminSingletonUpdate<WalletSricSettingsData>(
@@ -169,6 +190,72 @@ export default function AdminWalletSricSettings() {
                       Used as the grant to be credited only when the selected internal department has no grant code of
                       its own.
                     </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {isAdmin ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>SRIC officers and automation</CardTitle>
+                  <CardDescription>
+                    AR SRIC and Dean SRIC receive a copy (without Approve / Decline links) of each request and of its
+                    final decision.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="ar-sric-emails">AR SRIC email addresses (both modes)</Label>
+                    <Textarea
+                      id="ar-sric-emails"
+                      value={arSricEmails}
+                      onChange={(e) => setArSricEmails(e.target.value)}
+                      rows={2}
+                      placeholder="ar.sric@iitr.ac.in"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dean-sric-emails">Dean SRIC email addresses (Project Grant)</Label>
+                    <Textarea
+                      id="dean-sric-emails"
+                      value={deanSricEmails}
+                      onChange={(e) => setDeanSricEmails(e.target.value)}
+                      rows={2}
+                      placeholder="dean.sric@iitr.ac.in"
+                    />
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="decline-to-credit">Treat SRIC-declined Project Grant requests as credit</Label>
+                      <p className="text-sm text-muted-foreground">
+                        When SRIC declines (Wrong Project Code, Insufficient Funds in the Project, or Other), the request
+                        is cancelled and the amount becomes an auto-approved credit, recovered from the faculty
+                        member&apos;s next approved recharge for the same department.
+                      </p>
+                    </div>
+                    <Switch id="decline-to-credit" checked={declineToCredit} onCheckedChange={setDeclineToCredit} />
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="auto-read-mailbox">Read the SRIC cash-book mailbox automatically</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Every 30 minutes, new cash-book emails from the senders below are read and matching recharge
+                        requests are marked as fund-received. Rows quoting the IIC transaction number (IIC-TXN-…) in
+                        Payment Details are matched exactly.
+                      </p>
+                    </div>
+                    <Switch id="auto-read-mailbox" checked={autoReadMailbox} onCheckedChange={setAutoReadMailbox} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cashbook-senders">Cash-book sender addresses</Label>
+                    <Textarea
+                      id="cashbook-senders"
+                      value={cashbookSenders}
+                      onChange={(e) => setCashbookSenders(e.target.value)}
+                      rows={2}
+                      placeholder="bills@sric.iitr.ac.in"
+                    />
                   </div>
                 </CardContent>
               </Card>

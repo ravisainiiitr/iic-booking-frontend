@@ -2,7 +2,13 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
-import { formatMoney, rechargeModeLabel, summarizeRechargeRequests } from "@/lib/walletRecharge";
+import {
+  DECLINE_REASON_LABELS,
+  formatMoney,
+  isSricDeclined,
+  rechargeModeLabel,
+  summarizeRechargeRequests,
+} from "@/lib/walletRecharge";
 import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
@@ -55,8 +61,19 @@ function clearLegacyRechargeDraft() {
 
 type RechargeDialogState = { departmentId: number | null; amount: string | null };
 
-function RechargeStatusBadge({ request }: { request: { status?: string; status_display?: string; user_otp_verified?: boolean } }) {
+function RechargeStatusBadge({
+  request,
+}: {
+  request: { status?: string; status_display?: string; user_otp_verified?: boolean; cancellation_source?: string | null };
+}) {
   const status = String(request.status || "").toUpperCase();
+  if (isSricDeclined(request)) {
+    return (
+      <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+        Declined by SRIC
+      </Badge>
+    );
+  }
   if (status === "PENDING" && request.user_otp_verified === false) {
     return <Badge variant="outline" className="shrink-0">Awaiting OTP</Badge>;
   }
@@ -1916,6 +1933,16 @@ const Wallet = () => {
                       </div>
                     ))}
                   </div>
+                  {rechargeSummary.creditOutstanding > 0 && (
+                    <p
+                      className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+                      data-testid="decline-credit-outstanding"
+                    >
+                      {formatMoney(rechargeSummary.creditOutstanding)} is outstanding as auto-approved credit from{" "}
+                      {rechargeSummary.declinedToCredit === 1 ? "a request" : "requests"} declined by SRIC. It will be
+                      adjusted against your next approved recharge.
+                    </p>
+                  )}
                   {rechargeSummary.awaitingOtp > 0 && (
                     <p className="text-xs text-muted-foreground">
                       {rechargeSummary.awaitingOtp} request{rechargeSummary.awaitingOtp === 1 ? " is" : "s are"} awaiting OTP
@@ -2096,6 +2123,25 @@ const Wallet = () => {
                             </TableCell>
                             <TableCell>
                               <RechargeStatusBadge request={req} />
+                              {isSricDeclined(req) ? (
+                                <div
+                                  className="mt-1 whitespace-nowrap text-xs text-muted-foreground"
+                                  title={
+                                    req.rejection_reason_code
+                                      ? DECLINE_REASON_LABELS[req.rejection_reason_code] || req.rejection_reason_code
+                                      : undefined
+                                  }
+                                >
+                                  {Number(req.decline_credit_outstanding || 0) > 0
+                                    ? `Credit outstanding ${formatMoney(req.decline_credit_outstanding)}`
+                                    : "Credit recovered"}
+                                </div>
+                              ) : null}
+                              {Number(req.credit_settled_amount || 0) > 0 ? (
+                                <div className="mt-1 whitespace-nowrap text-xs text-muted-foreground">
+                                  {formatMoney(req.credit_settled_amount)} adjusted against credit
+                                </div>
+                              ) : null}
                             </TableCell>
                             <TableCell className="text-center text-sm">
                               {isFacultyEffective ? (

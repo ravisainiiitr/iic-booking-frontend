@@ -224,10 +224,23 @@ export function rechargeModeLabel(mode: string | null | undefined): string {
 export type RechargeRequestLike = {
   status: string;
   user_otp_verified?: boolean;
+  cancellation_source?: string | null;
+  decline_credit_outstanding?: string | number | null;
+};
+
+export function isSricDeclined(r: { status?: string; cancellation_source?: string | null }): boolean {
+  return String(r.status || "").toUpperCase() === "CANCELLED" && r.cancellation_source === "sric_declined";
+}
+
+export const DECLINE_REASON_LABELS: Record<string, string> = {
+  wrong_project_grant: "Wrong Project Code",
+  insufficient_balance: "Insufficient Funds in the Project",
+  mismatch_user_info: "Mismatch in User Information",
+  other: "Other",
 };
 
 export function summarizeRechargeRequests(requests: RechargeRequestLike[]) {
-  const summary = { pending: 0, approved: 0, rejected: 0, awaitingOtp: 0 };
+  const summary = { pending: 0, approved: 0, rejected: 0, awaitingOtp: 0, declinedToCredit: 0, creditOutstanding: 0 };
   for (const r of requests) {
     const status = String(r.status || "").toUpperCase();
     if (status === "PENDING") {
@@ -235,6 +248,10 @@ export function summarizeRechargeRequests(requests: RechargeRequestLike[]) {
       else summary.pending += 1;
     } else if (status === "APPROVED") summary.approved += 1;
     else if (status === "REJECTED") summary.rejected += 1;
+    else if (isSricDeclined(r)) summary.declinedToCredit += 1;
+    const outstanding = Number(r.decline_credit_outstanding || 0);
+    if (Number.isFinite(outstanding) && outstanding > 0) summary.creditOutstanding += outstanding;
   }
+  summary.creditOutstanding = Math.round(summary.creditOutstanding * 100) / 100;
   return summary;
 }

@@ -140,6 +140,9 @@ interface WalletRechargeRequestRow {
   rejection_reason_code?: string;
   rejection_reason_text?: string;
   cancellation_source?: string;
+  decline_credit_amount?: string;
+  decline_credit_outstanding?: string;
+  credit_settled_amount?: string;
   created_at?: string;
   responded_at?: string | null;
   audit_logs?: AuditLog[];
@@ -166,12 +169,26 @@ const STATUS_OPTIONS = [
   { value: "CANCELLED", label: "Cancelled" },
 ];
 
-const REJECT_REASONS = [
-  { value: "wrong_project_grant", label: "Wrong Project Grant Code" },
-  { value: "insufficient_balance", label: "Insufficient Balance in Project Grant" },
-  { value: "mismatch_user_info", label: "Mismatch in User Information" },
-  { value: "other", label: "Others" },
+const PROJECT_GRANT_REJECT_REASONS = [
+  { value: "wrong_project_grant", label: "Wrong Project Code" },
+  { value: "insufficient_balance", label: "Insufficient Funds in the Project" },
+  { value: "other", label: "Other" },
 ];
+
+const CASH_DEPOSIT_REJECT_REASONS = [
+  { value: "mismatch_user_info", label: "Mismatch in User Information" },
+  { value: "other", label: "Other" },
+];
+
+const isProjectGrant = (row?: { recharge_mode?: string } | null) =>
+  (row?.recharge_mode || "project_grant") === "project_grant";
+
+// Mirrors backend can_sric_decline: approved Project Grant requests stay declinable until funds are confirmed.
+const canDeclineRow = (row: WalletRechargeRequestRow) =>
+  (row.status === "PENDING" && row.user_otp_verified !== false) ||
+  (row.status === "APPROVED" && isProjectGrant(row) && !row.fund_receipt_verified && !row.cashbook_receipt_no);
+
+const amountValue = (value?: string) => Number(value || 0);
 
 const statusBadgeClass = (status: string) => {
   if (status === "APPROVED") return "bg-primary/10 text-primary border-primary/20";
@@ -337,7 +354,7 @@ export default function AdminWalletRechargeRequests() {
         return;
       }
       if (reasonCode === "other" && !reasonText.trim()) {
-        toast.error("Enter a rejection reason for Others");
+        toast.error("Enter the reason for Other");
         return;
       }
     }
@@ -569,7 +586,7 @@ export default function AdminWalletRechargeRequests() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="User, emp no, email, department, grant…"
+                  placeholder="Transaction no. (IIC-TXN-…), user, emp no, email, grant…"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") fetchRows();
                   }}
@@ -718,8 +735,22 @@ export default function AdminWalletRechargeRequests() {
                         <TableCell className="text-sm">{row.project_grant_code || "—"}</TableCell>
                         <TableCell>
                           <Badge className={statusBadgeClass(row.status)}>
-                            {row.status_display || row.status}
+                            {row.cancellation_source === "sric_declined"
+                              ? "Declined by SRIC"
+                              : row.status_display || row.status}
                           </Badge>
+                          {amountValue(row.decline_credit_amount) > 0 ? (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {amountValue(row.decline_credit_outstanding) > 0
+                                ? `Credit outstanding ₹${row.decline_credit_outstanding}`
+                                : "Credit recovered"}
+                            </div>
+                          ) : null}
+                          {amountValue(row.credit_settled_amount) > 0 ? (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              ₹{row.credit_settled_amount} adjusted against credit
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-sm">
                           {row.fund_receipt_verified ? (
@@ -782,36 +813,34 @@ export default function AdminWalletRechargeRequests() {
                               </Button>
                             ) : null}
                             {row.status === "PENDING" && row.user_otp_verified !== false ? (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openAction(row, "approve")}
-                                  title="Approve"
-                                >
-                                  <Check className="h-4 w-4 text-primary" />
-                                </Button>
-                                {!isFinance ? (
-                                  <>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                    onClick={() => openAction(row, "reject")}
-                                    title="Decline"
-                                  >
-                                    <X className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => openAction(row, "cancel")}
-                                      title="Cancel"
-                                    >
-                                      <Ban className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                ) : null}
-                              </>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openAction(row, "approve")}
+                                title="Approve"
+                              >
+                                <Check className="h-4 w-4 text-primary" />
+                              </Button>
+                            ) : null}
+                            {!isFinance && canDeclineRow(row) ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openAction(row, "reject")}
+                                title="Decline"
+                              >
+                                <X className="h-4 w-4 text-destructive" />
+                              </Button>
+                            ) : null}
+                            {!isFinance && row.status === "PENDING" && row.user_otp_verified !== false ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openAction(row, "cancel")}
+                                title="Cancel"
+                              >
+                                <Ban className="h-4 w-4" />
+                              </Button>
                             ) : null}
                           </div>
                         </TableCell>
@@ -1186,6 +1215,13 @@ export default function AdminWalletRechargeRequests() {
           </DialogHeader>
           {actionType === "reject" ? (
             <div className="space-y-3">
+              {isProjectGrant(actionRow) ? (
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                  Declining a Project Grant request cancels it and treats ₹{actionRow?.amount} as an auto-approved
+                  credit for the faculty member, recovered from their next approved recharge. Use Cancel instead for
+                  duplicate or mistaken requests.
+                </p>
+              ) : null}
               <div className="space-y-2">
                 <Label>Decline reason</Label>
                 <Select value={reasonCode} onValueChange={setReasonCode}>
@@ -1193,7 +1229,7 @@ export default function AdminWalletRechargeRequests() {
                     <SelectValue placeholder="Select reason" />
                   </SelectTrigger>
                   <SelectContent>
-                    {REJECT_REASONS.map((r) => (
+                    {(isProjectGrant(actionRow) ? PROJECT_GRANT_REJECT_REASONS : CASH_DEPOSIT_REJECT_REASONS).map((r) => (
                       <SelectItem key={r.value} value={r.value}>
                         {r.label}
                       </SelectItem>

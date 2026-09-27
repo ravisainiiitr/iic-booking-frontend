@@ -46,6 +46,8 @@ interface PublicRechargePayload {
   message?: string;
   terminal_page?: { page_code?: string; title?: string; message?: string } | null;
   rejection_reason_choices?: ReasonChoice[];
+  can_decline?: boolean;
+  decline_converts_to_credit?: boolean;
   response_message?: string;
   approved_by_email?: string;
   created_at?: string;
@@ -185,7 +187,7 @@ const WalletRechargeEmailAction = () => {
       return;
     }
     if (reasonCode === OTHER_CODE && !reasonText.trim()) {
-      toast.error("Please enter a rejection reason when selecting Others");
+      toast.error("Please enter the reason when selecting Other");
       return;
     }
     setSubmitting(true);
@@ -199,24 +201,25 @@ const WalletRechargeEmailAction = () => {
       return;
     }
     const data = res.data || {};
-    if (data.already_processed || data.terminal_page || data.page_code) {
+    if (data.already_processed) {
       setPayload(data);
       toast.message(data.title || data.message || "Already processed");
       return;
     }
-    setDoneMessage(data.message || "Request rejected.");
+    setDoneMessage(data.message || "Request declined.");
     setPayload(data);
-    toast.success(data.message || "Rejected");
+    toast.success(data.message || "Declined");
   };
 
   const choices = payload?.rejection_reason_choices || [
-    { value: "wrong_project_grant", label: "Wrong Project Grant Code" },
-    { value: "insufficient_balance", label: "Insufficient Balance in Project Grant" },
-    { value: "mismatch_user_info", label: "Mismatch in User Information" },
-    { value: "other", label: "Others" },
+    { value: "wrong_project_grant", label: "Wrong Project Code" },
+    { value: "insufficient_balance", label: "Insufficient Funds in the Project" },
+    { value: "other", label: "Other" },
   ];
 
   const isPending = Boolean(payload?.is_pending) && !terminal && !doneMessage;
+  const canDecline = action === "reject" && Boolean(payload?.can_decline) && !doneMessage;
+  const declineAfterApproval = canDecline && String(payload?.status || "").toUpperCase() === "APPROVED";
   const autoApproving = action === "approve" && isPending && (submitting || !doneMessage) && !error;
 
   return (
@@ -292,7 +295,7 @@ const WalletRechargeEmailAction = () => {
               <p className="text-lg font-bold">Amount: ₹{payload?.amount}</p>
             </CardContent>
           </Card>
-        ) : terminal || (payload && !payload.is_pending) ? (
+        ) : !canDecline && (terminal || (payload && !payload.is_pending)) ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -377,10 +380,21 @@ const WalletRechargeEmailAction = () => {
                   </div>
                 ) : null}
                 <div>
-                  <span className="text-muted-foreground">Project Grant Code for Debit:</span>{" "}
+                  <span className="text-muted-foreground">                  Project Grant Code for Debit:</span>{" "}
                   {payload?.project_grant_code || "—"}
                 </div>
               </div>
+
+              {payload?.decline_converts_to_credit ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                  {declineAfterApproval
+                    ? "This request was already approved and the wallet credited. "
+                    : ""}
+                  Declining cancels the recharge request. The amount of ₹{payload?.amount} is treated as an
+                  auto-approved credit for the faculty member and is recovered automatically from their next
+                  approved recharge. The faculty member is informed with the reason you select.
+                </div>
+              ) : null}
 
               <div className="space-y-3">
                 <div className="space-y-2">
@@ -415,7 +429,7 @@ const WalletRechargeEmailAction = () => {
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="destructive"
-                  disabled={!isPending || submitting}
+                  disabled={!canDecline || submitting}
                   onClick={handleReject}
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
