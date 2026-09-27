@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
-  ArrowLeft,
   ArrowRight,
   BookOpen,
   CalendarCheck,
@@ -359,58 +358,61 @@ export default function MyResearch() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto space-y-6 px-4 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" aria-hidden /> Back to Dashboard
-          </Button>
-          {!blocked ? (
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="gap-2">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden /> Refresh
-            </Button>
-          ) : null}
-        </div>
-
-        <Card className="overflow-hidden border-0 shadow-lg">
-          <div className={`bg-gradient-to-r ${RESEARCH_GRADIENT} px-4 py-5 text-white sm:px-5 sm:py-6`}>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25">
-                  <FlaskConical className="h-6 w-6" aria-hidden />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-2xl font-bold">My Research</h1>
-                  <p className="text-sm text-white/85">
-                    {isFaculty
-                      ? "Research workspaces, groups, activities and research data."
-                      : "Your research workspaces, group activities and research data."}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {isFaculty && groups?.can_create ? (
-                  <Button variant="secondary" className="gap-2" onClick={() => setGroupCreateOpen(true)}>
-                    <UsersRound className="h-4 w-4" aria-hidden /> New Research Group
-                  </Button>
-                ) : null}
-                {home?.can_create ? (
-                  <Button variant="secondary" className="gap-2" onClick={() => setCreateOpen(true)}>
-                    <Plus className="h-4 w-4" aria-hidden /> New Workspace
-                  </Button>
-                ) : null}
-              </div>
+        <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${RESEARCH_GRADIENT} text-white shadow-sm`}
+            >
+              <FlaskConical className="h-5 w-5" aria-hidden />
             </div>
-            {home ? (
-              <p className="mt-3 flex items-start gap-1.5 text-xs text-white/80">
-                <Lock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span>
-                  Only you and the people you share with can see your workspaces. ·{" "}
-                  {formatBytes(home.storage.used_bytes)} used
-                  {home.storage.quota_bytes ? ` of ${formatBytes(home.storage.quota_bytes)}` : ""}
-                </span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight">My Research</h1>
+              <p className="text-sm text-muted-foreground">
+                {isFaculty
+                  ? "Research workspaces, groups, activities and research data."
+                  : "Your research workspaces, group activities and research data."}
               </p>
-            ) : null}
+              {home ? (
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    Visible only to you and the people you share with
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <HardDrive className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {formatBytes(home.storage.used_bytes)} used
+                    {home.storage.quota_bytes ? ` of ${formatBytes(home.storage.quota_bytes)}` : ""}
+                  </span>
+                </p>
+              ) : null}
+            </div>
           </div>
-        </Card>
+          {!blocked ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void load()}
+                disabled={loading}
+                aria-label="Refresh"
+                title="Refresh"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+              </Button>
+              {isFaculty && groups?.can_create ? (
+                <Button variant="outline" className="gap-2" onClick={() => setGroupCreateOpen(true)}>
+                  <UsersRound className="h-4 w-4" aria-hidden /> New Research Group
+                </Button>
+              ) : null}
+              {home?.can_create ? (
+                <Button className="gap-2" onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4" aria-hidden /> New Workspace
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </header>
 
         {blocked ? (
           <Card>
