@@ -1,7 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { NotificationProvider } from "@/contexts/NotificationContext";
@@ -11,18 +10,6 @@ import { ThemeProvider } from "next-themes";
 import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
 import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60 * 1000,
-      gcTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      retry: 1,
-    },
-  },
-});
 
 function EmbedChrome() {
   const { search } = useLocation();
@@ -37,26 +24,24 @@ function EmbedChrome() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <TooltipProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <UserGuideProvider>
-            <NotificationProvider>
-              <Toaster />
-              <Sonner />
-              <EmbedChrome />
-              <ResearchCopilotLauncher />
-              <PendingActionsPrompt />
-              <AppRoutes />
-            </NotificationProvider>
-            </UserGuideProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <TooltipProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <UserGuideProvider>
+          <NotificationProvider>
+            <Toaster />
+            <Sonner />
+            <EmbedChrome />
+            <ResearchCopilotLauncher />
+            <PendingActionsPrompt />
+            <AppRoutes />
+          </NotificationProvider>
+          </UserGuideProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </ThemeProvider>
 );
 
 export default App;

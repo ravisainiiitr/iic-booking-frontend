@@ -1,14 +1,19 @@
+import { lazy, Suspense, useState } from "react";
 import { FlaskConical } from "lucide-react";
-import TicketForm from "@/components/TicketForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { Link } from "react-router-dom";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
+// Keeps the ticket form (react-hook-form + zod) out of the startup bundle; loaded on first click.
+const TicketForm = lazy(() => import("@/components/TicketForm"));
+
 const Footer = () => {
   const { isAuthenticated } = useAuth();
   const { openGuide } = useUserGuide();
   const embedded = useEmbeddedMode();
+  const [supportRequested, setSupportRequested] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const isEmbed =
     embedded ||
     (typeof window !== "undefined" &&
@@ -79,13 +84,21 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <TicketForm
-                  trigger={
-                    <button type="button" className="hover:text-primary transition-colors flex items-center gap-1">
-                      Support
-                    </button>
-                  }
-                />
+                <button
+                  type="button"
+                  className="hover:text-primary transition-colors flex items-center gap-1"
+                  onClick={() => {
+                    setSupportRequested(true);
+                    setSupportOpen(true);
+                  }}
+                >
+                  Support
+                </button>
+                {supportRequested && (
+                  <Suspense fallback={null}>
+                    <TicketForm open={supportOpen} onOpenChange={setSupportOpen} />
+                  </Suspense>
+                )}
               </li>
             </ul>
           </div>
