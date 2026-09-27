@@ -12,7 +12,7 @@ function preloadHomeHeroImage(): Plugin {
     transformIndexHtml: {
       order: "post",
       handler(_html, ctx) {
-        const asset = Object.keys(ctx.bundle ?? {}).find((f) => /^assets\/iitr-main-building-[^/]+\.jpg$/.test(f));
+        const asset = Object.keys(ctx.bundle ?? {}).find((f) => /^assets\/iitr-main-building-[^/]+\.(webp|jpg)$/.test(f));
         if (!asset) return [];
         const href = JSON.stringify(`/${asset}`);
         return [

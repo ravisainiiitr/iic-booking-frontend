@@ -1,3 +1,6 @@
+import iitrLogo128 from "@/assets/iitr-logo-128.webp";
+import iitrLogo256 from "@/assets/iitr-logo-256.webp";
+
 type Props = {
   /** Controls compactness in headers. */
   size?: "sm" | "md" | "lg";
@@ -37,7 +40,11 @@ const IITRBanner = ({ size = "md", className }: Props) => {
   return (
     <div className={`flex items-center ${s.gap} min-w-0 ${className ?? ""}`}>
       <img
-        src="/IITR_Logo.svg"
+        src={iitrLogo128}
+        srcSet={`${iitrLogo128} 1x, ${iitrLogo256} 2x`}
+        width={128}
+        height={128}
+        decoding="async"
         alt="IIT Roorkee"
         className={`${s.logo} shrink-0 object-contain drop-shadow-sm`}
       />

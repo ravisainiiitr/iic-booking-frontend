@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api";
 import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
 import { storeOmniportState } from "@/lib/omniportAuth";
 import { toast } from "sonner";
-import iitrMainBuilding from "@/assets/iitr-main-building.jpg";
+import iitrMainBuilding from "@/assets/iitr-main-building.webp";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_HOME = {
