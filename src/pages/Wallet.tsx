@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { formatINR } from "@/lib/money";
 import { isExternalBookingUserType } from "@/lib/userTypes";
+import { formatMoney, rechargeModeLabel, summarizeRechargeRequests } from "@/lib/walletRecharge";
+import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { AlertTriangle, ArrowDown, ArrowUp, Mail, Send, X, Clock, CheckCircle, XCircle, Wallet as WalletIcon, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, ExternalLink, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowUp, Send, X, Clock, CheckCircle, XCircle, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -42,55 +43,33 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const WALLET_RECHARGE_DRAFT_KEY = "walletRechargeDraft";
+const RECENT_TRANSACTIONS_COUNT = 5;
+const RECENT_RECHARGE_REQUESTS_COUNT = 3;
+const SUB_WALLET_SEARCH_THRESHOLD = 8;
 
-type OfflineRechargeMode = "project_grant" | "direct_cash_deposit";
-
-type WalletRechargeDraft = {
-  rechargeAmount: string;
-  rechargeDepartmentId: number | null;
-  selectedProjectId: number | null;
-  rechargeType: "sbiepay" | "request";
-  otpStep?: "form" | "otp" | "sric" | "done";
-  studentReceiptUtr?: string;
-  offlineRechargeMode?: OfflineRechargeMode;
-  cashUndertakingAccepted?: boolean;
-};
-
-function saveWalletRechargeDraft(draft: WalletRechargeDraft) {
-  try {
-    const payload: WalletRechargeDraft = {
-      rechargeAmount: draft.rechargeAmount,
-      rechargeDepartmentId: draft.rechargeDepartmentId,
-      selectedProjectId: draft.selectedProjectId,
-      rechargeType: draft.rechargeType,
-      studentReceiptUtr: draft.studentReceiptUtr ?? "",
-      offlineRechargeMode: draft.offlineRechargeMode,
-      cashUndertakingAccepted: Boolean(draft.cashUndertakingAccepted),
-    };
-    if (draft.otpStep === "form") {
-      payload.otpStep = "form";
-    }
-    sessionStorage.setItem(WALLET_RECHARGE_DRAFT_KEY, JSON.stringify(payload));
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function loadWalletRechargeDraft(): WalletRechargeDraft | null {
-  try {
-    const raw = sessionStorage.getItem(WALLET_RECHARGE_DRAFT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as WalletRechargeDraft;
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearWalletRechargeDraft() {
-  sessionStorage.removeItem(WALLET_RECHARGE_DRAFT_KEY);
+/** Legacy "add project on Profile" round-trip keys; recharge no longer leaves the Wallet page. */
+function clearLegacyRechargeDraft() {
+  sessionStorage.removeItem("walletRechargeDraft");
   sessionStorage.removeItem("returnToWalletRecharge");
+}
+
+type RechargeDialogState = { departmentId: number | null; amount: string | null };
+
+function RechargeStatusBadge({ request }: { request: { status?: string; status_display?: string; user_otp_verified?: boolean } }) {
+  const status = String(request.status || "").toUpperCase();
+  if (status === "PENDING" && request.user_otp_verified === false) {
+    return <Badge variant="outline" className="shrink-0">Awaiting OTP</Badge>;
+  }
+  if (status === "APPROVED") {
+    return <Badge className="shrink-0 bg-green-600 hover:bg-green-600">{request.status_display || "Approved"}</Badge>;
+  }
+  if (status === "REJECTED") {
+    return <Badge variant="destructive" className="shrink-0">{request.status_display || "Rejected"}</Badge>;
+  }
+  if (status === "CANCELLED") {
+    return <Badge variant="outline" className="shrink-0">{request.status_display || "Cancelled"}</Badge>;
+  }
+  return <Badge variant="secondary" className="shrink-0">{request.status_display || "Pending"}</Badge>;
 }
 
 type DeptFacultyCreditStatus = {
@@ -131,46 +110,6 @@ interface Transaction {
   source_system?: string;
   immutable?: boolean;
 }
-
-interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  handler: (response: any) => void;
-  prefill?: {
-    name?: string;
-    email?: string;
-    contact?: string;
-  };
-  theme?: {
-    color: string;
-  };
-  modal?: {
-    ondismiss: () => void;
-  };
-}
-
-interface RazorpayInstance {
-  open: () => void;
-  on: (event: string, handler: (response: any) => void) => void;
-}
-
-// Declare Razorpay on window object
-declare global {
-  interface Window {
-    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
-  }
-}
-
-const CASH_UNDERTAKING_IITR_STUDENT =
-  "I undertake that no project funds are currently available to fund this recharge and that I have sufficient personal funds to meet the requested recharge amount.";
-const CASH_UNDERTAKING_IITR_FACULTY =
-  "I undertake that no project funds are currently available to fund this recharge, or that I have already availed the applicable temporary credit facility.";
-const CASH_UNDERTAKING_DEFAULT =
-  "This option should be used only when no active project grant is available for funding the requested recharge. Direct Cash Deposit / Bank Transfer should be chosen only in such situations.";
 
 const Wallet = () => {
   const navigate = useNavigate();
@@ -240,40 +179,8 @@ const Wallet = () => {
   const [isStudent, setIsStudent] = useState(false);
   const [isIndividualStudent, setIsIndividualStudent] = useState(false);
   const [iitrStudentRechargeEnabled, setIitrStudentRechargeEnabled] = useState(false);
-  const [showRechargeDialog, setShowRechargeDialog] = useState(false);
-  const [rechargeAmount, setRechargeAmount] = useState("");
-  const [recharging, setRecharging] = useState(false);
-  const [rechargeType, setRechargeType] = useState<"sbiepay" | "request">("request");
-  const [offlineRechargeMode, setOfflineRechargeMode] = useState<OfflineRechargeMode>("direct_cash_deposit");
-  /** Summary shown after OTP verify (transaction id + next steps). */
-  const [submittedRechargeSummary, setSubmittedRechargeSummary] = useState<{
-    id: number;
-    transaction_number?: string;
-    request_id?: string;
-    amount?: string | number;
-    sric_notification_sent?: boolean;
-    recharge_mode?: string;
-  } | null>(null);
-  const [cashUndertakingAccepted, setCashUndertakingAccepted] = useState(false);
-  /** When IITR student receipt offline is enabled: choose receipt upload vs cash-deposit OTP. */
-  const [studentOfflinePath, setStudentOfflinePath] = useState<"receipt" | "cash">("cash");
-  const [studentReceiptFile, setStudentReceiptFile] = useState<File | null>(null);
-  const [studentReceiptUtr, setStudentReceiptUtr] = useState("");
-  const [submittingStudentReceipt, setSubmittingStudentReceipt] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [projects, setProjects] = useState<Array<{
-    id: number;
-    name: string;
-    project_code: string;
-    agency: string;
-    is_active: boolean;
-  }>>([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-  const [requestingRecharge, setRequestingRecharge] = useState(false);
-  const [otpStep, setOtpStep] = useState<"form" | "otp" | "sric" | "done">("form");
-  const [userOtp, setUserOtp] = useState("");
-  const [tempRequestId, setTempRequestId] = useState<number | null>(null);
-  const [sendingOtp, setSendingOtp] = useState(false);
+  /** Non-null while the recharge dialog is open; the dialog is remounted (fresh state) on every open. */
+  const [rechargeDialog, setRechargeDialog] = useState<RechargeDialogState | null>(null);
   const [sendingSric, setSendingSric] = useState(false);
   const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
   const [loadingRechargeRequests, setLoadingRechargeRequests] = useState(false);
@@ -294,11 +201,11 @@ const Wallet = () => {
     updated_at: string;
   }>>([]);
   const [showAllSubWallets, setShowAllSubWallets] = useState(false);
-  const SUB_WALLETS_PREVIEW_COUNT = 3;
-  const [internalDepartments, setInternalDepartments] = useState<Array<{ id: number; name: string; code: string | null }>>([]);
-  const [rechargeDepartmentId, setRechargeDepartmentId] = useState<number | null>(null);
-  const [loadingDepartments, setLoadingDepartments] = useState(false);
-  const skipRechargeResetRef = useRef(false);
+  const [subWalletSearch, setSubWalletSearch] = useState("");
+  const SUB_WALLETS_PREVIEW_COUNT = 5;
+  const [transactionsTotal, setTransactionsTotal] = useState(0);
+  const [fullTransactionsLoaded, setFullTransactionsLoaded] = useState(false);
+  const [loadingFullTransactions, setLoadingFullTransactions] = useState(false);
   const [deptFacultyCreditByDept, setDeptFacultyCreditByDept] = useState<
     Record<number, DeptFacultyCreditStatus>
   >({});
@@ -340,27 +247,10 @@ const Wallet = () => {
 
   const canShowWalletRecharge = !isShared || (isStudent && iitrStudentRechargeEnabled);
   const isIitrStudentReceiptOffline = isStudent && iitrStudentRechargeEnabled;
-  const isProjectGrantMode = offlineRechargeMode === "project_grant";
-  const isCashDepositMode = offlineRechargeMode === "direct_cash_deposit";
-  const cashUndertakingText = useMemo(() => {
-    if (String(user?.user_type ?? "").toLowerCase() === "student") return CASH_UNDERTAKING_IITR_STUDENT;
-    if (isFacultyEffective) return CASH_UNDERTAKING_IITR_FACULTY;
-    return CASH_UNDERTAKING_DEFAULT;
-  }, [user, isFacultyEffective]);
-  const sricDestinationLabel = isCashDepositMode ? "SRIC Bill Section" : "SRIC Office";
 
-  const openRechargeDialog = useCallback((departmentId?: number | null) => {
-    skipRechargeResetRef.current = false;
-    setRechargeType("request");
-    setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
-    setCashUndertakingAccepted(false);
-    setStudentOfflinePath("cash");
-    setSubmittedRechargeSummary(null);
-    if (departmentId != null) {
-      setRechargeDepartmentId(departmentId);
-    }
-    setShowRechargeDialog(true);
-  }, [isFacultyEffective]);
+  const openRechargeDialog = useCallback((departmentId?: number | null, amount?: string | null) => {
+    setRechargeDialog({ departmentId: departmentId ?? null, amount: amount ?? null });
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -388,80 +278,18 @@ const Wallet = () => {
       const amountRaw = searchParams.get("amount");
       const amount = amountRaw && /^\d{1,8}(\.\d{1,2})?$/.test(amountRaw) ? amountRaw : null;
       navigate("/wallet", { replace: true });
-      setTimeout(() => {
-        openRechargeDialog(deptId);
-        if (amount) setRechargeAmount(amount);
-      }, 300);
+      clearLegacyRechargeDraft();
+      openRechargeDialog(deptId, amount);
       return;
     }
 
-    // Check if user returned from profile page and reopen recharge dialog with draft
-    const returnToRecharge = sessionStorage.getItem("returnToWalletRecharge");
-    if (returnToRecharge === "true") {
-      const draft = loadWalletRechargeDraft();
-      if (draft) {
-        if (typeof draft.rechargeAmount === "string") setRechargeAmount(draft.rechargeAmount);
-        if (draft.rechargeDepartmentId != null) setRechargeDepartmentId(draft.rechargeDepartmentId);
-        if (draft.selectedProjectId != null) setSelectedProjectId(draft.selectedProjectId);
-        if (draft.rechargeType === "sbiepay" || draft.rechargeType === "request") {
-          setRechargeType(draft.rechargeType);
-        }
-        if (draft.offlineRechargeMode === "project_grant" || draft.offlineRechargeMode === "direct_cash_deposit") {
-          setOfflineRechargeMode(draft.offlineRechargeMode);
-        }
-        if (typeof draft.cashUndertakingAccepted === "boolean") {
-          setCashUndertakingAccepted(draft.cashUndertakingAccepted);
-        }
-        if (draft.otpStep === "form") setOtpStep("form");
-        if (typeof draft.studentReceiptUtr === "string") setStudentReceiptUtr(draft.studentReceiptUtr);
-      }
-      clearWalletRechargeDraft();
-      skipRechargeResetRef.current = false;
-      // Small delay to ensure wallet data is loaded
-      setTimeout(() => {
-        setShowRechargeDialog(true);
-      }, 500);
+    // Older builds sent faculty to Profile to add a project and restored a draft on return.
+    if (sessionStorage.getItem("returnToWalletRecharge") === "true") {
+      clearLegacyRechargeDraft();
+      openRechargeDialog();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount for URL / session restore
   }, []);
-
-  useEffect(() => {
-    if (showRechargeDialog && isFacultyEffective) {
-      setRechargeType("request");
-      setOfflineRechargeMode((prev) => (prev === "direct_cash_deposit" ? prev : "project_grant"));
-    }
-  }, [showRechargeDialog, isFacultyEffective]);
-
-  useEffect(() => {
-    // Fetch active projects if user is faculty
-    if (isFacultyEffective) {
-      fetchActiveProjects();
-    }
-  }, [isFacultyEffective]);
-
-  // Refresh projects when recharge dialog opens (in case user added/updated projects from profile)
-  useEffect(() => {
-    if (showRechargeDialog && isFacultyEffective) {
-      fetchActiveProjects();
-    }
-  }, [showRechargeDialog, isFacultyEffective]);
-
-  // Refresh projects when window regains focus (user navigated back from profile)
-  useEffect(() => {
-    const handleFocus = () => {
-      if (isFacultyEffective && document.visibilityState === 'visible') {
-        fetchActiveProjects();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleFocus);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
-    };
-  }, [isFacultyEffective]);
 
   const fetchRechargeRequests = async () => {
     try {
@@ -474,24 +302,6 @@ const Wallet = () => {
       console.error("Failed to fetch recharge requests:", error);
     } finally {
       setLoadingRechargeRequests(false);
-    }
-  };
-
-  const fetchActiveProjects = async () => {
-    try {
-      setLoadingProjects(true);
-      const response = await apiClient.getProjects();
-      if (response.data) {
-        // Filter only active projects
-        const activeProjects = (response.data.projects || []).filter(
-          (project: any) => project.is_active && !project.is_expired
-        );
-        setProjects(activeProjects);
-      }
-    } catch (error) {
-      console.error("Failed to fetch projects:", error);
-    } finally {
-      setLoadingProjects(false);
     }
   };
 
@@ -513,79 +323,12 @@ const Wallet = () => {
     }
   };
 
-  const goToAddProjectFromRecharge = () => {
-    skipRechargeResetRef.current = true;
-    saveWalletRechargeDraft({
-      rechargeAmount,
-      rechargeDepartmentId,
-      selectedProjectId,
-      rechargeType,
-      otpStep: otpStep === "form" ? "form" : undefined,
-      studentReceiptUtr,
-      offlineRechargeMode,
-      cashUndertakingAccepted,
-    });
-    sessionStorage.setItem("returnToWalletRecharge", "true");
-    setShowRechargeDialog(false);
-    navigate("/profile#projects");
-  };
-
-
   // Fetch join requests when request form is shown
   useEffect(() => {
     if (showRequestForm) {
       fetchJoinRequests();
     }
   }, [showRequestForm]);
-
-  // Fetch departments with equipment (valid for sub-wallet recharge) when recharge dialog opens
-  useEffect(() => {
-    if (showRechargeDialog && internalDepartments.length === 0) {
-      setLoadingDepartments(true);
-      apiClient.getDepartmentsForRecharge().then((res) => {
-        if (res.data?.departments) {
-          setInternalDepartments(
-            res.data.departments.filter((d: { name?: string; code?: string | null }) => {
-              const name = (d.name || "").trim().toLowerCase();
-              const code = (d.code || "").trim().toLowerCase();
-              return name !== "admin" && code !== "admin";
-            })
-          );
-        }
-        setLoadingDepartments(false);
-      }).catch(() => setLoadingDepartments(false));
-    }
-  }, [showRechargeDialog]);
-
-  // Auto-select department when exactly one internal department is available
-  useEffect(() => {
-    if (!showRechargeDialog || internalDepartments.length !== 1) {
-      return;
-    }
-    const onlyId = internalDepartments[0].id;
-    setRechargeDepartmentId((prev) => (prev === onlyId ? prev : onlyId));
-  }, [showRechargeDialog, internalDepartments]);
-
-  // When several recharge departments exist, default to the sub-wallet with the lowest balance.
-  useEffect(() => {
-    if (!showRechargeDialog || internalDepartments.length <= 1) return;
-    setRechargeDepartmentId((prev) => {
-      if (prev != null) return prev;
-      const allowedIds = new Set(internalDepartments.map((d) => d.id));
-      const candidates = subWallets.filter((sw) => allowedIds.has(sw.department_id));
-      if (candidates.length === 0) return prev;
-      let best = candidates[0];
-      let bestBal = parseFloat(String(best.balance));
-      for (let i = 1; i < candidates.length; i++) {
-        const b = parseFloat(String(candidates[i].balance));
-        if (b < bestBal) {
-          bestBal = b;
-          best = candidates[i];
-        }
-      }
-      return best.department_id;
-    });
-  }, [showRechargeDialog, internalDepartments, subWallets]);
 
   const checkAuthAndFetchWallet = async () => {
     const token = apiClient.getToken();
@@ -1318,7 +1061,6 @@ const Wallet = () => {
         if (walletResponse.error.includes("404") || walletResponse.error.includes("Not found")) {
           setBalance(0);
           setTransactions([]);
-          setWalletCreditFacilityItems([]);
           setLoading(false);
           return;
         }
@@ -1374,11 +1116,17 @@ const Wallet = () => {
     }
   };
 
-  const fetchTransactions = async () => {
+  /** Recent rows + total count only; the full list (for filters/export) loads when history is expanded. */
+  const fetchTransactions = async (full = fullTransactionsLoaded) => {
     try {
-      const txnResponse = await apiClient.getWalletTransactions(5000, 0);
+      if (full) setLoadingFullTransactions(true);
+      const txnResponse = await apiClient.getWalletTransactions(full ? 5000 : RECENT_TRANSACTIONS_COUNT, 0);
       if (txnResponse.data?.transactions) {
-        const mapped: Transaction[] = txnResponse.data.transactions.map((tx: any) => ({
+        const rows = txnResponse.data.transactions;
+        const total = Number(txnResponse.data.total_count);
+        setTransactionsTotal(Number.isFinite(total) && total > 0 ? total : rows.length);
+        if (full) setFullTransactionsLoaded(true);
+        const mapped: Transaction[] = rows.map((tx: any) => ({
           id: tx.id,
           transaction_type: tx.transaction_type,
           amount: String(tx.amount),
@@ -1399,10 +1147,21 @@ const Wallet = () => {
         setTransactions(mapped);
       } else {
         setTransactions([]);
+        setTransactionsTotal(0);
       }
     } catch (error) {
       console.error("Failed to fetch wallet transactions:", error);
       setTransactions([]);
+    } finally {
+      if (full) setLoadingFullTransactions(false);
+    }
+  };
+
+  const toggleFullTransactionHistory = () => {
+    const next = !showTransactionHistoryExpanded;
+    setShowTransactionHistoryExpanded(next);
+    if (next && !fullTransactionsLoaded) {
+      void fetchTransactions(true);
     }
   };
 
@@ -1488,177 +1247,6 @@ const Wallet = () => {
     [transactions]
   );
 
-  // Load Razorpay script dynamically
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      // Cleanup script on unmount
-      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-      if (existingScript) {
-        document.body.removeChild(existingScript);
-      }
-    };
-  }, []);
-
-  const handleRecharge = async () => {
-    const amount = parseFloat(rechargeAmount);
-    if (!rechargeDepartmentId) {
-      toast.error("Please select a department (sub-wallet to credit)");
-      return;
-    }
-    if (!amount || amount < 1) {
-      toast.error("Please enter a valid amount (minimum ₹1)");
-      return;
-    }
-    if (amount > 100000) {
-      toast.error("Maximum recharge amount is ₹1,00,000");
-      return;
-    }
-    try {
-      setRecharging(true);
-      const orderResponse = await apiClient.createRazorpayPaymentOrder({
-        purpose: "WALLET_RECHARGE",
-        amount,
-        department_id: rechargeDepartmentId,
-      });
-      if (orderResponse.error || !orderResponse.data) {
-        toast.error(orderResponse.error || "Failed to create payment order");
-        setRecharging(false);
-        return;
-      }
-      const RazorpayCtor = (window as any).Razorpay;
-      if (!RazorpayCtor) {
-        toast.error("Razorpay Checkout is not loaded. Please refresh and try again.");
-        setRecharging(false);
-        return;
-      }
-      const breakup = orderResponse.data.breakup;
-      if (breakup && Number(breakup.convenience_fee) > 0) {
-        toast.info(
-          `Payable ${formatINR(Number(breakup.total_amount))} (includes convenience fee)`
-        );
-      }
-      const options = {
-        key: orderResponse.data.key || orderResponse.data.key_id,
-        amount: orderResponse.data.amount,
-        currency: orderResponse.data.currency || "INR",
-        name: "IIC Wallet Recharge",
-        description: `Wallet recharge ₹${amount}`,
-        order_id: orderResponse.data.order_id,
-        handler: async (response: {
-          razorpay_order_id: string;
-          razorpay_payment_id: string;
-          razorpay_signature: string;
-        }) => {
-          try {
-            const verify = await apiClient.verifyRazorpayCheckout({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            if (verify.error) {
-              toast.error(verify.error);
-              return;
-            }
-            toast.success(verify.data?.message || "Wallet recharged successfully");
-            setRechargeAmount("");
-            await fetchWalletData();
-          } catch (err: any) {
-            toast.error(err?.message || "Payment verification failed");
-          } finally {
-            setRecharging(false);
-          }
-        },
-        modal: {
-          ondismiss: () => setRecharging(false),
-        },
-        theme: { color: "#1e4d8c" },
-      };
-      const rzp = new RazorpayCtor(options);
-      rzp.open();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to initiate payment");
-      setRecharging(false);
-    }
-  };
-
-  const completeRechargeOtpSend = async (creditFacilityOptedIn: boolean) => {
-    const amount = parseFloat(rechargeAmount);
-    if (!rechargeDepartmentId) {
-      toast.error("Please select a department (sub-wallet to credit)");
-      return;
-    }
-    if (!amount || amount < 100) {
-      toast.error("Please enter a valid amount (minimum ₹100)");
-      return;
-    }
-    const isProjectGrant = offlineRechargeMode === "project_grant";
-    if (isProjectGrant && !selectedProjectId) {
-      toast.error("Please select a project. Add projects from your profile if none are available.");
-      return;
-    }
-    if (!isProjectGrant && !cashUndertakingAccepted) {
-      toast.error("Please accept the undertaking before continuing.");
-      return;
-    }
-    try {
-      setSendingOtp(true);
-      const response = await apiClient.sendUserOtpForRecharge(
-        amount,
-        rechargeDepartmentId,
-        isProjectGrant ? selectedProjectId : null,
-        creditFacilityOptedIn,
-        {
-          rechargeMode: offlineRechargeMode,
-          undertakingAccepted: cashUndertakingAccepted,
-        }
-      );
-
-      if (response.error) {
-        toast.error(response.error || "Failed to send OTP");
-        return;
-      }
-
-      toast.success(response.data?.message || "OTP has been sent to your email");
-      setTempRequestId(response.data?.request_id || null);
-      setOtpStep("otp");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send OTP");
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  const handleSendOtp = async () => {
-    await completeRechargeOtpSend(false);
-  };
-
-  const resetRechargeDialog = () => {
-    if (skipRechargeResetRef.current) {
-      skipRechargeResetRef.current = false;
-      setShowRechargeDialog(false);
-      return;
-    }
-    setShowRechargeDialog(false);
-    setRechargeAmount("");
-    setRechargeDepartmentId(null);
-    setSelectedProjectId(null);
-    setRechargeType("request");
-    setOfflineRechargeMode(isFacultyEffective ? "project_grant" : "direct_cash_deposit");
-    setCashUndertakingAccepted(false);
-    setStudentOfflinePath("cash");
-    setOtpStep("form");
-    setUserOtp("");
-    setTempRequestId(null);
-    setSubmittedRechargeSummary(null);
-    setStudentReceiptFile(null);
-    setStudentReceiptUtr("");
-  };
-
   const openAvailCreditDialog = (departmentId: number) => {
     const status = deptFacultyCreditByDept[departmentId];
     const remaining =
@@ -1721,41 +1309,6 @@ const Wallet = () => {
     }
   };
 
-  const handleSubmitStudentReceipt = async () => {
-    if (!rechargeDepartmentId || !rechargeAmount || !studentReceiptFile) {
-      toast.error("Department, amount, and payment receipt file are required.");
-      return;
-    }
-    const amount = parseFloat(rechargeAmount);
-    if (Number.isNaN(amount) || amount < 1) {
-      toast.error("Enter a valid amount.");
-      return;
-    }
-    try {
-      setSubmittingStudentReceipt(true);
-      const res = await apiClient.submitWalletRechargeReceipt({
-        amount,
-        department_id: rechargeDepartmentId,
-        receipt_file: studentReceiptFile,
-        utr_reference: studentReceiptUtr.trim() || undefined,
-      });
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success(
-        res.data?.message ||
-          "Payment receipt submitted. Funds will be parked in the faculty wallet after Department Account In-charge approval."
-      );
-      resetRechargeDialog();
-      await fetchWalletData();
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to submit payment receipt");
-    } finally {
-      setSubmittingStudentReceipt(false);
-    }
-  };
-
   const handleSendSricNotification = async (requestId: number, onSuccess?: () => void) => {
     try {
       setSendingSric(true);
@@ -1764,112 +1317,57 @@ const Wallet = () => {
         toast.error(response.error);
         return;
       }
-      toast.success(response.data?.message || `Request sent to ${sricDestinationLabel}.`);
+      toast.success(response.data?.message || "Request sent to SRIC.");
       await fetchWalletData();
       await fetchRechargeRequests();
       onSuccess?.();
     } catch (error: any) {
-      toast.error(error.message || `Failed to send to ${sricDestinationLabel}`);
+      toast.error(error.message || "Failed to send to SRIC");
     } finally {
       setSendingSric(false);
     }
   };
 
-  const handleRequestRecharge = async () => {
-    if (!tempRequestId) {
-      toast.error("Please request OTP first");
-      return;
-    }
-
-    if (!userOtp || userOtp.length !== 6) {
-      toast.error("Please enter a valid 6-digit OTP");
-      return;
-    }
-
-    try {
-      setRequestingRecharge(true);
-      
-      const response = await apiClient.createWalletRechargeRequest(
-        tempRequestId,
-        userOtp
-      );
-
-      if (response.error) {
-        toast.error(response.error || "Failed to create recharge request");
-        return;
-      }
-
-      const req = response.data?.request;
-      const cashMode =
-        isCashDepositMode ||
-        req?.recharge_mode === "direct_cash_deposit" ||
-        String(req?.recharge_mode || "").toUpperCase() === "DIRECT_CASH_DEPOSIT";
-
-      if (req) {
-        setSubmittedRechargeSummary({
-          id: req.id,
-          transaction_number: req.transaction_number,
-          request_id: req.request_id,
-          amount: req.amount,
-          sric_notification_sent: Boolean(req.sric_notification_sent),
-          recharge_mode: req.recharge_mode,
-        });
-        setTempRequestId(req.id);
-      }
-
-      const needsSric =
-        isFacultyEffective &&
-        req &&
-        req.user_otp_verified &&
-        !req.sric_notification_sent;
-
-      if (cashMode) {
-        toast.success(
-          response.data?.message ||
-            `Request submitted. Transaction ${req?.transaction_number || req?.request_id || ""} — visit SRIC Bill Section with this reference.`
-        );
-        setOtpStep("done");
-        setUserOtp("");
-        await fetchWalletData();
-        await fetchRechargeRequests();
-        return;
-      }
-
-      if (needsSric) {
-        toast.success(
-          response.data?.message ||
-            "Recharge request created. You can now notify the SRIC Office (if auto-notify did not run)."
-        );
-        setOtpStep("sric");
-        setUserOtp("");
-        await fetchWalletData();
-        await fetchRechargeRequests();
-        return;
-      }
-
-      toast.success(
-        response.data?.message ||
-          (isFacultyEffective && req?.sric_notification_sent
-            ? "Recharge request submitted. SRIC Office, accounts, and staff have been notified where configured."
-            : "Recharge request created successfully. The accounts team will review your request.")
-      );
-      if (req) {
-        setOtpStep("done");
-        setUserOtp("");
-        await fetchWalletData();
-        await fetchRechargeRequests();
-        return;
-      }
-      resetRechargeDialog();
-      
-      await fetchWalletData();
-      await fetchRechargeRequests();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create recharge request");
-    } finally {
-      setRequestingRecharge(false);
-    }
+  const handleRechargeSubmitted = () => {
+    void fetchWalletData();
+    void fetchRechargeRequests();
   };
+
+  const filteredSubWallets = useMemo(() => {
+    const q = subWalletSearch.trim().toLowerCase();
+    if (!q) return subWallets;
+    return subWallets.filter(
+      (sw) =>
+        sw.department_name.toLowerCase().includes(q) ||
+        (sw.department_code || "").toLowerCase().includes(q)
+    );
+  }, [subWallets, subWalletSearch]);
+
+  const visibleSubWallets =
+    showAllSubWallets || subWalletSearch.trim()
+      ? filteredSubWallets
+      : filteredSubWallets.slice(0, SUB_WALLETS_PREVIEW_COUNT);
+
+  const rechargeSummary = useMemo(() => summarizeRechargeRequests(rechargeRequests), [rechargeRequests]);
+
+  const recentRechargeRequests = useMemo(
+    () =>
+      [...rechargeRequests]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, RECENT_RECHARGE_REQUESTS_COUNT),
+    [rechargeRequests]
+  );
+
+  const creditFacilityRows = useMemo(
+    () =>
+      Object.values(deptFacultyCreditByDept)
+        .filter((c) => {
+          const s = String(c.status || "").toLowerCase();
+          return s === "active" || s === "exhausted" || Boolean(c.can_avail);
+        })
+        .sort((a, b) => a.department_name.localeCompare(b.department_name)),
+    [deptFacultyCreditByDept]
+  );
 
   // Calculate if section should show (needed in multiple return statements)
   const shouldShowFacultyWalletSection = (isStudent || isOtherUser) && !isIndividualStudent;
@@ -1888,9 +1386,9 @@ const Wallet = () => {
       <div className="page-shell">
         <DashboardHeader />
         <main className="container mx-auto px-4 py-5">
-          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Request Wallet Access</h1>
-            <p className="mt-2 text-white/85 text-sm">
+          <div className="mb-5 border-b border-border pb-4">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Request Wallet Access</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Link to a faculty wallet to fund equipment bookings.
             </p>
           </div>
@@ -2206,125 +1704,167 @@ const Wallet = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-6 sm:py-6 max-w-5xl">
-        <div className="mb-6 sm:mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 sm:p-7 text-white shadow-xl">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Wallet</h1>
-              <p className="mt-1.5 text-white/85 text-sm sm:text-base max-w-xl">
-                {isShared && isStudent
-                  ? iitrStudentRechargeEnabled
-                    ? "Shared faculty wallet — recharge when enabled, or review balance and transactions."
-                    : "Shared faculty wallet — view balance, join status, and transactions."
-                  : isFacultyEffective
-                    ? "Manage department sub-wallets, offline recharge, credit facility, and transfers."
-                    : "View balance, recharge, manage join requests, and review transactions."}
-              </p>
-            </div>
-            {canShowWalletRecharge && (
-              <Button
-                size="lg"
-                onClick={() => openRechargeDialog()}
-                className={
-                  isStudent && isShared
-                    ? "w-full sm:w-auto shrink-0 h-12 px-6 text-base font-semibold bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-900/30 border-0"
-                    : "w-full sm:w-auto shrink-0 h-11 px-5 font-semibold bg-white text-primary hover:bg-white/90 shadow-md"
-                }
-              >
-                <WalletIcon className="h-5 w-5 mr-2" />
-                Recharge Wallet
-              </Button>
-            )}
+      <main className="container mx-auto px-4 py-6 max-w-6xl">
+        <div className="mb-5 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Wallet</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isShared
+                ? "View the shared faculty wallet balance, sub-wallets and transactions."
+                : "Manage your wallet balance, recharge requests, transfers and credit."}
+            </p>
           </div>
+          {canShowWalletRecharge && (
+            <Button onClick={() => openRechargeDialog()} className="w-full sm:w-auto shrink-0" data-testid="wallet-recharge-button">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Recharge Wallet
+            </Button>
+          )}
         </div>
 
-        <Card className="mb-6 sm:mb-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border/50 pb-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle>Current Balance</CardTitle>
-                <CardDescription className="mt-1">
-                  {isShared
-                    ? isIitrStudentReceiptOffline
-                      ? "Funds sit in your faculty supervisor’s wallet. Recharges you submit credit that wallet for the department you choose."
-                      : "Available funds in the shared faculty wallet."
-                    : "Consolidated balance across all department sub-wallets."}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div
-              className={
-                isShared && walletOwner
-                  ? "grid gap-6 lg:grid-cols-[1fr_minmax(240px,280px)] lg:items-start"
-                  : "space-y-4"
-              }
-            >
-              <div className="space-y-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-                      Total available
+        <div className="mb-5 grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
+          <div className="min-w-0 space-y-5">
+            <Card className="rounded-lg border-border shadow-sm">
+              <CardContent className="p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">Current Balance</p>
+                    <p
+                      className="mt-1 text-3xl sm:text-4xl font-semibold tabular-nums tracking-tight text-foreground"
+                      data-testid="wallet-balance"
+                    >
+                      {formatMoney(balance)}
                     </p>
-                    <div className="text-4xl sm:text-5xl font-bold text-primary tabular-nums tracking-tight">
-                      ₹{balance.toFixed(2)}
-                    </div>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      {isShared
+                        ? isIitrStudentReceiptOffline
+                          ? "Funds sit in your faculty supervisor’s wallet. Recharges you submit credit that wallet for the department you choose."
+                          : "Available funds in the shared faculty wallet."
+                        : "Consolidated balance across your department sub-wallets."}
+                    </p>
                   </div>
-                  <div className="flex flex-col gap-2 w-full sm:w-auto sm:items-stretch min-w-[12rem]">
-                    {canShowWalletRecharge && (
-                      <Button
-                        size="lg"
-                        onClick={() => openRechargeDialog()}
-                        className={
-                          isStudent && isShared
-                            ? "w-full h-12 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-                            : "w-full h-11 font-semibold"
-                        }
-                      >
-                        <WalletIcon className="h-5 w-5 mr-2" />
-                        Recharge Wallet
-                      </Button>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {isFacultyEffective && !isShared && (
-                        <Button
-                          variant="outline"
-                          onClick={() => navigate("/wallet/transfer")}
-                          className="flex-1 sm:flex-none"
-                        >
+                  {!isShared && (
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      {isFacultyEffective && (
+                        <Button variant="outline" size="sm" onClick={() => navigate("/wallet/transfer")}>
+                          <ArrowUp className="h-4 w-4 mr-1.5 rotate-45" />
                           Transfer
                         </Button>
                       )}
-                      {!isShared && (
-                        <Button
-                          variant="outline"
-                          onClick={() => navigate("/wallet/credit-facility")}
-                          className="flex-1 sm:flex-none"
-                        >
-                          Credit Facility
-                        </Button>
+                      <Button variant="outline" size="sm" onClick={() => navigate("/wallet/credit-facility")}>
+                        <CreditCard className="h-4 w-4 mr-1.5" />
+                        Credit Facility
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {canShowWalletRecharge && isStudent && isShared && (
+                  <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Use <span className="font-medium text-foreground">Recharge Wallet</span> to submit a cash / bank
+                    transfer or payment-receipt request. Funds park in your faculty wallet after approval.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-lg border-border shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
+                <div className="min-w-0">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    Department sub-wallets
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs">
+                    {isShared
+                      ? "Equipment bookings deduct from the matching department sub-wallet."
+                      : "Funds allocated by department. Bookings deduct from the matching sub-wallet."}
+                  </CardDescription>
+                </div>
+                {subWallets.length > 0 && (
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {subWallets.length} {subWallets.length === 1 ? "department" : "departments"}
+                  </span>
+                )}
+              </CardHeader>
+              <CardContent className="pt-0">
+                {subWallets.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    No department sub-wallets yet. A sub-wallet is created when a recharge is credited to a department.
+                  </p>
+                ) : (
+                  <>
+                    {subWallets.length > SUB_WALLET_SEARCH_THRESHOLD && (
+                      <div className="relative mb-3">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={subWalletSearch}
+                          onChange={(e) => setSubWalletSearch(e.target.value)}
+                          placeholder="Search department or code"
+                          className="h-9 pl-8"
+                          aria-label="Search sub-wallets"
+                        />
+                      </div>
+                    )}
+                    <div className="overflow-hidden rounded-md border border-border">
+                      <div className="grid grid-cols-[minmax(0,1fr)_3rem_6.5rem] gap-2 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_5.5rem_8rem]">
+                        <span>Department</span>
+                        <span>Code</span>
+                        <span className="text-right">Balance</span>
+                      </div>
+                      {visibleSubWallets.length === 0 ? (
+                        <p className="px-3 py-4 text-sm text-muted-foreground">No departments match your search.</p>
+                      ) : (
+                        <ul className="divide-y divide-border">
+                          {visibleSubWallets.map((sw) => (
+                            <li
+                              key={sw.id}
+                              className="grid grid-cols-[minmax(0,1fr)_3rem_6.5rem] items-center gap-2 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_5.5rem_8rem]"
+                            >
+                              <span className="break-words font-medium leading-snug text-foreground sm:truncate" title={sw.department_name}>
+                                {sw.department_name}
+                              </span>
+                              <span className="truncate text-muted-foreground">{sw.department_code || "—"}</span>
+                              <span className="text-right font-medium tabular-nums text-foreground">
+                                {formatMoney(sw.balance)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
-                  </div>
-                </div>
-
-                {canShowWalletRecharge && isStudent && isShared && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
-                    <p className="font-medium">Offline recharge is available</p>
-                    <p className="mt-0.5 text-emerald-800/90 dark:text-emerald-200/90 text-xs sm:text-sm">
-                      Use <span className="font-semibold">Recharge Wallet</span> to submit a cash / bank
-                      transfer or payment-receipt request. Funds park in your faculty wallet after approval.
-                    </p>
-                  </div>
+                    {!subWalletSearch.trim() && filteredSubWallets.length > SUB_WALLETS_PREVIEW_COUNT && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 w-full text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowAllSubWallets((v) => !v)}
+                      >
+                        {showAllSubWallets ? (
+                          <>
+                            <ChevronUp className="h-4 w-4 mr-1.5" />
+                            Show fewer
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-1.5" />
+                            Show all {filteredSubWallets.length}
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </>
                 )}
-              </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              {isShared && walletOwner && (
-                <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Supervisor
-                  </p>
+          <div className="min-w-0 space-y-5">
+            {isShared && walletOwner && (
+              <Card className="rounded-lg border-border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Supervisor</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-0">
                   <UserProfile
                     name={walletOwner.name}
                     email={walletOwner.email}
@@ -2354,599 +1894,705 @@ const Wallet = () => {
                     <X className="h-4 w-4 mr-1" />
                     Leave Wallet
                   </Button>
-                </div>
-              )}
-            </div>
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Recharge Dialog */}
-            {showRechargeDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] p-4 safe-pad">
-                <Card className="w-full max-w-lg max-h-[90dvh] overflow-y-auto shadow-2xl">
-                  <CardHeader className="sticky top-0 bg-card z-10 border-b">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle>Recharge Wallet</CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          resetRechargeDialog();
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+            {!isShared && (
+              <Card className="rounded-lg border-border shadow-sm" data-testid="recharge-requests-summary">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Recharge requests</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Pending", value: rechargeSummary.pending },
+                      { label: "Approved", value: rechargeSummary.approved },
+                      { label: "Rejected", value: rechargeSummary.rejected },
+                    ].map((s) => (
+                      <div key={s.label} className="rounded-md border border-border px-3 py-2">
+                        <p className="text-xs text-muted-foreground">{s.label}</p>
+                        <p className="text-lg font-semibold tabular-nums text-foreground">{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {rechargeSummary.awaitingOtp > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {rechargeSummary.awaitingOtp} request{rechargeSummary.awaitingOtp === 1 ? " is" : "s are"} awaiting OTP
+                      verification and {rechargeSummary.awaitingOtp === 1 ? "has" : "have"} not been submitted.
+                    </p>
+                  )}
+                  {loadingRechargeRequests && rechargeRequests.length === 0 ? (
+                    <div className="flex justify-center py-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
-                    {otpStep !== "done" && otpStep !== "sric" ? (
-                      <CardDescription>
-                        {isIitrStudentReceiptOffline
-                          ? "Select department and amount. Offline recharge requires a payment receipt or cash/bank request. Funds credit the faculty wallet."
-                          : isFacultyEffective
-                            ? "Select department and amount. Offline request is the default path (Razorpay is disabled)."
-                            : "Recharge a department sub-wallet. Select department and amount."}
-                      </CardDescription>
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-4">
-                    {otpStep === "done" || otpStep === "sric" ? (
-                      <div className="space-y-4">
-                        <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
-                          <p className="text-sm font-medium">Request submitted</p>
-                          {(submittedRechargeSummary?.transaction_number ||
-                            submittedRechargeSummary?.request_id) && (
-                            <p className="text-base font-semibold tracking-wide">
-                              Transaction ID:{" "}
-                              {submittedRechargeSummary.transaction_number ||
-                                submittedRechargeSummary.request_id}
+                  ) : recentRechargeRequests.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No recharge requests yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-border rounded-md border border-border">
+                      {recentRechargeRequests.map((req) => (
+                        <li key={req.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                          <div className="min-w-0">
+                            <p className="font-medium tabular-nums text-foreground">{formatMoney(req.amount)}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {new Date(req.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                              {" · "}
+                              {rechargeModeLabel(req.recharge_mode)}
+                              {req.project_code ? ` · ${req.project_code}` : ""}
                             </p>
-                          )}
-                          {submittedRechargeSummary?.amount != null && (
-                            <p className="text-lg font-bold text-primary">
-                              Amount: ₹{Number(submittedRechargeSummary.amount).toFixed(2)}
-                            </p>
-                          )}
-                          <div className="text-sm text-muted-foreground space-y-2">
-                            <p>Keep this transaction number to track credit / wallet recharge requests.</p>
-                            {(isCashDepositMode ||
-                              submittedRechargeSummary?.recharge_mode === "direct_cash_deposit") && (
-                              <ol className="list-decimal list-inside space-y-1 text-foreground/90">
-                                <li>
-                                  Visit the SRIC Bill Section to deposit cash (or complete bank transfer).
-                                </li>
-                                <li>
-                                  Share the transaction number with Bill Section SRIC for immediate recharge.
-                                </li>
-                              </ol>
-                            )}
-                            {otpStep === "sric" &&
-                              !(
-                                isCashDepositMode ||
-                                submittedRechargeSummary?.recharge_mode === "direct_cash_deposit"
-                              ) && (
-                              <p>
-                                Your recharge request has been created. Send it to the {sricDestinationLabel} by email
-                                if it was not already notified.
-                              </p>
+                          </div>
+                          <RechargeStatusBadge request={req} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setShowRechargeHistory(true);
+                      window.setTimeout(() => {
+                        document.getElementById("recharge-history")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }, 50);
+                    }}
+                  >
+                    View recharge history
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isFacultyEffective && !isShared && creditFacilityRows.length > 0 && (
+              <Card className="rounded-lg border-border shadow-sm" data-testid="credit-facility-summary">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Credit facility</CardTitle>
+                  <CardDescription className="text-xs">Temporary department credit, where eligible.</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ul className="divide-y divide-border rounded-md border border-border">
+                    {creditFacilityRows.map((credit) => {
+                      const statusLower = String(credit.status || "").toLowerCase();
+                      const isOpen = statusLower === "active" || statusLower === "exhausted";
+                      return (
+                        <li key={credit.department_id} className="space-y-1.5 px-3 py-2 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate font-medium text-foreground">{credit.department_name}</span>
+                            {isOpen ? (
+                              <Badge variant={statusLower === "exhausted" ? "destructive" : "secondary"}>
+                                {credit.status_display || (statusLower === "exhausted" ? "Exhausted" : "Active")}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">Available</Badge>
                             )}
                           </div>
-                        </div>
-                        {otpStep === "sric" &&
-                          submittedRechargeSummary &&
-                          !submittedRechargeSummary.sric_notification_sent && (
-                          <Button
-                            className="w-full"
-                            size="lg"
-                            onClick={() => {
-                              if (tempRequestId != null) {
-                                void handleSendSricNotification(tempRequestId, () => {
-                                  setSubmittedRechargeSummary((prev) =>
-                                    prev ? { ...prev, sric_notification_sent: true } : prev
-                                  );
-                                  setOtpStep("done");
-                                });
-                              }
-                            }}
-                            disabled={sendingSric || tempRequestId == null}
-                          >
-                            {sendingSric ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Sending...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Send to {sricDestinationLabel}
-                              </>
-                            )}
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            resetRechargeDialog();
-                            void fetchWalletData();
-                            void fetchRechargeRequests();
-                          }}
-                          disabled={sendingSric}
-                        >
-                          Close
-                        </Button>
-                      </div>
-                    ) : (
-                    <>
-                    {/* Offline Request first; Razorpay disabled */}
-                    <div className="flex gap-2 border-b">
-                      <Button
-                        type="button"
-                        variant={rechargeType === "request" ? "default" : "ghost"}
-                        className="rounded-b-none border-b-2 border-transparent"
+                          {isOpen && (
+                            <p className="text-xs text-muted-foreground tabular-nums">
+                              Outstanding {formatMoney(credit.outstanding_credit)} · Remaining{" "}
+                              {formatMoney(credit.remaining_credit)} of {formatMoney(credit.credit_limit)}
+                            </p>
+                          )}
+                          {credit.can_avail && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8"
+                              onClick={() => openAvailCreditDialog(credit.department_id)}
+                            >
+                              Avail credit
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Recharge Request History */}
+        {!isShared && showRechargeHistory && (
+          <Card id="recharge-history" className="mb-5 scroll-mt-20 rounded-lg border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle className="text-base">Recharge request history</CardTitle>
+                  <CardDescription className="text-xs">
+                    All wallet recharge requests
+                    {isStudent
+                      ? ". For approved requests you may optionally add or update a receipt number / upload."
+                      : "."}
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setShowRechargeHistory(false)}>
+                  <ChevronUp className="h-4 w-4 mr-1.5" />
+                  Hide
+                </Button>
+              </div>
+            </CardHeader>
+            {showRechargeHistory && (
+              <CardContent>
+                {loadingRechargeRequests ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : rechargeRequests.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No recharge requests yet
+                  </p>
+                ) : (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                          <TableHead className="whitespace-nowrap font-semibold">S.No.</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Transaction</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Requested</TableHead>
+                          <TableHead className="text-right whitespace-nowrap font-semibold">Amount</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Mode</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold min-w-[120px]">Department</TableHead>
+                          <TableHead className="min-w-[140px] font-semibold">Project</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Status</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold text-center">SRIC</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold">Response</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold">Processed</TableHead>
+                          <TableHead className="text-right whitespace-nowrap font-semibold w-[1%]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rechargeRequests.map((req, rowIndex) => (
+                          <TableRow key={req.id}>
+                            <TableCell className="text-sm tabular-nums w-[3rem]">{rowIndex + 1}</TableCell>
+                            <TableCell className="text-sm font-medium whitespace-nowrap">
+                              {req.transaction_number || req.request_id || `#${req.id}`}
+                            </TableCell>
+                            <TableCell className="text-sm whitespace-nowrap">
+                              {new Date(req.created_at).toLocaleString(undefined, {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              ₹{Number(req.amount).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-sm whitespace-nowrap">
+                              {rechargeModeLabel(req.recharge_mode)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {req.department_name || "—"}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {req.project_name ? (
+                                <span className="line-clamp-2" title={[req.project_name, req.project_code].filter(Boolean).join(" · ")}>
+                                  {req.project_name}
+                                  {req.project_code ? ` (${req.project_code})` : ""}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <RechargeStatusBadge request={req} />
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {isFacultyEffective ? (
+                                req.sric_notification_sent ? (
+                                  <span className="text-emerald-600 dark:text-emerald-400">Yes</span>
+                                ) : (
+                                  <span className="text-muted-foreground">No</span>
+                                )
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-[220px]">
+                              <span className="line-clamp-2" title={req.response_message || ""}>
+                                {req.response_message || "—"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-sm whitespace-nowrap align-top">
+                              {req.responded_at ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span>
+                                    {new Date(req.responded_at).toLocaleString(undefined, {
+                                      dateStyle: "short",
+                                      timeStyle: "short",
+                                    })}
+                                  </span>
+                                  {req.approved_by_email && (
+                                    <span className="text-xs text-muted-foreground max-w-[180px] truncate" title={req.approved_by_email}>
+                                      {req.approved_by_email}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right align-top">
+                              {req.status === "PENDING" ? (
+                                <div className="flex flex-col gap-1 items-end">
+                                  {isFacultyEffective && !req.sric_notification_sent && (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-8"
+                                      onClick={() =>
+                                        void handleSendSricNotification(req.id, () => {
+                                          void fetchWalletData();
+                                        })
+                                      }
+                                      disabled={sendingSric}
+                                    >
+                                      {sendingSric ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Send className="h-3.5 w-3.5 mr-1" />
+                                          SRIC
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-blue-600 border-blue-600"
+                                    onClick={async () => {
+                                      setResendingNotification(req.id);
+                                      try {
+                                        const response = await apiClient.resendWalletRechargeNotification(req.id);
+                                        if (response.error) {
+                                          toast.error(response.error || "Failed to resend notification");
+                                        } else {
+                                          toast.success(response.data?.message || "Notification resent successfully");
+                                        }
+                                      } catch (error: any) {
+                                        toast.error(error.message || "Failed to resend notification");
+                                      } finally {
+                                        setResendingNotification(null);
+                                      }
+                                    }}
+                                    disabled={resendingNotification === req.id}
+                                  >
+                                    {resendingNotification === req.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                        Resend
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-orange-600 border-orange-600"
+                                    onClick={async () => {
+                                      const response = await apiClient.cancelWalletRechargeRequest(req.id);
+                                      if (response.error) {
+                                        toast.error(response.error || "Failed to cancel request");
+                                      } else {
+                                        toast.success(response.data?.message || "Request removed");
+                                        await fetchRechargeRequests();
+                                      }
+                                    }}
+                                  >
+                                    <X className="h-3.5 w-3.5 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : req.status === "APPROVED" ? (
+                                <div className="flex flex-col gap-1 items-end">
+                                  {req.utr_reference ? (
+                                    <span
+                                      className="text-xs text-muted-foreground max-w-[140px] truncate"
+                                      title={String(req.utr_reference)}
+                                    >
+                                      Receipt: {req.utr_reference}
+                                    </span>
+                                  ) : null}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8"
+                                    onClick={() => {
+                                      setReceiptAttachRow(req);
+                                      setReceiptAttachUtr(String(req.utr_reference || ""));
+                                      setReceiptAttachFile(null);
+                                    }}
+                                  >
+                                    <Upload className="h-3.5 w-3.5 mr-1" />
+                                    {req.utr_reference || (req.payment_receipts?.length ?? 0) > 0
+                                      ? "Update receipt"
+                                      : "Upload receipt"}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
+        )}
+
+        <Card className="mb-5 rounded-lg border-border shadow-sm" data-testid="transaction-history">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="text-base">Transaction history</CardTitle>
+                <CardDescription className="text-xs">
+                  {transactionsTotal > 0
+                    ? `${transactionsTotal.toLocaleString("en-IN")} transaction${transactionsTotal !== 1 ? "s" : ""} across department sub-wallets.`
+                    : "Credits and debits across department sub-wallets."}
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {showTransactionHistoryExpanded && fullTransactionsLoaded && transactions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="shrink-0 gap-2">
+                        <Download className="h-4 w-4" />
+                        Download
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
                         onClick={() => {
-                          setRechargeType("request");
-                          if (!isFacultyEffective) {
-                            setOfflineRechargeMode("direct_cash_deposit");
-                            setCashUndertakingAccepted(false);
+                          if (filteredTransactions.length === 0) {
+                            toast.error("No transactions match the current filters.");
+                            return;
                           }
+                          exportWalletTransactionsExcel(filteredTransactions, {
+                            sheetTitle: "Transactions",
+                          });
+                          toast.success("Excel file downloaded.");
                         }}
-                        disabled={recharging || requestingRecharge}
+                      >
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel (.xlsx)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          void (async () => {
+                            if (filteredTransactions.length === 0) {
+                              toast.error("No transactions match the current filters.");
+                              return;
+                            }
+                            try {
+                              await exportWalletTransactionsPdf(filteredTransactions, {
+                                title: "Wallet transaction history",
+                              });
+                              toast.success("PDF downloaded.");
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : "PDF export failed");
+                            }
+                          })();
+                        }}
                       >
                         <FileText className="h-4 w-4 mr-2" />
-                        Offline Request
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={rechargeType === "sbiepay" ? "default" : "ghost"}
-                        className="rounded-b-none border-b-2 border-transparent opacity-60"
-                        onClick={() => setRechargeType("sbiepay")}
-                        disabled
-                        title="Online Razorpay recharge is temporarily disabled"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Razorpay (Online)
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Department (sub-wallet to credit)</Label>
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={rechargeDepartmentId ?? ""}
-                        onChange={(e) => setRechargeDepartmentId(e.target.value ? Number(e.target.value) : null)}
-                      >
-                        <option value="">Select department</option>
-                        {internalDepartments.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ""}</option>
-                        ))}
-                      </select>
-                      {loadingDepartments && <p className="text-xs text-muted-foreground">Loading departments...</p>}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="recharge-amount">Amount (₹)</Label>
-                      <Input
-                        id="recharge-amount"
-                        type="number"
-                        min={rechargeType === "sbiepay" ? "1" : "100"}
-                        max={rechargeType === "sbiepay" ? "100000" : undefined}
-                        step="0.01"
-                        placeholder="Enter amount"
-                        value={rechargeAmount}
-                        onChange={(e) => setRechargeAmount(e.target.value)}
-                        disabled={recharging || requestingRecharge}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {rechargeType === "sbiepay"
-                          ? "Minimum: ₹1 | Maximum: ₹1,00,000"
-                          : "Minimum ₹100 | Maximum: No Limit"}
+                        PDF
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                {transactionsTotal > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={toggleFullTransactionHistory}
+                  >
+                    {showTransactionHistoryExpanded ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        Show recent only
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        View full history
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {transactions.length === 0 && !loadingFullTransactions ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No transactions yet. Transactions appear here after recharges and bookings.
+              </p>
+            ) : showTransactionHistoryExpanded && loadingFullTransactions ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Loading full history…
+              </div>
+            ) : !showTransactionHistoryExpanded ? (
+              <ul className="divide-y divide-border rounded-md border border-border" data-testid="recent-transactions">
+                {transactions.slice(0, RECENT_TRANSACTIONS_COUNT).map((transaction) => (
+                  <li key={transaction.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate text-foreground" title={transaction.description_display || transaction.description}>
+                        {transaction.equipment_name || transaction.description_display || transaction.description || "—"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {new Date(transaction.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                        {transaction.department_name ? ` · ${transaction.department_name}` : ""}
                       </p>
                     </div>
-
-                    {rechargeType === "sbiepay" && (
-                      <>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => setRechargeAmount("500")}
-                            variant="outline"
-                            size="sm"
-                            disabled={recharging}
-                          >
-                            ₹500
-                          </Button>
-                          <Button
-                            onClick={() => setRechargeAmount("1000")}
-                            variant="outline"
-                            size="sm"
-                            disabled={recharging}
-                          >
-                            ₹1,000
-                          </Button>
-                          <Button
-                            onClick={() => setRechargeAmount("2000")}
-                            variant="outline"
-                            size="sm"
-                            disabled={recharging}
-                          >
-                            ₹2,000
-                          </Button>
-                          <Button
-                            onClick={() => setRechargeAmount("5000")}
-                            variant="outline"
-                            size="sm"
-                            disabled={recharging}
-                          >
-                            ₹5,000
-                          </Button>
-                        </div>
-                        <Button
-                          onClick={handleRecharge}
-                          disabled={recharging || !rechargeDepartmentId || !rechargeAmount || parseFloat(rechargeAmount) < 1}
-                          className="w-full"
-                          size="lg"
-                        >
-                          {recharging ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <WalletIcon className="h-4 w-4 mr-2" />
-                              Proceed to Payment
-                            </>
-                          )}
-                        </Button>
-                      </>
-                    )}
-
-                    {rechargeType === "request" && otpStep === "form" && isIitrStudentReceiptOffline && (
-                      <div className="space-y-2">
-                        <Label>Offline recharge option</Label>
-                        <div className="grid gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStudentOfflinePath("cash");
-                              setOfflineRechargeMode("direct_cash_deposit");
-                              setCashUndertakingAccepted(false);
-                            }}
-                            className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
-                              studentOfflinePath === "cash"
-                                ? "border-primary bg-primary/5"
-                                : "border-input hover:bg-muted/40"
-                            }`}
-                          >
-                            <span>
-                              <span className="font-medium block">Direct Cash Deposit / Bank Transfer</span>
-                              <span className="text-xs text-muted-foreground">
-                                Request routed to SRIC Bill Section (OTP verification).
-                              </span>
+                    <span
+                      className={`shrink-0 font-medium tabular-nums ${
+                        transaction.transaction_type === "credit"
+                          ? "text-emerald-700 dark:text-emerald-400"
+                          : "text-red-700 dark:text-red-400"
+                      }`}
+                    >
+                      {transaction.transaction_type === "credit" ? "+" : "−"}
+                      {formatMoney(transaction.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg bg-muted/40 border border-border/60">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
+                    <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as "all" | "credit" | "debit")}>
+                      <SelectTrigger className="w-full sm:w-[120px] h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="credit">Credit</SelectItem>
+                        <SelectItem value="debit">Debit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                    <Input
+                      type="date"
+                      className="w-full sm:w-[140px] h-9"
+                      value={txDateFrom}
+                      onChange={(e) => setTxDateFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+                    <Input
+                      type="date"
+                      className="w-full sm:w-[140px] h-9"
+                      value={txDateTo}
+                      onChange={(e) => setTxDateTo(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Department</Label>
+                    <Select value={txDepartmentFilter || "__all__"} onValueChange={(v) => setTxDepartmentFilter(v === "__all__" ? "" : v)}>
+                      <SelectTrigger className="w-full sm:w-[160px] h-9">
+                        <SelectValue placeholder="All departments" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All departments</SelectItem>
+                        {uniqueDepartmentsForFilter.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Equipment</Label>
+                    <Select value={txEquipmentFilter || "__all__"} onValueChange={(v) => setTxEquipmentFilter(v === "__all__" ? "" : v)}>
+                      <SelectTrigger className="w-full sm:w-[180px] h-9">
+                        <SelectValue placeholder="All equipment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All equipment</SelectItem>
+                        {uniqueEquipmentNamesForFilter.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Booked by</Label>
+                    <Select
+                      value={txBookedByFilter || "__all__"}
+                      onValueChange={(v) => setTxBookedByFilter(v === "__all__" ? "" : v)}
+                    >
+                      <SelectTrigger className="w-full sm:w-[180px] h-9">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All</SelectItem>
+                        {hasUnassignedBookedBy && (
+                          <SelectItem value="__booked_by_unassigned__">Unassigned</SelectItem>
+                        )}
+                        {uniqueBookedByForFilter.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[180px] w-full">
+                    <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input
+                      placeholder="Search description or equipment..."
+                      className="h-9 w-full"
+                      value={txSearchText}
+                      onChange={(e) => setTxSearchText(e.target.value)}
+                    />
+                  </div>
+                  {(txTypeFilter !== "all" || txDateFrom || txDateTo || txDepartmentFilter || txEquipmentFilter || txBookedByFilter || txSearchText.trim()) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => {
+                        setTxTypeFilter("all");
+                        setTxDateFrom("");
+                        setTxDateTo("");
+                        setTxDepartmentFilter("");
+                        setTxEquipmentFilter("");
+                        setTxBookedByFilter("");
+                        setTxSearchText("");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/80 overflow-hidden shadow-sm">
+                  <div className="table-scroll overflow-x-auto">                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
+                      <TableHead className="font-semibold text-foreground min-w-[180px]">Equipment Name</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[140px]">Booked by</TableHead>
+                      <TableHead className="font-semibold text-foreground w-[160px]">Date &amp; Time</TableHead>
+                      <TableHead className="font-semibold text-foreground w-[100px]">Type</TableHead>
+                      <TableHead className="font-semibold text-foreground min-w-[220px]">Description</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right w-[120px]">Amount</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right w-[130px]">Balance Remaining</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No transactions match the current filters.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredTransactions.map((transaction) => (
+                      <TableRow
+                        key={transaction.id}
+                        className="group hover:bg-muted/30 transition-colors border-b border-border/60 last:border-b-0"
+                      >
+                        <TableCell className="text-sm text-muted-foreground align-middle min-w-[180px]">
+                          {transaction.equipment_name ? (
+                            <span className="font-medium text-foreground" title={transaction.equipment_name}>
+                              {transaction.equipment_name}
                             </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setStudentOfflinePath("receipt")}
-                            className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
-                              studentOfflinePath === "receipt"
-                                ? "border-primary bg-primary/5"
-                                : "border-input hover:bg-muted/40"
-                            }`}
-                          >
-                            <span className="font-medium">Upload payment receipt</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {rechargeType === "request" &&
-                      otpStep === "form" &&
-                      isIitrStudentReceiptOffline &&
-                      studentOfflinePath === "receipt" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="student-receipt-file">Payment receipt *</Label>
-                          <Input
-                            id="student-receipt-file"
-                            type="file"
-                            accept="image/*,.pdf,application/pdf"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0] ?? null;
-                              setStudentReceiptFile(f);
-                            }}
-                            disabled={submittingStudentReceipt}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Attach a scan or photo of the payment receipt (PDF or image).
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="student-receipt-utr">UTR / reference (optional)</Label>
-                          <Input
-                            id="student-receipt-utr"
-                            type="text"
-                            placeholder="Bank UTR if available"
-                            value={studentReceiptUtr}
-                            onChange={(e) => setStudentReceiptUtr(e.target.value)}
-                            disabled={submittingStudentReceipt}
-                          />
-                        </div>
-                        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                          <p className="text-sm text-blue-700 dark:text-blue-400">
-                            After the Department Account In-charge verifies the receipt, the amount is parked in your faculty member&apos;s wallet for the selected department. The Department Account In-charge monitors department financial activities including wallet recharges, grant utilization, transactions, and credit facility usage.
-                          </p>
-                        </div>
-                        <Button
-                          onClick={handleSubmitStudentReceipt}
-                          disabled={
-                            submittingStudentReceipt ||
-                            !rechargeDepartmentId ||
-                            !rechargeAmount ||
-                            parseFloat(rechargeAmount) < 1 ||
-                            !studentReceiptFile
-                          }
-                          className="w-full"
-                          size="lg"
-                        >
-                          {submittingStudentReceipt ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Submitting...
-                            </>
                           ) : (
-                            <>
-                              <FileText className="h-4 w-4 mr-2" />
-                              Submit Payment Receipt
-                            </>
+                            <span className="text-muted-foreground/70">—</span>
                           )}
-                        </Button>
-                      </>
-                    )}
-
-                    {rechargeType === "request" &&
-                      otpStep === "form" &&
-                      (!isIitrStudentReceiptOffline || studentOfflinePath === "cash") && (
-                      <>
-                        {isFacultyEffective && (
-                          <div className="space-y-2">
-                            <Label>Offline recharge mode</Label>
-                            <div className="grid gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOfflineRechargeMode("project_grant");
-                                  setCashUndertakingAccepted(false);
-                                }}
-                                disabled={sendingOtp}
-                                className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
-                                  isProjectGrantMode
-                                    ? "border-primary bg-primary/5"
-                                    : "border-input hover:bg-muted/40"
-                                }`}
-                              >
-                                <span
-                                  className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
-                                    isProjectGrantMode ? "border-primary bg-primary" : "border-muted-foreground"
-                                  }`}
-                                  aria-hidden
-                                />
-                                <span>
-                                  <span className="font-medium block">Recharge via Project Grant</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    Fund from an active project. Project selection required.
-                                  </span>
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOfflineRechargeMode("direct_cash_deposit");
-                                  setSelectedProjectId(null);
-                                }}
-                                disabled={sendingOtp}
-                                className={`flex items-start gap-3 rounded-md border p-3 text-left text-sm transition-colors ${
-                                  isCashDepositMode
-                                    ? "border-primary bg-primary/5"
-                                    : "border-input hover:bg-muted/40"
-                                }`}
-                              >
-                                <span
-                                  className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
-                                    isCashDepositMode ? "border-primary bg-primary" : "border-muted-foreground"
-                                  }`}
-                                  aria-hidden
-                                />
-                                <span>
-                                  <span className="font-medium block">Direct Cash Deposit / Bank Transfer</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    Amount only — no project. Use when no project grant is available.
-                                  </span>
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {isFacultyEffective && isProjectGrantMode && (
-                          <div className="space-y-2">
-                            <Label htmlFor="project-select">Project *</Label>
-                            {loadingProjects ? (
-                              <div className="text-sm text-muted-foreground">Loading projects...</div>
-                            ) : projects.length === 0 ? (
-                              <div className="p-4 border border-yellow-200 dark:border-yellow-800 rounded-lg bg-yellow-50 dark:bg-yellow-950/30">
-                                <p className="text-base text-yellow-800 dark:text-yellow-400 mb-3">
-                                  No active projects found. You need to add at least one active project to create a recharge request.
-                                </p>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={goToAddProjectFromRecharge}
-                                  className="w-full text-base font-semibold"
-                                >
-                                  <ExternalLink className="h-5 w-5 mr-2" />
-                                  Add Project
-                                </Button>
-                              </div>
-                            ) : (
-                              <>
-                                <Select
-                                  value={selectedProjectId ? String(selectedProjectId) : undefined}
-                                  onValueChange={(value) => {
-                                    setSelectedProjectId(parseInt(value));
-                                  }}
-                                  disabled={sendingOtp || loadingProjects}
-                                  required
-                                >
-                                  <SelectTrigger id="project-select" className={!selectedProjectId ? "border-destructive" : ""}>
-                                    <SelectValue placeholder="Select a project *" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {projects.map((project) => (
-                                      <SelectItem key={project.id} value={String(project.id)}>
-                                        {project.name} ({project.project_code})
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-base text-foreground/80 leading-snug">
-                                  Select an active project associated with this recharge request. Required for project grant recharge.
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={goToAddProjectFromRecharge}
-                                  className="text-base font-semibold text-primary hover:underline inline-flex items-center gap-2"
-                                >
-                                  <ExternalLink className="h-5 w-5" />
-                                  Add Project
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {isCashDepositMode && (
-                          <div className="rounded-md border border-primary/30 bg-primary/[0.03] p-3">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary">Undertaking</p>
-                            <div className="flex items-start gap-3">
-                              <Checkbox
-                                id="cash-undertaking"
-                                checked={cashUndertakingAccepted}
-                                onCheckedChange={(checked) => setCashUndertakingAccepted(checked === true)}
-                                disabled={sendingOtp}
-                                className="mt-0.5 shrink-0"
-                              />
-                              <Label
-                                htmlFor="cash-undertaking"
-                                className="min-w-0 cursor-pointer break-words text-sm font-normal leading-snug text-foreground"
-                              >
-                                {cashUndertakingText}
-                              </Label>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                          <p className="text-sm text-blue-700 dark:text-blue-400">
-                            {isCashDepositMode
-                              ? "An OTP will be sent to your email for verification before submitting the request. After verification, the request to the SRIC Bill Section and you can visit the SRIC Bill section to deposit cash and share transection number for immidiate recharge."
-                              : isFacultyEffective
-                                ? "An OTP will be sent to your email for verification before submitting the request. After verification, send the request to the SRIC Office."
-                                : "An OTP will be sent to your email for verification before submitting the request."}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={handleSendOtp}
-                          disabled={
-                            sendingOtp ||
-                            !rechargeDepartmentId ||
-                            !rechargeAmount ||
-                            parseFloat(rechargeAmount) < 100 ||
-                            (isProjectGrantMode && (!selectedProjectId || projects.length === 0)) ||
-                            (isCashDepositMode && !cashUndertakingAccepted)
-                          }
-                          className="w-full"
-                          size="lg"
-                        >
-                          {sendingOtp ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Sending OTP...
-                            </>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground align-middle min-w-[140px]">
+                          {transaction.related_user_name ? (
+                            <span className="text-foreground" title={transaction.related_user_email || undefined}>
+                              {transaction.related_user_name}
+                            </span>
                           ) : (
-                            <>
-                              <FileText className="h-4 w-4 mr-2" />
-                              {isFacultyEffective && isProjectGrantMode ? "Submit request" : "Send OTP to Email"}
-                            </>
+                            <span className="text-muted-foreground/70">—</span>
                           )}
-                        </Button>
-                      </>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground align-middle whitespace-nowrap">
+                          {new Date(transaction.created_at).toLocaleString(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </TableCell>
+                        <TableCell className="align-middle">
+                          {transaction.transaction_type === "credit" ? (
+                            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-1">
+                              <Plus className="h-3 w-3" />
+                              Credit
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="font-medium gap-1">
+                              <Minus className="h-3 w-3" />
+                              Debit
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-foreground/90 align-middle max-w-[360px]">
+                          <span className="line-clamp-2" title={(transaction.description_display || transaction.description) || ""}>
+                            {transaction.description_display || transaction.description || "—"}
+                          </span>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                            {transaction.provenance ? (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  transaction.provenance === "Legacy Portal"
+                                    ? "border-amber-400/70 bg-amber-50 text-amber-900 text-[10px] px-1.5 py-0"
+                                    : "border-sky-400/70 bg-sky-50 text-sky-900 text-[10px] px-1.5 py-0"
+                                }
+                              >
+                                {transaction.provenance}
+                              </Badge>
+                            ) : null}
+                            {transaction.department_name ? (
+                              <span className="text-xs text-muted-foreground">
+                                {transaction.department_name}
+                                {transaction.department_code ? ` (${transaction.department_code})` : ""}
+                              </span>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium align-middle">
+                          {transaction.transaction_type === "credit" ? (
+                            <span className="text-emerald-600 dark:text-emerald-400">+₹{Number(transaction.amount).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-red-600 dark:text-red-400">−₹{Number(transaction.amount).toFixed(2)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-foreground align-middle">
+                          {transaction.balance_after != null && String(transaction.balance_after) !== "" ? (
+                            <span>₹{Number(transaction.balance_after).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      ))
                     )}
-
-                    {rechargeType === "request" && otpStep === "otp" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="user-otp">Enter OTP from Email</Label>
-                          <Input
-                            id="user-otp"
-                            type="text"
-                            maxLength={6}
-                            placeholder="Enter 6-digit OTP"
-                            value={userOtp}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                              setUserOtp(value);
-                            }}
-                            disabled={requestingRecharge}
-                            className="text-center text-2xl tracking-widest font-mono"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Check your email for the 6-digit OTP code. It expires in 10 minutes.
-                          </p>
-                        </div>
-                        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                          <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                            ⚠️ OTP has been sent to your email. Enter it above to complete your recharge request.
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setOtpStep("form");
-                              setUserOtp("");
-                              setTempRequestId(null);
-                            }}
-                            disabled={requestingRecharge}
-                            className="flex-1"
-                          >
-                            Back
-                          </Button>
-                          <Button
-                            onClick={handleRequestRecharge}
-                            disabled={requestingRecharge || !userOtp || userOtp.length !== 6}
-                            className="flex-1"
-                            size="lg"
-                          >
-                            {requestingRecharge ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Verifying...
-                              </>
-                            ) : (
-                              <>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Submit Request
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                    </>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+                  </TableBody>
+                </Table>
+                  </div>
+                </div>
+              </>
             )}
-            
           </CardContent>
         </Card>
 
@@ -3137,122 +2783,6 @@ const Wallet = () => {
             </CardContent>
           </Card>
         )}
-
-        {/* Department Sub-Wallets */}
-        <Card className="mb-6 sm:mb-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Department Sub-Wallets
-            </CardTitle>
-            <CardDescription>
-              {isShared
-                ? "Balances by department in the shared faculty wallet. Equipment bookings deduct from the matching sub-wallet."
-                : (
-                  <>
-                    Funds allocated by department. For temporary credit, use{" "}
-                    <button type="button" className="underline" onClick={() => navigate("/wallet/credit-facility")}>
-                      Credit Facility → Request Wallet Credit
-                    </button>{" "}
-                    (Main Administrator approval).
-                  </>
-                )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {subWallets.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6">
-                No department sub-wallets yet. Book equipment linked to a department or transfer from main wallet to create one.
-              </p>
-            ) : (
-              <>
-                <ul className="space-y-3">
-                  {(showAllSubWallets ? subWallets : subWallets.slice(0, SUB_WALLETS_PREVIEW_COUNT)).map((sw) => {
-                    const credit = deptFacultyCreditByDept[sw.department_id];
-                    const statusLower = String(credit?.status || "").toLowerCase();
-                    const showActiveBadges =
-                      statusLower === "active" || statusLower === "exhausted";
-                    const showClosed = statusLower === "closed";
-                    const canAvail = Boolean(credit?.can_avail);
-                    return (
-                      <li
-                        key={sw.id}
-                        className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/30"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium">{sw.department_name}</p>
-                            {sw.department_code && (
-                              <p className="text-xs text-muted-foreground">{sw.department_code}</p>
-                            )}
-                          </div>
-                          <span className="text-lg font-semibold text-primary shrink-0">
-                            ₹{Number(sw.balance).toFixed(2)}
-                          </span>
-                        </div>
-                        {isFacultyEffective && credit && (
-                          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50">
-                            {canAvail && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openAvailCreditDialog(sw.department_id)}
-                              >
-                                Avail Credit Facility
-                              </Button>
-                            )}
-                            {showActiveBadges && (
-                              <>
-                                <Badge variant="secondary">
-                                  Limit ₹{Number(credit.credit_limit).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                                </Badge>
-                                <Badge variant="outline">
-                                  Outstanding ₹{Number(credit.outstanding_credit).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                                </Badge>
-                                <Badge variant="outline">
-                                  Remaining ₹{Number(credit.remaining_credit).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                                </Badge>
-                                {statusLower === "exhausted" && (
-                                  <Badge variant="destructive">{credit.status_display || "Exhausted"}</Badge>
-                                )}
-                                {statusLower === "active" && (
-                                  <Badge variant="default">{credit.status_display || "Active"}</Badge>
-                                )}
-                              </>
-                            )}
-                            {showClosed && (
-                              <span className="text-xs text-muted-foreground">Credit facility closed</span>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {subWallets.length > SUB_WALLETS_PREVIEW_COUNT && (
-                  <Button
-                    variant="ghost"
-                    className="w-full mt-4 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowAllSubWallets((v) => !v)}
-                  >
-                    {showAllSubWallets ? (
-                      <>
-                        <ChevronUp className="h-4 w-4 mr-2" />
-                        View less
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-4 w-4 mr-2" />
-                        View more ({subWallets.length - SUB_WALLETS_PREVIEW_COUNT} more)
-                      </>
-                    )}
-                  </Button>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Join Requests for Students and Other Users */}
         {/* Show for students and Other users (not individual students) */}
@@ -3617,589 +3147,20 @@ const Wallet = () => {
           </Card>
         )}
 
-        {/* Recharge Request History */}
-        {!isShared && (
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Recharge Request History</CardTitle>
-                  <CardDescription>
-                    View your previous wallet recharge requests
-                    {isStudent
-                      ? ". For approved requests you may optionally add or update a receipt number / upload."
-                      : ""}
-                  </CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowRechargeHistory(!showRechargeHistory)}
-                >
-                  {showRechargeHistory ? "Hide" : "Show"} History
-                </Button>
-              </div>
-            </CardHeader>
-            {showRechargeHistory && (
-              <CardContent>
-                {loadingRechargeRequests ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  </div>
-                ) : rechargeRequests.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No recharge requests yet
-                  </p>
-                ) : (
-                  <div className="rounded-lg border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/50 hover:bg-muted/50">
-                          <TableHead className="whitespace-nowrap font-semibold">S.No.</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold">Transaction</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold">Requested</TableHead>
-                          <TableHead className="text-right whitespace-nowrap font-semibold">Amount</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold min-w-[120px]">Department</TableHead>
-                          <TableHead className="min-w-[140px] font-semibold">Project</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold">Status</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold text-center">SRIC</TableHead>
-                          <TableHead className="min-w-[160px] font-semibold">Response</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold">Processed</TableHead>
-                          <TableHead className="text-right whitespace-nowrap font-semibold w-[1%]">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {rechargeRequests.map((req, rowIndex) => (
-                          <TableRow key={req.id}>
-                            <TableCell className="text-sm tabular-nums w-[3rem]">{rowIndex + 1}</TableCell>
-                            <TableCell className="text-sm font-medium whitespace-nowrap">
-                              {req.transaction_number || req.request_id || `#${req.id}`}
-                            </TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">
-                              {new Date(req.created_at).toLocaleString(undefined, {
-                                dateStyle: "short",
-                                timeStyle: "short",
-                              })}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              ₹{Number(req.amount).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {req.department_name || "—"}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {req.project_name ? (
-                                <span className="line-clamp-2" title={[req.project_name, req.project_code].filter(Boolean).join(" · ")}>
-                                  {req.project_name}
-                                  {req.project_code ? ` (${req.project_code})` : ""}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {req.status === "PENDING" && (
-                                <Badge variant="secondary" className="gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {req.status_display || "Pending"}
-                                </Badge>
-                              )}
-                              {req.status === "APPROVED" && (
-                                <Badge className="bg-green-600 hover:bg-green-700 gap-1">
-                                  <CheckCircle className="h-3 w-3" />
-                                  {req.status_display || "Approved"}
-                                </Badge>
-                              )}
-                              {req.status === "REJECTED" && (
-                                <Badge variant="destructive" className="gap-1">
-                                  <XCircle className="h-3 w-3" />
-                                  {req.status_display || "Rejected"}
-                                </Badge>
-                              )}
-                              {req.status === "CANCELLED" && (
-                                <Badge variant="outline" className="gap-1">
-                                  <X className="h-3 w-3" />
-                                  {req.status_display || "Cancelled"}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center text-sm">
-                              {isFacultyEffective ? (
-                                req.sric_notification_sent ? (
-                                  <span className="text-emerald-600 dark:text-emerald-400">Yes</span>
-                                ) : (
-                                  <span className="text-muted-foreground">No</span>
-                                )
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground max-w-[220px]">
-                              <span className="line-clamp-2" title={req.response_message || ""}>
-                                {req.response_message || "—"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-sm whitespace-nowrap align-top">
-                              {req.responded_at ? (
-                                <div className="flex flex-col gap-0.5">
-                                  <span>
-                                    {new Date(req.responded_at).toLocaleString(undefined, {
-                                      dateStyle: "short",
-                                      timeStyle: "short",
-                                    })}
-                                  </span>
-                                  {req.approved_by_email && (
-                                    <span className="text-xs text-muted-foreground max-w-[180px] truncate" title={req.approved_by_email}>
-                                      {req.approved_by_email}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right align-top">
-                              {req.status === "PENDING" ? (
-                                <div className="flex flex-col gap-1 items-end">
-                                  {isFacultyEffective && !req.sric_notification_sent && (
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="h-8"
-                                      onClick={() =>
-                                        void handleSendSricNotification(req.id, () => {
-                                          void fetchWalletData();
-                                        })
-                                      }
-                                      disabled={sendingSric}
-                                    >
-                                      {sendingSric ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <Send className="h-3.5 w-3.5 mr-1" />
-                                          SRIC
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-blue-600 border-blue-600"
-                                    onClick={async () => {
-                                      setResendingNotification(req.id);
-                                      try {
-                                        const response = await apiClient.resendWalletRechargeNotification(req.id);
-                                        if (response.error) {
-                                          toast.error(response.error || "Failed to resend notification");
-                                        } else {
-                                          toast.success(response.data?.message || "Notification resent successfully");
-                                        }
-                                      } catch (error: any) {
-                                        toast.error(error.message || "Failed to resend notification");
-                                      } finally {
-                                        setResendingNotification(null);
-                                      }
-                                    }}
-                                    disabled={resendingNotification === req.id}
-                                  >
-                                    {resendingNotification === req.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                                        Resend
-                                      </>
-                                    )}
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-orange-600 border-orange-600"
-                                    onClick={async () => {
-                                      const response = await apiClient.cancelWalletRechargeRequest(req.id);
-                                      if (response.error) {
-                                        toast.error(response.error || "Failed to cancel request");
-                                      } else {
-                                        toast.success(response.data?.message || "Request removed");
-                                        await fetchRechargeRequests();
-                                      }
-                                    }}
-                                  >
-                                    <X className="h-3.5 w-3.5 mr-1" />
-                                    Cancel
-                                  </Button>
-                                </div>
-                              ) : req.status === "APPROVED" ? (
-                                <div className="flex flex-col gap-1 items-end">
-                                  {req.utr_reference ? (
-                                    <span
-                                      className="text-xs text-muted-foreground max-w-[140px] truncate"
-                                      title={String(req.utr_reference)}
-                                    >
-                                      Receipt: {req.utr_reference}
-                                    </span>
-                                  ) : null}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8"
-                                    onClick={() => {
-                                      setReceiptAttachRow(req);
-                                      setReceiptAttachUtr(String(req.utr_reference || ""));
-                                      setReceiptAttachFile(null);
-                                    }}
-                                  >
-                                    <Upload className="h-3.5 w-3.5 mr-1" />
-                                    {req.utr_reference || (req.payment_receipts?.length ?? 0) > 0
-                                      ? "Update receipt"
-                                      : "Upload receipt"}
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            )}
-          </Card>
-        )}
-
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1.5 min-w-0">
-                <CardTitle>Transaction History</CardTitle>
-                <CardDescription>
-                  All credit and debit transactions across department sub-wallets. Net balance after each transaction is shown.
-                </CardDescription>
-                {!loading && transactions.length > 0 && !showTransactionHistoryExpanded && (
-                  <p className="text-sm text-muted-foreground pt-1">
-                    {transactions.length} transaction{transactions.length !== 1 ? "s" : ""} on record.
-                    Use <span className="font-medium text-foreground">Show full history</span> to open filters, search, and export.
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                {showTransactionHistoryExpanded && !loading && transactions.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="shrink-0 gap-2">
-                        <Download className="h-4 w-4" />
-                        Download
-                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          if (filteredTransactions.length === 0) {
-                            toast.error("No transactions match the current filters.");
-                            return;
-                          }
-                          exportWalletTransactionsExcel(filteredTransactions, {
-                            sheetTitle: "Transactions",
-                          });
-                          toast.success("Excel file downloaded.");
-                        }}
-                      >
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Excel (.xlsx)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void (async () => {
-                            if (filteredTransactions.length === 0) {
-                              toast.error("No transactions match the current filters.");
-                              return;
-                            }
-                            try {
-                              await exportWalletTransactionsPdf(filteredTransactions, {
-                                title: "Wallet transaction history",
-                              });
-                              toast.success("PDF downloaded.");
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : "PDF export failed");
-                            }
-                          })();
-                        }}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        PDF
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                {!loading && transactions.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => setShowTransactionHistoryExpanded(!showTransactionHistoryExpanded)}
-                  >
-                    {showTransactionHistoryExpanded ? (
-                      <>
-                        <ChevronUp className="h-4 w-4" />
-                        Minimize
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-4 w-4" />
-                        Show full history
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
-              </div>
-            ) : transactions.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <p className="font-medium">No transactions yet</p>
-                <p className="text-sm mt-1">Transactions will appear here when you recharge or make bookings.</p>
-              </div>
-            ) : showTransactionHistoryExpanded ? (
-              <>
-                <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg bg-muted/40 border border-border/60">
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
-                    <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as "all" | "credit" | "debit")}>
-                      <SelectTrigger className="w-full sm:w-[120px] h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="credit">Credit</SelectItem>
-                        <SelectItem value="debit">Debit</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
-                    <Input
-                      type="date"
-                      className="w-full sm:w-[140px] h-9"
-                      value={txDateFrom}
-                      onChange={(e) => setTxDateFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
-                    <Input
-                      type="date"
-                      className="w-full sm:w-[140px] h-9"
-                      value={txDateTo}
-                      onChange={(e) => setTxDateTo(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Department</Label>
-                    <Select value={txDepartmentFilter || "__all__"} onValueChange={(v) => setTxDepartmentFilter(v === "__all__" ? "" : v)}>
-                      <SelectTrigger className="w-full sm:w-[160px] h-9">
-                        <SelectValue placeholder="All departments" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All departments</SelectItem>
-                        {uniqueDepartmentsForFilter.map((dept) => (
-                          <SelectItem key={dept} value={dept}>
-                            {dept}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Equipment</Label>
-                    <Select value={txEquipmentFilter || "__all__"} onValueChange={(v) => setTxEquipmentFilter(v === "__all__" ? "" : v)}>
-                      <SelectTrigger className="w-full sm:w-[180px] h-9">
-                        <SelectValue placeholder="All equipment" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All equipment</SelectItem>
-                        {uniqueEquipmentNamesForFilter.map((name) => (
-                          <SelectItem key={name} value={name}>
-                            {name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Booked by</Label>
-                    <Select
-                      value={txBookedByFilter || "__all__"}
-                      onValueChange={(v) => setTxBookedByFilter(v === "__all__" ? "" : v)}
-                    >
-                      <SelectTrigger className="w-full sm:w-[180px] h-9">
-                        <SelectValue placeholder="All" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All</SelectItem>
-                        {hasUnassignedBookedBy && (
-                          <SelectItem value="__booked_by_unassigned__">Unassigned</SelectItem>
-                        )}
-                        {uniqueBookedByForFilter.map((name) => (
-                          <SelectItem key={name} value={name}>
-                            {name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[180px] w-full">
-                    <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Input
-                      placeholder="Search description or equipment..."
-                      className="h-9 w-full"
-                      value={txSearchText}
-                      onChange={(e) => setTxSearchText(e.target.value)}
-                    />
-                  </div>
-                  {(txTypeFilter !== "all" || txDateFrom || txDateTo || txDepartmentFilter || txEquipmentFilter || txBookedByFilter || txSearchText.trim()) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9"
-                      onClick={() => {
-                        setTxTypeFilter("all");
-                        setTxDateFrom("");
-                        setTxDateTo("");
-                        setTxDepartmentFilter("");
-                        setTxEquipmentFilter("");
-                        setTxBookedByFilter("");
-                        setTxSearchText("");
-                      }}
-                    >
-                      Clear filters
-                    </Button>
-                  )}
-                </div>
-                <div className="rounded-xl border border-border/80 overflow-hidden shadow-sm">
-                  <div className="table-scroll overflow-x-auto">                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
-                      <TableHead className="font-semibold text-foreground min-w-[180px]">Equipment Name</TableHead>
-                      <TableHead className="font-semibold text-foreground min-w-[140px]">Booked by</TableHead>
-                      <TableHead className="font-semibold text-foreground w-[160px]">Date &amp; Time</TableHead>
-                      <TableHead className="font-semibold text-foreground w-[100px]">Type</TableHead>
-                      <TableHead className="font-semibold text-foreground min-w-[220px]">Description</TableHead>
-                      <TableHead className="font-semibold text-foreground text-right w-[120px]">Amount</TableHead>
-                      <TableHead className="font-semibold text-foreground text-right w-[130px]">Balance Remaining</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No transactions match the current filters.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredTransactions.map((transaction) => (
-                      <TableRow
-                        key={transaction.id}
-                        className="group hover:bg-muted/30 transition-colors border-b border-border/60 last:border-b-0"
-                      >
-                        <TableCell className="text-sm text-muted-foreground align-middle min-w-[180px]">
-                          {transaction.equipment_name ? (
-                            <span className="font-medium text-foreground" title={transaction.equipment_name}>
-                              {transaction.equipment_name}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/70">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground align-middle min-w-[140px]">
-                          {transaction.related_user_name ? (
-                            <span className="text-foreground" title={transaction.related_user_email || undefined}>
-                              {transaction.related_user_name}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/70">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground align-middle whitespace-nowrap">
-                          {new Date(transaction.created_at).toLocaleString(undefined, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          })}
-                        </TableCell>
-                        <TableCell className="align-middle">
-                          {transaction.transaction_type === "credit" ? (
-                            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-1">
-                              <Plus className="h-3 w-3" />
-                              Credit
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="font-medium gap-1">
-                              <Minus className="h-3 w-3" />
-                              Debit
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-foreground/90 align-middle max-w-[360px]">
-                          <span className="line-clamp-2" title={(transaction.description_display || transaction.description) || ""}>
-                            {transaction.description_display || transaction.description || "—"}
-                          </span>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                            {transaction.provenance ? (
-                              <Badge
-                                variant="outline"
-                                className={
-                                  transaction.provenance === "Legacy Portal"
-                                    ? "border-amber-400/70 bg-amber-50 text-amber-900 text-[10px] px-1.5 py-0"
-                                    : "border-sky-400/70 bg-sky-50 text-sky-900 text-[10px] px-1.5 py-0"
-                                }
-                              >
-                                {transaction.provenance}
-                              </Badge>
-                            ) : null}
-                            {transaction.department_name ? (
-                              <span className="text-xs text-muted-foreground">
-                                {transaction.department_name}
-                                {transaction.department_code ? ` (${transaction.department_code})` : ""}
-                              </span>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium align-middle">
-                          {transaction.transaction_type === "credit" ? (
-                            <span className="text-emerald-600 dark:text-emerald-400">+₹{Number(transaction.amount).toFixed(2)}</span>
-                          ) : (
-                            <span className="text-red-600 dark:text-red-400">−₹{Number(transaction.amount).toFixed(2)}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-foreground align-middle">
-                          {transaction.balance_after != null && String(transaction.balance_after) !== "" ? (
-                            <span>₹{Number(transaction.balance_after).toFixed(2)}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </CardContent>
-        </Card>
       </main>
+
+      {rechargeDialog && canShowWalletRecharge && (
+        <RechargeWalletDialog
+          onClose={() => setRechargeDialog(null)}
+          onSubmitted={handleRechargeSubmitted}
+          isFaculty={isFacultyEffective}
+          userType={user?.user_type}
+          isStudentReceiptOffline={isIitrStudentReceiptOffline}
+          subWallets={subWallets}
+          initialDepartmentId={rechargeDialog.departmentId}
+          initialAmount={rechargeDialog.amount}
+        />
+      )}
 
       <Dialog
         open={availCreditOpen}
