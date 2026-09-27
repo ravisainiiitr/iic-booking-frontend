@@ -222,10 +222,16 @@ export function IntelligenceCard({
                 <li key={str(item.id)} className="rounded-lg border border-border/60 p-2">
                   <div className="text-xs font-semibold">
                     {str(item.name)}
+                    {item.code ? <span className="ml-1 font-normal text-muted-foreground">({str(item.code)})</span> : null}
                     {item.bookable === false ? (
                       <span className="ml-1 font-normal text-amber-700 dark:text-amber-300">({str(item.status_label)})</span>
                     ) : null}
                   </div>
+                  {item.make || item.model ? (
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {[str(item.make), str(item.model)].filter(Boolean).join(" \u00b7 ")}
+                    </div>
+                  ) : null}
                   {item.department || item.location ? (
                     <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                       <MapPin className="h-3 w-3" />
@@ -258,6 +264,9 @@ export function IntelligenceCard({
           </div>
           <ul className="mt-1 space-y-0.5 text-xs">
             <li>Status: {str(card.status_label) || "Unknown"}</li>
+            {card.make || card.model ? (
+              <li>Make / model: {[str(card.make), str(card.model)].filter(Boolean).join(" ")}</li>
+            ) : null}
             {card.department ? <li>Department: {str(card.department)}</li> : null}
             {card.location ? (
               <li className="flex items-center gap-1">

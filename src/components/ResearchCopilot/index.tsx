@@ -23,10 +23,10 @@ import {
 import { INTELLIGENCE_CARD_TYPES, IntelligenceCard, renderedChoiceKeys } from "./IntelligenceCards";
 
 const FEEDBACK_REASONS: Array<{ value: string; label: string }> = [
-  { value: "incorrect", label: "Incorrect" },
-  { value: "not_useful", label: "Not useful" },
-  { value: "missing_information", label: "Missing information" },
-  { value: "action_failed", label: "Could not complete action" },
+  { value: "incorrect", label: "Wrong answer" },
+  { value: "missing_information", label: "Incomplete" },
+  { value: "not_useful", label: "Not relevant" },
+  { value: "action_failed", label: "Action didn't work" },
   { value: "other", label: "Other" },
 ];
 
@@ -114,11 +114,26 @@ type CopilotAction = {
   confirmation_token?: string;
   mutation_action?: string;
   type?: string;
-  payload?: { equipment_id?: number; slot_ids?: number[]; number_of_samples?: number };
+  payload?: {
+    equipment_id?: number;
+    slot_ids?: number[];
+    number_of_samples?: number;
+    booking_id?: number;
+    technique?: string;
+    equipment_query?: string;
+    topic?: string;
+  };
   choice?: { kind: string; value: string };
   escalate?: { reason: string };
   primary?: boolean;
+  /** Structured conversational action: sent back to the conversation, validated server-side. */
+  action_type?: string;
+  utterance?: string;
+  style?: "primary" | "secondary";
+  confirmation_required?: boolean;
 };
+
+type StructuredAction = { type: string; payload: Record<string, unknown> };
 
 type CopilotEnvelope = {
   content?: string;
@@ -987,7 +1002,7 @@ export default function ResearchCopilot() {
     }
   };
 
-  const send = async (textOverride?: string, choice?: { kind: string; value: string }) => {
+  const send = async (textOverride?: string, choice?: { kind: string; value: string }, action?: StructuredAction) => {
     const text = (textOverride ?? input).trim();
     if (!text || loading) return;
     setInput("");
@@ -1030,7 +1045,7 @@ export default function ResearchCopilot() {
       }
 
       const id = await ensureConversation();
-      const res = await apiClient.researchCopilotSendMessage(id, text, choice);
+      const res = await apiClient.researchCopilotSendMessage(id, text, choice, action);
       if (res.error || !res.data?.message) {
         setMessages((m) => [
           ...m,
@@ -1135,6 +1150,45 @@ export default function ResearchCopilot() {
       ]);
     } finally {
       setEscalating(false);
+    }
+  };
+
+  /** The single click handler for every Copilot button: buttons continue the conversation unless they are links. */
+  const handleCopilotAction = (a: CopilotAction, msg: CopilotMessage) => {
+    if (a.escalate) {
+      void escalate(msg.id, a.escalate.reason || "no_verified_answer");
+      return;
+    }
+    if (a.action_type) {
+      void send(a.utterance || a.prompt || a.label, undefined, { type: a.action_type, payload: { ...(a.payload || {}) } });
+      return;
+    }
+    if (a.choice) {
+      void send(a.label, a.choice);
+      return;
+    }
+    if (a.type === "copilot_prepare_booking" && a.payload?.equipment_id && a.payload.slot_ids?.length) {
+      void prepareBooking(a.payload.equipment_id, a.payload.slot_ids, a.payload.number_of_samples);
+      return;
+    }
+    if (a.proposal_id && a.confirmation_token) {
+      setPendingConfirm({
+        proposal_id: a.proposal_id,
+        confirmation_token: a.confirmation_token,
+        mutation_action: a.mutation_action,
+        label: a.label,
+        card: msg.cards?.find((c) => c.proposal_id === a.proposal_id),
+        idempotency_key: newIdempotencyKey(),
+      });
+      return;
+    }
+    if (a.prompt) {
+      void send(a.prompt);
+      return;
+    }
+    if (a.href) {
+      setOpen(false);
+      navigate(a.href);
     }
   };
 
@@ -1480,74 +1534,33 @@ export default function ResearchCopilot() {
                                 <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
                                   Nothing changes until you press confirm and approve the summary.
                                 </p>
-                              ) : actions.some((a) => a.requires_confirmation && !a.type) ? (
-                                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
-                                  Suggested action — opens the portal so you can review and confirm.
-                                </p>
                               ) : null}
-                              <div className="flex flex-wrap gap-2">
-                                {actions.map((a) => (
-                                  <Button
-                                    key={a.id}
-                                    type="button"
-                                    size="sm"
-                                    variant={
-                                      a.requires_confirmation || a.primary
-                                        ? "default"
-                                        : a.enabled === false
-                                          ? "outline"
-                                          : "secondary"
-                                    }
-                                    disabled={
-                                      a.enabled === false ||
-                                      (loading && Boolean(a.proposal_id || a.type || a.choice)) ||
-                                      Boolean(a.proposal_id && usedProposals.has(a.proposal_id)) ||
-                                      Boolean(a.choice && !isLatest) ||
-                                      Boolean(a.escalate && escalating) ||
-                                      (!a.href && !a.prompt && !a.proposal_id && !a.choice && !a.escalate &&
-                                        a.type !== "copilot_prepare_booking")
-                                    }
-                                    title={a.hint}
-                                    className="h-8 text-xs"
-                                    onClick={() => {
-                                      if (a.escalate) {
-                                        void escalate(msg.id, a.escalate.reason || "no_verified_answer");
-                                        return;
+                              <div className="flex flex-wrap gap-1.5">
+                                {actions.map((a) => {
+                                  const primary = a.primary || a.style === "primary" || Boolean(a.proposal_id);
+                                  return (
+                                    <Button
+                                      key={a.id}
+                                      type="button"
+                                      size="sm"
+                                      variant={primary ? "default" : "outline"}
+                                      disabled={
+                                        a.enabled === false ||
+                                        (loading && Boolean(a.proposal_id || a.type || a.choice || a.action_type)) ||
+                                        Boolean(a.proposal_id && usedProposals.has(a.proposal_id)) ||
+                                        Boolean(a.choice && !isLatest) ||
+                                        Boolean(a.escalate && escalating) ||
+                                        (!a.href && !a.prompt && !a.proposal_id && !a.choice && !a.escalate &&
+                                          !a.action_type && a.type !== "copilot_prepare_booking")
                                       }
-                                      if (a.choice) {
-                                        void send(a.label, a.choice);
-                                        return;
-                                      }
-                                      if (a.type === "copilot_prepare_booking" && a.payload?.equipment_id && a.payload.slot_ids?.length) {
-                                        void prepareBooking(a.payload.equipment_id, a.payload.slot_ids, a.payload.number_of_samples);
-                                        return;
-                                      }
-                                      if (a.proposal_id && a.confirmation_token) {
-                                        setPendingConfirm({
-                                          proposal_id: a.proposal_id,
-                                          confirmation_token: a.confirmation_token,
-                                          mutation_action: a.mutation_action,
-                                          label: a.label,
-                                          card: msg.cards?.find((c) => c.proposal_id === a.proposal_id),
-                                          idempotency_key: newIdempotencyKey(),
-                                        });
-                                        return;
-                                      }
-                                      if (a.prompt) {
-                                        void send(a.prompt);
-                                        return;
-                                      }
-                                      if (a.href) {
-                                        setOpen(false);
-                                        navigate(a.href);
-                                      }
-                                    }}
-                                  >
-                                    {a.id === "confirm_proposal" || a.type || a.choice || !a.requires_confirmation
-                                      ? a.label
-                                      : `Review & confirm: ${a.label}`}
-                                  </Button>
-                                ))}
+                                      title={a.hint}
+                                      className="h-8 rounded-full px-3 text-xs"
+                                      onClick={() => handleCopilotAction(a, msg)}
+                                    >
+                                      {a.label}
+                                    </Button>
+                                  );
+                                })}
                               </div>
                             </div>
                             );
@@ -1674,7 +1687,7 @@ export default function ResearchCopilot() {
                   <div className="border-t bg-muted/40 p-3" role="region" aria-label="Feedback">
                     {feedbackFor.step === "reason" ? (
                       <>
-                        <div className="mb-2 text-xs font-semibold">What was wrong with this answer?</div>
+                        <div className="mb-2 text-xs font-semibold">What was missing?</div>
                         <div className="mb-2 flex flex-wrap gap-1.5">
                           {FEEDBACK_REASONS.map((r) => (
                             <button

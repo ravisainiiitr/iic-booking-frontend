@@ -9075,6 +9075,7 @@ class ApiClient {
     conversationId: string,
     content: string,
     choice?: { kind: string; value: string } | null,
+    action?: { type: string; payload: Record<string, unknown> } | null,
   ) {
     return this.request<{
       conversation_id: string;
@@ -9085,7 +9086,7 @@ class ApiClient {
       response_kind?: string;
     }>(`/v1/research-copilot/conversations/${conversationId}/messages/`, {
       method: 'POST',
-      body: JSON.stringify(choice ? { content, choice } : { content }),
+      body: JSON.stringify({ content, ...(choice ? { choice } : {}), ...(action ? { action } : {}) }),
     });
   }
 
