@@ -1,0 +1,5 @@
+# Staging frontend — copy to .envs/.staging/.frontend
+# NEVER set VITE_API_URL to https://equip.iitr.ac.in/api/
+
+VITE_API_URL=http://127.0.0.1:8180/api
+STAGING_FRONTEND_HOST_PORT=8100

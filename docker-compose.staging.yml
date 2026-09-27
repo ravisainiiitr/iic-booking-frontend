@@ -1,0 +1,32 @@
+# IIC Booking — STAGING frontend
+# MUST NOT embed production API https://equip.iitr.ac.in/api/
+#
+# Usage (from frontend repo root):
+#   cp .envs/.staging/sample.frontend .envs/.staging/.frontend
+#   docker compose -f docker-compose.staging.yml --env-file .envs/.staging/.frontend up -d --build
+
+name: iic-booking-staging-frontend
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: ./compose/production/Dockerfile
+      args:
+        # Relative /api expects reverse-proxy; for direct host access use full staging API URL.
+        - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8180/api}
+    image: iic_booking_staging_frontend
+    container_name: iic_booking_staging_frontend
+    env_file:
+      - ./.envs/.staging/.frontend
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8180/api}
+    ports:
+      - "${STAGING_FRONTEND_HOST_PORT:-8100}:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
