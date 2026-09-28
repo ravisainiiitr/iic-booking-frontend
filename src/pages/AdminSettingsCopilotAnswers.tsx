@@ -147,7 +147,7 @@ const AdminSettingsCopilotAnswers = () => {
         return;
       }
       if (res.error || !res.data) {
-        toast.error(res.error || "Could not load Copilot answers");
+        toast.error(res.error || "Could not load Booking Assistant answers");
         return;
       }
       setGate("ok");
@@ -299,8 +299,8 @@ const AdminSettingsCopilotAnswers = () => {
 
   const header = (
     <PageHero
-      title="Copilot Answers & Console"
-      description="Reviewed answers Research Copilot may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
+      title="Booking Assistant Answers & Console"
+      description="Reviewed answers the Booking Assistant may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
     >
       <Button
         variant="ghost"
@@ -322,8 +322,8 @@ const AdminSettingsCopilotAnswers = () => {
           <Card>
             <CardContent className="py-8 text-sm text-muted-foreground">
               {gate === "disabled"
-                ? "Copilot knowledge features are not enabled on this server."
-                : "You do not have permission to manage Copilot answers."}
+                ? "Booking Assistant knowledge features are not enabled on this server."
+                : "You do not have permission to manage Booking Assistant answers."}
             </CardContent>
           </Card>
         </main>
@@ -525,7 +525,7 @@ const AdminSettingsCopilotAnswers = () => {
                 <Card>
                   <CardContent className="p-0">
                     {escalations.length === 0 ? (
-                      <p className="p-6 text-sm text-muted-foreground">No Copilot escalations yet.</p>
+                      <p className="p-6 text-sm text-muted-foreground">No Booking Assistant escalations yet.</p>
                     ) : (
                       <div className="overflow-x-auto">
                         <Table>

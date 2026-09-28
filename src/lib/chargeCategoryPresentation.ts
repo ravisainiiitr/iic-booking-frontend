@@ -258,8 +258,8 @@ function buildMultiParamPresentation(
     subtitle: mixed
       ? "Standard rates for this equipment. Categories charged by option show a rate per option (per sample when Breakpoint Flag is 1); other categories show their own rate."
       : anyPerSample
-        ? "Standard rates for this equipment by option (per sample when Breakpoint Flag is 1), including student and faculty categories."
-        : "Standard rates for this equipment by option, including student and faculty categories.",
+        ? "Standard rates for this equipment by option (per sample when Breakpoint Flag is 1)."
+        : "Standard rates for this equipment by option.",
     rows: [],
     optionColumns,
     multiParamRows,
@@ -301,7 +301,7 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: true,
       mode: "generic",
-      subtitle: "Standard rates for this equipment, including student and faculty categories.",
+      subtitle: "Standard rates for this equipment.",
       rows: rows.map((row) => ({
         userType: row.userType,
         label: row.label,
@@ -317,7 +317,7 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: false,
       mode: "legacy",
-      subtitle: "Standard rates for this equipment, including student and faculty categories.",
+      subtitle: "Standard rates for this equipment.",
       rows: [],
     };
   }
@@ -335,7 +335,7 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: true,
       mode: "generic",
-      subtitle: "Standard rates for this equipment, including student and faculty categories.",
+      subtitle: "Standard rates for this equipment.",
       rows: presented,
     };
   }
@@ -356,17 +356,17 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: false,
       mode,
-      subtitle: "Standard rates for this equipment, including student and faculty categories.",
+      subtitle: "Standard rates for this equipment.",
       rows: [],
     };
   }
 
   const subtitle =
     mode === "hour"
-      ? "Standard rates for this equipment (per hour), including student and faculty categories."
+      ? "Standard rates for this equipment (per hour)."
       : mode === "legacy"
-        ? "Standard rates for this equipment, including student and faculty categories."
-        : "Standard rates for this equipment (per sample), including student and faculty categories.";
+        ? "Standard rates for this equipment."
+        : "Standard rates for this equipment (per sample).";
 
   const presented = rows.map((row) => {
     const custom = trimmedDisplayText(row.displayText);

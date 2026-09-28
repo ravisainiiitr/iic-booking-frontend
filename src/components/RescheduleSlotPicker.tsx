@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -61,6 +62,23 @@ export interface RescheduleSlot {
   equipment_code?: string;
   created_at?: string;
   updated_at?: string;
+  booking_user_name?: string | null;
+  booking_user_email?: string | null;
+  booking_user_phone?: string | null;
+  booking_user_department_name?: string | null;
+  booking_user_department_code?: string | null;
+}
+
+/** Booking holder details shown when hovering the current booking. */
+export interface RescheduleBookingHolder {
+  display_booking_id?: string | number | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  user_phone?: string | null;
+  user_department?: string | null;
+  user_type?: string | null;
+  supervisor_name?: string | null;
+  status?: string | null;
 }
 
 export interface RescheduleBooking {
@@ -71,6 +89,50 @@ export interface RescheduleBooking {
   start_time: string;
   end_time: string;
   daily_slots: Array<{ id: number; start_datetime: string; end_datetime: string; date: string }>;
+  holder?: RescheduleBookingHolder;
+}
+
+function formatBookingWindow(startIso: string, endIso: string): string {
+  try {
+    const s = parseISO(startIso);
+    const e = parseISO(endIso);
+    const sameDay = format(s, "yyyy-MM-dd") === format(e, "yyyy-MM-dd");
+    return sameDay
+      ? `${format(s, "EEE, d MMM yyyy, HH:mm")} – ${format(e, "HH:mm")}`
+      : `${format(s, "EEE, d MMM yyyy, HH:mm")} – ${format(e, "EEE, d MMM yyyy, HH:mm")}`;
+  } catch {
+    return "";
+  }
+}
+
+export function currentBookingDetailLines(booking: RescheduleBooking, slots: RescheduleSlot[]): string[] {
+  const own = new Set((booking.daily_slots ?? []).map((s) => s.id));
+  const slotInfo = slots.find((s) => own.has(s.id) && (s.booking_user_name || s.booking_user_email));
+  const h = booking.holder ?? {};
+  const clean = (v: unknown) => String(v ?? "").trim();
+  const dept =
+    clean(h.user_department) ||
+    [clean(slotInfo?.booking_user_department_name), clean(slotInfo?.booking_user_department_code)]
+      .filter(Boolean)
+      .join(" / ");
+  const lines: string[] = [];
+  const bookingId = clean(h.display_booking_id) || clean(booking.booking_id);
+  if (bookingId) lines.push(`Booking ID: ${bookingId}`);
+  const name = clean(h.user_name) || clean(slotInfo?.booking_user_name);
+  if (name) lines.push(`Name: ${name}`);
+  const email = clean(h.user_email) || clean(slotInfo?.booking_user_email);
+  if (email) lines.push(`Email: ${email}`);
+  const phone = clean(h.user_phone) || clean(slotInfo?.booking_user_phone);
+  if (phone) lines.push(`Mobile: ${phone}`);
+  if (dept) lines.push(`Department: ${dept}`);
+  if (clean(h.user_type)) lines.push(`User type: ${clean(h.user_type)}`);
+  if (clean(h.supervisor_name)) lines.push(`Supervisor: ${clean(h.supervisor_name)}`);
+  if (clean(h.status)) lines.push(`Status: ${clean(h.status)}`);
+  const when = formatBookingWindow(booking.start_time, booking.end_time);
+  if (when) lines.push(`Booked: ${when}`);
+  const count = booking.daily_slots?.length ?? 0;
+  if (count > 0) lines.push(`Slots: ${count}`);
+  return lines;
 }
 
 interface RescheduleSlotPickerProps {
@@ -477,6 +539,7 @@ export default function RescheduleSlotPicker({
   };
 
   const days = [0, 1, 2, 3, 4, 5, 6].map((d) => addDays(weekStart, d));
+  const currentBookingLines = currentBookingDetailLines(booking, slots);
 
   return (
     <div className="space-y-4">
@@ -767,7 +830,7 @@ export default function RescheduleSlotPicker({
                     ? (rawHoliday as { color: string }).color
                     : undefined;
 
-                  return (
+                  const cell = (
                     <button
                       key={`${day.getTime()}-${timeStr}`}
                       type="button"
@@ -778,7 +841,7 @@ export default function RescheduleSlotPicker({
                         p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center
                         ${!slot && !holidayColorReschedule ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
                         ${past && slot ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
-                        ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold cursor-not-allowed opacity-75" : ""}
+                        ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold pointer-events-none" : ""}
                         ${booked && slot && !currentBookingSlotIds.has(slot.id) ? "bg-destructive/20 text-destructive cursor-not-allowed" : ""}
                         ${selected ? "bg-primary text-primary-foreground cursor-pointer" : ""}
                         ${available && !selected && !currentBooking ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
@@ -792,6 +855,24 @@ export default function RescheduleSlotPicker({
                     >
                       {label}
                     </button>
+                  );
+                  if (!currentBooking || currentBookingLines.length === 0) return cell;
+                  return (
+                    <Tooltip key={`${day.getTime()}-${timeStr}`}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="grid cursor-help rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          tabIndex={0}
+                          aria-label={`Current booking. ${currentBookingLines.join(". ")}`}
+                        >
+                          {cell}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="z-[120] max-w-xs whitespace-pre-line text-left text-xs leading-5">
+                        <p className="mb-1 font-semibold">Current booking</p>
+                        {currentBookingLines.join("\n")}
+                      </TooltipContent>
+                    </Tooltip>
                   );
                 })}
               </div>

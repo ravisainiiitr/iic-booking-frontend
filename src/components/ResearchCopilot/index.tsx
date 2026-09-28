@@ -239,18 +239,18 @@ function copilotErrorMessage(res: { error?: string | null; status?: number | nul
     return "Your session expired or you are not signed in. Sign in again to continue with personal bookings and wallet, or ask a general question while signed out.";
   }
   if (status === 429 || raw.includes("throttl") || raw.includes("rate")) {
-    return "Research Copilot AI replies are temporarily rate-limited. Wait a moment and Retry — live lookups (slots, wallet, bookings) usually still work. You do not need to abandon the Copilot for those questions.";
+    return "Booking Assistant AI replies are temporarily rate-limited. Wait a moment and Retry — live lookups (slots, wallet, bookings) usually still work. You do not need to abandon the Booking Assistant for those questions.";
   }
   if (status === 503 || raw.includes("disabled") || raw.includes("not enabled")) {
-    return "Research Copilot is not enabled on this environment right now.";
+    return "Booking Assistant is not enabled on this environment right now.";
   }
   if (status === 0 || raw.includes("network") || raw.includes("failed to fetch")) {
-    return "Unable to reach Research Copilot. Check your network connection, then try again.";
+    return "Unable to reach Booking Assistant. Check your network connection, then try again.";
   }
   if (raw.includes("busy") || status === 409) {
-    return "Research Copilot is busy. Please try again in a moment.";
+    return "Booking Assistant is busy. Please try again in a moment.";
   }
-  return res.error || "Research Copilot could not complete that request. You can continue using the booking portal.";
+  return res.error || "Booking Assistant could not complete that request. You can continue using the booking portal.";
 }
 function SimpleMarkdown({ text }: { text: string }) {
   const lines = text.split("\n");
@@ -509,7 +509,7 @@ function CopilotCards({
             <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Credit status</div>
               <div className="mt-1 text-xs">Outstanding: {card.outstanding != null ? `₹${String(card.outstanding)}` : "—"}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Main Admin approves all credit. Copilot cannot approve.</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Main Admin approves all credit. Booking Assistant cannot approve.</div>
             </div>
           );
         }
@@ -653,7 +653,7 @@ function CopilotCards({
               </ul>
               {!card.executable ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Copilot can&apos;t complete this action for your account yet. Use the portal link instead.
+                  Booking Assistant can&apos;t complete this action for your account yet. Use the portal link instead.
                 </p>
               ) : null}
             </div>
@@ -735,7 +735,7 @@ export default function ResearchCopilot({
   const [commands, setCommands] = useState<CommandAction[]>(
     isAuthenticated ? DEFAULT_COMMANDS : PUBLIC_DEFAULT_COMMANDS,
   );
-  const [assistantName, setAssistantName] = useState("IIC Research Copilot");
+  const [assistantName, setAssistantName] = useState("IIC Booking Assistant");
   const [commandGroups, setCommandGroups] = useState<CopilotCommandGroup[]>([]);
   const [intelligenceOn, setIntelligenceOn] = useState(false);
   const [canEscalate, setCanEscalate] = useState(false);
@@ -897,7 +897,7 @@ export default function ResearchCopilot({
           setOpen(false);
           return;
         }
-        setAssistantName(res.data.assistant_name || "IIC Research Copilot");
+        setAssistantName(res.data.assistant_name || "IIC Booking Assistant");
         setSuggested(res.data.suggested_prompts || []);
         const ca = (res.data as { command_actions?: CommandAction[] }).command_actions;
         if (ca?.length) setCommands(ca);
@@ -1083,7 +1083,7 @@ export default function ResearchCopilot({
           role: "assistant",
           content:
             msg ||
-            "Research Copilot is temporarily unavailable. You can continue using the normal booking portal.",
+            "Booking Assistant is temporarily unavailable. You can continue using the normal booking portal.",
         },
       ]);
     } finally {
@@ -1221,12 +1221,12 @@ export default function ResearchCopilot({
     <>
       <Button
         type="button"
-        aria-label={open ? "Close Research Copilot" : "Open Research Copilot"}
+        aria-label={open ? "Close Booking Assistant" : "Open Booking Assistant"}
         onClick={() => setOpen((o) => !o)}
         className="fixed bottom-6 right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-        <span className="hidden sm:inline text-sm font-semibold">Research Copilot</span>
+        <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
       </Button>
 
       {open && (
@@ -1793,7 +1793,7 @@ export default function ResearchCopilot({
                   ) : null}
                 </ul>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {CONFIRM_WARNINGS[pendingConfirm.mutation_action || ""] || "Copilot will carry out this action for you."}
+                  {CONFIRM_WARNINGS[pendingConfirm.mutation_action || ""] || "Booking Assistant will carry out this action for you."}
                 </p>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => setPendingConfirm(null)}>

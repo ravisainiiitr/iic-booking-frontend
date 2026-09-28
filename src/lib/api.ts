@@ -7040,6 +7040,9 @@ class ApiClient {
         wallet_approved_by_name: string | null;
         wallet_notes: string;
         pending_wallet_approval: boolean;
+        supervisor_approval_required?: boolean;
+        supervisor_decision?: string;
+        supervisor_name?: string | null;
         status: string;
         admin_notes: string;
         decided_at: string | null;
@@ -7096,6 +7099,9 @@ class ApiClient {
       wallet_approved_by_name: string | null;
       wallet_notes: string;
       pending_wallet_approval: boolean;
+      supervisor_approval_required?: boolean;
+      supervisor_decision?: string;
+      supervisor_name?: string | null;
       status: string;
       admin_notes: string;
       decided_at: string | null;

@@ -184,8 +184,8 @@ const AdminSettings = () => {
           {isAdmin && (
             <SettingsTile
               icon={<BookOpen className="h-5 w-5" />}
-              title="Research Copilot Knowledge"
-              description="Manage SOPs, FAQs, indexing, gaps, and Copilot usage"
+              title="Booking Assistant Knowledge"
+              description="Manage SOPs, FAQs, indexing, gaps, and Booking Assistant usage"
               onClick={() => navigate("/admin-settings/knowledge")}
             />
           )}

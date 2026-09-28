@@ -67,6 +67,8 @@ type UrgentRequestRow = {
   wallet_approved_by_name: string | null;
   wallet_notes: string;
   pending_wallet_approval: boolean;
+  supervisor_approval_required?: boolean;
+  supervisor_name?: string | null;
   status: string;
   admin_notes: string;
   decided_at: string | null;
@@ -460,9 +462,9 @@ const UrgentRequests = () => {
                   ? "This request has expired (no action was taken within the hold expiry time). The hold was released and slots are free. No further action is possible except delete."
                   : detailRow?.request_type === "REVIEWER_URGENT"
                     ? detailRow?.pending_wallet_approval
-                      ? "Urgent comment from reviewer: supervisor must approve first. You may view the attachment and reject; Accept will be enabled after supervisor approval."
-                      : "Urgent comment from reviewer: Supervisor has approved. View the attachment if needed. Accept & allocate confirms the booking at normal category rate + 50% urgent surcharge; Reject releases the hold."
-                    : "Unable to get slot despite trials: no supervisor approval required. Accept & allocate confirms the booking at normal category rate + 50% urgent surcharge; Reject releases the hold."}
+                      ? "Urgent request with reason (50% surcharge): the requester's supervisor must approve first. You may view the details and reject; Accept will be enabled after supervisor approval."
+                      : "Urgent request with reason (50% surcharge). Accept & allocate confirms the booking at the normal category rate + 50% urgent surcharge and debits the wallet; Reject releases the hold with no charge."
+                    : "Rush relief (no slot despite repeated attempts): no supervisor approval required and the 50% surcharge is waived. Accept & allocate confirms the booking at the normal category rate; Reject releases the hold."}
               </DialogDescription>
             </DialogHeader>
             {detailRow && (
@@ -505,7 +507,9 @@ const UrgentRequests = () => {
                           ? "Pending supervisor approval — Approve will be enabled after they approve."
                           : detailRow.wallet_approved_at
                             ? `Approved by ${detailRow.wallet_approved_by_name || "—"} on ${format(new Date(detailRow.wallet_approved_at), "dd MMM yyyy")}. You may now approve or reject.`
-                            : "—"}
+                            : detailRow.supervisor_approval_required === false
+                              ? "Not required (raised by the wallet owner)."
+                              : "—"}
                         {detailRow.wallet_notes && (
                           <p className="text-muted-foreground text-xs mt-1">Note: {detailRow.wallet_notes}</p>
                         )}

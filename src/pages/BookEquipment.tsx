@@ -49,7 +49,8 @@ import {
   slotsNeededForAnalysisTime,
 } from "@/lib/slotAllocation";
 import {
-  CHARGE_ESTIMATE_USER_TYPE_OPTIONS,
+  chargeEstimateUserTypeOptionsFor,
+  viewerMaySeeInternalRates,
   getChargeEstimateUserTypeLabel,
   isEndUserBookingType,
   isExternalBookingUserType,
@@ -71,13 +72,13 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, FlaskConical } from "lucide-react";
+import { CalendarIcon, CalendarPlus, FlaskConical } from "lucide-react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
-import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
+import RescheduleSlotPicker, { type RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { PortalFeedbackForm } from "@/components/PortalFeedbackDialog";
 import {
   Dialog,
@@ -907,6 +908,14 @@ const BookEquipment = () => {
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userType, setUserType] = useState<string | number | null>(null);
+  const [userDepartmentType, setUserDepartmentType] = useState<string | null>(null);
+  const chargeEstimateOptions = useMemo(
+    () =>
+      chargeEstimateUserTypeOptionsFor(
+        viewerMaySeeInternalRates({ user_type: userType, department_type: userDepartmentType }),
+      ),
+    [userType, userDepartmentType],
+  );
   const [userDepartmentId, setUserDepartmentId] = useState<number | null>(null);
   const [istemPortalAcknowledged, setIstemPortalAcknowledged] = useState(false);
   const [adminTargetIstemAcknowledged, setAdminTargetIstemAcknowledged] = useState<boolean | null>(null);
@@ -1060,6 +1069,7 @@ const BookEquipment = () => {
   const HOME_DEPARTMENT_ONLY_VALUE = "HOME_DEPARTMENT_ONLY";
   const CLEAR_HOME_DEPARTMENT_ONLY_VALUE = "CLEAR_HOME_DEPARTMENT_ONLY";
   const RESCHEDULE_OPERATION_VALUE = "RESCHEDULE";
+  const CREATE_BOOKING_OPERATION_VALUE = "__create_booking__";
   const [updatingSlotStatus, setUpdatingSlotStatus] = useState(false);
   const [updatingHomeDepartmentOnly, setUpdatingHomeDepartmentOnly] = useState(false);
   const [statusChangeRescheduleOpen, setStatusChangeRescheduleOpen] = useState(false);
@@ -1072,6 +1082,7 @@ const BookEquipment = () => {
     daily_slots: Array<{ id: number; start_datetime: string; end_datetime: string; date: string }>;
     maintenance_reschedule_extra_week?: boolean;
     status?: string;
+    holder?: RescheduleBookingHolder;
   } | null>(null);
   /** True when current user is external (Educational Institute, RND, Industry, Other). */
   const isExternalUser = useMemo(() => {
@@ -1458,6 +1469,7 @@ const BookEquipment = () => {
         const user = JSON.parse(storedUser);
         setUserId(String(user.id));
         setUserType(user.user_type || null);
+        setUserDepartmentType(user.department_type ?? null);
         setUserDepartmentId(
           typeof user.department === "number"
             ? user.department
@@ -2820,12 +2832,12 @@ const BookEquipment = () => {
 
   useEffect(() => {
     if (!isCalculateChargesFlow || !equipmentDetail) return;
-    const codes = CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((o) => o.code);
+    const codes = chargeEstimateOptions.map((o) => o.code);
     const loggedInType = normalizeUserTypeCode(userType);
     const initial =
       loggedInType && codes.includes(loggedInType) ? loggedInType : codes[0];
     setChargeEstimateUserType((prev) => (prev && codes.includes(prev) ? prev : initial));
-  }, [isCalculateChargesFlow, equipmentDetail, userType]);
+  }, [isCalculateChargesFlow, equipmentDetail, userType, chargeEstimateOptions]);
 
   const chargeCategorySummaryRows = useMemo(
     () => (isCalculateChargesFlow ? buildChargeCategorySummaryRows(equipmentDetail) : []),
@@ -2850,6 +2862,10 @@ const BookEquipment = () => {
     }
 
     if (isCalculateChargesFlow && !chargeEstimateUserType) {
+      return;
+    }
+
+    if (!isCalculateChargesFlow && (adminManageMode === 'status' || (isAdminOrOIC() && !adminBookForUserId))) {
       return;
     }
 
@@ -3032,7 +3048,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode, adminManageMode]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -3224,8 +3240,8 @@ const BookEquipment = () => {
       return;
     }
 
-    // Admin/OIC in "book for user" mode: require a selected user before calculating
-    if (!isCalculateChargesFlow && isAdminOrOIC() && adminManageMode === 'book' && !adminBookForUserId) {
+    // Staff have no charge profile of their own: price only for a selected user (never in slot-status mode)
+    if (!isCalculateChargesFlow && (adminManageMode === 'status' || (isAdminOrOIC() && !adminBookForUserId))) {
       return;
     }
 
@@ -3893,6 +3909,7 @@ const BookEquipment = () => {
 
     setUserId(String(userResponse.data.id));
     setUserType(userResponse.data.user_type || null);
+    setUserDepartmentType((userResponse.data as { department_type?: string | null }).department_type ?? null);
     setIstemPortalAcknowledged(Boolean((userResponse.data as { istem_portal_acknowledged?: boolean }).istem_portal_acknowledged));
     // Initialize auto slot selection from user preference, default to true if not set
     const pref = userResponse.data.auto_slot_selection !== undefined ? userResponse.data.auto_slot_selection : true;
@@ -4550,11 +4567,11 @@ const BookEquipment = () => {
     return canBookForOtherUsers() || canChangeSlotStatus();
   };
 
-  /** Institute Admin and Department Administrator must pick "Book slots for a user" before the booking form. */
+  /** Institute Admin, OIC and Department Administrator must pick "Book slots for a user" before the booking form. */
   const requiresBookModeBeforeForm = (): boolean => {
     if (!userType) return false;
     const t = String(userType).toLowerCase();
-    return t === 'admin' || t === 'dept_admin';
+    return t === 'admin' || t === 'manager' || t === 'dept_admin';
   };
 
   const isInternalUser = (): boolean => {
@@ -6755,6 +6772,16 @@ const BookEquipment = () => {
                                       openBulkEmailFromStatusCard();
                                       return;
                                     }
+                                    if (v === CREATE_BOOKING_OPERATION_VALUE) {
+                                      setAdminManageMode('book');
+                                      setSearchParams((prev) => {
+                                        const p = new URLSearchParams(prev);
+                                        p.set("mode", "book");
+                                        return p;
+                                      });
+                                      window.scrollTo({ top: 0, behavior: "smooth" });
+                                      return;
+                                    }
                                     setNewSlotStatus(v);
                                   }}
                                 >
@@ -6762,6 +6789,14 @@ const BookEquipment = () => {
                                     <SelectValue placeholder="Select operation" />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    {canBookForOtherUsers() && (
+                                      <SelectItem value={CREATE_BOOKING_OPERATION_VALUE} className="text-base font-semibold">
+                                        <span className="flex items-center gap-2">
+                                          <CalendarPlus className="h-5 w-5" />
+                                          Create booking (for a user)
+                                        </span>
+                                      </SelectItem>
+                                    )}
                                     <SelectItem value="BLOCKED" className="text-base">Other Reasons</SelectItem>
                                     <SelectItem value="UNDER_MAINTENANCE" className="text-base">Under Maintenance</SelectItem>
                                     <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
@@ -6910,12 +6945,31 @@ const BookEquipment = () => {
                                         let equipmentId = selectedEquipment.id;
                                         let maintenanceExtra = false;
                                         let bookingStatus: string | undefined;
+                                        const firstBooked = booked[0];
+                                        let holder: RescheduleBookingHolder = {
+                                          user_name: firstBooked?.booking_user_name ?? null,
+                                          user_email: firstBooked?.booking_user_email ?? null,
+                                          user_phone: firstBooked?.booking_user_phone ?? null,
+                                          user_department:
+                                            firstBooked?.booking_user_department_name ||
+                                            firstBooked?.booking_user_department_code ||
+                                            null,
+                                          display_booking_id: firstBooked?.booking_id ?? null,
+                                        };
                 
                                         const res = await apiClient.getBooking(bookingPk);
                                         if (!res.error && res.data) {
                                           const b = res.data as {
                                             booking_id: number | string;
                                             real_booking_id?: number | null;
+                                            virtual_booking_id?: string | null;
+                                            user_name?: string | null;
+                                            user_email?: string | null;
+                                            user_phone?: string | null;
+                                            user_department?: string | null;
+                                            user_type_snapshot_display?: string | null;
+                                            wallet_owner_name?: string | null;
+                                            status_display?: string | null;
                                             equipment: number;
                                             start_time: string;
                                             end_time: string;
@@ -6939,6 +6993,16 @@ const BookEquipment = () => {
                                           equipmentId = b.equipment ?? selectedEquipment.id;
                                           maintenanceExtra = Boolean(b.maintenance_reschedule_extra_week);
                                           bookingStatus = b.status;
+                                          holder = {
+                                            display_booking_id: b.virtual_booking_id || b.booking_id || holder.display_booking_id,
+                                            user_name: b.user_name || holder.user_name,
+                                            user_email: b.user_email || holder.user_email,
+                                            user_phone: b.user_phone || holder.user_phone,
+                                            user_department: b.user_department || holder.user_department,
+                                            user_type: b.user_type_snapshot_display ?? null,
+                                            supervisor_name: b.wallet_owner_name ?? null,
+                                            status: b.status_display || b.status || null,
+                                          };
                                         }
                 
                                         // Fallback: build from week grid slots of the same booking
@@ -6978,6 +7042,7 @@ const BookEquipment = () => {
                                           daily_slots: dailySlots,
                                           maintenance_reschedule_extra_week: maintenanceExtra,
                                           status: bookingStatus,
+                                          holder,
                                         });
                                         setStatusChangeRescheduleOpen(true);
                                       } catch (e: unknown) {
@@ -7251,8 +7316,8 @@ const BookEquipment = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Booking flow: hide when Admin/Dept Admin and mode not yet chosen or when in status mode */}
-        {((!requiresBookModeBeforeForm() || adminManageMode === 'book') || isCalculateChargesFlow) && (
+        {/* Booking flow: hide when Admin/OIC/Dept Admin and mode not yet chosen or when in status mode */}
+        {(((!requiresBookModeBeforeForm() || adminManageMode === 'book') && adminManageMode !== 'status') || isCalculateChargesFlow) && (
         <div className={isEmbedFlow ? "max-w-none mx-auto" : "max-w-6xl mx-auto"}>
           <Card className={isEmbedFlow ? "border-0 shadow-none" : undefined}>
               <CardHeader className={isEmbedFlow ? "px-1 pt-1 pb-2" : undefined}>
@@ -7368,6 +7433,26 @@ const BookEquipment = () => {
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
                 {canBookForOtherUsers() && adminManageMode === 'book' && !isCalculateChargesFlow && (
                   <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-4">
+                    {canChangeSlotStatus() && (
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAdminManageMode('status');
+                            setSearchParams((prev) => {
+                              const p = new URLSearchParams(prev);
+                              p.set("mode", "status");
+                              return p;
+                            });
+                          }}
+                        >
+                          <ArrowLeft className="h-4 w-4 mr-2" />
+                          Back to Change slot status
+                        </Button>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-sm font-medium">User type</Label>
@@ -7579,7 +7664,7 @@ const BookEquipment = () => {
                           <SelectValue placeholder="Select user type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {CHARGE_ESTIMATE_USER_TYPE_OPTIONS.map((opt) => (
+                          {chargeEstimateOptions.map((opt) => (
                             <SelectItem key={opt.code} value={opt.code}>
                               {opt.label}
                             </SelectItem>
@@ -8500,9 +8585,11 @@ const BookEquipment = () => {
                         {isAdminOrOIC() ? "Charge calculation failed" : "Coming Soon"}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {isAdminOrOIC()
-                          ? "Could not calculate charges for this 3D print. Check that a user is selected and STL analysis completed, then try again."
-                          : "Charge calculation is currently unavailable. Please check back later."}
+                        {!isAdminOrOIC()
+                          ? "Charge calculation is currently unavailable. Please check back later."
+                          : equipmentDetail?.profile_type === "PRINT_3D"
+                            ? "Could not calculate charges for this 3D print. Check that a user is selected and STL analysis completed, then try again."
+                            : "Could not calculate charges for the selected user. Check that the equipment has an active charge profile for this user's type, then try again."}
                       </p>
                     </div>
                   )}
@@ -8546,8 +8633,7 @@ const BookEquipment = () => {
                       <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
                         <p className="font-semibold">Urgent booking charges</p>
                         <p className="mt-0.5 leading-relaxed">
-                          Type B: selecting slots here holds them for OIC/Admin review at <strong>50% surcharge</strong> — they are not auto-confirmed. Type A rush relief uses advance-week booking at normal rates (no surcharge).
-                          Either way the held slots are confirmed automatically once your wallet is debited.
+                          Type B: selecting slots here holds them at <strong>50% surcharge</strong> — they are not auto-confirmed. Students need their supervisor&apos;s approval first, then the OIC gives final approval; your wallet is charged only after that final approval. Type A rush relief uses advance-week booking at normal rates (no surcharge).
                         </p>
                       </div>
                     )}
@@ -9655,7 +9741,7 @@ const BookEquipment = () => {
                     <Label htmlFor="urgent-reviewer" className="flex-1 cursor-pointer">
                       <span className="font-medium text-base">Type B — Urgent with reason (50% surcharge)</span>
                       <span className="text-muted-foreground text-sm block mt-0.5">
-                        Give a reason; 50% surcharge. Slots stay pending for OIC/Admin review and possible reschedule (including weekends).
+                        Give a reason; 50% surcharge. Students need their supervisor&apos;s approval first, then the OIC gives final approval (and may reschedule, including weekends). Your wallet is charged only after the OIC&apos;s final approval.
                       </span>
                     </Label>
                   </div>

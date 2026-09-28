@@ -42,9 +42,9 @@ export default function ResearchCopilotLauncher() {
     return (
       <Suspense
         fallback={
-          <Button type="button" aria-label="Loading Research Copilot" disabled className={FAB_CLASS}>
+          <Button type="button" aria-label="Loading Booking Assistant" disabled className={FAB_CLASS}>
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="hidden sm:inline text-sm font-semibold">Research Copilot</span>
+            <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
           </Button>
         }
       >
@@ -63,14 +63,14 @@ export default function ResearchCopilotLauncher() {
   return (
     <Button
       type="button"
-      aria-label="Open Research Copilot"
+      aria-label="Open Booking Assistant"
       onClick={() => setActivated(true)}
       onPointerEnter={() => void loadCopilot()}
       onFocus={() => void loadCopilot()}
       className={FAB_CLASS}
     >
       <Sparkles className="h-5 w-5" />
-      <span className="hidden sm:inline text-sm font-semibold">Research Copilot</span>
+      <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
     </Button>
   );
 }

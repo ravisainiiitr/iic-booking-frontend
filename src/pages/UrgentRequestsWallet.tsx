@@ -99,9 +99,9 @@ type UrgentRequestDetail = {
 };
 
 const WALLET_DISCLAIMER =
-  "As the supervisor, you are requested to verify the documentary evidence before approving. " +
-  "Your approval confirms that you have reviewed the attachment and find the urgent request genuine. " +
-  "After your approval, the request will be forwarded to Admin/OIC for final decision.";
+  "Urgent requests with a 50% surcharge need your approval before the Officer in charge can allocate slots. " +
+  "Please check the reason (and any attached evidence) before approving. " +
+  "After your approval, the Officer in charge takes the final decision; the wallet is charged only after that final approval.";
 
 /** Shown above the faculty urgent form on this page (submit path). */
 const FACULTY_URGENT_SUBMIT_DISCLAIMER =
@@ -126,6 +126,9 @@ const UrgentRequestsWallet = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const isFacultyUser = String(user?.user_type || "").toLowerCase() === "faculty";
+  const isInternalFaculty =
+    isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
+  const showFacultySubmitForm = isFacultyUser && !isInternalFaculty;
   const [tab, setTab] = useState<TabValue>("pending");
   const [list, setList] = useState<WalletRequestRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -170,7 +173,7 @@ const UrgentRequestsWallet = () => {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !user || !isFacultyUser) return;
+    if (!isAuthenticated || !user || !showFacultySubmitForm) return;
     setFacultyEquipLoading(true);
     apiClient
       .getEquipments(undefined, "ACTIVE")
@@ -187,7 +190,7 @@ const UrgentRequestsWallet = () => {
       })
       .catch(() => setFacultyEquipList([]))
       .finally(() => setFacultyEquipLoading(false));
-  }, [isAuthenticated, user?.id, isFacultyUser]);
+  }, [isAuthenticated, user?.id, showFacultySubmitForm]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -195,14 +198,8 @@ const UrgentRequestsWallet = () => {
       navigate("/auth");
       return;
     }
-    const internalFaculty =
-      isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
-    if (internalFaculty) {
-      navigate("/dashboard", { replace: true });
-      return;
-    }
     fetchList(tab);
-  }, [navigate, isAuthenticated, user?.id, authLoading, tab, isFacultyUser]);
+  }, [navigate, isAuthenticated, user?.id, authLoading, tab]);
 
   const fetchList = async (statusFilter: TabValue) => {
     setLoading(true);
@@ -301,7 +298,7 @@ const UrgentRequestsWallet = () => {
           Back to Dashboard
         </Button>
 
-        {isFacultyUser && (
+        {showFacultySubmitForm && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Submit new urgent request</CardTitle>
@@ -460,8 +457,8 @@ const UrgentRequestsWallet = () => {
           <CardHeader>
             <CardTitle>Urgent requests – Supervisor approval</CardTitle>
             <CardDescription>
-              As supervisor, review &quot;Urgent comment from reviewer&quot; requests from users under your supervision. 
-              View the documentary evidence and approve or reject. After your approval, Admin/OIC will take the final decision.
+              Review urgent booking requests (50% surcharge) raised by students linked to your wallet. Approve or reject each one;
+              after your approval the Officer in charge takes the final decision and allocates slots.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -586,20 +583,26 @@ const UrgentRequestsWallet = () => {
                 {detailRow?.status === "EXPIRED"
                   ? "This request has expired. No further action is possible."
                   : detailRow?.pending_wallet_approval
-                    ? "Urgent comment from reviewer: verify the documentary evidence and approve or reject. Your approval forwards the request to Admin/OIC for final decision."
-                    : "Urgent comment from reviewer: Supervisor has approved. View the attachment if needed."}
+                    ? "Check the reason and approve or reject. Your approval forwards the request to the Officer in charge for final decision."
+                    : "You have already decided this request."}
               </DialogDescription>
             </DialogHeader>
             {detailRow && (
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground rounded-md border bg-muted/30 p-2">
-                  As the supervisor, verify the documentary evidence before approving. Your approval forwards the request to Admin/OIC.
+                  The wallet is charged (including the 50% urgent surcharge) only after the Officer in charge gives final approval.
                 </p>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Type:</span>{" "}
-                    {detailRow.request_type === "REVIEWER_URGENT" ? "Urgent comment from reviewer" : "Unable to get slot despite trials"}
+                    {detailRow.request_type === "REVIEWER_URGENT" ? "Urgent with reason (50% surcharge)" : "Rush relief (no surcharge)"}
                   </div>
+                  {detailRow.hold_booking_summary?.total_charge != null && (
+                    <div>
+                      <span className="text-muted-foreground">Estimated charge:</span>{" "}
+                      ₹{Number(detailRow.hold_booking_summary.total_charge).toFixed(2)}
+                    </div>
+                  )}
                   <div>
                     <span className="text-muted-foreground">User:</span> {detailRow.user_name} ({detailRow.user_email})
                   </div>
@@ -655,7 +658,7 @@ const UrgentRequestsWallet = () => {
                       </div>
                       {detailRow.reviewer_comment ? (
                         <div className="col-span-2 space-y-1">
-                          <span className="text-muted-foreground text-sm">Reviewer comment:</span>
+                          <span className="text-muted-foreground text-sm">Reason:</span>
                           <p className="text-sm whitespace-pre-wrap rounded-md border bg-muted/20 p-2">{detailRow.reviewer_comment}</p>
                         </div>
                       ) : null}
@@ -709,7 +712,7 @@ const UrgentRequestsWallet = () => {
                     id="wallet-notes"
                     value={walletNotes}
                     onChange={(e) => setWalletNotes(e.target.value)}
-                    placeholder="Add a note for admin/OIC..."
+                    placeholder="Add a note for the student and Officer in charge..."
                     rows={3}
                   />
                 </div>
@@ -719,7 +722,7 @@ const UrgentRequestsWallet = () => {
               <Button variant="outline" onClick={() => setDetailRow(null)}>
                 Close
               </Button>
-              {detailRow?.status === "PENDING" && (
+              {detailRow?.pending_wallet_approval && (
                 <>
                   <Button
                     variant="outline"

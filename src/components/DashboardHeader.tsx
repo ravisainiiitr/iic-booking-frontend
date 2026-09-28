@@ -44,7 +44,7 @@ const DashboardHeader = () => {
   const isFaculty = userTypeStr === 'faculty';
   const isInternalFaculty =
     isFaculty && String(user?.department_type ?? '').toLowerCase() === 'internal';
-  const showFacultyUrgentWalletMenu = isFaculty && !isInternalFaculty;
+  const showFacultyUrgentWalletMenu = isFaculty;
   const mayUseMyResearch =
     isAuthenticated && (userTypeStr === 'student' || userTypeStr === 'individual_student' || isInternalFaculty);
   const { available: myResearchAvailable } = useMyResearchAvailability(mayUseMyResearch);

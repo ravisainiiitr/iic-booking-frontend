@@ -2240,6 +2240,12 @@ const MyBookings = () => {
                     end_datetime: s.end_datetime,
                     date: s.date,
                   })),
+                  holder: {
+                    display_booking_id: selectedBooking.virtual_booking_id || selectedBooking.booking_id,
+                    user_name: selectedBooking.user_name,
+                    user_email: selectedBooking.user_email,
+                    status: selectedBooking.status_display || selectedBooking.status,
+                  },
                 }}
                 onConfirm={handleRescheduleConfirm}
                 onCancel={() => setRescheduleDialogOpen(false)}

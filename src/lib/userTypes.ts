@@ -77,6 +77,50 @@ export const CHARGE_ESTIMATE_USER_TYPE_OPTIONS: ReadonlyArray<{ code: string; la
   { code: "external_startup_msme", label: "External Startup/MSME" },
 ];
 
+/** IIT Roorkee internal rate categories (hidden from anonymous and external viewers). */
+export const INTERNAL_RATE_USER_TYPE_CODES = [
+  "student",
+  "individual_student",
+  "faculty",
+  "startup_incubated_iitr",
+] as const;
+
+const STAFF_USER_TYPE_CODES = [
+  "admin",
+  "dept_admin",
+  "manager",
+  "operator",
+  "finance",
+  "org_admin",
+  "external_relations",
+] as const;
+
+export function isInternalRateUserType(userType: string | number | null | undefined): boolean {
+  const normalized = normalizeUserTypeCode(userType);
+  if (!normalized) return false;
+  return (INTERNAL_RATE_USER_TYPE_CODES as readonly string[]).includes(normalized);
+}
+
+/** Mirrors backend `viewer_may_see_internal_rates`: internal IITR users and staff only. */
+export function viewerMaySeeInternalRates(
+  user: { user_type?: string | number | null; department_type?: string | null } | null | undefined,
+): boolean {
+  if (!user) return false;
+  const t = normalizeUserTypeCode(user.user_type ?? null);
+  if (!t) return false;
+  if ((STAFF_USER_TYPE_CODES as readonly string[]).includes(t)) return true;
+  if (!isInternalRateUserType(t)) return false;
+  return String(user.department_type ?? "").toLowerCase() !== "external";
+}
+
+export function chargeEstimateUserTypeOptionsFor(
+  maySeeInternal: boolean,
+): ReadonlyArray<{ code: string; label: string }> {
+  return maySeeInternal
+    ? CHARGE_ESTIMATE_USER_TYPE_OPTIONS
+    : CHARGE_ESTIMATE_USER_TYPE_OPTIONS.filter((o) => !isInternalRateUserType(o.code));
+}
+
 export function getChargeEstimateUserTypeLabel(userType: string | null | undefined): string {
   const key = normalizeUserTypeCode(userType);
   if (!key) return String(userType ?? "");

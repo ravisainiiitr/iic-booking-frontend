@@ -846,7 +846,7 @@ const EquipmentProfile = () => {
                 const showSecondary = chargeRows.some((row) => !!row.secondary);
                 chargesBody = (
                   <ChargeCategoryLegacyTable
-                    subtitle="Standard rates for this equipment, including student and faculty categories."
+                    subtitle="Standard rates for this equipment."
                     unitLabels={{
                       primary: "Unit charge",
                       secondary: "Additional charge",

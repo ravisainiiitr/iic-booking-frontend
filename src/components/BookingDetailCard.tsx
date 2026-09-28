@@ -3706,6 +3706,17 @@ export function BookingDetailCard({
                   end_datetime: s.end_datetime,
                   date: s.date,
                 })),
+                holder: {
+                  display_booking_id:
+                    actionDialog.booking.virtual_booking_id ||
+                    `${actionDialog.booking.equipment_code}-#${actionDialog.booking.booking_id}`,
+                  user_name: actionDialog.booking.user_name,
+                  user_email: actionDialog.booking.user_email,
+                  user_phone: actionDialog.booking.user_phone,
+                  user_department: actionDialog.booking.user_department,
+                  supervisor_name: actionDialog.booking.wallet_owner_name,
+                  status: actionDialog.booking.status_display || actionDialog.booking.status,
+                },
               }}
               onConfirm={(startTimeISO, endTimeISO, targetEquipmentId) =>
                 handleRescheduleConfirm(startTimeISO, endTimeISO, targetEquipmentId)

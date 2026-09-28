@@ -189,7 +189,7 @@ const AdminSettingsKnowledge = () => {
               Knowledge Center
             </h1>
             <p className="text-sm text-muted-foreground">
-              Research Copilot documents, embeddings, index health, and knowledge gaps (AI.2). Never auto-publishes FAQs.
+              Booking Assistant documents, embeddings, index health, and knowledge gaps (AI.2). Never auto-publishes FAQs.
             </p>
           </div>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void seed()}>

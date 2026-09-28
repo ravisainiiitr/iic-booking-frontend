@@ -165,6 +165,10 @@ export type EquipmentFormData = {
   waitlist_queue_depth?: number | null;
   /** Max PENDING urgent requests for this equipment at a time. Leave empty for no cap. Admin and OIC. */
   max_urgent_requests?: number | null;
+  /** Approved rush-relief urgent bookings allowed per calendar week for this equipment. Empty = no cap. */
+  max_rush_relief_requests_per_week?: number | null;
+  /** Surcharge (50%) urgent bookings allowed per calendar week for this equipment, pending included. Empty = no cap. */
+  max_surcharge_urgent_requests_per_week?: number | null;
   /** After booking end time, if sample lifecycle has no update or only Sample Sent for this many hours, auto-mark as Booking Not Utilized. 0 = disabled. */
   booking_not_utilize_window_hours?: number | null;
   /** Hours after last slot end before auto Operator Unavailable (full refund) when staff engaged beyond Sample Sent. 0 = disabled. */
@@ -199,8 +203,8 @@ export type EquipmentFormData = {
   updated_at?: string | null;
   image_url?: string | null;
   video_url?: string | null;
-  equipment_managers?: Array<{ manager: number }>;
-  equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY' }>;
+  equipment_managers?: Array<{ manager: number; disable_booking_confirmation_email?: boolean }>;
+  equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY'; disable_booking_confirmation_email?: boolean }>;
   equipment_pis?: Array<{ faculty: number; is_active?: boolean }>;
   equipment_specifications?: Array<{ spec_key: string; spec_value?: string }>;
   equipment_publications?: Array<{
@@ -368,6 +372,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     external_slot_quota_percent: 0,
     waitlist_queue_depth: 0,
     max_urgent_requests: null,
+    max_rush_relief_requests_per_week: null,
+    max_surcharge_urgent_requests_per_week: null,
     booking_not_utilize_window_hours: 24,
     operator_unavailable_after_booking_end_hours: 24,
     show_lifecycle_countdowns: true,
@@ -562,8 +568,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   useEffect(() => {
     if (initialData && typeof initialData === "object") {
       const d = initialData as Record<string, unknown>;
-      const managers = (d.managers || d.equipment_managers || []) as Array<{ manager: number }>;
-      const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string }>;
+      const managers = (d.managers || d.equipment_managers || []) as Array<{ manager: number; disable_booking_confirmation_email?: boolean }>;
+      const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string; disable_booking_confirmation_email?: boolean }>;
       const pis = (d.equipment_pis || d.pis || []) as Array<{ faculty?: number; faculty_id?: number; is_active?: boolean }>;
       const specs = (d.specifications || d.equipment_specifications || []) as Array<{ spec_key: string; spec_value?: string }>;
       const publications = (d.publications || d.equipment_publications || []) as Array<{
@@ -649,6 +655,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             : 0,
         waitlist_queue_depth: (d.waitlist_queue_depth as number | null) ?? 0,
         max_urgent_requests: (d.max_urgent_requests as number | null) ?? null,
+        max_rush_relief_requests_per_week: (d.max_rush_relief_requests_per_week as number | null) ?? null,
+        max_surcharge_urgent_requests_per_week: (d.max_surcharge_urgent_requests_per_week as number | null) ?? null,
         booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
         operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
         skip_quota_check: d.skip_quota_check === true,
@@ -678,8 +686,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         updated_at: (d.updated_at as string) ?? null,
         image_url: (d.image_url as string) ?? null,
         video_url: (d.video_url as string) ?? null,
-        equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number })) : prev.equipment_managers ?? [],
-        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY" })) : prev.equipment_operators ?? [],
+        equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number, disable_booking_confirmation_email: m.disable_booking_confirmation_email === true })) : prev.equipment_managers ?? [],
+        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY", disable_booking_confirmation_email: o.disable_booking_confirmation_email === true })) : prev.equipment_operators ?? [],
         equipment_pis: Array.isArray(pis)
           ? pis
               .map((p) => ({
@@ -856,6 +864,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : 0,
       waitlist_queue_depth: formData.waitlist_queue_depth ?? 0,
       max_urgent_requests: formData.max_urgent_requests != null && formData.max_urgent_requests !== '' ? (typeof formData.max_urgent_requests === 'number' ? formData.max_urgent_requests : parseInt(String(formData.max_urgent_requests), 10)) : null,
+      max_rush_relief_requests_per_week: formData.max_rush_relief_requests_per_week ?? null,
+      max_surcharge_urgent_requests_per_week: formData.max_surcharge_urgent_requests_per_week ?? null,
       booking_not_utilize_window_hours:
         formData.booking_not_utilize_window_hours != null && formData.booking_not_utilize_window_hours !== ''
           ? (typeof formData.booking_not_utilize_window_hours === 'number'
@@ -2602,6 +2612,42 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="text-muted-foreground text-xs">Maximum number of PENDING urgent requests allowed for this equipment at a time. Leave empty for no cap. Admin and OIC.</p>
         </div>
         <div className="space-y-2">
+          <Label htmlFor="max-rush-relief-per-week">Max rush-relief urgent bookings per week</Label>
+          <Input
+            id="max-rush-relief-per-week"
+            type="number"
+            min={0}
+            placeholder="Empty = no cap"
+            value={formData.max_rush_relief_requests_per_week ?? ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              setFormData((p) => ({
+                ...p,
+                max_rush_relief_requests_per_week: v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
+              }));
+            }}
+          />
+          <p className="text-muted-foreground text-xs">Approved rush-relief (surcharge waived) urgent bookings allowed for this equipment per week (Monday–Sunday), all users combined. Leave empty for no cap.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="max-surcharge-urgent-per-week">Max surcharge urgent bookings per week</Label>
+          <Input
+            id="max-surcharge-urgent-per-week"
+            type="number"
+            min={0}
+            placeholder="Empty = no cap"
+            value={formData.max_surcharge_urgent_requests_per_week ?? ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              setFormData((p) => ({
+                ...p,
+                max_surcharge_urgent_requests_per_week: v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
+              }));
+            }}
+          />
+          <p className="text-muted-foreground text-xs">Urgent bookings with the 50% surcharge allowed for this equipment per week (Monday–Sunday), all users combined. Requests still awaiting approval count towards the limit. Leave empty for no cap.</p>
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="booking-not-utilize-window-hours">Booking Not Utilize Window (hours)</Label>
           <Input
             id="booking-not-utilize-window-hours"
@@ -2930,8 +2976,21 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="p-2 text-sm text-muted-foreground">No managers.</p>
         ) : (
           (formData.equipment_managers ?? []).map((m, idx) => (
-            <div key={idx} className="flex items-center justify-between p-2">
-              <span className="text-sm">{(choices.managers ?? []).find((c) => c.id === m.manager)?.name || (choices.managers ?? []).find((c) => c.id === m.manager)?.email || `ID ${m.manager}`}</span>
+            <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2">
+              <span className="text-sm flex-1">{(choices.managers ?? []).find((c) => c.id === m.manager)?.name || (choices.managers ?? []).find((c) => c.id === m.manager)?.email || `ID ${m.manager}`}</span>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={m.disable_booking_confirmation_email === true}
+                  onCheckedChange={(checked) =>
+                    setFormData((p) => {
+                      const arr = [...(p.equipment_managers ?? [])];
+                      arr[idx] = { ...arr[idx], disable_booking_confirmation_email: checked === true };
+                      return { ...p, equipment_managers: arr };
+                    })
+                  }
+                />
+                Disable booking confirmation email
+              </label>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_managers: (p.equipment_managers ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
             </div>
           ))
@@ -3073,6 +3132,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   <SelectItem value="SECONDARY">Secondary</SelectItem>
                 </SelectContent>
               </Select>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={o.disable_booking_confirmation_email === true}
+                  onCheckedChange={(checked) =>
+                    setFormData((p) => {
+                      const arr = [...(p.equipment_operators ?? [])];
+                      arr[idx] = { ...arr[idx], disable_booking_confirmation_email: checked === true };
+                      return { ...p, equipment_operators: arr };
+                    })
+                  }
+                />
+                Disable booking confirmation email
+              </label>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_operators: (p.equipment_operators ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
             </div>
           ))

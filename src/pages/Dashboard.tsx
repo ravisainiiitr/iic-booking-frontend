@@ -401,7 +401,7 @@ const Dashboard = () => {
   const isFacultyUser = userTypeStr === "faculty";
   const isInternalFacultyUser =
     isFacultyUser && String(user?.department_type ?? "").toLowerCase() === "internal";
-  const showFacultyUrgentWalletCard = isFacultyUser && !isInternalFacultyUser;
+  const showFacultyUrgentWalletCard = isFacultyUser;
   const canReceiveSharedData =
     userTypeStr === "student" || userTypeStr === "individual_student" || isInternalFacultyUser;
   const { available: myResearchAvailable } = useMyResearchAvailability(Boolean(user) && canReceiveSharedData);
@@ -715,7 +715,7 @@ const Dashboard = () => {
         ) {
           tasks.push(fetchPublicationClaimsPendingCount().then(() => {}));
         }
-        if (currentUserTypeStr === "faculty" && !facultyDeptInternal) {
+        if (currentUserTypeStr === "faculty") {
           tasks.push(fetchFacultyUrgentPendingCount().then(() => {}));
         }
         if (isStudent) {
