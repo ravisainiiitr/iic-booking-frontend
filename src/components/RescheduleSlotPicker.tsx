@@ -569,6 +569,7 @@ export default function RescheduleSlotPicker({
             <p className="text-xs text-muted-foreground">
               Your booking will move to {targetOption.name} (same equipment group). The amount already charged stays
               unchanged.
+              {targetOption.charge_differs ? " This equipment has a different tariff; the original charge is kept." : ""}
               {targetOption.dropped_fields && targetOption.dropped_fields.length > 0
                 ? ` Not carried over: ${targetOption.dropped_fields.map((f) => f.label).join(", ")}.`
                 : ""}

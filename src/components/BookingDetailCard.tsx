@@ -636,11 +636,6 @@ export function BookingDetailCard({
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const [actionSubmitLoading, setActionSubmitLoading] = useState(false);
-  const [repeatEligibility, setRepeatEligibility] = useState<{
-    can_create_repeat: boolean;
-    bookable_from?: string | null;
-  } | null>(null);
-  const [enableRepeatLoading, setEnableRepeatLoading] = useState(false);
   const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
   const [extendHoldReasonCode, setExtendHoldReasonCode] = useState<string>("");
   const [extendHoldReasonDetail, setExtendHoldReasonDetail] = useState("");
@@ -662,15 +657,6 @@ export function BookingDetailCard({
   });
   const [ratingFeedbackDraft, setRatingFeedbackDraft] = useState<string>(booking.rating_feedback ?? "");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
-  const [legacyRepeatInfo, setLegacyRepeatInfo] = useState<{
-    can_request: boolean;
-    disclaimer: string;
-    days_left: number | null;
-    reason: string | null;
-  } | null>(null);
-  const [legacyRepeatDialogOpen, setLegacyRepeatDialogOpen] = useState(false);
-  const [legacyRepeatNotes, setLegacyRepeatNotes] = useState("");
-  const [legacyRepeatSubmitLoading, setLegacyRepeatSubmitLoading] = useState(false);
   const [sampleRejectDialogOpen, setSampleRejectDialogOpen] = useState(false);
   const [sampleRejectReason, setSampleRejectReason] = useState("");
   const [sampleActionLoading, setSampleActionLoading] = useState<null | "SAMPLE_ACCEPTED" | "SAMPLE_REJECTED">(null);
@@ -927,130 +913,15 @@ export function BookingDetailCard({
     },
   });
 
-  useEffect(() => {
-    if (
-      !isOperator &&
-      currentUserId != null &&
-      booking.user === currentUserId &&
-      booking.status.toUpperCase() === "COMPLETED" &&
-      booking.repeat_sample_enabled
-    ) {
-      if (bookingPk == null) return;
-      apiClient.getRepeatSampleEligibility(bookingPk).then((res) => {
-        if (!res.error && res.data)
-          setRepeatEligibility({
-            can_create_repeat: res.data.can_create_repeat ?? false,
-            bookable_from: res.data.bookable_from ?? null,
-          });
-        else setRepeatEligibility({ can_create_repeat: false });
-      });
-    } else {
-      setRepeatEligibility(null);
-    }
-  }, [booking.booking_id, booking.user, booking.status, booking.repeat_sample_enabled, isOperator, currentUserId, bookingPk]);
-
-  useEffect(() => {
-    const externalSelf =
-      !(isOperator || isManagerOrAdmin) &&
-      currentUserId != null &&
-      booking.user === currentUserId &&
-      isExternalBookingUserType(booking.user_type_snapshot);
-    if (
-      isOperator ||
-      externalSelf ||
-      currentUserId == null ||
-      booking.user !== currentUserId ||
-      booking.status.toUpperCase() !== "COMPLETED" ||
-      booking.repeat_sample_enabled ||
-      booking.repeat_booking_already_created ||
-      booking.source_booking_id ||
-      bookingPk == null
-    ) {
-      setLegacyRepeatInfo(null);
-      return;
-    }
-    const days = booking.equipment_repeat_sample_request_days;
-    const equipmentAllowsRepeatRequest = days != null && Number(days) > 0;
-    const pending = (booking.repeat_sample_request_status || "").toUpperCase() === "PENDING";
-    if (!equipmentAllowsRepeatRequest && !pending) {
-      setLegacyRepeatInfo(null);
-      return;
-    }
-    let cancelled = false;
-    apiClient.getRepeatSampleInfo(bookingPk).then((res) => {
-      if (cancelled || res.error) return;
-      setLegacyRepeatInfo(res.data ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    isOperator,
-    isManagerOrAdmin,
-    currentUserId,
-    booking.user,
-    booking.user_type_snapshot,
-    booking.status,
-    booking.repeat_sample_enabled,
-    booking.repeat_booking_already_created,
-    booking.source_booking_id,
-    booking.equipment_repeat_sample_request_days,
-    booking.repeat_sample_request_status,
-    bookingPk,
-  ]);
-
-  const handleEnableRepeatSample = async () => {
-    setEnableRepeatLoading(true);
-    try {
-      if (bookingPk == null) {
-        toast.error("This booking cannot be updated right now.");
-        return;
-      }
-      const res = await apiClient.enableRepeatSample(bookingPk);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success((res.data as { message?: string })?.message || "Repeat sample enabled");
-      onUpdated();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to enable repeat sample");
-    } finally {
-      setEnableRepeatLoading(false);
-    }
-  };
-
   const handleCreateRepeatBooking = () => {
     if (!booking?.equipment || !booking?.booking_id) return;
     const rid = getRealBookingId(booking);
     if (rid == null) {
-      toast.error("This booking cannot be used for repeat sample right now.");
+      toast.error("This booking cannot be used for a repeat sample right now.");
       return;
     }
     onClose();
     navigate(`/book-equipment?equipment_id=${booking.equipment}&repeatOf=${rid}`);
-  };
-
-  const handleSubmitLegacyRepeatRequest = async () => {
-    if (bookingPk == null) return;
-    setLegacyRepeatSubmitLoading(true);
-    try {
-      const res = await apiClient.requestRepeatSample(bookingPk, legacyRepeatNotes.trim() || undefined);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success((res.data as { message?: string })?.message || "Repeat sample request submitted.");
-      setLegacyRepeatDialogOpen(false);
-      setLegacyRepeatNotes("");
-      const info = await apiClient.getRepeatSampleInfo(bookingPk);
-      if (!info.error && info.data) setLegacyRepeatInfo(info.data);
-      onUpdated();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to submit request");
-    } finally {
-      setLegacyRepeatSubmitLoading(false);
-    }
   };
 
   const openActionDialog = (type: ActionType, b: BookingDetailCardBooking) => {
@@ -1544,11 +1415,6 @@ export function BookingDetailCard({
     (Boolean(booking.require_istem_fbr) && !booking.istem_fbr_status);
   const isBookingOwnerView =
     !isOperatorOrManager && currentUserId != null && booking.user === currentUserId;
-  const equipmentRepeatSampleRequestEnabled =
-    booking.equipment_repeat_sample_request_days != null &&
-    Number(booking.equipment_repeat_sample_request_days) > 0;
-  const repeatSampleRequestPending =
-    (booking.repeat_sample_request_status || "").toUpperCase() === "PENDING";
   const oicContacts = Array.isArray(booking.oic_contacts) ? booking.oic_contacts : [];
 
   return (
@@ -2525,11 +2391,16 @@ export function BookingDetailCard({
               )}
               {isManagerOrAdmin &&
                 booking.status.toUpperCase() === "COMPLETED" &&
-                !booking.repeat_sample_enabled &&
-                !booking.repeat_booking_already_created && (
-                <Button size="sm" variant="outline" onClick={handleEnableRepeatSample} disabled={enableRepeatLoading}>
+                !booking.repeat_booking_already_created &&
+                !isExternalSelfView && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCreateRepeatBooking}
+                  title="Mark this booking as repeated and book a free repeat for the user with the same parameters. The user is emailed a confirmation."
+                >
                   <CopyPlus className="h-4 w-4 mr-2" />
-                  {enableRepeatLoading ? "Enabling…" : "Enable repeat sample"}
+                  Mark as repeat &amp; book (free)
                 </Button>
               )}
               {isManagerOrAdmin &&
@@ -2673,29 +2544,6 @@ export function BookingDetailCard({
                   Repeat sample used
                 </span>
               )}
-              {!isOperator &&
-                currentUserId != null &&
-                booking.user === currentUserId &&
-                booking.status.toUpperCase() === "COMPLETED" &&
-                !booking.source_booking_id &&
-                !isExternalSelfView &&
-                repeatEligibility?.can_create_repeat && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCreateRepeatBooking}
-                    title={
-                      repeatEligibility.bookable_from
-                        ? `Approved repeat (free, same parameters): slots from ${format(new Date(repeatEligibility.bookable_from), "dd MMM yyyy, hh:mm a")}`
-                        : undefined
-                    }
-                  >
-                    <CopyPlus className="h-4 w-4 mr-2" />
-                    {repeatEligibility.bookable_from
-                      ? `Book repeat sample (from ${format(new Date(repeatEligibility.bookable_from), "dd MMM, hh:mm a")})`
-                      : "Repeat sample"}
-                  </Button>
-                )}
               {!resultsLoading && showRawOrResultsAction && (
                 <Button
                   size="sm"
@@ -2855,54 +2703,6 @@ export function BookingDetailCard({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            {!isOperator &&
-              currentUserId != null &&
-              booking.user === currentUserId &&
-              isCompleted &&
-              !booking.source_booking_id &&
-              !isExternalSelfView &&
-              !booking.repeat_sample_enabled &&
-              (repeatSampleRequestPending ||
-                (equipmentRepeatSampleRequestEnabled &&
-                  (legacyRepeatInfo?.can_request ||
-                    (legacyRepeatInfo != null &&
-                      !legacyRepeatInfo.can_request &&
-                      !!legacyRepeatInfo.reason)))) && (
-                <div className="w-full mt-3 rounded-lg border bg-muted/30 px-3 py-3 text-sm no-print">
-                  <p className="font-medium text-foreground mb-1">Repeat sample request</p>
-                  {repeatSampleRequestPending && (
-                    <p className="text-amber-800 dark:text-amber-200">
-                      Your repeat sample request is pending review. You will be notified when it is processed.
-                    </p>
-                  )}
-                  {legacyRepeatInfo?.can_request && (
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      {legacyRepeatInfo.days_left != null && (
-                        <span className="text-muted-foreground">
-                          {legacyRepeatInfo.days_left} day{legacyRepeatInfo.days_left === 1 ? "" : "s"} left to request
-                        </span>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setLegacyRepeatNotes("");
-                          setLegacyRepeatDialogOpen(true);
-                        }}
-                      >
-                        <CopyPlus className="h-4 w-4 mr-2" />
-                        Request repeat sample
-                      </Button>
-                    </div>
-                  )}
-                  {legacyRepeatInfo &&
-                    !legacyRepeatInfo.can_request &&
-                    legacyRepeatInfo.reason &&
-                    !repeatSampleRequestPending && (
-                      <p className="text-muted-foreground mt-1">{legacyRepeatInfo.reason}</p>
-                    )}
-                </div>
-              )}
           </div>
 
           {!isWaitlistedEntry &&
@@ -3380,44 +3180,6 @@ export function BookingDetailCard({
                   })}
                 </ul>
               </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={legacyRepeatDialogOpen} onOpenChange={setLegacyRepeatDialogOpen}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Request repeat sample</DialogTitle>
-                <DialogDescription>
-                  Submit a request for a complimentary repeat sample. The Officer in charge will review and approve or reject.
-                </DialogDescription>
-              </DialogHeader>
-              {legacyRepeatInfo?.disclaimer ? (
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto rounded-md border p-3">
-                  {legacyRepeatInfo.disclaimer}
-                </div>
-              ) : null}
-              <div className="space-y-2">
-                <Label htmlFor="legacy-repeat-notes">Notes (optional)</Label>
-                <Textarea
-                  id="legacy-repeat-notes"
-                  rows={3}
-                  value={legacyRepeatNotes}
-                  onChange={(e) => setLegacyRepeatNotes(e.target.value)}
-                  placeholder="Any details for the lab…"
-                />
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setLegacyRepeatDialogOpen(false)}
-                  disabled={legacyRepeatSubmitLoading}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleSubmitLegacyRepeatRequest} disabled={legacyRepeatSubmitLoading}>
-                  {legacyRepeatSubmitLoading ? "Submitting…" : "Submit request"}
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
 

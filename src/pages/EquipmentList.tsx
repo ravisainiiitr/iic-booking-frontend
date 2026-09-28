@@ -298,7 +298,7 @@ const EquipmentList = () => {
                 <Package className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Browse Equipment</h1>
+                <h1 className="text-2xl font-bold">Browse and Book Equipment</h1>
                 <p className="text-white/90 text-sm">Explore and book laboratory equipment</p>
               </div>
             </div>

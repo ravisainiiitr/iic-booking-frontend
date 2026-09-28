@@ -1437,6 +1437,9 @@ const BookEquipment = () => {
     /** Approved repeat request: slots must start at or after this instant (approval + 48h). */
     bookable_from?: string | null;
     extra_week_granted?: boolean;
+    /** OIC/Admin marking another user's booking as repeat and booking it for them. */
+    booked_by_staff?: boolean;
+    user_label?: string | null;
   } | null>(null);
   const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
   const repeatBookableFromMs = useMemo(() => {
@@ -2581,6 +2584,9 @@ const BookEquipment = () => {
       setRepeatSourceBooking(null);
       return;
     }
+    if (!userType || !userId) return;
+    const viewerType = String(userType).toLowerCase();
+    const viewerIsRepeatManager = viewerType === "admin" || viewerType === "manager";
     let cancelled = false;
     setRepeatSourceLoading(true);
     setRepeatSourceBooking(null);
@@ -2600,23 +2606,36 @@ const BookEquipment = () => {
         }
         return;
       }
-      const [bookingsRes, eligibilityRes] = await Promise.all([
-        apiClient.getBookings({ booking_id: bid, limit: 1 }),
-        apiClient.getRepeatSampleEligibility(bid),
-      ]);
+      const bookingsRes = await apiClient.getBookings({ booking_id: bid, limit: 1 });
       if (cancelled) return;
-      setRepeatSourceLoading(false);
       if (bookingsRes.error || !bookingsRes.data?.bookings?.length) {
+        setRepeatSourceLoading(false);
         toast.error("Repeat source booking not found.");
         return;
       }
       const b = bookingsRes.data.bookings[0];
+      const bookedByStaff = viewerIsRepeatManager && String(b.user) !== String(userId);
+      const eligibilityRes = bookedByStaff ? null : await apiClient.getRepeatSampleEligibility(bid);
+      if (cancelled) return;
+      setRepeatSourceLoading(false);
       if (Number(b.equipment) !== Number(selectedEquipment.id)) {
         toast.error("Repeat booking must be for the same equipment.");
         return;
       }
-      if (!eligibilityRes.data?.can_create_repeat) {
-        toast.error(eligibilityRes.data?.reason || "You cannot create a repeat for this booking.");
+      if (bookedByStaff) {
+        if (String(b.status || "").toUpperCase() !== "COMPLETED") {
+          toast.error("Only completed bookings can have a repeat sample.");
+          return;
+        }
+        if ((b as { repeat_booking_already_created?: boolean }).repeat_booking_already_created) {
+          toast.error("A repeat booking has already been created for this booking.");
+          return;
+        }
+      } else if (!eligibilityRes?.data?.can_create_repeat) {
+        toast.error(
+          eligibilityRes?.data?.reason ||
+            "Repeat samples are arranged by the Officer In Charge. Please visit the lab.",
+        );
         return;
       }
       const zeroBreakdown = [{ description: "Repeat sample (complimentary — no charge)", amount: 0 }];
@@ -2630,8 +2649,10 @@ const BookEquipment = () => {
         total_charge: 0,
         total_time_minutes: b.total_time_minutes || 0,
         charge_breakdown: zeroBreakdown,
-        bookable_from: eligibilityRes.data.bookable_from ?? null,
-        extra_week_granted: !!eligibilityRes.data.extra_week_granted,
+        bookable_from: eligibilityRes?.data?.bookable_from ?? null,
+        extra_week_granted: !!eligibilityRes?.data?.extra_week_granted,
+        booked_by_staff: bookedByStaff,
+        user_label: bookedByStaff ? String(b.user_name || b.user_email || "").trim() || null : null,
       });
       setInputFieldValues(b.input_values || {});
       setChargeCalculated(true);
@@ -2650,7 +2671,7 @@ const BookEquipment = () => {
       setLastFetchedWeek(null);
     })();
     return () => { cancelled = true; };
-  }, [searchParams, selectedEquipment?.id]);
+  }, [searchParams, selectedEquipment?.id, userType, userId]);
 
   // When landing with mode=status or mode=book, sync manage mode from URL (including switching mode on same equipment)
   useEffect(() => {
@@ -5221,7 +5242,9 @@ const BookEquipment = () => {
           open: true,
           success: true,
           variant: "success",
-          message: "Repeat booking created. This booking does not count toward your weekly or monthly limit.",
+          message: repeatSourceBooking.booked_by_staff
+            ? `Repeat booked free of charge${repeatSourceBooking.user_label ? ` for ${repeatSourceBooking.user_label}` : ""}. The original booking is marked as repeated and the user has been emailed a confirmation.`
+            : "Repeat booking created. This booking does not count toward your weekly or monthly limit.",
           bookingViewQuery: repeatView,
           bookingDisplayId: repeatView,
         });
@@ -5872,7 +5895,7 @@ const BookEquipment = () => {
                   <p className="text-muted-foreground mb-4">No equipment selected for booking</p>
                   {!isEmbedFlow && (
                     <Button className="bg-primary hover:bg-primary/90" onClick={() => navigate("/equipments")}>
-                      Browse Equipment
+                      Browse and Book Equipment
                     </Button>
                   )}
                 </>
@@ -7737,7 +7760,9 @@ const BookEquipment = () => {
                   )}
                   {repeatSourceBooking && (
                     <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
-                      Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit.
+                      {repeatSourceBooking.booked_by_staff
+                        ? `Repeat sample${repeatSourceBooking.user_label ? ` for ${repeatSourceBooking.user_label}` : ""}: parameters are fixed from the original booking. No charges apply and it does not count toward the user's limits. Choose slots in Step 3; the original booking is marked as repeated and the user is emailed a confirmation.`
+                        : "Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit."}
                       {repeatBookableFromMs != null && (
                         <div className="mt-1 font-medium">
                           Approved repeat: choose slots starting on or after{" "}

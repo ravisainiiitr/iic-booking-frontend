@@ -154,7 +154,7 @@ const Header = () => {
                     {!isAccountsInCharge && (
                       <DropdownMenuItem onClick={() => safeNavigate("/equipments")}>
                         <Package className="mr-2 h-4 w-4" />
-                        <span>Browse Equipment</span>
+                        <span>Browse and Book Equipment</span>
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={() => safeNavigate(canManageBookings ? "/booking-management" : "/my-bookings")}>

@@ -54,7 +54,7 @@ export const projectStaffGuide: UserGuideContent = {
         },
         {
           title: "Select equipment and slots",
-          body: "Browse Equipments, review charges, and reserve consecutive free slots.",
+          body: "Browse and Book Equipment, review charges, and reserve consecutive free slots.",
           screenshotCaption: "Booking calendar",
           screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
@@ -80,7 +80,7 @@ export const projectStaffGuide: UserGuideContent = {
       bullets: [
         "You manage your own bookings only.",
         "Wallet funding depends on PI approval and balance.",
-        "Urgent/repeat-sample features appear only when the lab enables them.",
+        "Urgent requests appear only when the lab enables them. Repeat samples are arranged by the Officer In Charge when you visit the lab.",
       ],
     }),
     faqSection([

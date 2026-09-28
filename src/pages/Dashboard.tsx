@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type DashboardMenuLayout } from "@/lib/api";
 import { getUserTypeDisplayName, isExternalBookingUserType } from "@/lib/userTypes";
 import { hasRbacPermission } from "@/lib/rbac";
 import { hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -66,6 +66,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
+import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
+import { normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
+
+/** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
+const OIC_DASHBOARD_MENU_ORDER = [
+  "browse_equipment",
+  "booking_management",
+  "urgent_requests",
+  "equipment_waitlist",
+  "quota_configurations",
+  "equipment_settings",
+  "booking_attempt_log",
+  "reports_statistics",
+  "accessories",
+  "publication_claims",
+  "ta_duty_assignments",
+  "notice_board_requests",
+  "rate_your_experience",
+  "support_tickets",
+];
 
 interface Booking extends BookingRef {
   user: number;
@@ -196,48 +216,6 @@ function labDashPanelRows(dash: LabDashRowsDash, panel: NonNullable<LabDashPanel
         : dash.sample_disposed_done_bookings ?? [];
     default:
       return [];
-  }
-}
-
-type LabHeroEquipmentStatusVariant =
-  | "operational"
-  | "under_maintenance"
-  | "scheduled"
-  | "other"
-  | "neutral";
-
-function labHeroInstrumentPanelClass(v: LabHeroEquipmentStatusVariant) {
-  switch (v) {
-    case "operational":
-      return {
-        shell:
-          "border-white/30 bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 shadow-xl shadow-black/35 ring-2 ring-white/20",
-        badge: "bg-white text-primary shadow-md",
-      };
-    case "under_maintenance":
-      return {
-        shell:
-          "border-red-200/40 bg-gradient-to-br from-red-700 via-red-900 to-slate-950 shadow-xl shadow-black/35 ring-2 ring-red-300/25",
-        badge: "bg-white text-red-900 shadow-md",
-      };
-    case "scheduled":
-      return {
-        shell:
-          "border-amber-200/40 bg-gradient-to-br from-amber-700 via-amber-900 to-slate-950 shadow-xl shadow-black/30 ring-2 ring-amber-300/25",
-        badge: "bg-white text-amber-950 shadow-md font-extrabold",
-      };
-    case "other":
-      return {
-        shell:
-          "border-white/25 bg-gradient-to-br from-primary/90 via-slate-900 to-slate-950 shadow-xl ring-2 ring-white/15",
-        badge: "bg-white/95 text-primary shadow-md",
-      };
-    default:
-      return {
-        shell:
-          "border-white/30 bg-gradient-to-br from-primary/80 via-slate-900 to-slate-950 shadow-xl shadow-black/30 ring-2 ring-white/15 backdrop-blur-sm",
-        badge: "bg-white/95 text-slate-900 shadow-md",
-      };
   }
 }
 
@@ -450,45 +428,6 @@ const Dashboard = () => {
   }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]);
 
 
-  const labHeroEquipmentTitle = useMemo(() => {
-    const sums = labOperatorDash?.equipment_summaries ?? [];
-    if (sums.length === 0) {
-      if (labOperatorDashLoading) return "Loading…";
-      return "";
-    }
-    if (labDashEquipmentFilter === "all") {
-      if (sums.length === 1) return sums[0].equipment_name || sums[0].equipment_code || "Equipment";
-      return `${sums.length} assigned instruments`;
-    }
-    const one = sums.find((e) => e.equipment_id === labDashEquipmentFilter);
-    return one?.equipment_name || one?.equipment_code || "Equipment";
-  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter, labOperatorDashLoading]);
-
-  const labHeroEquipmentStatus = useMemo((): {
-    variant: LabHeroEquipmentStatusVariant;
-    label: string;
-  } | null => {
-    const sums = labOperatorDash?.equipment_summaries ?? [];
-    if (sums.length === 0) {
-      return labOperatorDashLoading ? { variant: "neutral", label: "" } : null;
-    }
-    let eq: (typeof sums)[0] | null = null;
-    if (labDashEquipmentFilter === "all") {
-      if (sums.length === 1) eq = sums[0];
-      else return { variant: "neutral", label: `${sums.length} instruments` };
-    } else {
-      eq = sums.find((e) => e.equipment_id === labDashEquipmentFilter) ?? null;
-    }
-    if (!eq) return { variant: "neutral", label: `${sums.length} instruments` };
-    const code = String(eq.equipment_status || "").toUpperCase();
-    const label = (eq.equipment_status_display || "").trim() || "Unknown";
-    if (code === "ACTIVE") return { variant: "operational", label };
-    if (code === "REPAIR" || code === "INACTIVE" || code === "MAINTENANCE") {
-      return { variant: "under_maintenance", label };
-    }
-    return { variant: "other", label };
-  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter, labOperatorDashLoading]);
-
   /** Stable key for assigned equipment list; when it changes, re-apply default first instrument for multi-assign. */
   const labEquipmentSummariesKey = useMemo(() => {
     const ids = (labOperatorDash?.equipment_summaries ?? []).map((e) => e.equipment_id);
@@ -514,30 +453,6 @@ const Dashboard = () => {
       setLabDashEquipmentFilter(sums[0].equipment_id);
     }
   }, [labEquipmentSummariesKey, labDashEquipmentFilter, labOperatorDash?.equipment_summaries]);
-
-  const labAssignedEquipmentList = labOperatorDash?.equipment_summaries ?? [];
-  const labHeroEquipmentIndex = useMemo(() => {
-    const list = labOperatorDash?.equipment_summaries ?? [];
-    if (list.length === 0) return 0;
-    if (typeof labDashEquipmentFilter !== "number") return 0;
-    const idx = list.findIndex((e) => e.equipment_id === labDashEquipmentFilter);
-    return idx >= 0 ? idx : 0;
-  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]);
-
-  const cycleLabHeroEquipment = useCallback(
-    (direction: -1 | 1) => {
-      const list = labOperatorDash?.equipment_summaries ?? [];
-      if (list.length < 2) return;
-      let idx =
-        typeof labDashEquipmentFilter === "number"
-          ? list.findIndex((e) => e.equipment_id === labDashEquipmentFilter)
-          : 0;
-      if (idx < 0) idx = 0;
-      const next = (idx + direction + list.length) % list.length;
-      setLabDashEquipmentFilter(list[next].equipment_id);
-    },
-    [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]
-  );
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1347,6 +1262,46 @@ const Dashboard = () => {
     return () => window.removeEventListener("message", onMsg);
   }, []);
 
+  const canCustomizeDashboardMenu = isOicUser || isAdmin;
+  const [dashboardMenuLayout, setDashboardMenuLayout] = useState<DashboardMenuLayout | null>(null);
+  const [oicHasPrint3dEquipment, setOicHasPrint3dEquipment] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id || !canCustomizeDashboardMenu) {
+      setDashboardMenuLayout(null);
+      return;
+    }
+    let cancelled = false;
+    void apiClient.getDashboardMenuLayout().then((res) => {
+      if (!cancelled && res.data) setDashboardMenuLayout(normalizeMenuLayout(res.data));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, canCustomizeDashboardMenu]);
+
+  useEffect(() => {
+    if (!user?.id || !isOicUser) {
+      setOicHasPrint3dEquipment(false);
+      return;
+    }
+    let cancelled = false;
+    void apiClient.getOicEquipmentSettings().then((res) => {
+      if (!cancelled) setOicHasPrint3dEquipment(Boolean(res.data?.has_print_3d_equipment));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, isOicUser]);
+
+  const saveDashboardMenuLayout = useCallback(async (layout: DashboardMenuLayout) => {
+    const res = await apiClient.saveDashboardMenuLayout(layout);
+    if (res.error || !res.data) return res.error || "Could not save the menu.";
+    setDashboardMenuLayout(normalizeMenuLayout(res.data));
+    toast.success("Menu saved");
+    return null;
+  }, []);
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1378,6 +1333,1808 @@ const Dashboard = () => {
       <Download className="h-4 w-4 shrink-0" aria-hidden />
       Download brochure
     </Button>
+  );
+
+  const dashboardMenuEntries: DashboardMenuEntry[] = [
+    {
+      id: "browse_equipment",
+      label: "Browse and Book Equipment",
+      visible: Boolean(!isLabInchargeUser),
+      render: () => (
+          <Card
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-2 border-primary/45 shadow-md shadow-primary/15 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/70 h-full ring-1 ring-primary/25"
+            onClick={() => { openWorkspace("/equipments"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Browse and Book Equipment</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Browse and book available laboratory equipment
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
+                Browse and Book Equipment
+              </span>
+            </CardContent>
+          </Card>
+      ),
+    },
+    {
+      id: "operator_availability",
+      label: "Operator availability",
+      visible: Boolean(isLabInchargeUser),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/leave-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Operator availability</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Intimate periods when you are unavailable for equipment operations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/leave-management");
+                  }}
+                >
+                  Intimate Unavailability
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "leave_management",
+      label: "Leave management",
+      visible: Boolean(canSeeOicLeaveManagement),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/oic-leave-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Leave management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review operator leave / unavailability intimations and apply for self
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/oic-leave-management");
+                  }}
+                >
+                  Open leave management
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "wallet_recharge_requests",
+      label: "Wallet recharge requests",
+      visible: Boolean((isAdmin || isDeptAdmin)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
+              onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Banknote className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Complete list — verify physical receipts, user details, and remarks
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin-settings/wallet-recharge-requests");
+                  }}
+                >
+                  Open list
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "team_calendar",
+      label: "Team calendar",
+      visible: Boolean((isAdmin || isDeptAdmin)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/team-calendar")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Team calendar</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Spot department absences at a glance
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/team-calendar");
+                  }}
+                >
+                  Open calendar
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "view_bookings",
+      label: "View bookings",
+      visible: Boolean(!isOperatorOrManager),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/my-bookings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <Calendar className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">View bookings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Check your current and past bookings
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "view_results",
+      label: "View results",
+      visible: Boolean(!isOperatorOrManager),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-green-200 dark:hover:border-green-800"
+              onClick={() => openWorkspace("/my-results")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
+                    <FileCheck2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">View results</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Download results of your bookings, newest first
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {newResultsCount > 0 ? (
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                    {newResultsCount} new result{newResultsCount !== 1 ? "s" : ""} available
+                  </p>
+                ) : null}
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">View results</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "shared_with_me",
+      label: "Shared with me",
+      visible: Boolean(!isOperatorOrManager && canReceiveSharedData && !myResearchAvailable),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/shared-data")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Share2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Shared with me</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Research data shared with you by IIT Roorkee colleagues
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open shared data</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "my_research",
+      label: "My Research",
+      visible: Boolean(!isOperatorOrManager && myResearchAvailable),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/my-research")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg">
+                    <FlaskConical className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My Research</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Project workspaces, data shared with you, and your publications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Open My Research</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "urgent_booking_requests",
+      label: "Urgent booking requests",
+      visible: Boolean(showFacultyUrgentWalletCard),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => openWorkspace("/urgent-requests-wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent booking requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review and approve urgent booking requests from students under your supervision
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingFacultyUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : facultyUrgentPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {facultyUrgentPendingCount} pending request{facultyUrgentPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "urgent_booking_request",
+      label: "Urgent booking request",
+      visible: Boolean((userTypeStr === "student" || userTypeStr === "individual_student")),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/my-urgent-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent booking request</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit an urgent request or view the status of your submitted requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingMyUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : myUrgentRequestsCount > 0 ? (
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                    {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
+                  </p>
+                ) : null}
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
+                  Open urgent booking request
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "proforma_invoice",
+      label: "Proforma invoice",
+      visible: Boolean(!isOperatorOrManager),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/proforma-invoice")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Proforma invoice</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Get cost estimate for equipments and samples/slots before booking
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma invoice</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "wallet_management",
+      label: "Wallet management",
+      visible: Boolean(!isOperatorOrManager && showWalletOption),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/wallet")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                  {hasWallet ? "Open Wallet" : "Wallet"}
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "my_publications",
+      label: "My publications",
+      visible: Boolean((userTypeStr === "student" ||
+            userTypeStr === "individual_student" ||
+            userTypeStr === "faculty" ||
+            userTypeStr === "external" ||
+            userTypeStr === "rnd" ||
+            userTypeStr === "institute" ||
+            userTypeStr === "startup_incubated_iitr" ||
+            userTypeStr === "external_startup_msme" ||
+            userTypeStr === "other") && !myResearchAvailable),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/my-publications")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My publications</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit journal references that used IIC instruments; approved entries appear on equipment Publications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "nomination_requests",
+      label: "Nomination requests",
+      visible: Boolean((userTypeStr === "student" || userTypeStr === "individual_student")),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/my-nomination-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Nomination requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage TA/equipment operating nominations and submit your resume for review
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage nomination requests</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "ta_duty_assignments",
+      label: "TA duty assignments",
+      visible: Boolean(canSeeTaDutyAssignmentsCard),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/ta-assignments")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Allocate TA duties and track assignment-to-reward workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                  Open TA assignments
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "reports_statistics",
+      label: "Reports & Statistics",
+      visible: Boolean(!isLabInchargeUser),
+      render: () => (
+          <Card
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View your booking history and statistics
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
+                View Reports
+              </span>
+            </CardContent>
+          </Card>
+      ),
+    },
+    {
+      id: "user_guide",
+      label: "User guide",
+      visible: Boolean((userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
+            userGuide),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/user-guide", "User guide")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">User guide</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Step-by-step guide for using the booking portal
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/user-guide", "User guide");
+                  }}
+                >
+                  Open user guide
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "student_management",
+      label: "Student management",
+      visible: Boolean(userTypeStr === "faculty"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/student-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Student management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Students for whom you are the supervisor
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
+                >
+                  View students
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "rate_your_experience",
+      label: "Rate your experience",
+      visible: Boolean(!isLabInchargeUser),
+      render: () => (
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <Star className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Rate your experience</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                      Rate the portal, ease of booking, and share suggestions — you can update anytime
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Give Feedback</Button>
+            </CardContent>
+          </Card>
+      ),
+    },
+    {
+      id: "support_tickets",
+      label: "Support tickets",
+      visible: Boolean(!isLabInchargeUser),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/tickets")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <MessageSquarePlus className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Support tickets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Report issues, ask the lab, or track support conversations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "booking_management",
+      label: "Booking management",
+      visible: Boolean((isOperatorOrManager || isDeptAdmin)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/booking-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage Bookings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "urgent_requests",
+      label: "Urgent requests",
+      visible: Boolean(isOperatorOrManager && !isLabInchargeUser),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => openWorkspace("/urgent-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Urgent requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review and approve or reject urgent booking requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingUrgentCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : urgentRequestsPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                    {urgentRequestsPendingCount} pending request{urgentRequestsPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "repeat_sample_requests",
+      label: "Repeat samples",
+      visible: Boolean(isOicUser || isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/repeat-sample-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
+                    <RotateCcw className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Repeat samples</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Complimentary repeat samples arranged for users from their booking
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {repeatSamplePendingCount > 0 ? (
+                  <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
+                    {repeatSamplePendingCount} pending request{repeatSamplePendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">View repeat samples</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "notice_board_requests",
+      label: "Notice board requests",
+      visible: Boolean((isOicUser || isAdmin)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/notice-board-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Megaphone className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Notice board requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Submit notices for approval; complete expiry for equipment unavailability drafts
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Manage notice requests</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "publication_claims",
+      label: "Publication claims",
+      visible: Boolean((isAdmin || isOicUser || (isFacultyUser && !isInternalFacultyUser))),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/publication-claims")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Publication claims</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {userTypeStr === "faculty"
+                        ? "Review publication claims from your students"
+                        : "Review external user-submitted journal references for your instruments"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loadingPublicationClaimsCount ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : publicationClaimsPendingCount > 0 ? (
+                  <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
+                    {publicationClaimsPendingCount} pending claim
+                    {publicationClaimsPendingCount !== 1 ? "s" : ""}
+                  </p>
+                ) : null}
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Review publication claims</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "ta_nomination_call",
+      label: "TA nomination call",
+      visible: Boolean(canSeeOicTaNomination),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/ta-nomination-call")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <Send className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA nomination call</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Initiate a request for faculty to nominate students to operate an equipment (semester-wise)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Initiate TA nomination call</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "reward_config",
+      label: "Reward config",
+      visible: Boolean(canSeeOicRewardConfig),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin-settings/rewards")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Star className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Reward config
+                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Per equipment</Badge>
+                    </CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Configure TA reward earning and redemption policy per equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open reward settings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "accessories",
+      label: "Accessories",
+      visible: Boolean((isAdmin || isOicUser)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/accessories")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <Wrench className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Accessories</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Enable or disable equipment accessories and additional accessories
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage accessories</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "3d_print_materials",
+      label: "3D print materials",
+      visible: Boolean(isAdmin || (isOicUser && oicHasPrint3dEquipment)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/print-materials")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <PackageOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">3D print materials</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Add, edit, enable, or disable filament materials for PRINT_3D equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage materials</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "quota_configurations",
+      label: "Quota configurations",
+      visible: Boolean((isAdmin || isOicUser)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/quota-configurations")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-700 text-white shadow-lg">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Quota configurations</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Weekly and monthly quotas for equipment groups you manage
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-emerald-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage quotas</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "equipment_settings",
+      label: "Slot visibility & timings",
+      visible: Boolean(isAdmin || isOicUser),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/equipment-settings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Clock className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Slot visibility &amp; timings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Slot window, external quota, and booking and sample deadlines for your equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage settings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "multi_mode_equipment",
+      label: "Multi-mode equipment",
+      visible: Boolean(canSeeOicMultiMode),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/oic/multi-mode")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                    <GitBranch className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Schedule modes and set each mode&apos;s operate days via Change slot status
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage modes</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "booking_attempt_log",
+      label: "Booking attempt log",
+      visible: Boolean(canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/booking-attempt-logs")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking attempt log</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View booking submit attempts (success and failure)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "external_user_management",
+      label: "External user management",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => openWorkspace("/manage/external-user-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">External user management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Verify external departments/organizations and external users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Open verification
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "external_organization_verification",
+      label: "External organization verification",
+      visible: Boolean(canVerifyExternalOrgs && !isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => openWorkspace("/manage/external-user-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">External organization verification</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review KYC and approve or reject external organizations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Open verification
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "department_administration",
+      label: "Department administration",
+      visible: Boolean(canManageDeptRbac),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
+              onClick={() =>
+                openWorkspace(
+                  isAdmin ? "/admin/department-administration" : "/manage/department-administration",
+                  "Department administration"
+                )
+              }
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-slate-700 text-white shadow-lg">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department administration</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {isAdmin
+                        ? "Manage department staff modules and permission caps"
+                        : "Manage OIC, Lab In Charge, Accounts In Charge (department finances), and Faculty Credit Facility"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-slate-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                  Open
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "organization_users",
+      label: "Organization users",
+      visible: Boolean(isOrgAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
+              onClick={() => openWorkspace("/organization/users")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-primary text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Organization users</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Add and activate members in your external organization
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-primary mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-slate-700 hover:bg-slate-800 text-white">
+                  Manage members
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "equipment_waitlist",
+      label: "Equipment waitlist",
+      visible: Boolean(canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser)),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
+              onClick={() => openWorkspace("/equipment-waitlist")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment waitlist</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View and clear waitlist queue per equipment; notify when slots free
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "equipment_lifecycle_expenses",
+      label: "Equipment lifecycle & expenses",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/equipment-lifecycle")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment lifecycle &amp; expenses</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Purchase, warranty, AMC, expenses, accessories, write-off workflow
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open lifecycle hub</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "procurement_workflow",
+      label: "Procurement workflow",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/procurement-workflow")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Procurement workflow</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Office verification, store approval, head approval and purchase closure
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "inventory_management",
+      label: "Inventory management",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
+              onClick={() => openWorkspace("/inventory-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-emerald-600 text-white shadow-lg">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Inventory management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Manage item requests, stock transactions, and issued assets
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-lime-600 hover:bg-lime-700 text-white">Open inventory tools</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "remote_analysis",
+      label: "Remote analysis",
+      visible: Boolean((isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage"))),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/remote-analysis")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Monitor className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Remote analysis</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Workstation registry, catalog, equipment↔software, inventory, and remote commands
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open remote analysis</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openWorkspace("/remote-analysis/software-catalog");
+                    }}
+                  >
+                    Software catalog
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openWorkspace("/remote-analysis/equipment-software");
+                    }}
+                  >
+                    Eq ↔ Software
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "department_sync_agents",
+      label: "Department sync agents",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/department-sync")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
+                    <Server className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department sync agents</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Agents, assignments, profiles, commands, heartbeats, workspaces, and sync logs
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open department sync</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "laboratory_infrastructure",
+      label: "Laboratory infrastructure",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/laboratory-infrastructure")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg">
+                    <HardDrive className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Laboratory infrastructure</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Fleet monitoring, diagnostics, repair, alerts, and lifecycle for DSA, Equipment PCs, and Analysis PCs
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/laboratory-infrastructure");
+                  }}
+                >
+                  Open Fleet Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "acceptance_test_dashboard",
+      label: "Acceptance test dashboard",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/test-dashboard")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Acceptance test dashboard</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Phase 2.5 SAT coverage — module health, pass/fail drill-down (Main Admin)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/test-dashboard");
+                  }}
+                >
+                  Open Test Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "deployment_center",
+      label: "Deployment center",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg">
+                    <HardDrive className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Deployment center</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      DSA, Remote Analysis Agent, and Equipment PC Wizard — versions, SHA-256, ticket downloads
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/deployment-center");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Open Deployment Center
+                </Button>
+                <Button
+                  className="w-full bg-sky-600 hover:bg-sky-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/remote-analysis/agent-installer");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  RA Agent
+                </Button>
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/department-sync/agent-installer");
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  DSA
+                </Button>
+                <Button
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/device-provisioning");
+                  }}
+                >
+                  <HardDrive className="mr-2 h-4 w-4" />
+                  Devices
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "content_management",
+      label: "Content management",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
+              onClick={() => openWorkspace("/content-management")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg">
+                    <Layout className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Content management</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Menu, pages, home content and hero images (CMS)
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white">Manage content</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "support_tickets_2",
+      label: "Support tickets",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin-settings/support")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                    <LifeBuoy className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Support tickets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Review tickets, attachments, comments; mark resolved and notify users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open tickets</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "admin_settings",
+      label: "Admin settings",
+      visible: Boolean(canSeeAdminSettingsCard),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin-settings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-lg">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Admin settings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Equipment, users, groups and wallet management
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-accent to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open settings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "calendar_colors",
+      label: "Calendar colors",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
+              onClick={() => openWorkspace("/calendar-colors")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg">
+                    <Palette className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Calendar colors</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Customize weekly window colors for slot states and holidays
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+  ];
+
+  const dashboardMenuDefaultOrder = isOicUser
+    ? [
+        ...OIC_DASHBOARD_MENU_ORDER,
+        ...dashboardMenuEntries
+          .map((entry) => entry.id)
+          .filter((id) => id !== "admin_settings" && !OIC_DASHBOARD_MENU_ORDER.includes(id)),
+        "admin_settings",
+      ]
+    : [];
+
+  const renderDashboardMenu = () => (
+    <>
+        {dashboardHomeButton}
+        {isAccountsInChargeUser ? (
+        <>
+        {downloadBrochureButton}
+        <div className="dashboard-uniform-cards flex flex-col gap-2">
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
+            onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                  <Banknote className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Verify physical receipts, review user details, and mark verified
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                Review &amp; verify
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+            onClick={() => openWorkspace("/my-bookings")}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                  <Globe2 className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">External booking requests</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Manage external sample bookings (hold and forward to laboratory)
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                Manage external bookings
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+            onClick={() => { openWorkspace("/reports"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    View booking and financial reports
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
+            </CardHeader>
+            <CardContent>
+              <span
+                data-dashboard-card-action
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+              >
+                View Reports
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+        </>
+        ) : (
+        <>
+        {downloadBrochureButton}
+        <DashboardMenuTree
+          entries={dashboardMenuEntries}
+          defaultOrder={dashboardMenuDefaultOrder}
+          layout={dashboardMenuLayout}
+          canCustomize={canCustomizeDashboardMenu}
+          onSaveLayout={saveDashboardMenuLayout}
+        />
+        </>
+        )}
+    </>
   );
 
   return (
@@ -1416,7 +3173,7 @@ const Dashboard = () => {
         <div
           className={cn(
             "dashboard-hero-card relative overflow-hidden border border-white/25 bg-gradient-to-br from-primary via-primary to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20",
-            showsLabStyleDashboard ? "mb-6 rounded-3xl" : "mb-6 rounded-2xl"
+            "mb-5 rounded-2xl"
           )}
         >
           <div
@@ -1428,7 +3185,6 @@ const Dashboard = () => {
             aria-hidden
           />
           <div className="relative flex flex-col lg:flex-row lg:items-center">
-            {!showsLabStyleDashboard && (
               <div className="flex justify-center border-b border-white/15 bg-white/[0.07] px-4 py-3 backdrop-blur-sm lg:w-[6.75rem] lg:shrink-0 lg:flex-col lg:items-center lg:justify-center lg:border-b-0 lg:border-r lg:border-white/15 lg:px-3 lg:py-3">
                 <ClickableProfileAvatar
                   userId={user?.id}
@@ -1441,150 +3197,12 @@ const Dashboard = () => {
                   overlayRoundedClassName="rounded-xl"
                 />
               </div>
-            )}
             <div
               className={cn(
                 "flex min-w-0 flex-1 flex-col",
-                showsLabStyleDashboard ? "px-4 py-4 sm:px-5 sm:py-4" : "px-4 py-3 sm:px-5 sm:py-3.5"
+                "px-4 py-3 sm:px-5 sm:py-3.5"
               )}
             >
-              {showsLabStyleDashboard ? (
-                <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
-                  <div className="flex min-w-0 flex-1 flex-row items-center gap-3 sm:gap-4">
-                    <ClickableProfileAvatar
-                      userId={user?.id}
-                      userName={user?.name}
-                      userEmail={user?.email}
-                      hasProfilePicture={Boolean(user?.profile_picture)}
-                      onUploaded={handleProfileAvatarUploaded}
-                      avatarClassName="h-16 w-16 shrink-0 rounded-full border-2 border-white/50 shadow-md shadow-black/20 ring-2 ring-white/15 sm:h-[4.5rem] sm:w-[4.5rem]"
-                      fallbackClassName="rounded-full bg-white/25 text-lg font-bold text-white sm:text-xl"
-                      overlayRoundedClassName="rounded-full"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-xl font-bold leading-tight tracking-tight text-white drop-shadow-sm sm:text-2xl">
-                        {formatUserDisplayName(user) || "—"}
-                      </h2>
-                      <div className="mt-1">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
-                          <BadgeCheck className="h-3 w-3 shrink-0 opacity-90" />
-                          {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex flex-col gap-0.5 text-[13px] leading-snug text-white/80 sm:text-sm">
-                        <div className="flex items-start gap-2 min-w-0">
-                          <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" strokeWidth={2} />
-                          <span className="min-w-0 break-all [overflow-wrap:anywhere]" title={user?.email || undefined}>
-                            {user?.email || "—"}
-                          </span>
-                        </div>
-                        <div className="flex items-start gap-2 min-w-0">
-                          <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/45" strokeWidth={2} />
-                          <span className="min-w-0 [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
-                            {user?.department_name || "—"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Phone className="h-3.5 w-3.5 shrink-0 text-white/45" strokeWidth={2} />
-                          <span className="min-w-0 tabular-nums [overflow-wrap:anywhere]" title={user?.phone_number || user?.secondary_phone_number || undefined}>
-                            {user?.phone_number || user?.secondary_phone_number || "—"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="min-w-0 w-full lg:max-w-[min(100%,28rem)] lg:flex-1 xl:max-w-xl">
-                    {(() => {
-                      const statusUi = labHeroEquipmentStatus;
-                      const variant = statusUi?.variant ?? "neutral";
-                      const vis = labHeroInstrumentPanelClass(variant);
-                      const multiAssigned = labAssignedEquipmentList.length > 1;
-                      return (
-                        <div className={cn("overflow-hidden rounded-xl border-2 shadow-lg", vis.shell)}>
-                          <div className="px-4 py-3 sm:px-5 sm:py-4">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/25 pb-2.5">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/20 ring-1 ring-white/25">
-                                  <FlaskConical className="h-4 w-4 text-white" strokeWidth={2} />
-                                </div>
-                                <div className="min-w-0 leading-tight">
-                                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-white/85">Assigned equipment</p>
-                                  <p className="text-[11px] text-white/55">
-                                    {isOicUser ? "Officer In Charge" : "Lab Incharge"}
-                                    {multiAssigned
-                                      ? ` · ${labHeroEquipmentIndex + 1} of ${labAssignedEquipmentList.length}`
-                                      : ""}
-                                  </p>
-                                </div>
-                              </div>
-                              {isLabInchargeUser && labOperatorDash?.current_oic?.name ? (
-                                <div className="min-w-0 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5">
-                                  <div className="flex min-w-0 items-baseline gap-2">
-                                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-white/75 sm:text-xs">
-                                      Current Officer in Charge
-                                    </span>
-                                    <span
-                                      className="min-w-0 truncate text-[13px] font-extrabold text-white sm:text-sm"
-                                      title={labOperatorDash.current_oic.email}
-                                    >
-                                      {labOperatorDash.current_oic.name}
-                                    </span>
-                                  </div>
-                                  {statusUi?.label ? (
-                                    <div className="mt-1 flex items-center gap-2">
-                                      <span className="text-[11px] font-semibold text-white/70">
-                                        Operational Status
-                                      </span>
-                                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", vis.badge)}>
-                                        {statusUi.label}
-                                      </span>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                              {statusUi?.label && !isLabInchargeUser ? (
-                                <span
-                                  className={cn(
-                                    "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide sm:text-[11px]",
-                                    vis.badge
-                                  )}
-                                >
-                                  {statusUi.label}
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-2 pt-2.5">
-                              {multiAssigned ? (
-                                <button
-                                  type="button"
-                                  aria-label="Previous assigned equipment"
-                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-black/15 text-white transition hover:bg-black/30"
-                                  onClick={() => cycleLabHeroEquipment(-1)}
-                                >
-                                  <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
-                                </button>
-                              ) : null}
-                              <p className="min-w-0 flex-1 text-base font-bold leading-snug tracking-tight text-white [text-wrap:pretty] sm:text-lg">
-                                {labHeroEquipmentTitle || (labOperatorDashLoading ? "…" : "—")}
-                              </p>
-                              {multiAssigned ? (
-                                <button
-                                  type="button"
-                                  aria-label="Next assigned equipment"
-                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-black/15 text-white transition hover:bg-black/30"
-                                  onClick={() => cycleLabHeroEquipment(1)}
-                                >
-                                  <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              ) : (
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
                   <h2 className="text-xl font-bold tracking-tight text-white drop-shadow-sm sm:text-2xl">
                     {formatUserDisplayName(user) || "—"}
@@ -1594,8 +3212,6 @@ const Dashboard = () => {
                     {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
                   </span>
                 </div>
-              )}
-              {!showsLabStyleDashboard && (
               <dl
                 className={cn(
                   "mt-3 grid grid-cols-1 gap-2.5 sm:gap-3",
@@ -1667,7 +3283,6 @@ const Dashboard = () => {
                   </div>
                 </div>
               </dl>
-              )}
             </div>
           </div>
         </div>
@@ -1690,906 +3305,6 @@ const Dashboard = () => {
               >
                 Go to Wallet
               </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {false && showsLabStyleDashboard && (
-          <Card className="mb-6 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
-            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-primary/[0.08] via-background to-background pb-6 pt-6 sm:pt-8">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="flex gap-4 min-w-0">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary dark:bg-primary/15 dark:text-sky-200">
-                    <Layout className="h-6 w-6" />
-                  </div>
-                  <div className="min-w-0 space-y-1">
-                    <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Lab dashboard</CardTitle>
-                    <CardDescription className="text-sm leading-relaxed max-w-xl">
-                      Counts, queues, and weekly schedules for{" "}
-                      {isOicUser ? "equipment you manage as OIC" : "your equipment"}
-                      {(labOperatorDash?.equipment_summaries ?? []).length > 1
-                        ? ". Use the instrument selector to focus metrics and the week view on one machine."
-                        : "."}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
-                  {labOperatorDash && (labOperatorDash.equipment_summaries ?? []).length > 1 && (
-                    <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:min-w-[14rem]">
-                      <Label
-                        htmlFor="lab-dash-equipment-scope"
-                        className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        Instrument
-                      </Label>
-                      <Select
-                        value={labDashEquipmentFilter === "all" ? "all" : String(labDashEquipmentFilter)}
-                        onValueChange={(v) => {
-                          if (v === "all") setLabDashEquipmentFilter("all");
-                          else setLabDashEquipmentFilter(Number(v));
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-equipment-scope" className="h-10 w-full bg-background/80">
-                          <SelectValue placeholder="Scope" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All assigned instruments</SelectItem>
-                          {(labOperatorDash.equipment_summaries ?? []).map((eq) => (
-                            <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                              {eq.equipment_code ? `${eq.equipment_code} · ${eq.equipment_name}` : eq.equipment_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <Button
-                    className="shrink-0 bg-primary text-white hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 sm:self-end"
-                    size="sm"
-                    onClick={() => navigate("/booking-management")}
-                  >
-                    Booking management
-                    <ChevronRight className="ml-1 h-4 w-4 opacity-80" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6 p-6 sm:p-8">
-              {labOperatorDashLoading && !labOperatorDash ? (
-                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm font-medium">Loading lab dashboard…</p>
-                </div>
-              ) : labOperatorDash ? (
-                <>
-                  <div className="hidden">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Label
-                        htmlFor="lab-dash-period"
-                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        Booking overview and follow-up range
-                      </Label>
-                      <Select
-                        value={labDashPeriod}
-                        onValueChange={(v) => {
-                          const p = v as LabDashPeriod;
-                          setLabDashPeriod(p);
-                          if (p === "custom") {
-                            const d = format(new Date(), "yyyy-MM-dd");
-                            setLabDashCustomFrom((f) => f || d);
-                            setLabDashCustomTo((t) => t || d);
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
-                          <SelectValue placeholder="Range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
-                          <SelectItem value="month">Monthly</SelectItem>
-                          <SelectItem value="year">Yearly</SelectItem>
-                          <SelectItem value="custom">Custom dates</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {labDashPeriod === "custom" && (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-from" className="text-xs">
-                            From
-                          </Label>
-                          <Input
-                            id="lab-dash-from"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomFrom}
-                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-to" className="text-xs">
-                            To
-                          </Label>
-                          <Input
-                            id="lab-dash-to"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomTo}
-                            onChange={(e) => setLabDashCustomTo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
-                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
-                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
-                    </p>
-                  </div>
-
-                  <section className="space-y-4">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Booking overview
-                    </h3>
-                    <p className="text-xs text-muted-foreground -mt-2">
-                      Click <span className="font-medium text-foreground">Pending (booked)</span> or{" "}
-                      <span className="font-medium text-foreground">Completed</span> to open that list. Click a booking
-                      ID to view details below (same page).
-                    </p>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-primary/35" : ""}`}
-                      >
-                        <ChevronDown
-                          className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "overall" ? "rotate-180" : ""}`}
-                        />
-                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-primary-foreground0/[0.12] transition-opacity group-hover:text-primary-foreground0/20" />
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
-                          Internal Pending Bookings
-                        </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
-                          {labOperatorDash.overall_booking_booked_total - labOperatorDash.external_booking_booked_total}/{labOperatorDash.overall_booking_total}
-                        </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Pending Bookings / Total
-                        </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "overall", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-primary/90/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
-                              labDashPanel?.key === "overall" && labDashPanel.segment === "BOOKED"
-                                ? "border-primary/50 bg-primary/50/[0.06] ring-1 ring-primary/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Pending (booked)
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-primary dark:text-sky-200">
-                              {labOperatorDash.overall_booking_booked_total}
-                            </p>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "overall", segment: "COMPLETED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
-                              labDashPanel?.key === "overall" && labDashPanel.segment === "COMPLETED"
-                                ? "border-emerald-500/50 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Completed
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                              {labOperatorDash.overall_booking_completed}
-                            </p>
-                          </button>
-                        </div>
-                        <p className="mt-3 text-[11px] font-normal text-muted-foreground/90">
-                          Total = booked + completed in range
-                        </p>
-                      </div>
-                      <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-accent/35" : ""}`}
-                      >
-                        <ChevronDown
-                          className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "external" ? "rotate-180" : ""}`}
-                        />
-                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-accent/[0.12] group-hover:text-accent/20" />
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
-                          External bookings
-                        </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-accent dark:text-sky-300">
-                          {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
-                        </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Pending Bookings / Total
-                        </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "external", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                              labDashPanel?.key === "external" && labDashPanel.segment === "BOOKED"
-                                ? "border-accent/50 bg-accent/10 ring-1 ring-accent/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Pending (booked)
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-accent dark:text-sky-300">
-                              {labOperatorDash.external_booking_booked_total}
-                            </p>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "external", segment: "COMPLETED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
-                              labDashPanel?.key === "external" && labDashPanel.segment === "COMPLETED"
-                                ? "border-emerald-500/50 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Completed
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                              {labOperatorDash.external_booking_completed}
-                            </p>
-                          </button>
-                        </div>
-                        <p className="mt-3 text-[11px] font-normal text-muted-foreground/90">
-                          External users · total = booked + completed in range
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-
-                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Label
-                        htmlFor="lab-dash-period"
-                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        Booking overview and follow-up range
-                      </Label>
-                      <Select
-                        value={labDashPeriod}
-                        onValueChange={(v) => {
-                          const p = v as LabDashPeriod;
-                          setLabDashPeriod(p);
-                          if (p === "custom") {
-                            const d = format(new Date(), "yyyy-MM-dd");
-                            setLabDashCustomFrom((f) => f || d);
-                            setLabDashCustomTo((t) => t || d);
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
-                          <SelectValue placeholder="Range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
-                          <SelectItem value="month">Monthly</SelectItem>
-                          <SelectItem value="year">Yearly</SelectItem>
-                          <SelectItem value="custom">Custom dates</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {labDashPeriod === "custom" && (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-from" className="text-xs">
-                            From
-                          </Label>
-                          <Input
-                            id="lab-dash-from"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomFrom}
-                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-to" className="text-xs">
-                            To
-                          </Label>
-                          <Input
-                            id="lab-dash-to"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomTo}
-                            onChange={(e) => setLabDashCustomTo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
-                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
-                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
-                    </p>
-                  </div>
-
-                  <div className="hidden">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Label
-                        htmlFor="lab-dash-period"
-                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        Booking overview and follow-up range
-                      </Label>
-                      <Select
-                        value={labDashPeriod}
-                        onValueChange={(v) => {
-                          const p = v as LabDashPeriod;
-                          setLabDashPeriod(p);
-                          if (p === "custom") {
-                            const d = format(new Date(), "yyyy-MM-dd");
-                            setLabDashCustomFrom((f) => f || d);
-                            setLabDashCustomTo((t) => t || d);
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
-                          <SelectValue placeholder="Range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
-                          <SelectItem value="month">Monthly</SelectItem>
-                          <SelectItem value="year">Yearly</SelectItem>
-                          <SelectItem value="custom">Custom dates</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {labDashPeriod === "custom" && (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-from" className="text-xs">
-                            From
-                          </Label>
-                          <Input
-                            id="lab-dash-from"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomFrom}
-                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-to" className="text-xs">
-                            To
-                          </Label>
-                          <Input
-                            id="lab-dash-to"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomTo}
-                            onChange={(e) => setLabDashCustomTo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
-                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
-                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
-                    </p>
-                  </div>
-
-                  <section className="space-y-4">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Follow-up queues
-                    </h3>
-                    <p className="text-xs text-muted-foreground -mt-2">
-                      Click <span className="font-medium text-foreground">Available</span> or{" "}
-                      <span className="font-medium text-foreground">Done</span> (already marked) for each queue.
-                    </p>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                      <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "not_util" ? "ring-2 ring-amber-500/35" : ""}`}
-                      >
-                        <ChevronDown
-                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "not_util" ? "rotate-180" : ""}`}
-                        />
-                        <AlertCircle className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-amber-500/[0.12] group-hover:text-amber-500/20" />
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
-                          Booking available to be marked as not utilized
-                        </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-amber-700 dark:text-amber-300">
-                          {labOperatorDash.not_utilized_available_total}/
-                          {labOperatorDash.not_utilized_available_total + labOperatorDash.not_utilized_marked_total}
-                        </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Current / total (available + already marked)
-                        </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "not_util", segment: "AVAILABLE" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-amber-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 ${
-                              labDashPanel?.key === "not_util" && labDashPanel.segment === "AVAILABLE"
-                                ? "border-amber-500/50 bg-amber-500/[0.06] ring-1 ring-amber-500/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Available
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                              {labOperatorDash.not_utilized_available_total}
-                            </p>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "not_util", segment: "MARKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                              labDashPanel?.key === "not_util" && labDashPanel.segment === "MARKED"
-                                ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Marked
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
-                              {labOperatorDash.not_utilized_marked_total}
-                            </p>
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        className={`hidden ${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-primary/35" : ""}`}
-                      >
-                        <ChevronDown
-                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "sample_return" ? "rotate-180" : ""}`}
-                        />
-                        <PackageOpen className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-primary-foreground0/[0.12] group-hover:text-primary-foreground0/20" />
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
-                          Sample pickup (completed bookings)
-                        </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
-                          {labOperatorDash.sample_available_to_return_total}/
-                          {labOperatorDash.sample_available_to_return_total + labOperatorDash.sample_returned_done_total}
-                        </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Awaiting return / total (awaiting + already returned)
-                        </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "sample_return", segment: "AVAILABLE" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-primary/90/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
-                              labDashPanel?.key === "sample_return" && labDashPanel.segment === "AVAILABLE"
-                                ? "border-primary/50 bg-primary/50/[0.06] ring-1 ring-primary/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Awaiting return
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-primary dark:text-sky-200">
-                              {labOperatorDash.sample_available_to_return_total}
-                            </p>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "sample_return", segment: "RETURNED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                              labDashPanel?.key === "sample_return" && labDashPanel.segment === "RETURNED"
-                                ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Returned
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
-                              {labOperatorDash.sample_returned_done_total}
-                            </p>
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        className={`${labDashKpiClassName} ${labDashPanel?.key === "dispose" ? "ring-2 ring-rose-500/35" : ""}`}
-                      >
-                        <ChevronDown
-                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "dispose" ? "rotate-180" : ""}`}
-                        />
-                        <Archive className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-rose-500/[0.12] group-hover:text-rose-500/20" />
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
-                          Sample Available to be Disposed
-                        </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-rose-700 dark:text-rose-300">
-                          {labOperatorDash.sample_available_to_dispose_total}/
-                          {labOperatorDash.sample_available_to_dispose_total + labOperatorDash.sample_disposed_done_total}
-                        </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Current / total (available + already disposed)
-                        </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "dispose", segment: "AVAILABLE" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-rose-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 ${
-                              labDashPanel?.key === "dispose" && labDashPanel.segment === "AVAILABLE"
-                                ? "border-rose-500/50 bg-rose-500/[0.06] ring-1 ring-rose-500/30"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Available
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-rose-700 dark:text-rose-300">
-                              {labOperatorDash.sample_available_to_dispose_total}
-                            </p>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleLabDashPanel({ key: "dispose", segment: "DISPOSED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                              labDashPanel?.key === "dispose" && labDashPanel.segment === "DISPOSED"
-                                ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
-                                : "border-border/60 bg-background/40"
-                            }`}
-                          >
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Disposed
-                            </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
-                              {labOperatorDash.sample_disposed_done_total}
-                            </p>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  {labDashPanel && (
-                    <div
-                      ref={labDashPanelListRef}
-                      id="lab-dash-panel-list"
-                      className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm scroll-mt-24"
-                    >
-                      <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
-                        <p className="text-sm font-semibold">{labDashPanelTitle(labDashPanel)}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {labDashPanel.key === "overall" || labDashPanel.key === "external"
-                            ? "Up to 400 rows · Click a booking ID for details below"
-                            : "Up to 100 rows · Click a booking ID for details below"}
-                        </p>
-                      </div>
-                      <div className="overflow-x-auto p-2 sm:p-4">
-                        {(() => {
-                          const rows = labDashPanelRows(labOperatorDash, labDashPanel);
-                          if (rows.length === 0) {
-                            return (
-                              <p className="py-8 text-center text-sm text-muted-foreground">No rows for this view.</p>
-                            );
-                          }
-                          return (
-                            <Table>
-                              <TableHeader>
-                                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                                  <TableHead className="font-semibold whitespace-nowrap">Booking ID</TableHead>
-                                  <TableHead className="font-semibold">Equipment</TableHead>
-                                  <TableHead className="font-semibold">User</TableHead>
-                                  <TableHead className="font-semibold">Status</TableHead>
-                                  <TableHead className="font-semibold whitespace-nowrap">Start</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {rows.map((row) => (
-                                  <TableRow
-                                    key={`${labDashPanel.key}-${labDashPanel.segment}-${row.booking_id}`}
-                                    className={labDashBookingRowClassName(row.status)}
-                                  >
-                                    <TableCell className="font-medium whitespace-nowrap">
-                                      <button
-                                        type="button"
-                                        onClick={() => selectLabBookingForDetail(row.booking_id)}
-                                        className={`inline-flex items-center gap-1.5 rounded font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                                          String(row.status).toUpperCase() === "COMPLETED"
-                                            ? "text-emerald-800 hover:text-emerald-900 dark:text-emerald-300"
-                                            : "text-primary hover:text-primary/80"
-                                        }`}
-                                      >
-                                        {row.virtual_booking_id || row.booking_ref}
-                                      </button>
-                                    </TableCell>
-                                    <TableCell className="max-w-[200px] truncate" title={row.equipment_name}>
-                                      {row.equipment_name}
-                                    </TableCell>
-                                    <TableCell className="max-w-[160px] truncate">{row.user_name || "—"}</TableCell>
-                                    <TableCell className="whitespace-nowrap">
-                                      {String(row.status).toUpperCase() === "COMPLETED" ? (
-                                        <span className="inline-flex items-center rounded-full bg-emerald-600/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200">
-                                          {row.status_display || row.status}
-                                        </span>
-                                      ) : (
-                                        <span className="text-muted-foreground">{row.status_display || row.status}</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
-                                      {row.start_time
-                                        ? format(parseISO(row.start_time), "MMM d, yyyy h:mm a")
-                                        : "—"}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
-
-                  <section className="space-y-4">
-                    {!labWeekCalendarExpanded ? (
-                      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                            <Calendar className="h-5 w-5" />
-                          </span>
-                          <div className="min-w-0 space-y-1">
-                            <h3 className="text-sm font-semibold tracking-tight text-foreground">Week calendar</h3>
-                            <p className="text-xs text-muted-foreground">
-                              Slot grids load when expanded. Week shown:{" "}
-                              <span className="font-medium tabular-nums text-foreground">
-                                {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
-                                {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-10 shrink-0 gap-2 self-stretch sm:self-center border-dashed"
-                          onClick={() => setLabWeekCalendarExpanded(true)}
-                        >
-                          <ChevronDown className="h-4 w-4 opacity-80" />
-                          Expand week calendar
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                          <Calendar className="h-4 w-4" />
-                        </span>
-                        Week calendar
-                      </h3>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-9 gap-2 shrink-0"
-                        onClick={() => setLabWeekCalendarExpanded(false)}
-                      >
-                        <ChevronUp className="h-4 w-4 opacity-80" />
-                        Minimize
-                      </Button>
-                    </div>
-                    <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-muted/50 to-muted/20 dark:from-muted/20 dark:to-background p-4 sm:p-6 min-h-[min(520px,70vh)]">
-                      {(labOperatorDashLoading || labSlotsLoading) && (
-                        <div
-                          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 rounded-lg bg-background/95 dark:bg-background/95 backdrop-blur-sm px-6 py-10"
-                          aria-busy="true"
-                          aria-live="polite"
-                        >
-                          <Loader2 className="h-10 w-10 animate-spin text-primary shrink-0" />
-                          <p className="text-sm font-medium text-foreground text-center max-w-md">
-                            Loading slot availability for this week…
-                          </p>
-                          <Progress
-                            value={100}
-                            className="h-2 w-full max-w-md [&>div]:w-full [&>div]:animate-pulse [&>div]:origin-left"
-                          />
-                        </div>
-                      )}
-                      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center justify-center gap-1 rounded-full border border-border/80 bg-background/80 px-1 py-1 shadow-sm sm:order-2 sm:flex-1 sm:justify-center">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-9 rounded-full px-3"
-                            onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, -7))}
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <span className="min-w-[10rem] text-center text-sm font-semibold tabular-nums sm:min-w-[12rem]">
-                            {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
-                            {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-9 rounded-full px-3"
-                            onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, 7))}
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-3 sm:order-1 sm:justify-start">
-                          <div className="flex items-center gap-2.5 rounded-full border border-border/60 bg-background/60 px-3 py-1.5">
-                            <Switch
-                              id="lab-calendar-booked-only"
-                              checked={labCalendarBookedOnly}
-                              onCheckedChange={setLabCalendarBookedOnly}
-                            />
-                            <Label htmlFor="lab-calendar-booked-only" className="cursor-pointer text-sm font-medium">
-                              Booked slots only
-                            </Label>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setLabOperatorWeekStart(null)}
-                            className="h-9 gap-1.5 rounded-full border-dashed"
-                          >
-                            <Undo2 className="h-3.5 w-3.5" />
-                            Reset to current week
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="space-y-6">
-                        {labEquipmentSummariesForScope.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-8">
-                            {isOicUser
-                              ? "No equipment assigned to your OIC account."
-                              : "No equipment assigned to your operator account."}
-                          </p>
-                        ) : (
-                          labEquipmentSummariesForScope.map((eq) => (
-                            <LabOperatorWeekCalendarGrid
-                              key={eq.equipment_id}
-                              weekStartIso={labOperatorDash.week_start}
-                              equipmentTitle={`${eq.equipment_code} · ${eq.equipment_name}`}
-                              slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
-                              onBookedSlotClick={selectLabBookingForDetail}
-                              bookedSlotsOnly={labCalendarBookedOnly}
-                            />
-                          ))
-                        )}
-                      </div>
-                    </div>
-                      </>
-                    )}
-                  </section>
-
-                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Label
-                        htmlFor="lab-dash-period"
-                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        Booking overview and follow-up range
-                      </Label>
-                      <Select
-                        value={labDashPeriod}
-                        onValueChange={(v) => {
-                          const p = v as LabDashPeriod;
-                          setLabDashPeriod(p);
-                          if (p === "custom") {
-                            const d = format(new Date(), "yyyy-MM-dd");
-                            setLabDashCustomFrom((f) => f || d);
-                            setLabDashCustomTo((t) => t || d);
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
-                          <SelectValue placeholder="Range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
-                          <SelectItem value="month">Monthly</SelectItem>
-                          <SelectItem value="year">Yearly</SelectItem>
-                          <SelectItem value="custom">Custom dates</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {labDashPeriod === "custom" && (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-from" className="text-xs">
-                            From
-                          </Label>
-                          <Input
-                            id="lab-dash-from"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomFrom}
-                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-to" className="text-xs">
-                            To
-                          </Label>
-                          <Input
-                            id="lab-dash-to"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomTo}
-                            onChange={(e) => setLabDashCustomTo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
-                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
-                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
-                    </p>
-                  </div>
-
-                  {(isLabInchargeUser || isOicUser || isAdmin || isDeptAdmin) && (
-                    <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground">Team calendar</p>
-                          <p className="text-xs text-muted-foreground">
-                            Spot department absences quickly for planning and reassignment.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          className="bg-primary text-white hover:bg-primary/90 shrink-0"
-                          onClick={() => navigate("/team-calendar")}
-                        >
-                          Open team calendar
-                          <ChevronRight className="ml-1 h-4 w-4 opacity-80" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {labDashSelectedBookingId != null && (
-                    <div
-                      id="lab-booking-detail-section"
-                      className="mt-6 scroll-mt-8 rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-6"
-                    >
-                      {labDashDetailLoading ? (
-                        <Card className="border shadow-sm">
-                          <CardContent className="py-12">
-                            <div className="flex items-center justify-center gap-3 text-muted-foreground">
-                              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                              <span>Loading booking details…</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ) : labDashDetailBooking ? (
-                        <BookingDetailCard
-                          booking={labDashDetailBooking}
-                          onClose={clearLabBookingDetail}
-                          onUpdated={refreshLabOperatorHome}
-                          isOperator={isLabInchargeUser}
-                          isManagerOrAdmin={isOicUser || isAdmin}
-                          currentUserType={userTypeStr}
-                          currentUserId={user?.id}
-                          backLabel="Back to dashboard"
-                          showPrintButton
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Could not load this booking.</p>
-                      )}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground py-6">Could not load lab dashboard.</p>
-              )}
             </CardContent>
           </Card>
         )}
@@ -2647,1546 +3362,7 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-1.5 px-2.5 pb-3 dashboard-menu-nav">
-        {dashboardHomeButton}
-        {downloadBrochureButton}
-        {isAccountsInChargeUser ? (
-        <div className="dashboard-uniform-cards flex flex-col gap-2">
-          <Card
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
-            onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                  <Banknote className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Verify physical receipts, review user details, and mark verified
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                Review &amp; verify
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-            onClick={() => openWorkspace("/my-bookings")}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                  <Globe2 className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">External booking requests</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Manage external sample bookings (hold and forward to laboratory)
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                Manage external bookings
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { openWorkspace("/reports"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                  <FileText className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    View booking and financial reports
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span
-                data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
-              >
-                View Reports
-              </span>
-            </CardContent>
-          </Card>
-        </div>
-        ) : (
-        <div className="dashboard-uniform-cards flex flex-col gap-2">
-          {!isLabInchargeUser && (<Card 
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-2 border-primary/45 shadow-md shadow-primary/15 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/70 h-full ring-1 ring-primary/25"
-            onClick={() => { openWorkspace("/equipments"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <Package className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Browse equipment</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Browse and book available laboratory equipment
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
-                Browse equipment
-              </span>
-            </CardContent>
-          </Card>)}
-          {isLabInchargeUser && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => openWorkspace("/leave-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Calendar className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Operator availability</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Intimate periods when you are unavailable for equipment operations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/leave-management");
-                  }}
-                >
-                  Intimate Unavailability
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {canSeeOicLeaveManagement && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => openWorkspace("/oic-leave-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Calendar className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Leave management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review operator leave / unavailability intimations and apply for self
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/oic-leave-management");
-                  }}
-                >
-                  Open leave management
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {(isAdmin || isDeptAdmin) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
-              onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Banknote className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Complete list — verify physical receipts, user details, and remarks
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/admin-settings/wallet-recharge-requests");
-                  }}
-                >
-                  Open list
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {(isAdmin || isDeptAdmin) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => openWorkspace("/team-calendar")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Team calendar</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Spot department absences at a glance
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/team-calendar");
-                  }}
-                >
-                  Open calendar
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          
-
-          {!isOperatorOrManager && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/my-bookings")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <Calendar className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View bookings</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Check your current and past bookings
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-green-200 dark:hover:border-green-800"
-              onClick={() => openWorkspace("/my-results")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
-                    <FileCheck2 className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View results</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Download results of your bookings, newest first
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {newResultsCount > 0 ? (
-                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                    {newResultsCount} new result{newResultsCount !== 1 ? "s" : ""} available
-                  </p>
-                ) : null}
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">View results</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && canReceiveSharedData && !myResearchAvailable && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/shared-data")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
-                    <Share2 className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Shared with me</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Research data shared with you by IIT Roorkee colleagues
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open shared data</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && myResearchAvailable && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
-              onClick={() => openWorkspace("/my-research")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg">
-                    <FlaskConical className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">My Research</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Project workspaces, data shared with you, and your publications
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Open My Research</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {showFacultyUrgentWalletCard && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => openWorkspace("/urgent-requests-wallet")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent booking requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review and approve urgent booking requests from students under your supervision
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingFacultyUrgentCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : facultyUrgentPendingCount > 0 ? (
-                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    {facultyUrgentPendingCount} pending request{facultyUrgentPendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/my-urgent-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent booking request</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Submit an urgent request or view the status of your submitted requests
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingMyUrgentCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : myUrgentRequestsCount > 0 ? (
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                    {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
-                  </p>
-                ) : null}
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
-                  Open urgent booking request
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/proforma-invoice")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Receipt className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Proforma invoice</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Get cost estimate for equipments and samples/slots before booking
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma invoice</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && showWalletOption && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/wallet")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Wallet className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                  {hasWallet ? "Open Wallet" : "Wallet"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(userTypeStr === "student" ||
-            userTypeStr === "individual_student" ||
-            userTypeStr === "faculty" ||
-            userTypeStr === "external" ||
-            userTypeStr === "rnd" ||
-            userTypeStr === "institute" ||
-            userTypeStr === "startup_incubated_iitr" ||
-            userTypeStr === "external_startup_msme" ||
-            userTypeStr === "other") && !myResearchAvailable && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/my-publications")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">My publications</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Submit journal references that used IIC instruments; approved entries appear on equipment Publications
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/my-nomination-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Nomination requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manage TA/equipment operating nominations and submit your resume for review
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage nomination requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeTaDutyAssignmentsCard && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/ta-assignments")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Allocate TA duties and track assignment-to-reward workflow
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                  Open TA assignments
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isLabInchargeUser && (
-          <Card 
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { openWorkspace("/reports"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                  <FileText className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    View your booking history and statistics
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span
-                data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
-              >
-                View Reports
-              </span>
-            </CardContent>
-          </Card>
-          )}
-
-          {(userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
-            userGuide && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/user-guide", "User guide")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">User guide</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Step-by-step guide for using the booking portal
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/user-guide", "User guide");
-                  }}
-                >
-                  Open user guide
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {userTypeStr === "faculty" && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/student-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Student management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Students for whom you are the supervisor
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
-                >
-                  View students
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-
-          {!isLabInchargeUser && (<Card 
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-            onClick={() => setFeedbackOpen(true)}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <Star className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Rate your experience</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                      Rate the portal, ease of booking, and share suggestions — you can update anytime
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Give Feedback</Button>
-            </CardContent>
-          </Card>)}
-
-          {!isLabInchargeUser && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/tickets")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <MessageSquarePlus className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support tickets</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Report issues, ask the lab, or track support conversations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isOperatorOrManager || isDeptAdmin) && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/booking-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Settings className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage Bookings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isOperatorOrManager && !isLabInchargeUser && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => openWorkspace("/urgent-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review and approve or reject urgent booking requests
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingUrgentCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : urgentRequestsPendingCount > 0 ? (
-                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    {urgentRequestsPendingCount} pending request{urgentRequestsPendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isOperatorOrManager && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
-              onClick={() => openWorkspace("/repeat-sample-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
-                    <RotateCcw className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Repeat sample requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Approve or reject complimentary repeat sample requests from users
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {repeatSamplePendingCount > 0 ? (
-                  <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
-                    {repeatSamplePendingCount} pending request{repeatSamplePendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Review repeat samples</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isOicUser || isAdmin) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/notice-board-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Megaphone className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Notice board requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Submit notices for approval; complete expiry for equipment unavailability drafts
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Manage notice requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser || (isFacultyUser && !isInternalFacultyUser)) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/publication-claims")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Publication claims</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {userTypeStr === "faculty"
-                        ? "Review publication claims from your students"
-                        : "Review external user-submitted journal references for your instruments"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingPublicationClaimsCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : publicationClaimsPendingCount > 0 ? (
-                  <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
-                    {publicationClaimsPendingCount} pending claim
-                    {publicationClaimsPendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Review publication claims</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeOicTaNomination && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/ta-nomination-call")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <Send className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">TA nomination call</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Initiate a request for faculty to nominate students to operate an equipment (semester-wise)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Initiate TA nomination call</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeOicRewardConfig && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/admin-settings/rewards")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Star className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      Reward config
-                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Per equipment</Badge>
-                    </CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Configure TA reward earning and redemption policy per equipment
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open reward settings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/accessories")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <Wrench className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Accessories</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Enable or disable equipment accessories and additional accessories
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage accessories</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/print-materials")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <PackageOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">3D print materials</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Add, edit, enable, or disable filament materials for PRINT_3D equipment
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage materials</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/quota-configurations")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-700 text-white shadow-lg">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Quota configurations</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Weekly and monthly quotas for equipment groups you manage
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-emerald-600 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage quotas</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeOicMultiMode && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/multi-mode")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
-                    <GitBranch className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Schedule modes and set each mode&apos;s operate days via Change slot status
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage modes</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/booking-attempt-logs")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking attempt log</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      View booking submit attempts (success and failure)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => openWorkspace("/manage/external-user-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">External user management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Verify external departments/organizations and external users
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                  Open verification
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canVerifyExternalOrgs && !isAdmin && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => openWorkspace("/manage/external-user-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">External organization verification</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review KYC and approve or reject external organizations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                  Open verification
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canManageDeptRbac && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
-              onClick={() =>
-                openWorkspace(
-                  isAdmin ? "/admin/department-administration" : "/manage/department-administration",
-                  "Department administration"
-                )
-              }
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-slate-700 text-white shadow-lg">
-                    <ShieldCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Department administration</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {isAdmin
-                        ? "Manage department staff modules and permission caps"
-                        : "Manage OIC, Lab In Charge, Accounts In Charge (department finances), and Faculty Credit Facility"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-slate-600 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
-                  Open
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isOrgAdmin && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
-              onClick={() => openWorkspace("/organization/users")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-primary text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Organization users</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Add and activate members in your external organization
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-primary mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-slate-700 hover:bg-slate-800 text-white">
-                  Manage members
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => openWorkspace("/equipment-waitlist")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Equipment waitlist</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      View and clear waitlist queue per equipment; notify when slots free
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/equipment-lifecycle")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Equipment lifecycle &amp; expenses</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Purchase, warranty, AMC, expenses, accessories, write-off workflow
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open lifecycle hub</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/procurement-workflow")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Procurement workflow</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Office verification, store approval, head approval and purchase closure
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
-              onClick={() => openWorkspace("/inventory-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-emerald-600 text-white shadow-lg">
-                    <Package className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Inventory management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manage item requests, stock transactions, and issued assets
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-lime-600 hover:bg-lime-700 text-white">Open inventory tools</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/remote-analysis")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
-                    <Monitor className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Remote analysis</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Workstation registry, catalog, equipment↔software, inventory, and remote commands
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open remote analysis</Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openWorkspace("/remote-analysis/software-catalog");
-                    }}
-                  >
-                    Software catalog
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openWorkspace("/remote-analysis/equipment-software");
-                    }}
-                  >
-                    Eq ↔ Software
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-              onClick={() => openWorkspace("/department-sync")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
-                    <Server className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Department sync agents</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Agents, assignments, profiles, commands, heartbeats, workspaces, and sync logs
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open department sync</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-              onClick={() => openWorkspace("/laboratory-infrastructure")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg">
-                    <HardDrive className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Laboratory infrastructure</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Fleet monitoring, diagnostics, repair, alerts, and lifecycle for DSA, Equipment PCs, and Analysis PCs
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/laboratory-infrastructure");
-                  }}
-                >
-                  Open Fleet Dashboard
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/test-dashboard")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Acceptance test dashboard</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Phase 2.5 SAT coverage — module health, pass/fail drill-down (Main Admin)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/test-dashboard");
-                  }}
-                >
-                  Open Test Dashboard
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg">
-                    <HardDrive className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Deployment center</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      DSA, Remote Analysis Agent, and Equipment PC Wizard — versions, SHA-256, ticket downloads
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/deployment-center");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Open Deployment Center
-                </Button>
-                <Button
-                  className="w-full bg-sky-600 hover:bg-sky-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/remote-analysis/agent-installer");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  RA Agent
-                </Button>
-                <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/department-sync/agent-installer");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  DSA
-                </Button>
-                <Button
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/device-provisioning");
-                  }}
-                >
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  Devices
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
-              onClick={() => openWorkspace("/content-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg">
-                    <Layout className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Content management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Menu, pages, home content and hero images (CMS)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white">Manage content</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/admin-settings/support")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <LifeBuoy className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support tickets</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review tickets, attachments, comments; mark resolved and notify users
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open tickets</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeAdminSettingsCard && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/admin-settings")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-lg">
-                    <Settings className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Admin settings</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Equipment, users, groups and wallet management
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-accent to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open settings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-
-          {isAdmin && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => openWorkspace("/calendar-colors")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg">
-                    <Palette className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Calendar colors</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Customize weekly window colors for slot states and holidays
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
-              </CardContent>
-            </Card>
-          )}
-
-        </div>
-        )}
+        {renderDashboardMenu()}
                 </CardContent>
               </Card>
             </div>
@@ -4205,1551 +3381,13 @@ const Dashboard = () => {
                 className="dashboard-menu-nav space-y-1.5 px-2.5 pb-8 pt-3"
                 onClickCapture={(e) => {
                   const t = e.target as HTMLElement | null;
+                  if (t?.closest("[data-menu-keep-open]")) return;
                   if (t?.closest('.cursor-pointer, button, a, [role="button"]')) {
                     queueMicrotask(() => setMobileMenuOpen(false));
                   }
                 }}
               >
-        {dashboardHomeButton}
-        {downloadBrochureButton}
-        {isAccountsInChargeUser ? (
-        <div className="dashboard-uniform-cards flex flex-col gap-2">
-          <Card
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
-            onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                  <Banknote className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Verify physical receipts, review user details, and mark verified
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                Review &amp; verify
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-            onClick={() => openWorkspace("/my-bookings")}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                  <Globe2 className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">External booking requests</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Manage external sample bookings (hold and forward to laboratory)
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                Manage external bookings
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { openWorkspace("/reports"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                  <FileText className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    View booking and financial reports
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span
-                data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
-              >
-                View Reports
-              </span>
-            </CardContent>
-          </Card>
-        </div>
-        ) : (
-        <div className="dashboard-uniform-cards flex flex-col gap-2">
-          {!isLabInchargeUser && (<Card 
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-2 border-primary/45 shadow-md shadow-primary/15 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/70 h-full ring-1 ring-primary/25"
-            onClick={() => { openWorkspace("/equipments"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <Package className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Browse equipment</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    Browse and book available laboratory equipment
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
-                Browse equipment
-              </span>
-            </CardContent>
-          </Card>)}
-          {isLabInchargeUser && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => openWorkspace("/leave-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Calendar className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Operator availability</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Intimate periods when you are unavailable for equipment operations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/leave-management");
-                  }}
-                >
-                  Intimate Unavailability
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {canSeeOicLeaveManagement && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => openWorkspace("/oic-leave-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Calendar className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Leave management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review operator leave / unavailability intimations and apply for self
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/oic-leave-management");
-                  }}
-                >
-                  Open leave management
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {(isAdmin || isDeptAdmin) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
-              onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Banknote className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet recharge requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Complete list — verify physical receipts, user details, and remarks
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/admin-settings/wallet-recharge-requests");
-                  }}
-                >
-                  Open list
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {(isAdmin || isDeptAdmin) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
-              onClick={() => openWorkspace("/team-calendar")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Team calendar</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Spot department absences at a glance
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/team-calendar");
-                  }}
-                >
-                  Open calendar
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          
-
-          {!isOperatorOrManager && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/my-bookings")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <Calendar className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View bookings</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Check your current and past bookings
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-green-200 dark:hover:border-green-800"
-              onClick={() => openWorkspace("/my-results")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
-                    <FileCheck2 className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View results</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Download results of your bookings, newest first
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {newResultsCount > 0 ? (
-                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                    {newResultsCount} new result{newResultsCount !== 1 ? "s" : ""} available
-                  </p>
-                ) : null}
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">View results</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && canReceiveSharedData && !myResearchAvailable && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/shared-data")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
-                    <Share2 className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Shared with me</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Research data shared with you by IIT Roorkee colleagues
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open shared data</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && myResearchAvailable && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
-              onClick={() => openWorkspace("/my-research")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg">
-                    <FlaskConical className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">My Research</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Project workspaces, data shared with you, and your publications
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Open My Research</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {showFacultyUrgentWalletCard && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => openWorkspace("/urgent-requests-wallet")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent booking requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review and approve urgent booking requests from students under your supervision
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingFacultyUrgentCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : facultyUrgentPendingCount > 0 ? (
-                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    {facultyUrgentPendingCount} pending request{facultyUrgentPendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/my-urgent-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent booking request</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Submit an urgent request or view the status of your submitted requests
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingMyUrgentCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : myUrgentRequestsCount > 0 ? (
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                    {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
-                  </p>
-                ) : null}
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
-                  Open urgent booking request
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/proforma-invoice")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Receipt className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Proforma invoice</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Get cost estimate for equipments and samples/slots before booking
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma invoice</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isOperatorOrManager && showWalletOption && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/wallet")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Wallet className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Wallet management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {hasWallet ? `Balance: ₹${walletBalance.toFixed(2)} · View transactions and recharge` : "Request access or manage your wallet"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                  {hasWallet ? "Open Wallet" : "Wallet"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(userTypeStr === "student" ||
-            userTypeStr === "individual_student" ||
-            userTypeStr === "faculty" ||
-            userTypeStr === "external" ||
-            userTypeStr === "rnd" ||
-            userTypeStr === "institute" ||
-            userTypeStr === "startup_incubated_iitr" ||
-            userTypeStr === "external_startup_msme" ||
-            userTypeStr === "other") && !myResearchAvailable && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/my-publications")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">My publications</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Submit journal references that used IIC instruments; approved entries appear on equipment Publications
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(userTypeStr === "student" || userTypeStr === "individual_student") && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/my-nomination-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Nomination requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manage TA/equipment operating nominations and submit your resume for review
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage nomination requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeTaDutyAssignmentsCard && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/ta-assignments")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">TA duty assignments</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Allocate TA duties and track assignment-to-reward workflow
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                  Open TA assignments
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {!isLabInchargeUser && (
-          <Card 
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
-            onClick={() => { openWorkspace("/reports"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                  <FileText className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg">Reports &amp; Statistics</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                    View your booking history and statistics
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-            </CardHeader>
-            <CardContent>
-              <span
-                data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
-              >
-                View Reports
-              </span>
-            </CardContent>
-          </Card>
-          )}
-
-          {(userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
-            userGuide && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/user-guide", "User guide")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">User guide</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Step-by-step guide for using the booking portal
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/user-guide", "User guide");
-                  }}
-                >
-                  Open user guide
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {userTypeStr === "faculty" && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/student-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Student management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Students for whom you are the supervisor
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
-                  onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
-                >
-                  View students
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-
-          {!isLabInchargeUser && (<Card 
-            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-            onClick={() => setFeedbackOpen(true)}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <Star className="h-6 w-6" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Rate your experience</CardTitle>
-                  <CardDescription className="text-sm mt-0.5">
-                      Rate the portal, ease of booking, and share suggestions — you can update anytime
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-            </CardHeader>
-            <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Give Feedback</Button>
-            </CardContent>
-          </Card>)}
-
-          {!isLabInchargeUser && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/tickets")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <MessageSquarePlus className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support tickets</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Report issues, ask the lab, or track support conversations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isOperatorOrManager || isDeptAdmin) && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/booking-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Settings className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage Bookings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isOperatorOrManager && !isLabInchargeUser && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => openWorkspace("/urgent-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review and approve or reject urgent booking requests
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-red-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingUrgentCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : urgentRequestsPendingCount > 0 ? (
-                  <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
-                    {urgentRequestsPendingCount} pending request{urgentRequestsPendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Manage urgent requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isOperatorOrManager && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
-              onClick={() => openWorkspace("/repeat-sample-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
-                    <RotateCcw className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Repeat sample requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Approve or reject complimentary repeat sample requests from users
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {repeatSamplePendingCount > 0 ? (
-                  <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
-                    {repeatSamplePendingCount} pending request{repeatSamplePendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">Review repeat samples</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isOicUser || isAdmin) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/notice-board-requests")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <Megaphone className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Notice board requests</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Submit notices for approval; complete expiry for equipment unavailability drafts
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Manage notice requests</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser || (isFacultyUser && !isInternalFacultyUser)) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/publication-claims")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg">
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Publication claims</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {userTypeStr === "faculty"
-                        ? "Review publication claims from your students"
-                        : "Review external user-submitted journal references for your instruments"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {loadingPublicationClaimsCount ? (
-                  <p className="text-sm text-muted-foreground">Loading…</p>
-                ) : publicationClaimsPendingCount > 0 ? (
-                  <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
-                    {publicationClaimsPendingCount} pending claim
-                    {publicationClaimsPendingCount !== 1 ? "s" : ""}
-                  </p>
-                ) : null}
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Review publication claims</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeOicTaNomination && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/ta-nomination-call")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <Send className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">TA nomination call</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Initiate a request for faculty to nominate students to operate an equipment (semester-wise)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Initiate TA nomination call</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeOicRewardConfig && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/admin-settings/rewards")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Star className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      Reward config
-                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Per equipment</Badge>
-                    </CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Configure TA reward earning and redemption policy per equipment
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open reward settings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/accessories")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <Wrench className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Accessories</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Enable or disable equipment accessories and additional accessories
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage accessories</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/print-materials")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <PackageOpen className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">3D print materials</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Add, edit, enable, or disable filament materials for PRINT_3D equipment
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage materials</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isOicUser) && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/quota-configurations")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-700 text-white shadow-lg">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Quota configurations</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Weekly and monthly quotas for equipment groups you manage
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-emerald-600 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage quotas</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeOicMultiMode && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/multi-mode")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
-                    <GitBranch className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Schedule modes and set each mode&apos;s operate days via Change slot status
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage modes</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/booking-attempt-logs")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking attempt log</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      View booking submit attempts (success and failure)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => openWorkspace("/manage/external-user-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">External user management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Verify external departments/organizations and external users
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                  Open verification
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canVerifyExternalOrgs && !isAdmin && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => openWorkspace("/manage/external-user-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                    <UserCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">External organization verification</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review KYC and approve or reject external organizations
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                  Open verification
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canManageDeptRbac && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
-              onClick={() =>
-                openWorkspace(
-                  isAdmin ? "/admin/department-administration" : "/manage/department-administration",
-                  "Department administration"
-                )
-              }
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-slate-700 text-white shadow-lg">
-                    <ShieldCheck className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Department administration</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {isAdmin
-                        ? "Manage department staff modules and permission caps"
-                        : "Manage OIC, Lab In Charge, Accounts In Charge (department finances), and Faculty Credit Facility"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-slate-600 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
-                  Open
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isOrgAdmin && (
-            <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
-              onClick={() => openWorkspace("/organization/users")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-primary text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Organization users</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Add and activate members in your external organization
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-primary mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-slate-700 hover:bg-slate-800 text-white">
-                  Manage members
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser) && (
-            <Card 
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800"
-              onClick={() => openWorkspace("/equipment-waitlist")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Equipment waitlist</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      View and clear waitlist queue per equipment; notify when slots free
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/equipment-lifecycle")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Equipment lifecycle &amp; expenses</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Purchase, warranty, AMC, expenses, accessories, write-off workflow
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open lifecycle hub</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/procurement-workflow")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Procurement workflow</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Office verification, store approval, head approval and purchase closure
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-lime-200 dark:hover:border-lime-800"
-              onClick={() => openWorkspace("/inventory-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-emerald-600 text-white shadow-lg">
-                    <Package className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Inventory management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Manage item requests, stock transactions, and issued assets
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-lime-500 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-lime-600 hover:bg-lime-700 text-white">Open inventory tools</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
-              onClick={() => openWorkspace("/remote-analysis")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
-                    <Monitor className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Remote analysis</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Workstation registry, catalog, equipment↔software, inventory, and remote commands
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open remote analysis</Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openWorkspace("/remote-analysis/software-catalog");
-                    }}
-                  >
-                    Software catalog
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openWorkspace("/remote-analysis/equipment-software");
-                    }}
-                  >
-                    Eq ↔ Software
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-              onClick={() => openWorkspace("/department-sync")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-lg">
-                    <Server className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Department sync agents</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Agents, assignments, profiles, commands, heartbeats, workspaces, and sync logs
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open department sync</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
-              onClick={() => openWorkspace("/laboratory-infrastructure")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white shadow-lg">
-                    <HardDrive className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Laboratory infrastructure</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Fleet monitoring, diagnostics, repair, alerts, and lifecycle for DSA, Equipment PCs, and Analysis PCs
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/laboratory-infrastructure");
-                  }}
-                >
-                  Open Fleet Dashboard
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
-              onClick={() => openWorkspace("/test-dashboard")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-white shadow-lg">
-                    <ClipboardList className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Acceptance test dashboard</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Phase 2.5 SAT coverage — module health, pass/fail drill-down (Main Admin)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/test-dashboard");
-                  }}
-                >
-                  Open Test Dashboard
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg">
-                    <HardDrive className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Deployment center</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      DSA, Remote Analysis Agent, and Equipment PC Wizard — versions, SHA-256, ticket downloads
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/deployment-center");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Open Deployment Center
-                </Button>
-                <Button
-                  className="w-full bg-sky-600 hover:bg-sky-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/remote-analysis/agent-installer");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  RA Agent
-                </Button>
-                <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/department-sync/agent-installer");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  DSA
-                </Button>
-                <Button
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/device-provisioning");
-                  }}
-                >
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  Devices
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-pink-200 dark:hover:border-pink-800"
-              onClick={() => openWorkspace("/content-management")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg">
-                    <Layout className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Content management</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Menu, pages, home content and hero images (CMS)
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white">Manage content</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isAdmin && (
-            <Card
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/admin-settings/support")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
-                    <LifeBuoy className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Support tickets</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Review tickets, attachments, comments; mark resolved and notify users
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open tickets</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {canSeeAdminSettingsCard && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/admin-settings")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-lg">
-                    <Settings className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Admin settings</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Equipment, users, groups and wallet management
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-accent to-primary/50 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open settings</Button>
-              </CardContent>
-            </Card>
-          )}
-
-
-          {isAdmin && (
-            <Card 
-              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
-              onClick={() => openWorkspace("/calendar-colors")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg">
-                    <Palette className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Calendar colors</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Customize weekly window colors for slot states and holidays
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
-              </CardContent>
-            </Card>
-          )}
-
-        </div>
-        )}
+        {renderDashboardMenu()}
               </div>
             </SheetContent>
           </Sheet>
@@ -5793,6 +3431,7 @@ const Dashboard = () => {
               </Card>
             ) : (
               <>
+            {!showsLabStyleDashboard && (
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
               <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
               <CardHeader className="pb-3">
@@ -5806,33 +3445,28 @@ const Dashboard = () => {
                 </CardDescription>
               </CardHeader>
             </Card>
+            )}
 
         {showsLabStyleDashboard && (
-          <Card className="mb-6 overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
-            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-primary/[0.08] via-background to-background pb-6 pt-6 sm:pt-8">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="flex gap-4 min-w-0">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary dark:bg-primary/15 dark:text-sky-200">
-                    <Layout className="h-6 w-6" />
+          <Card className="overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
+            <CardHeader className="relative border-b border-border/60 bg-gradient-to-br from-primary/[0.08] via-background to-background px-4 py-3 sm:px-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15 dark:text-sky-200">
+                    <Layout className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0 space-y-1">
-                    <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Lab dashboard</CardTitle>
-                    <CardDescription className="text-sm leading-relaxed max-w-xl">
+                  <div className="min-w-0">
+                    <CardTitle className="text-lg font-semibold tracking-tight text-foreground">Lab dashboard</CardTitle>
+                    <CardDescription className="text-xs leading-snug">
                       Counts, queues, and weekly schedules for{" "}
-                      {isOicUser ? "equipment you manage as OIC" : "your equipment"}
-                      {(labOperatorDash?.equipment_summaries ?? []).length > 1
-                        ? ". Use the instrument selector to focus metrics and the week view on one machine."
-                        : "."}
+                      {isOicUser ? "equipment you manage as OIC" : "your equipment"}.
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                   {labOperatorDash && (labOperatorDash.equipment_summaries ?? []).length > 1 && (
-                    <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:min-w-[14rem]">
-                      <Label
-                        htmlFor="lab-dash-equipment-scope"
-                        className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
+                    <div className="w-full sm:w-auto sm:min-w-[15rem]">
+                      <Label htmlFor="lab-dash-equipment-scope" className="sr-only">
                         Instrument
                       </Label>
                       <Select
@@ -5842,7 +3476,7 @@ const Dashboard = () => {
                           else setLabDashEquipmentFilter(Number(v));
                         }}
                       >
-                        <SelectTrigger id="lab-dash-equipment-scope" className="h-10 w-full bg-background/80">
+                        <SelectTrigger id="lab-dash-equipment-scope" className="h-9 w-full bg-background/80">
                           <SelectValue placeholder="Scope" />
                         </SelectTrigger>
                         <SelectContent>
@@ -5857,7 +3491,7 @@ const Dashboard = () => {
                     </div>
                   )}
                   <Button
-                    className="shrink-0 bg-primary text-white hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 sm:self-end"
+                    className="shrink-0 bg-primary text-white hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90"
                     size="sm"
                     onClick={() => navigate("/booking-management")}
                   >
@@ -5867,7 +3501,7 @@ const Dashboard = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6 p-6 sm:p-8">
+            <CardContent className="space-y-5 p-4 sm:p-5">
               {labOperatorDashLoading && !labOperatorDash ? (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -6713,7 +4347,7 @@ const Dashboard = () => {
                         className="mt-5 border-primary/25 text-primary hover:bg-primary/5 dark:border-primary/40 dark:hover:bg-primary/15"
                         onClick={() => navigate("/equipments")}
                       >
-                        Browse Equipment
+                        Browse and Book Equipment
                       </Button>
                     </div>
                   )}
@@ -6800,7 +4434,7 @@ const Dashboard = () => {
                         className="mt-5 border-emerald-200 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
                         onClick={() => navigate("/equipments")}
                       >
-                        Browse Equipment
+                        Browse and Book Equipment
                       </Button>
                     </div>
                   )}

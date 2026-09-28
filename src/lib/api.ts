@@ -437,6 +437,8 @@ export interface RescheduleEquipmentOption extends GroupEquipmentSummary {
   required_slots: number;
   required_minutes: number;
   dropped_fields?: Array<{ key: string; label: string }> | null;
+  /** Staff-only moves: the target's tariff differs from the original booking's charge. */
+  charge_differs?: boolean;
 }
 
 export interface ResultsBookingCard {
@@ -517,6 +519,37 @@ export interface PublicEquipmentAvailability {
   departments: Array<{ id: number; name: string }>;
   equipment: PublicEquipmentAvailabilityRow[];
   count: number;
+}
+
+export interface DashboardMenuGroup {
+  id: string;
+  name: string;
+  items: string[];
+}
+
+export interface DashboardMenuLayout {
+  groups: DashboardMenuGroup[];
+}
+
+export interface OicEquipmentSettings {
+  slot_window_reference_weekday: number | null;
+  slot_window_reference_time: string | null;
+  weekly_view_time_from: string | null;
+  weekly_view_time_to: string | null;
+  external_slot_quota_percent: number;
+  booking_not_utilize_window_hours: number;
+  operator_unavailable_after_booking_end_hours: number;
+  operator_absent_disruption_after_booking_end_hours: number;
+  sample_submission_lead_hours: number;
+  sample_collect_deadline_hours: number;
+}
+
+export interface OicEquipmentSettingsRow {
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  profile_type: string;
+  settings: OicEquipmentSettings;
 }
 
 interface ApiResponse<T> {
@@ -7699,6 +7732,31 @@ class ApiClient {
     }>(`/oic/equipment-additional-accessories/${accessoryId}/`, {
       method: "PATCH",
       body: JSON.stringify({ is_enabled: isEnabled }),
+    });
+  }
+
+  async getDashboardMenuLayout() {
+    return this.request<DashboardMenuLayout>("/profiles/me/dashboard-menu-layout/");
+  }
+
+  async saveDashboardMenuLayout(layout: DashboardMenuLayout) {
+    return this.request<DashboardMenuLayout>("/profiles/me/dashboard-menu-layout/", {
+      method: "PUT",
+      body: JSON.stringify(layout),
+    });
+  }
+
+  /** OIC/Admin: booking window and deadline settings for each managed equipment. */
+  async getOicEquipmentSettings() {
+    return this.request<{ equipments: OicEquipmentSettingsRow[]; has_print_3d_equipment: boolean }>(
+      "/oic/equipment-settings/",
+    );
+  }
+
+  async updateOicEquipmentSettings(equipmentId: number, payload: Partial<OicEquipmentSettings>) {
+    return this.request<{ equipment: OicEquipmentSettingsRow }>(`/oic/equipment-settings/${equipmentId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
     });
   }
 

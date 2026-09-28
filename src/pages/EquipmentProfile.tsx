@@ -36,7 +36,7 @@ import { toast } from "sonner";
 import { InPanelRoute } from "@/components/InPanelRouter";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
 import { Badge } from "@/components/ui/badge";
-import UserProfile from "@/components/UserProfile";
+import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
@@ -706,27 +706,23 @@ const EquipmentProfile = () => {
               phone?: string | null;
               profilePicture?: string | null;
               userId?: number | null;
-            }>
+            }>,
+            roleLabel: string
           ) => (
-            <div className="space-y-5">
+            <div className="grid gap-4 xl:grid-cols-2">
               {entries.map((entry) => (
-                <div
+                <ContactIdCard
                   key={entry.key}
-                  className="rounded-xl border bg-muted/20 px-5 py-5 sm:px-7 sm:py-6"
-                >
-                  <UserProfile
-                    name={entry.name}
-                    email={entry.email}
-                    phone={entry.phone}
-                    profilePicture={
-                      entry.profilePicture && entry.userId != null
-                        ? apiClient.getProfilePictureUrl(entry.userId)
-                        : undefined
-                    }
-                    size="lg"
-                    className="[&_p]:text-xl sm:[&_p]:text-2xl [&_span]:text-base sm:[&_span]:text-lg gap-4"
-                  />
-                </div>
+                  name={entry.name}
+                  email={entry.email}
+                  phone={entry.phone}
+                  roleLabel={roleLabel}
+                  photoUrl={
+                    entry.profilePicture && entry.userId != null
+                      ? apiClient.getProfilePictureUrl(entry.userId)
+                      : undefined
+                  }
+                />
               ))}
             </div>
           );
@@ -1045,7 +1041,7 @@ const EquipmentProfile = () => {
                       <div className="space-y-3">
                         <h4 className="text-base font-semibold text-foreground">Officer in-charge</h4>
                         {brochureManagers.length > 0
-                          ? renderContactCards(brochureManagers)
+                          ? renderContactCards(brochureManagers, "Officer in-charge")
                           : (
                               <p className="text-muted-foreground">
                                 No officer in-charge has been assigned to this instrument yet.
@@ -1055,7 +1051,7 @@ const EquipmentProfile = () => {
                       <div className="space-y-3">
                         <h4 className="text-base font-semibold text-foreground">Lab operator</h4>
                         {brochureOperators.length > 0
-                          ? renderContactCards(brochureOperators)
+                          ? renderContactCards(brochureOperators, "Lab operator")
                           : (
                               <p className="text-muted-foreground">
                                 No lab operator has been assigned to this instrument yet.
@@ -1125,13 +1121,13 @@ const EquipmentProfile = () => {
                 <div className="space-y-3">
                   <h3 className="text-base font-semibold text-foreground">Officer in-charge</h3>
                   {managerEntries.length > 0
-                    ? renderContactCards(managerEntries)
+                    ? renderContactCards(managerEntries, "Officer in-charge")
                     : emptyPanel("No officer in-charge has been assigned to this instrument yet.")}
                 </div>
                 <div className="space-y-3">
                   <h3 className="text-base font-semibold text-foreground">Lab operator</h3>
                   {operatorEntries.length > 0
-                    ? renderContactCards(operatorEntries)
+                    ? renderContactCards(operatorEntries, "Lab operator")
                     : emptyPanel("No lab operator has been assigned to this instrument yet.")}
                 </div>
               </div>

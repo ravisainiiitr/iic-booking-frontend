@@ -120,7 +120,7 @@ export const studentGuide: UserGuideContent = {
         "You can book eligible equipment and manage your own bookings.",
         "You cannot manage other users’ bookings or lab operations.",
         "Programme validity dates may limit access — keep profile dates current.",
-        "Urgent requests and repeat samples appear only when enabled for that equipment/lab.",
+        "Urgent requests appear only when enabled for that equipment/lab. For a repeat sample, visit the lab; the Officer In Charge arranges it and you receive a confirmation email.",
       ],
     }),
     faqSection([
