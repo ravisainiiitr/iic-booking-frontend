@@ -24,6 +24,7 @@ interface WalletSricSettingsData {
   decline_converts_to_credit?: boolean;
   auto_read_cashbook_mailbox?: boolean;
   cashbook_sender_emails?: string;
+  fund_receipt_overdue_days?: number;
 }
 
 const CC_HELP =
@@ -51,6 +52,7 @@ export default function AdminWalletSricSettings() {
   const [declineToCredit, setDeclineToCredit] = useState(true);
   const [autoReadMailbox, setAutoReadMailbox] = useState(true);
   const [cashbookSenders, setCashbookSenders] = useState("");
+  const [overdueDays, setOverdueDays] = useState("15");
 
   useEffect(() => {
     if (authLoading) return;
@@ -86,6 +88,7 @@ export default function AdminWalletSricSettings() {
           setDeclineToCredit(res.data.decline_converts_to_credit ?? true);
           setAutoReadMailbox(res.data.auto_read_cashbook_mailbox ?? true);
           setCashbookSenders(res.data.cashbook_sender_emails ?? "");
+          setOverdueDays(String(res.data.fund_receipt_overdue_days ?? 15));
         }
       })
       .catch(() => toast.error("Failed to load SRIC office settings."))
@@ -106,6 +109,7 @@ export default function AdminWalletSricSettings() {
           decline_converts_to_credit: declineToCredit,
           auto_read_cashbook_mailbox: autoReadMailbox,
           cashbook_sender_emails: cashbookSenders,
+          fund_receipt_overdue_days: Math.min(365, Math.max(1, Math.round(Number(overdueDays) || 15))),
         }
       : { bill_section_emails: billSectionEmails, cash_deposit_cc_emails: cashDepositCcEmails };
     const res = await apiClient.adminSingletonUpdate<WalletSricSettingsData>(
@@ -231,7 +235,9 @@ export default function AdminWalletSricSettings() {
                       <p className="text-sm text-muted-foreground">
                         When SRIC declines (Wrong Project Code, Insufficient Funds in the Project, or Other), the request
                         is cancelled and the amount becomes an auto-approved credit, recovered from the faculty
-                        member&apos;s next approved recharge for the same department.
+                        member&apos;s next approved recharge for the same department. If a credit is already running,
+                        no new credit is given, and an SRIC approval credits the wallet only when the cash-book
+                        confirms the funds.
                       </p>
                     </div>
                     <Switch id="decline-to-credit" checked={declineToCredit} onCheckedChange={setDeclineToCredit} />
@@ -256,6 +262,22 @@ export default function AdminWalletSricSettings() {
                       rows={2}
                       placeholder="bills@sric.iitr.ac.in"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="overdue-days">Dashboard follow-up after (days)</Label>
+                    <Input
+                      id="overdue-days"
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={overdueDays}
+                      onChange={(e) => setOverdueDays(e.target.value)}
+                      className="max-w-[8rem]"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Requests with no matching SRIC cash-book entry after this many days are shown to the Main
+                      Administrator and the Account In-charge every time they open the dashboard.
+                    </p>
                   </div>
                 </CardContent>
               </Card>

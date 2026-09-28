@@ -222,6 +222,21 @@ export function flattenApiErrorMessage(value: unknown, path = ""): string {
 }
 
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
+export type OverdueFundReceiptRow = {
+  id: number;
+  transaction_number: string;
+  status: string;
+  recharge_mode: string;
+  amount: string;
+  user_name: string;
+  user_email: string;
+  department_name: string;
+  project_grant_code: string;
+  wallet_credit_pending: boolean;
+  since: string | null;
+  days_waiting: number | null;
+};
+
 export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   // Equipment
   bookings: 'admin/bookings',
@@ -5230,6 +5245,15 @@ class ApiClient {
     return this.request<{ message?: string; outcome?: 'approved' | 'verified'; request?: unknown; error?: string }>(
       `${endpoint}${id}/cashbook-link/`,
       { method: 'POST', body: JSON.stringify({ parse_entry_id: parseEntryId }) }
+    );
+  }
+
+  /** Requests with no matching SRIC cash-book entry after the configured follow-up days (dashboard alert). */
+  async adminWalletRechargeOverdueFundReceipts() {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ days: number; count: number; results: OverdueFundReceiptRow[] }>(
+      `${endpoint}overdue-fund-receipts/`,
+      { method: 'GET' }
     );
   }
 

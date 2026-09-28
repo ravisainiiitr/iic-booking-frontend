@@ -5,8 +5,10 @@ import { isExternalBookingUserType } from "@/lib/userTypes";
 import {
   DECLINE_REASON_LABELS,
   formatMoney,
+  isAwaitingFundReceipt,
   isSricDeclined,
   rechargeModeLabel,
+  sricDeclineOutcome,
   summarizeRechargeRequests,
 } from "@/lib/walletRecharge";
 import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
@@ -64,9 +66,22 @@ type RechargeDialogState = { departmentId: number | null; amount: string | null 
 function RechargeStatusBadge({
   request,
 }: {
-  request: { status?: string; status_display?: string; user_otp_verified?: boolean; cancellation_source?: string | null };
+  request: {
+    status?: string;
+    status_display?: string;
+    user_otp_verified?: boolean;
+    cancellation_source?: string | null;
+    wallet_credit_pending?: boolean | null;
+  };
 }) {
   const status = String(request.status || "").toUpperCase();
+  if (isAwaitingFundReceipt(request)) {
+    return (
+      <Badge variant="outline" className="shrink-0 border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-100">
+        Approved · awaiting funds
+      </Badge>
+    );
+  }
   if (isSricDeclined(request)) {
     return (
       <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
@@ -1940,7 +1955,17 @@ const Wallet = () => {
                     >
                       {formatMoney(rechargeSummary.creditOutstanding)} is outstanding as auto-approved credit from{" "}
                       {rechargeSummary.declinedToCredit === 1 ? "a request" : "requests"} declined by SRIC. It will be
-                      adjusted against your next approved recharge.
+                      adjusted when the funds of your next approved recharge are received from the SRIC Office.
+                    </p>
+                  )}
+                  {rechargeSummary.awaitingFunds > 0 && (
+                    <p
+                      className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-100"
+                      data-testid="recharge-awaiting-funds"
+                    >
+                      {rechargeSummary.awaitingFunds} approved request{rechargeSummary.awaitingFunds === 1 ? " is" : "s are"}{" "}
+                      awaiting the SRIC fund receipt. As a credit is running on your wallet, the amount is credited and
+                      adjusted against that credit once the SRIC Office confirms the funds.
                     </p>
                   )}
                   {rechargeSummary.awaitingOtp > 0 && (
@@ -2132,9 +2157,18 @@ const Wallet = () => {
                                       : undefined
                                   }
                                 >
-                                  {Number(req.decline_credit_outstanding || 0) > 0
-                                    ? `Credit outstanding ${formatMoney(req.decline_credit_outstanding)}`
-                                    : "Credit recovered"}
+                                  {
+                                    {
+                                      credit_outstanding: `Credit outstanding ${formatMoney(req.decline_credit_outstanding)}`,
+                                      credit_recovered: "Credit recovered",
+                                      no_new_credit: "Cancelled · credit already running",
+                                    }[sricDeclineOutcome(req)]
+                                  }
+                                </div>
+                              ) : null}
+                              {isAwaitingFundReceipt(req) ? (
+                                <div className="mt-1 whitespace-nowrap text-xs text-muted-foreground">
+                                  Credited when SRIC funds arrive
                                 </div>
                               ) : null}
                               {Number(req.credit_settled_amount || 0) > 0 ? (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, extractAdminListItems } from "@/lib/api";
+import { sricDeclineOutcome } from "@/lib/walletRecharge";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -143,6 +144,8 @@ interface WalletRechargeRequestRow {
   decline_credit_amount?: string;
   decline_credit_outstanding?: string;
   credit_settled_amount?: string;
+  wallet_credit_pending?: boolean;
+  wallet_credited_at?: string | null;
   created_at?: string;
   responded_at?: string | null;
   audit_logs?: AuditLog[];
@@ -248,6 +251,8 @@ export default function AdminWalletRechargeRequests() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [cashbookFilter, setCashbookFilter] = useState<string>("__all__");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const overdueOnly = searchParams.get("overdue") === "1";
   const [cashbookRow, setCashbookRow] = useState<WalletRechargeRequestRow | null>(null);
   const [linkingEntryId, setLinkingEntryId] = useState<number | null>(null);
   const [cashbookUploading, setCashbookUploading] = useState(false);
@@ -296,6 +301,7 @@ export default function AdminWalletRechargeRequests() {
     if (dateTo) params.date_to = dateTo;
     if (projectGrant.trim()) params.project_grant = projectGrant.trim();
     if (cashbookFilter !== "__all__") params.cashbook = cashbookFilter;
+    if (overdueOnly) params.overdue = "1";
     const res = await apiClient.adminList<WalletRechargeRequestRow>("walletRechargeRequests", params);
     if (res.error) {
       toast.error(res.error);
@@ -310,9 +316,16 @@ export default function AdminWalletRechargeRequests() {
     if (!canAccess) return;
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter]);
+  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly]);
+
+  const clearOverdue = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("overdue");
+    setSearchParams(next, { replace: true });
+  };
 
   const clearFilters = () => {
+    if (overdueOnly) clearOverdue();
     setCashbookFilter("__all__");
     setStatusFilter("__all__");
     setFundVerifiedFilter("__all__");
@@ -621,6 +634,18 @@ export default function AdminWalletRechargeRequests() {
                 {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
               </span>
             </div>
+            {overdueOnly ? (
+              <div
+                className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+                data-testid="overdue-filter-banner"
+              >
+                Showing requests with no matching SRIC cash-book entry after the follow-up period. Confirm the
+                transfer with the SRIC Office, then match the receipt or verify the fund receipt.
+                <Button size="sm" variant="outline" className="ml-auto" onClick={clearOverdue}>
+                  Show all
+                </Button>
+              </div>
+            ) : null}
             {canLoadCashbook ? (
               <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-3">
                 <FileSpreadsheet className="h-4 w-4 text-primary" />
@@ -739,11 +764,20 @@ export default function AdminWalletRechargeRequests() {
                               ? "Declined by SRIC"
                               : row.status_display || row.status}
                           </Badge>
-                          {amountValue(row.decline_credit_amount) > 0 ? (
+                          {row.cancellation_source === "sric_declined" ? (
                             <div className="text-xs text-muted-foreground mt-1">
-                              {amountValue(row.decline_credit_outstanding) > 0
-                                ? `Credit outstanding ₹${row.decline_credit_outstanding}`
-                                : "Credit recovered"}
+                              {
+                                {
+                                  credit_outstanding: `Credit outstanding ₹${row.decline_credit_outstanding}`,
+                                  credit_recovered: "Credit recovered",
+                                  no_new_credit: "No new credit (credit already running)",
+                                }[sricDeclineOutcome(row)]
+                              }
+                            </div>
+                          ) : null}
+                          {row.status === "APPROVED" && row.wallet_credit_pending ? (
+                            <div className="text-xs font-medium text-sky-700 dark:text-sky-300 mt-1">
+                              Wallet credit on fund receipt
                             </div>
                           ) : null}
                           {amountValue(row.credit_settled_amount) > 0 ? (
@@ -1217,9 +1251,9 @@ export default function AdminWalletRechargeRequests() {
             <div className="space-y-3">
               {isProjectGrant(actionRow) ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-                  Declining a Project Grant request cancels it and treats ₹{actionRow?.amount} as an auto-approved
-                  credit for the faculty member, recovered from their next approved recharge. Use Cancel instead for
-                  duplicate or mistaken requests.
+                  {actionRow?.wallet_credit_pending
+                    ? "This request was approved but not yet credited because the faculty member has a running credit. Declining cancels it; no new credit is given."
+                    : `Declining a Project Grant request cancels it and treats ₹${actionRow?.amount} as an auto-approved credit for the faculty member, recovered from their next approved recharge. If a credit is already running, no new credit is given and the request is simply cancelled. Use Cancel instead for duplicate or mistaken requests.`}
                 </p>
               ) : null}
               <div className="space-y-2">

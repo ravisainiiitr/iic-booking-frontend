@@ -12,11 +12,13 @@ import {
   filterProjects,
   formatMoney,
   formatProjectValidity,
+  isAwaitingFundReceipt,
   isProjectFormDirty,
   isRechargeDraftDirty,
   mapProjectApiErrors,
   rechargeFormBlocker,
   rechargeModeLabel,
+  sricDeclineOutcome,
   summarizeRechargeRequests,
   validateProjectForm,
   validateRechargeAmount,
@@ -257,7 +259,15 @@ describe("recharge request summary", () => {
         { status: "REJECTED", user_otp_verified: true },
         { status: "CANCELLED", user_otp_verified: true },
       ]),
-    ).toEqual({ pending: 2, approved: 1, rejected: 1, awaitingOtp: 1, declinedToCredit: 0, creditOutstanding: 0 });
+    ).toEqual({
+      pending: 2,
+      approved: 1,
+      rejected: 1,
+      awaitingOtp: 1,
+      declinedToCredit: 0,
+      creditOutstanding: 0,
+      awaitingFunds: 0,
+    });
   });
 
   it("counts SRIC declines and sums outstanding auto-approved credit", () => {
@@ -267,8 +277,30 @@ describe("recharge request summary", () => {
         { status: "CANCELLED", cancellation_source: "sric_declined", decline_credit_outstanding: "250.50" },
         { status: "CANCELLED", cancellation_source: "user" },
         { status: "APPROVED", decline_credit_outstanding: "0.00" },
+        { status: "APPROVED", wallet_credit_pending: true },
       ]),
-    ).toEqual({ pending: 0, approved: 1, rejected: 0, awaitingOtp: 0, declinedToCredit: 2, creditOutstanding: 5250.5 });
+    ).toEqual({
+      pending: 0,
+      approved: 2,
+      rejected: 0,
+      awaitingOtp: 0,
+      declinedToCredit: 2,
+      creditOutstanding: 5250.5,
+      awaitingFunds: 1,
+    });
+  });
+
+  it("distinguishes decline outcomes and approvals awaiting fund receipt", () => {
+    expect(sricDeclineOutcome({ decline_credit_amount: "1000.00", decline_credit_outstanding: "400.00" })).toBe(
+      "credit_outstanding",
+    );
+    expect(sricDeclineOutcome({ decline_credit_amount: "1000.00", decline_credit_outstanding: "0.00" })).toBe(
+      "credit_recovered",
+    );
+    expect(sricDeclineOutcome({ decline_credit_amount: "0.00" })).toBe("no_new_credit");
+    expect(isAwaitingFundReceipt({ status: "APPROVED", wallet_credit_pending: true })).toBe(true);
+    expect(isAwaitingFundReceipt({ status: "APPROVED", wallet_credit_pending: false })).toBe(false);
+    expect(isAwaitingFundReceipt({ status: "CANCELLED", wallet_credit_pending: true })).toBe(false);
   });
 
   it("labels recharge modes", () => {

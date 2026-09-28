@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
+import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -1384,6 +1385,11 @@ const Dashboard = () => {
       <DashboardHeader />
 
       <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-5 sm:px-6 lg:px-8">
+        {isAdmin || isAccountsInChargeUser ? (
+          <WalletFundReceiptFollowUpAlert
+            onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
+          />
+        ) : null}
         {externalProfileNeedsAddress && (
           <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-primary/70 bg-primary/5 dark:bg-primary/10">
             <CardHeader className="pb-3">

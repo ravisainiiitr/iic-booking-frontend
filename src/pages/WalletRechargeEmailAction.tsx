@@ -48,6 +48,7 @@ interface PublicRechargePayload {
   rejection_reason_choices?: ReasonChoice[];
   can_decline?: boolean;
   decline_converts_to_credit?: boolean;
+  wallet_credit_pending?: boolean;
   response_message?: string;
   approved_by_email?: string;
   created_at?: string;
@@ -283,7 +284,7 @@ const WalletRechargeEmailAction = () => {
               <CardDescription>{doneMessage}</CardDescription>
             </CardHeader>
             <CardContent className="text-sm space-y-1">
-              {payload?.department_grant_code ? (
+              {action === "approve" && payload?.department_grant_code ? (
                 <p className="text-xl font-bold text-primary">
                   Amount to be credited to Grant: {payload.department_grant_code}
                 </p>
@@ -385,14 +386,21 @@ const WalletRechargeEmailAction = () => {
                 </div>
               </div>
 
-              {payload?.decline_converts_to_credit ? (
+              {payload?.wallet_credit_pending ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                  This request was approved, but the wallet has not been credited yet because the faculty member
+                  has a running credit. Declining cancels the request; no new credit is given. The faculty member
+                  is informed with the reason you select.
+                </div>
+              ) : payload?.decline_converts_to_credit ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
                   {declineAfterApproval
                     ? "This request was already approved and the wallet credited. "
                     : ""}
                   Declining cancels the recharge request. The amount of ₹{payload?.amount} is treated as an
                   auto-approved credit for the faculty member and is recovered automatically from their next
-                  approved recharge. The faculty member is informed with the reason you select.
+                  approved recharge. If the faculty member already has a running credit, no new credit is given
+                  and the request simply stands cancelled. The faculty member is informed with the reason you select.
                 </div>
               ) : null}
 

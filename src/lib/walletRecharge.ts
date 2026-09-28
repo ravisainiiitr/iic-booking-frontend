@@ -226,10 +226,26 @@ export type RechargeRequestLike = {
   user_otp_verified?: boolean;
   cancellation_source?: string | null;
   decline_credit_outstanding?: string | number | null;
+  wallet_credit_pending?: boolean | null;
 };
 
 export function isSricDeclined(r: { status?: string; cancellation_source?: string | null }): boolean {
   return String(r.status || "").toUpperCase() === "CANCELLED" && r.cancellation_source === "sric_declined";
+}
+
+/** Approved by SRIC while a credit was running: wallet is credited only after the SRIC fund receipt. */
+export function isAwaitingFundReceipt(r: { status?: string; wallet_credit_pending?: boolean | null }): boolean {
+  return String(r.status || "").toUpperCase() === "APPROVED" && Boolean(r.wallet_credit_pending);
+}
+
+export type SricDeclineOutcome = "credit_outstanding" | "credit_recovered" | "no_new_credit";
+
+export function sricDeclineOutcome(r: {
+  decline_credit_amount?: string | number | null;
+  decline_credit_outstanding?: string | number | null;
+}): SricDeclineOutcome {
+  if (!(Number(r.decline_credit_amount || 0) > 0)) return "no_new_credit";
+  return Number(r.decline_credit_outstanding || 0) > 0 ? "credit_outstanding" : "credit_recovered";
 }
 
 export const DECLINE_REASON_LABELS: Record<string, string> = {
@@ -240,13 +256,24 @@ export const DECLINE_REASON_LABELS: Record<string, string> = {
 };
 
 export function summarizeRechargeRequests(requests: RechargeRequestLike[]) {
-  const summary = { pending: 0, approved: 0, rejected: 0, awaitingOtp: 0, declinedToCredit: 0, creditOutstanding: 0 };
+  const summary = {
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    awaitingOtp: 0,
+    declinedToCredit: 0,
+    creditOutstanding: 0,
+    awaitingFunds: 0,
+  };
   for (const r of requests) {
     const status = String(r.status || "").toUpperCase();
     if (status === "PENDING") {
       if (r.user_otp_verified === false) summary.awaitingOtp += 1;
       else summary.pending += 1;
-    } else if (status === "APPROVED") summary.approved += 1;
+    } else if (status === "APPROVED") {
+      summary.approved += 1;
+      if (isAwaitingFundReceipt(r)) summary.awaitingFunds += 1;
+    }
     else if (status === "REJECTED") summary.rejected += 1;
     else if (isSricDeclined(r)) summary.declinedToCredit += 1;
     const outstanding = Number(r.decline_credit_outstanding || 0);
