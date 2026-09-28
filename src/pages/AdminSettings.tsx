@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
-import { PageHero, PageShell, SettingsTile } from "@/components/PageShell";
+import { PageHero, PageShell, SettingsTile, StandaloneOnly } from "@/components/PageShell";
 
 /**
  * Admin Settings hub. Tile visibility is driven by Admin Panel Access config
@@ -57,24 +57,26 @@ const AdminSettings = () => {
   return (
     <PageShell>
       <main className="container mx-auto px-4 py-5">
-        <PageHero
-          title="Admin Settings"
-          description={
-            isAdmin
-              ? "Institute-wide configuration. Use Admin Panel Access to enable modules per user type and department."
-              : "Only modules granted by the Main Administrator for your user type and department are shown."
-          }
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
+        <StandaloneOnly>
+          <PageHero
+            title="Admin Settings"
+            description={
+              isAdmin
+                ? "Institute-wide configuration. Use Admin Panel Access to enable modules per user type and department."
+                : "Only modules granted by the Main Administrator for your user type and department are shown."
+            }
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </PageHero>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </PageHero>
+        </StandaloneOnly>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {can("user_management") && (

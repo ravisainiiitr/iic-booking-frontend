@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ArrowLeft, Send, Loader2, ClipboardList, Check, X, Download } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { format } from "date-fns";
 
 type SemesterOption = { id: number; code: string; name: string };
@@ -276,21 +277,23 @@ export default function TANominationCall() {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5 max-w-4xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Initiate TA nomination call</h1>
-          <p className="mt-2 text-sm text-white/85">
-            Send a request to Internal (Faculty) users to nominate students for operating equipment. OIC can select only equipment they manage; Admin can select any.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">Initiate TA nomination call</h1>
+            <p className="mt-2 text-sm text-white/85">
+              Send a request to Internal (Faculty) users to nominate students for operating equipment. OIC can select only equipment they manage; Admin can select any.
+            </p>
+          </div>
+        </StandaloneOnly>
 
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>

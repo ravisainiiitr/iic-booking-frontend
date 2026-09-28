@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -372,29 +373,31 @@ export default function OICMultiMode() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-4xl space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to dashboard
-          </Button>
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-              <GitBranch className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Multi-Mode Equipment</h1>
-              <p className="mt-1 text-sm text-white/85 max-w-2xl">
-                Schedule Parallel or Mutually Exclusive modes for equipment with Multi-Mode enabled.
-                Configure labels and colors for unavailable/exclusive slots.
-              </p>
+        <StandaloneOnly>
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
+              onClick={() => navigate("/dashboard")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to dashboard
+            </Button>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+                <GitBranch className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">Multi-Mode Equipment</h1>
+                <p className="mt-1 text-sm text-white/85 max-w-2xl">
+                  Schedule Parallel or Mutually Exclusive modes for equipment with Multi-Mode enabled.
+                  Configure labels and colors for unavailable/exclusive slots.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        </StandaloneOnly>
 
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>

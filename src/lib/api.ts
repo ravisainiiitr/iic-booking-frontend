@@ -7045,9 +7045,10 @@ class ApiClient {
   }
 
   /** List urgent booking requests (admin/OIC only). */
-  async listUrgentBookingRequests(params?: { status?: string; limit?: number; offset?: number }) {
+  async listUrgentBookingRequests(params?: { status?: string; requestType?: string; limit?: number; offset?: number }) {
     const sp = new URLSearchParams();
     if (params?.status) sp.append('status', params.status);
+    if (params?.requestType) sp.append('request_type', params.requestType);
     if (params?.limit != null) sp.append('limit', String(params.limit));
     if (params?.offset != null) sp.append('offset', String(params.offset));
     const q = sp.toString();

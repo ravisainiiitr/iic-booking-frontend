@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
@@ -98,13 +99,25 @@ type UrgentRequestRow = {
   } | null;
 };
 
+type UrgentView = "needs_action" | "awaiting_supervisor" | "approved" | "rejected" | "expired" | "all";
+
+const URGENT_VIEWS: Array<{ value: UrgentView; label: string; status: string }> = [
+  { value: "needs_action", label: "Needs action", status: "PENDING" },
+  { value: "awaiting_supervisor", label: "Awaiting supervisor", status: "PENDING" },
+  { value: "approved", label: "Approved", status: "APPROVED" },
+  { value: "rejected", label: "Rejected", status: "REJECTED" },
+  { value: "expired", label: "Expired", status: "EXPIRED" },
+  { value: "all", label: "All", status: "" },
+];
+
 const UrgentRequests = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [list, setList] = useState<UrgentRequestRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [viewFilter, setViewFilter] = useState<UrgentView>("needs_action");
+  const statusFilter = URGENT_VIEWS.find((v) => v.value === viewFilter)?.status ?? "";
   const [detailRow, setDetailRow] = useState<UrgentRequestRow | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
@@ -119,16 +132,17 @@ const UrgentRequests = () => {
   const userType = user?.user_type ? String(user.user_type).toLowerCase() : "";
   const canAccess = userType === "admin" || userType === "manager" || userType === "operator";
 
-  // When Pending is selected: show only non-expired and "Pending your decision" (actionable by admin/OIC)
   const displayedList =
-    statusFilter === "PENDING"
+    viewFilter === "needs_action"
       ? list.filter(
           (r) =>
             r.status === "PENDING" &&
             getSecondsRemaining(r.expiry_at ?? null) > 0 &&
             !r.pending_wallet_approval
         )
-      : list;
+      : viewFilter === "awaiting_supervisor"
+        ? list.filter((r) => r.status === "PENDING" && r.pending_wallet_approval)
+        : list;
   const displayCount = statusFilter === "PENDING" ? displayedList.length : totalCount;
 
   useEffect(() => {
@@ -166,6 +180,7 @@ const UrgentRequests = () => {
     try {
       const res = await apiClient.listUrgentBookingRequests({
         status: statusFilter || undefined,
+        requestType: "REVIEWER_URGENT",
         limit: 100,
         offset: 0,
       });
@@ -229,225 +244,209 @@ const UrgentRequests = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-7xl">
-        {/* Page header */}
-        <div className="mb-6">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/booking-management")} className="-ml-2">
+        <StandaloneOnly>
+          <div className="mb-5">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/booking-management")} className="-ml-2 mb-2">
               <ArrowLeft className="h-4 w-4 mr-1.5" />
               Booking Management
             </Button>
-            <span className="text-muted-foreground/60">/</span>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/booking-attempt-logs")}>
-              Booking attempt log
-            </Button>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Urgent Requests</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Type B urgent requests (50% surcharge) from users of your equipment, waiting for your decision.
+            </p>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Urgent Requests</h1>
-          <p className="text-muted-foreground mt-1 text-sm max-w-2xl">
-            Review urgent booking requests. For &quot;Urgent comment from reviewer&quot; type, the supervisor must approve first; then you may approve or reject. View the attachment at every level to verify genuineness.
-          </p>
-          {/* Validity config */}
-          <div className="flex flex-wrap items-center gap-2 mt-4 text-sm rounded-lg bg-muted/40 dark:bg-muted/20 border border-border/50 px-4 py-3 max-w-2xl">
-            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-muted-foreground">Urgent booking validity:</span>
-            {validityDaysEditing ? (
-              <>
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={validityDaysInput}
-                  onChange={(e) => setValidityDaysInput(e.target.value)}
-                  className="w-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <span className="text-muted-foreground">days</span>
-                <Button
-                  size="sm"
-                  disabled={validityDaysSaving}
-                  onClick={async () => {
-                    const v = parseInt(validityDaysInput, 10);
-                    if (Number.isNaN(v) || v < 1) {
-                      toast.error("Enter a number (min 1).");
-                      return;
-                    }
-                    setValidityDaysSaving(true);
-                    try {
-                      const res = await apiClient.updateUrgentHoldExpiryConfig({
-                        urgent_booking_validity_days: v,
-                      });
-                      if (res.error) {
-                        toast.error(res.error);
-                        return;
-                      }
-                      setValidityDays(res.data!.urgent_booking_validity_days);
-                      setValidityDaysInput(String(res.data!.urgent_booking_validity_days));
-                      setValidityDaysEditing(false);
-                      toast.success("Urgent booking validity updated.");
-                    } catch (e) {
-                      toast.error("Failed to update");
-                    } finally {
-                      setValidityDaysSaving(false);
-                    }
-                  }}
-                >
-                  {validityDaysSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setValidityDaysEditing(false); setValidityDaysInput(String(validityDays)); }}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">{validityDays} day(s)</span>
-                <span className="text-muted-foreground">— after this period the request expires and any hold is released</span>
-                <Button variant="ghost" size="sm" onClick={() => { setValidityDaysEditing(true); setValidityDaysInput(String(validityDays)); }}>
-                  Edit
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
+        </StandaloneOnly>
 
-        <Card className="border border-border/60 shadow-sm rounded-xl overflow-hidden bg-card">
-          <CardHeader className="pb-4 space-y-4 border-b border-border/40 bg-muted/20 dark:bg-muted/10">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <CardTitle className="text-lg font-medium">Requests</CardTitle>
-                <CardDescription className="mt-1">
-                  {statusFilter === "PENDING"
-                    ? "Awaiting your decision (non-expired only). "
-                    : "No-slot log or reviewer-urgent (supervisor approves first for reviewer type). "}
-                  Showing: {displayCount}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { value: "", label: "All" },
-                  { value: "PENDING", label: "Pending" },
-                  { value: "APPROVED", label: "Approved" },
-                  { value: "REJECTED", label: "Rejected" },
-                  { value: "EXPIRED", label: "Expired" },
-                ].map(({ value, label }) => (
+        <Card className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
+          <CardHeader className="space-y-3 border-b border-border/40 bg-muted/20 px-4 py-3 dark:bg-muted/10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter urgent requests">
+                {URGENT_VIEWS.map(({ value, label }) => (
                   <Button
-                    key={value || "all"}
-                    variant={statusFilter === value ? "default" : "outline"}
+                    key={value}
+                    role="tab"
+                    aria-selected={viewFilter === value}
+                    variant={viewFilter === value ? "default" : "outline"}
                     size="sm"
-                    className="rounded-full"
-                    onClick={() => setStatusFilter(value)}
+                    className="h-8 rounded-full px-3"
+                    onClick={() => setViewFilter(value)}
                   >
                     {label}
                   </Button>
                 ))}
               </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {validityDaysEditing ? (
+                  <>
+                    <span>Validity</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={validityDaysInput}
+                      onChange={(e) => setValidityDaysInput(e.target.value)}
+                      aria-label="Urgent request validity in days"
+                      className="h-7 w-16 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <span>days</span>
+                    <Button
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={validityDaysSaving}
+                      onClick={async () => {
+                        const v = parseInt(validityDaysInput, 10);
+                        if (Number.isNaN(v) || v < 1) {
+                          toast.error("Enter a number (min 1).");
+                          return;
+                        }
+                        setValidityDaysSaving(true);
+                        try {
+                          const res = await apiClient.updateUrgentHoldExpiryConfig({
+                            urgent_booking_validity_days: v,
+                          });
+                          if (res.error || !res.data) {
+                            toast.error(res.error || "Failed to update");
+                            return;
+                          }
+                          setValidityDays(res.data.urgent_booking_validity_days);
+                          setValidityDaysInput(String(res.data.urgent_booking_validity_days));
+                          setValidityDaysEditing(false);
+                          toast.success("Urgent request validity updated.");
+                        } catch {
+                          toast.error("Failed to update");
+                        } finally {
+                          setValidityDaysSaving(false);
+                        }
+                      }}
+                    >
+                      {validityDaysSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setValidityDaysEditing(false);
+                        setValidityDaysInput(String(validityDays));
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span title="Requests not decided within this period expire and their held slots are released.">
+                      Requests expire after <span className="font-medium text-foreground">{validityDays} day(s)</span>
+                    </span>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => {
+                        setValidityDaysEditing(true);
+                        setValidityDaysInput(String(validityDays));
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : list.length === 0 ? (
-              <div className="py-16 text-center">
-                <p className="text-muted-foreground">No urgent requests found.</p>
+              <div className="flex items-center justify-center py-14">
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
               </div>
             ) : displayedList.length === 0 ? (
-              <div className="py-16 text-center">
-                <p className="text-muted-foreground">
-                  {statusFilter === "PENDING"
-                    ? "No requests currently awaiting your decision, or all pending requests have expired."
-                    : "No matching requests."}
-                </p>
+              <div className="py-14 text-center text-sm text-muted-foreground">
+                {viewFilter === "needs_action"
+                  ? "Nothing needs your decision right now."
+                  : viewFilter === "awaiting_supervisor"
+                    ? "No requests are waiting for supervisor approval."
+                    : "No urgent requests found."}
               </div>
             ) : (
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-border/60">
-                    <TableHead className="font-medium text-muted-foreground">Type</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">User</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Equipment</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Requested at</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Time remaining</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Status</TableHead>
-                    <TableHead className="font-medium text-muted-foreground w-[100px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayedList.map((row) => (
-                    <TableRow key={row.id} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-                      <TableCell className="py-3 text-xs">
-                        {row.request_type === "REVIEWER_URGENT" ? "Reviewer urgent" : "No slot"}
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <RequesterIdentityButton
-                          userId={row.user_id}
-                          name={row.user_name}
-                          email={row.user_email}
-                          userNotes={row.reviewer_comment}
-                        />
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <div>{row.equipment_name}</div>
-                        <div className="text-xs text-muted-foreground">{row.equipment_code}</div>
-                      </TableCell>
-                      <TableCell className="py-3 whitespace-nowrap text-sm text-muted-foreground">
-                        {row.requested_at ? format(new Date(row.requested_at), "dd MMM yyyy, HH:mm") : "—"}
-                      </TableCell>
-                      <TableCell className="py-3 text-sm font-mono tabular-nums">
-                        {row.status === "APPROVED" || row.status === "REJECTED"
-                          ? "—"
-                          : getSecondsRemaining(row.expiry_at ?? null) <= 0 && row.expiry_at
-                            ? "Expired"
-                            : row.expiry_at
-                              ? formatTimeRemaining(getSecondsRemaining(row.expiry_at))
-                              : "—"}
-                      </TableCell>
-                      <TableCell className="py-3">
-                        {row.status !== "PENDING" && row.status !== "EXPIRED" ? (
-                          <Badge
-                            className={
-                              row.status === "APPROVED"
-                                ? "bg-green-600"
-                                : "bg-red-600"
-                            }
-                          >
-                            {row.status}
-                          </Badge>
-                        ) : row.status === "EXPIRED" ? (
-                          <Badge className="bg-gray-500">Expired</Badge>
-                        ) : row.request_type === "REVIEWER_URGENT" && row.pending_wallet_approval ? (
-                          <Badge className="bg-amber-500">Pending supervisor approval</Badge>
-                        ) : row.request_type === "REVIEWER_URGENT" && row.wallet_approved_at ? (
-                          <Badge className="bg-blue-600">Pending your decision</Badge>
-                        ) : (
-                          <Badge className="bg-amber-500">Pending your decision</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-md"
-                          onClick={() => {
-                            setDetailRow(row);
-                            setAdminNotes(row.admin_notes || "");
-                          }}
-                          title={
-                            row.request_type === "REVIEWER_URGENT" && row.pending_wallet_approval
-                              ? "Supervisor must approve before you can approve"
-                              : undefined
-                          }
-                        >
-                          {row.status !== "PENDING"
-                            ? "View"
-                            : row.request_type === "REVIEWER_URGENT" && row.pending_wallet_approval
-                              ? "View only"
-                              : "View / Decide"}
-                        </Button>
-                      </TableCell>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/60 hover:bg-transparent">
+                      <TableHead className="font-medium text-muted-foreground">User</TableHead>
+                      <TableHead className="font-medium text-muted-foreground">Equipment</TableHead>
+                      <TableHead className="font-medium text-muted-foreground">Requested</TableHead>
+                      <TableHead className="font-medium text-muted-foreground">Time left</TableHead>
+                      <TableHead className="font-medium text-muted-foreground">Status</TableHead>
+                      <TableHead className="w-[110px]"><span className="sr-only">Action</span></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {displayedList.map((row) => {
+                      const secondsLeft = getSecondsRemaining(row.expiry_at ?? null);
+                      const actionable = row.status === "PENDING" && !row.pending_wallet_approval && secondsLeft > 0;
+                      return (
+                        <TableRow key={row.id} className="border-b border-border/40 transition-colors hover:bg-muted/30">
+                          <TableCell className="py-2.5">
+                            <RequesterIdentityButton
+                              userId={row.user_id}
+                              name={row.user_name}
+                              email={row.user_email}
+                              userNotes={row.reviewer_comment}
+                            />
+                          </TableCell>
+                          <TableCell className="py-2.5">
+                            <div className="text-sm">{row.equipment_name}</div>
+                            <div className="text-xs text-muted-foreground">{row.equipment_code}</div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap py-2.5 text-sm text-muted-foreground">
+                            {row.requested_at ? format(new Date(row.requested_at), "dd MMM yyyy, HH:mm") : "—"}
+                          </TableCell>
+                          <TableCell className="py-2.5 font-mono text-sm tabular-nums">
+                            {row.status === "APPROVED" || row.status === "REJECTED"
+                              ? "—"
+                              : secondsLeft <= 0 && row.expiry_at
+                                ? "Expired"
+                                : row.expiry_at
+                                  ? formatTimeRemaining(secondsLeft)
+                                  : "—"}
+                          </TableCell>
+                          <TableCell className="py-2.5">
+                            {row.status === "APPROVED" ? (
+                              <Badge className="bg-green-600 hover:bg-green-600">Approved</Badge>
+                            ) : row.status === "REJECTED" ? (
+                              <Badge className="bg-red-600 hover:bg-red-600">Rejected</Badge>
+                            ) : row.status === "EXPIRED" || (row.expiry_at && secondsLeft <= 0) ? (
+                              <Badge className="bg-gray-500 hover:bg-gray-500">Expired</Badge>
+                            ) : row.pending_wallet_approval ? (
+                              <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-300">
+                                Awaiting supervisor
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500 hover:bg-amber-500">Needs your decision</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-2.5 text-right">
+                            <Button
+                              variant={actionable ? "default" : "outline"}
+                              size="sm"
+                              className="h-8"
+                              onClick={() => {
+                                setDetailRow(row);
+                                setAdminNotes(row.admin_notes || "");
+                              }}
+                            >
+                              {actionable ? "Review" : "View"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <p className="border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
+                  Showing {displayCount}
+                </p>
               </div>
             )}
           </CardContent>
@@ -456,200 +455,145 @@ const UrgentRequests = () => {
         <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) { setDetailRow(null); setViewParamsOpen(false); } }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Urgent request details</DialogTitle>
+              <DialogTitle>Urgent request</DialogTitle>
               <DialogDescription>
                 {detailRow?.status === "EXPIRED"
-                  ? "This request has expired (no action was taken within the hold expiry time). The hold was released and slots are free. No further action is possible except delete."
-                  : detailRow?.request_type === "REVIEWER_URGENT"
-                    ? detailRow?.pending_wallet_approval
-                      ? "Urgent request with reason (50% surcharge): the requester's supervisor must approve first. You may view the details and reject; Accept will be enabled after supervisor approval."
-                      : "Urgent request with reason (50% surcharge). Accept & allocate confirms the booking at the normal category rate + 50% urgent surcharge and debits the wallet; Reject releases the hold with no charge."
-                    : "Rush relief (no slot despite repeated attempts): no supervisor approval required and the 50% surcharge is waived. Accept & allocate confirms the booking at the normal category rate; Reject releases the hold."}
+                  ? "Expired without a decision. The held slots were released."
+                  : detailRow?.status === "PENDING" && detailRow?.pending_wallet_approval
+                    ? "Waiting for the supervisor. You can reject now; Accept unlocks after supervisor approval."
+                    : detailRow?.status === "PENDING"
+                      ? "Accept confirms the held slots at the category rate + 50% urgent surcharge. Reject releases them with no charge."
+                      : null}
               </DialogDescription>
             </DialogHeader>
             {detailRow && (
               <div className="space-y-4">
-                <p className="text-xs text-muted-foreground rounded-md border bg-muted/30 p-2">
-                  {detailRow.request_type === "REVIEWER_URGENT"
-                    ? "For reviewer-urgent requests, you may approve only after the supervisor has approved. You may view the attachment and reject at any time."
-                    : "For no-slot requests there is no wallet step; you may approve or reject directly."}
-                </p>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Type:</span>{" "}
-                    {detailRow.request_type === "REVIEWER_URGENT" ? "Urgent comment from reviewer" : "Unable to get slot despite trials"}
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <dt className="text-xs text-muted-foreground">User</dt>
+                    <dd>
+                      <RequesterIdentityButton
+                        userId={detailRow.user_id}
+                        name={detailRow.user_name}
+                        email={detailRow.user_email}
+                        userNotes={detailRow.reviewer_comment}
+                      />
+                    </dd>
                   </div>
-                  <div className="flex items-start gap-1">
-                    <span className="text-muted-foreground">User:</span>
-                    <RequesterIdentityButton
-                      userId={detailRow.user_id}
-                      name={detailRow.user_name}
-                      email={detailRow.user_email}
-                      userNotes={detailRow.reviewer_comment}
-                    />
+                  <div className="min-w-0">
+                    <dt className="text-xs text-muted-foreground">Equipment</dt>
+                    <dd>{detailRow.equipment_name} ({detailRow.equipment_code})</dd>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Equipment:</span> {detailRow.equipment_name} ({detailRow.equipment_code})
+                    <dt className="text-xs text-muted-foreground">Requested</dt>
+                    <dd>{detailRow.requested_at ? format(new Date(detailRow.requested_at), "dd MMM yyyy, HH:mm") : "—"}</dd>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Requested at:</span>{" "}
-                    {detailRow.requested_at ? format(new Date(detailRow.requested_at), "dd MMM yyyy, HH:mm") : "—"}
+                    <dt className="text-xs text-muted-foreground">Samples / slots</dt>
+                    <dd>
+                      {detailRow.number_of_samples} / {detailRow.slots_requested}
+                      {detailRow.duration_minutes != null ? ` · ${detailRow.duration_minutes} min` : ""}
+                    </dd>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Samples / Slots:</span> {detailRow.number_of_samples} / {detailRow.slots_requested}
-                    {detailRow.duration_minutes != null ? `, ${detailRow.duration_minutes} min` : ""}
+                    <dt className="text-xs text-muted-foreground">Supervisor approval</dt>
+                    <dd>
+                      {detailRow.pending_wallet_approval
+                        ? "Pending"
+                        : detailRow.wallet_approved_at
+                          ? `${detailRow.wallet_approved_by_name || "Approved"} · ${format(new Date(detailRow.wallet_approved_at), "dd MMM yyyy")}`
+                          : detailRow.supervisor_approval_required === false
+                            ? "Not required (wallet owner)"
+                            : "—"}
+                      {detailRow.wallet_notes && (
+                        <span className="block text-xs text-muted-foreground">Note: {detailRow.wallet_notes}</span>
+                      )}
+                    </dd>
                   </div>
-                  {detailRow.request_type === "REVIEWER_URGENT" && (
-                    <>
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Supervisor approval:</span>{" "}
-                        {detailRow.pending_wallet_approval
-                          ? "Pending supervisor approval — Approve will be enabled after they approve."
-                          : detailRow.wallet_approved_at
-                            ? `Approved by ${detailRow.wallet_approved_by_name || "—"} on ${format(new Date(detailRow.wallet_approved_at), "dd MMM yyyy")}. You may now approve or reject.`
-                            : detailRow.supervisor_approval_required === false
-                              ? "Not required (raised by the wallet owner)."
-                              : "—"}
-                        {detailRow.wallet_notes && (
-                          <p className="text-muted-foreground text-xs mt-1">Note: {detailRow.wallet_notes}</p>
-                        )}
-                      </div>
-                      <div className="col-span-2 flex items-center gap-2">
-                        <span className="text-muted-foreground">Evidence:</span>
-                        {detailRow.evidence_file_url || detailRow.evidence_original_name ? (
-                          <Button
-                            type="button"
-                            variant="link"
-                            className="h-auto p-0 text-primary inline-flex items-center gap-1"
-                            disabled={evidenceLoading}
-                            onClick={async () => {
-                              setEvidenceLoading(true);
-                              try {
-                                const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(detailRow.id);
-                                window.open(blobUrl, "_blank", "noopener");
-                                setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-                              } catch (e) {
-                                toast.error(e instanceof Error ? e.message : "Failed to open evidence");
-                              } finally {
-                                setEvidenceLoading(false);
-                              }
-                            }}
-                          >
-                            {evidenceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                            {detailRow.evidence_original_name || "View attachment"}
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                      {detailRow.reviewer_comment ? (
-                        <div className="col-span-2 space-y-1">
-                          <span className="text-muted-foreground text-sm">Reviewer comment:</span>
-                          <p className="text-sm whitespace-pre-wrap rounded-md border bg-muted/20 p-2">{detailRow.reviewer_comment}</p>
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-                {/* Requests approved in last 6 months (this requester, this equipment) */}
-                <div>
-                  <Label className="text-sm font-medium">Requests approved in last 6 months</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5 mb-2">Urgent requests approved for this requester on this equipment.</p>
-                  <div className="border rounded-md overflow-hidden">
-                    {(detailRow.requester_approved_urgent_last_6_months ?? []).length === 0 ? (
-                      <p className="text-sm text-muted-foreground px-4 py-3">None</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="hover:bg-transparent">
-                            <TableHead className="font-medium text-muted-foreground">#</TableHead>
-                            <TableHead className="font-medium text-muted-foreground">Requested at</TableHead>
-                            <TableHead className="font-medium text-muted-foreground">Approved on</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(detailRow.requester_approved_urgent_last_6_months ?? []).map((a, i) => (
-                            <TableRow key={a.id}>
-                              <TableCell className="text-sm">{i + 1}</TableCell>
-                              <TableCell className="text-sm">
-                                {a.requested_at ? format(new Date(a.requested_at), "dd MMM yyyy, HH:mm") : "—"}
-                              </TableCell>
-                              <TableCell className="text-sm font-medium">
-                                {a.decided_at ? format(new Date(a.decided_at), "dd MMM yyyy") : "—"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Approved urgent requests (last 6 months)</dt>
+                    <dd>
+                      {(detailRow.requester_approved_urgent_last_6_months ?? []).length === 0
+                        ? "None"
+                        : (detailRow.requester_approved_urgent_last_6_months ?? [])
+                            .map((a) => (a.decided_at ? format(new Date(a.decided_at), "dd MMM yyyy") : "—"))
+                            .join(", ")}
+                    </dd>
                   </div>
-                </div>
-                {detailRow.hold_booking_id != null && detailRow.hold_booking_summary && (
-                  <div className="flex items-center gap-2">
+                </dl>
+
+                {detailRow.reviewer_comment ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-normal text-muted-foreground">Reason given by user</Label>
+                    <p className="whitespace-pre-wrap rounded-md border bg-muted/20 p-2 text-sm">{detailRow.reviewer_comment}</p>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {detailRow.evidence_file_url || detailRow.evidence_original_name ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setViewParamsOpen(true)}
+                      disabled={evidenceLoading}
+                      onClick={async () => {
+                        setEvidenceLoading(true);
+                        try {
+                          const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(detailRow.id);
+                          window.open(blobUrl, "_blank", "noopener");
+                          setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Failed to open evidence");
+                        } finally {
+                          setEvidenceLoading(false);
+                        }
+                      }}
                     >
-                      <FileText className="h-4 w-4 mr-2" />
-                      View user parameters
+                      {evidenceLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                      <span className="max-w-[220px] truncate">{detailRow.evidence_original_name || "Evidence"}</span>
+                      <ExternalLink className="ml-1.5 h-3 w-3" />
                     </Button>
-                    <span className="text-xs text-muted-foreground">Slot(s) and inputs selected by the user for this request.</span>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-sm font-medium">Booking requests by users ({detailRow.no_slot_log_entries?.length ?? 0} recent)</Label>
-                  <div className="mt-2 border rounded-md overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Time</TableHead>
-                          <TableHead>Samples</TableHead>
-                          <TableHead>Slots</TableHead>
-                          <TableHead>Duration (min)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(detailRow.no_slot_log_entries || []).map((e, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="text-sm">
-                              {e.requested_at ? format(new Date(e.requested_at), "dd MMM HH:mm") : "—"}
-                            </TableCell>
-                            <TableCell>{e.number_of_samples}</TableCell>
-                            <TableCell>{e.slots_requested}</TableCell>
-                            <TableCell>{e.duration_minutes ?? "—"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No evidence attached</span>
+                  )}
+                  {detailRow.hold_booking_id != null && detailRow.hold_booking_summary && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setViewParamsOpen(true)}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Slots &amp; parameters
+                    </Button>
+                  )}
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="admin-notes">Admin / OIC notes</Label>
+                  <Label htmlFor="admin-notes">Decision notes (optional)</Label>
                   <Textarea
                     id="admin-notes"
                     value={adminNotes}
                     onChange={(e) => setAdminNotes(e.target.value)}
                     placeholder="Optional notes for this decision"
-                    rows={3}
+                    rows={2}
                   />
                 </div>
               </div>
             )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDetailRow(null)}>
-                Close
-              </Button>
+            <DialogFooter className="gap-2 sm:items-center sm:justify-between">
               <Button
-                variant="outline"
-                className="text-red-600 border-red-600 hover:bg-red-50"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-red-600 sm:mr-auto"
                 disabled={deleteLoading}
-                onClick={() => detailRow && handleDelete(detailRow.id)}
+                onClick={() => {
+                  if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
+                    handleDelete(detailRow.id);
+                  }
+                }}
               >
                 {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Delete
+              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => setDetailRow(null)}>
+                Close
               </Button>
               {detailRow?.status === "PENDING" && (
                 <>
@@ -672,6 +616,7 @@ const UrgentRequests = () => {
                   </Button>
                 </>
               )}
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>

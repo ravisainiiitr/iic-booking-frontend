@@ -193,7 +193,7 @@ export default function DashboardWorkspace({
             <WorkspaceExitGuard pathname={location.pathname} onClose={handleClose} />
             <div
               ref={scrollRef}
-              className="embedded-workspace min-h-[calc(100vh-10rem)] scroll-mt-20 bg-background rounded-b-xl [&_.page-shell]:min-h-0 [&_.page-shell]:py-0 [&_.dashboard-page]:min-h-0"
+              className="embedded-workspace min-h-[calc(100vh-10rem)] scroll-mt-20 bg-background rounded-b-xl [&_.page-shell]:min-h-0 [&_.page-shell]:py-0 [&_.dashboard-page]:min-h-0 [&_.page-shell>main.container]:max-w-none [&_.page-shell>main.container]:py-4"
             >
               <ErrorBoundary fallbackTitle="Workspace Error" backPath="/dashboard">
                 <Suspense

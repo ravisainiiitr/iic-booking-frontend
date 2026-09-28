@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, CalendarDays, Clock, Info, Loader2, Paperclip } from "lucide-react";
 
 import DashboardHeader from "@/components/DashboardHeader";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -77,6 +78,7 @@ function computeLeaveDays(
 
 export default function LeaveManagement() {
   const navigate = useNavigate();
+  const embedded = useEmbeddedMode();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isOperator = userType === "operator";
@@ -181,6 +183,19 @@ export default function LeaveManagement() {
     <div className="page-shell">
       <DashboardHeader />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {embedded ? (
+          <div className="mb-4 flex items-center justify-end gap-3">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Year</Label>
+            <Input
+              type="number"
+              className="h-9 w-28"
+              value={String(year)}
+              onChange={(e) => setYear(Number(e.target.value || currentYear))}
+              min={2000}
+              max={2100}
+            />
+          </div>
+        ) : (
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -213,6 +228,7 @@ export default function LeaveManagement() {
             </div>
           </div>
         </div>
+        )}
 
         <Alert className="mb-6 border-sky-300 bg-sky-50 text-sky-950 dark:border-sky-700 dark:bg-sky-950/50 dark:text-sky-50">
           <Info className="h-5 w-5 text-sky-700 dark:text-sky-300" />

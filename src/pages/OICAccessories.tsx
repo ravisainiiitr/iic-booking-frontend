@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,22 +134,24 @@ export default function OICAccessories() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-4xl space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Accessories</h1>
-          <p className="mt-2 text-sm text-white/85 max-w-2xl">
-            Enable or disable accessories shown on public equipment pages for instruments you manage.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">Accessories</h1>
+            <p className="mt-2 text-sm text-white/85 max-w-2xl">
+              Enable or disable accessories shown on public equipment pages for instruments you manage.
+            </p>
+          </div>
+        </StandaloneOnly>
 
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>

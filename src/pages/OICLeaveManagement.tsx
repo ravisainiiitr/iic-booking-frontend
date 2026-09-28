@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Calendar, CalendarClock, CalendarDays, CheckCircle2, Clock, Loader2, Paperclip, Pencil, UserCheck, X, XCircle } from "lucide-react";
 
 import DashboardHeader from "@/components/DashboardHeader";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,7 @@ function computedResumeAtIso(endDateIso: string, endSession: LeaveSession): stri
 
 export default function OICLeaveManagement() {
   const navigate = useNavigate();
+  const embedded = useEmbeddedMode();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isOicOrAdmin = userType === "manager" || userType === "admin";
@@ -677,6 +679,13 @@ export default function OICLeaveManagement() {
           </DialogContent>
         </Dialog>
 
+        {embedded ? (
+          <div className="mb-4 flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => refresh(year)} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
+        ) : (
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -705,6 +714,7 @@ export default function OICLeaveManagement() {
             </Button>
           </div>
         </div>
+        )}
 
         <div className="space-y-6">
           <Card className="border-0 shadow-md">

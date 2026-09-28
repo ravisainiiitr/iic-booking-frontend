@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { useAuth } from "@/contexts/AuthContext";
@@ -530,12 +531,14 @@ export default function TAAssignments() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <h1 className="text-2xl font-semibold tracking-tight">TA duty assignments</h1>
-          <p className="mt-2 text-sm text-white/85">
-            Allocate duty, respond as TA, and submit/verify duty logs linked to reward points.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+            <h1 className="text-2xl font-semibold tracking-tight">TA duty assignments</h1>
+            <p className="mt-2 text-sm text-white/85">
+              Allocate duty, respond as TA, and submit/verify duty logs linked to reward points.
+            </p>
+          </div>
+        </StandaloneOnly>
 
         {canManage && (
           <Card className="overflow-hidden border-2 border-primary/20 shadow-xl bg-gradient-to-b from-card to-card/95">

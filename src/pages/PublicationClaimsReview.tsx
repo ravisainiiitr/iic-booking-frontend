@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -101,21 +102,23 @@ export default function PublicationClaimsReview() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-              <BookOpenCheck className="h-6 w-6 text-primary" />
-              Publication claims
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Review facility acknowledgment submissions for your instruments.
-              {pendingCount > 0 ? ` ${pendingCount} pending.` : ""}
-            </p>
+        <StandaloneOnly>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+                <BookOpenCheck className="h-6 w-6 text-primary" />
+                Publication claims
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Review facility acknowledgment submissions for your instruments.
+                {pendingCount > 0 ? ` ${pendingCount} pending.` : ""}
+              </p>
+            </div>
           </div>
-        </div>
+        </StandaloneOnly>
 
         {claims.length === 0 ? (
           <Card>

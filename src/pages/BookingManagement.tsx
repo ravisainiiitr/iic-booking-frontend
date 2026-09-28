@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import {
@@ -378,12 +379,14 @@ const BookingManagement = () => {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-            <div>
-              <h1 className="text-3xl font-bold">Booking Management</h1>
-              <p className="text-muted-foreground mt-1">Manage all bookings as operator or manager</p>
+          <StandaloneOnly>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+              <div>
+                <h1 className="text-3xl font-bold">Booking Management</h1>
+                <p className="text-muted-foreground mt-1">Manage all bookings as operator or manager</p>
+              </div>
             </div>
-          </div>
+          </StandaloneOnly>
 
           <Card className="border shadow-sm">
             <CardHeader className="pb-4">

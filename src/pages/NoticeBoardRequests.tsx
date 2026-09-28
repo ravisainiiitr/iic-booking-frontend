@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -190,21 +191,23 @@ const NoticeBoardRequests = () => {
       <DashboardHeader />
       <div className="container mx-auto px-4 py-6 max-w-5xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-semibold flex items-center gap-2">
-                <Megaphone className="h-6 w-6 text-primary" />
-                Notice board requests
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Submit notices for Main Admin approval. Equipment unavailability drafts only need an expiry.
-              </p>
+          <StandaloneOnly>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-semibold flex items-center gap-2">
+                  <Megaphone className="h-6 w-6 text-primary" />
+                  Notice board requests
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  Submit notices for Main Admin approval. Equipment unavailability drafts only need an expiry.
+                </p>
+              </div>
             </div>
-          </div>
-          <Button onClick={() => setCreateOpen(true)}>
+          </StandaloneOnly>
+          <Button className="ml-auto" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New notice request
           </Button>

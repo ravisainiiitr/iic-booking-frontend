@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Palette, Loader2 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -122,19 +123,21 @@ export default function CalendarColorSettings() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-2xl">
-        <div className="mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Palette className="h-8 w-8" />
-            Calendar colors
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Customize colors for the weekly calendar: slot states (including completed bookings), holiday default, and weekend (Saturday & Sunday). Changes apply to equipment profile and book-equipment weekly views.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="mb-2">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Palette className="h-8 w-8" />
+              Calendar colors
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Customize colors for the weekly calendar: slot states (including completed bookings), holiday default, and weekend (Saturday & Sunday). Changes apply to equipment profile and book-equipment weekly views.
+            </p>
+          </div>
+        </StandaloneOnly>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">

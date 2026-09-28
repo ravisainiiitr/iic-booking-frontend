@@ -36,6 +36,7 @@ import { Loader2, Search, Trash2, X, Calculator } from "lucide-react";
 import { format } from "date-fns";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 
 /** Format date string for display; returns fallback if invalid. */
@@ -423,14 +424,16 @@ const BookingAttemptLogs = () => {
     >
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5" style={{ display: "block" }}>
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Booking Attempt Log</h1>
-            <p className="text-muted-foreground mt-1">
-              Comprehensive log of every booking submit (success and failure). Officer in charge sees only their equipments.
-            </p>
+        <StandaloneOnly>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Booking Attempt Log</h1>
+              <p className="text-muted-foreground mt-1">
+                Comprehensive log of every booking submit (success and failure). Officer in charge sees only their equipments.
+              </p>
+            </div>
           </div>
-        </div>
+        </StandaloneOnly>
 
         <Card className="border shadow-sm mb-6">
           <CardHeader className="pb-4">

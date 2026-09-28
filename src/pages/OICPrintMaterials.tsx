@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type PrintMaterial } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserTypeDisplayName, USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
@@ -333,23 +334,25 @@ export default function OICPrintMaterials() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-5xl space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">3D Print Materials</h1>
-          <p className="mt-2 text-sm text-white/85 max-w-2xl">
-            Add, edit, enable, disable, or delete filament materials for PRINT_3D equipment you manage.
-            Charge preview updates as you change material prices.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">3D Print Materials</h1>
+            <p className="mt-2 text-sm text-white/85 max-w-2xl">
+              Add, edit, enable, disable, or delete filament materials for PRINT_3D equipment you manage.
+              Charge preview updates as you change material prices.
+            </p>
+          </div>
+        </StandaloneOnly>
 
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>

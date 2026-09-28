@@ -22,6 +22,15 @@ export function PageShell({
   );
 }
 
+/**
+ * Renders only on the full page. Inside the dashboard workspace the workspace frame already
+ * shows the page title, description and a Dashboard button, so page intro banners are hidden.
+ */
+export function StandaloneOnly({ children }: { children: ReactNode }) {
+  const embedded = useEmbeddedMode();
+  return embedded ? null : <>{children}</>;
+}
+
 /** Button classes for controls placed on the navy PageHero background. */
 export const heroButtonClass = {
   primary: "bg-white text-primary shadow-sm hover:bg-white/90 hover:text-primary",

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type OicEquipmentSettings, type OicEquipmentSettingsRow } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -221,23 +222,25 @@ export default function OICEquipmentSettings() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto max-w-5xl space-y-5 px-4 py-5">
-        <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-xl">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="-ml-2 mb-2 text-white/90 hover:bg-white/20 hover:text-white"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Dashboard
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Slot visibility &amp; timings</h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/85">
-            Control when slots become visible, the external slot quota, and booking and sample deadlines for each
-            equipment you manage.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-xl">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="-ml-2 mb-2 text-white/90 hover:bg-white/20 hover:text-white"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Dashboard
+            </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">Slot visibility &amp; timings</h1>
+            <p className="mt-1 max-w-2xl text-sm text-white/85">
+              Control when slots become visible, the external slot quota, and booking and sample deadlines for each
+              equipment you manage.
+            </p>
+          </div>
+        </StandaloneOnly>
 
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

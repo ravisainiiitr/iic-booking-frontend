@@ -74,6 +74,7 @@ const OIC_DASHBOARD_MENU_ORDER = [
   "browse_equipment",
   "booking_management",
   "urgent_requests",
+  "multi_mode_equipment",
   "equipment_waitlist",
   "quota_configurations",
   "equipment_settings",
@@ -86,6 +87,43 @@ const OIC_DASHBOARD_MENU_ORDER = [
   "rate_your_experience",
   "support_tickets",
 ];
+
+/** Workspace header copy; pages hide their own hero when embedded, so this is the only title shown. */
+const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string }> = {
+  "/booking-management": { title: "Booking Management", description: "Review and manage bookings for your equipment." },
+  "/urgent-requests": { title: "Urgent Requests", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
+  "/oic/multi-mode": { title: "Multi-mode Equipment" },
+  "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
+  "/oic/quota-configurations": { title: "Quota Configurations" },
+  "/oic/equipment-settings": { title: "Slot Visibility & Timing" },
+  "/booking-attempt-logs": { title: "Booking Attempt Log" },
+  "/reports": { title: "Reports & Statistics" },
+  "/oic/accessories": { title: "Accessories" },
+  "/oic/print-materials": { title: "Print Materials" },
+  "/publication-claims": { title: "Publication Claims" },
+  "/ta-assignments": { title: "TA Duty Assignments" },
+  "/ta-nomination-call": { title: "TA Nomination Call" },
+  "/notice-board-requests": { title: "Notice Board Requests" },
+  "/repeat-sample-requests": { title: "Repeat Sample Requests" },
+  "/tickets": { title: "Support Tickets" },
+  "/admin-settings": { title: "Admin Settings" },
+  "/calendar-colors": { title: "Calendar Colours" },
+  "/leave-management": { title: "Leave Management" },
+  "/oic-leave-management": { title: "OIC Leave Management" },
+};
+
+function getWorkspacePageMeta(path: string): { title: string; description?: string } | null {
+  const clean = (path || "").split(/[?#]/)[0].replace(/\/+$/, "") || "/";
+  return WORKSPACE_PAGE_META[clean] ?? null;
+}
+
+function formatWorkspaceTitle(raw: string): string {
+  return raw
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (/^(oic|ta|id)$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
 
 interface Booking extends BookingRef {
   user: number;
@@ -344,9 +382,11 @@ const Dashboard = () => {
   const [labBookingLegendColors, setLabBookingLegendColors] = useState<Record<string, string>>({
     ...DEFAULT_LAB_BOOKING_COLORS,
   });
-  /** Week slot grid: collapsed by default to reduce noise and avoid loading slots until needed. */
-  /** Week slot grid: expanded by default so Lab In-charge sees the calendar first. */
-  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(true);
+  /** Week slot grid: expanded by default for Lab In-charge, collapsed for OIC (slots load only when expanded). */
+  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(
+    () => String(user?.user_type ?? "").toLowerCase() === "operator"
+  );
+  const labWeekCalendarRoleDefaultAppliedRef = useRef(false);
   const [labDashSelectedBookingId, setLabDashSelectedBookingId] = useState<number | null>(null);
   const [labDashDetailBooking, setLabDashDetailBooking] = useState<BookingDetailCardBooking | null>(null);
   const [labDashDetailLoading, setLabDashDetailLoading] = useState(false);
@@ -363,6 +403,13 @@ const Dashboard = () => {
   const isAccountsInChargeUser = isAccountsInChargeRole(user);
   /** Same weekly metrics, instrument hero, and week calendar as Lab Incharge. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
+
+  useEffect(() => {
+    if (!userTypeStr || labWeekCalendarRoleDefaultAppliedRef.current) return;
+    labWeekCalendarRoleDefaultAppliedRef.current = true;
+    setLabWeekCalendarExpanded(userTypeStr === "operator");
+  }, [userTypeStr]);
+
   const isOperatorOrManager = 
     userTypeStr === 'operator' || userTypeStr === 'manager' || userTypeStr === 'admin';
   
@@ -758,7 +805,7 @@ const Dashboard = () => {
   }, []);
 
   const labDashKpiClassName =
-    "group relative overflow-hidden text-left rounded-2xl border border-border/60 bg-card p-5 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-px hover:border-primary/40 hover:shadow-md dark:ring-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-55 disabled:hover:translate-y-0";
+    "group relative overflow-hidden text-left rounded-xl border border-border/60 bg-card p-3 shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-px hover:border-primary/40 hover:shadow-md dark:ring-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-55 disabled:hover:translate-y-0";
 
   const refreshLabOperatorHome = useCallback(async () => {
     const res = await apiClient.getLabOperatorDashboard({
@@ -1311,6 +1358,8 @@ const Dashboard = () => {
   }
 
   const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(workspaceCurrentPath || workspacePath || "");
+  const workspaceMeta =
+    getWorkspacePageMeta(workspaceCurrentPath || workspacePath || "") ?? getWorkspacePageMeta(workspacePath || "");
   const dashboardHomeButton = (
     <Button
       type="button"
@@ -3392,20 +3441,20 @@ const Dashboard = () => {
             </SheetContent>
           </Sheet>
 
-          <div className="lg:col-span-9 xl:col-span-10 order-2 min-w-0 space-y-6">
+          <div className="lg:col-span-9 xl:col-span-10 order-2 min-w-0 space-y-4">
             {workspacePath ? (
               <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                 {!hideWorkspaceHeader && (
                   <>
-                    <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
-                    <CardHeader className="pb-2 pt-3 flex flex-row items-center justify-between gap-3 space-y-0 px-4">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
+                    <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b border-border/50 px-4 py-2.5">
                       <div className="min-w-0">
-                        <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight truncate capitalize">
-                          {workspaceTitle || "Workspace"}
+                        <CardTitle className="truncate text-base font-semibold tracking-tight sm:text-lg">
+                          {workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
                         </CardTitle>
-                        <CardDescription className="text-xs sm:text-sm">
-                          Staying on the dashboard — use Dashboard to return.
-                        </CardDescription>
+                        {workspaceMeta?.description ? (
+                          <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
+                        ) : null}
                       </div>
                       <Button
                         type="button"
@@ -3501,7 +3550,7 @@ const Dashboard = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5 p-4 sm:p-5">
+            <CardContent className="space-y-3 p-3 sm:p-4">
               {labOperatorDashLoading && !labOperatorDash ? (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed py-16 text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -3509,83 +3558,17 @@ const Dashboard = () => {
                 </div>
               ) : labOperatorDash ? (
                 <>
-                  <div className="hidden">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Label
-                        htmlFor="lab-dash-period"
-                        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        Booking overview and follow-up range
-                      </Label>
-                      <Select
-                        value={labDashPeriod}
-                        onValueChange={(v) => {
-                          const p = v as LabDashPeriod;
-                          setLabDashPeriod(p);
-                          if (p === "custom") {
-                            const d = format(new Date(), "yyyy-MM-dd");
-                            setLabDashCustomFrom((f) => f || d);
-                            setLabDashCustomTo((t) => t || d);
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
-                          <SelectValue placeholder="Range" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="today">Today</SelectItem>
-                          <SelectItem value="week">Weekly (same as calendar week)</SelectItem>
-                          <SelectItem value="month">Monthly</SelectItem>
-                          <SelectItem value="year">Yearly</SelectItem>
-                          <SelectItem value="custom">Custom dates</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {labDashPeriod === "custom" && (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-from" className="text-xs">
-                            From
-                          </Label>
-                          <Input
-                            id="lab-dash-from"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomFrom}
-                            onChange={(e) => setLabDashCustomFrom(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lab-dash-to" className="text-xs">
-                            To
-                          </Label>
-                          <Input
-                            id="lab-dash-to"
-                            type="date"
-                            className="w-[11rem]"
-                            value={labDashCustomTo}
-                            onChange={(e) => setLabDashCustomTo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs tabular-nums text-muted-foreground lg:text-right">
-                      Applied: {format(parseISO(labOperatorDash.filter_date_start), "MMM d, yyyy")} –{" "}
-                      {format(parseISO(labOperatorDash.filter_date_end), "MMM d, yyyy")}
-                    </p>
-                  </div>
-
-                  <section className="space-y-4">
+                  <section className="space-y-2">
                     {!labWeekCalendarExpanded ? (
-                      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                            <Calendar className="h-5 w-5" />
+                      <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
                           </span>
-                          <div className="min-w-0 space-y-1">
+                          <div className="min-w-0">
                             <h3 className="text-sm font-semibold tracking-tight text-foreground">Week calendar</h3>
                             <p className="text-xs text-muted-foreground">
-                              Slot grids load when expanded. Week shown:{" "}
+                              Week of{" "}
                               <span className="font-medium tabular-nums text-foreground">
                                 {format(parseISO(labOperatorDash.week_start), "MMM d")} –{" "}
                                 {format(parseISO(labOperatorDash.week_end), "MMM d, yyyy")}
@@ -3597,18 +3580,18 @@ const Dashboard = () => {
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-10 shrink-0 gap-2 self-stretch sm:self-center border-dashed"
+                          className="h-8 shrink-0 gap-1.5 self-start sm:self-center"
                           onClick={() => setLabWeekCalendarExpanded(true)}
                         >
                           <ChevronDown className="h-4 w-4 opacity-80" />
-                          Expand week calendar
+                          Expand
                         </Button>
                       </div>
                     ) : (
                       <>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                               <Calendar className="h-4 w-4" />
                             </span>
                             Week calendar
@@ -3617,13 +3600,13 @@ const Dashboard = () => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-9 shrink-0"
+                            className="h-8 shrink-0"
                             onClick={() => setLabWeekCalendarExpanded(false)}
                           >
                             Collapse
                           </Button>
                         </div>
-                        <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5 space-y-4">
+                        <div className="rounded-xl border border-border/60 bg-muted/10 p-3 space-y-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex flex-wrap items-center gap-2">
                               <Button
@@ -3767,8 +3750,8 @@ const Dashboard = () => {
                     )}
                   </section>
 
-                  <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/15 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                       <Label
                         htmlFor="lab-dash-period"
                         className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -3787,7 +3770,7 @@ const Dashboard = () => {
                           }
                         }}
                       >
-                        <SelectTrigger id="lab-dash-period" className="h-10 w-full max-w-xs">
+                        <SelectTrigger id="lab-dash-period" className="h-8 w-[15rem]">
                           <SelectValue placeholder="Range" />
                         </SelectTrigger>
                         <SelectContent>
@@ -3800,27 +3783,27 @@ const Dashboard = () => {
                       </Select>
                     </div>
                     {labDashPeriod === "custom" && (
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <Label htmlFor="lab-dash-from" className="text-xs">
                             From
                           </Label>
                           <Input
                             id="lab-dash-from"
                             type="date"
-                            className="w-[11rem]"
+                            className="h-8 w-[10rem]"
                             value={labDashCustomFrom}
                             onChange={(e) => setLabDashCustomFrom(e.target.value)}
                           />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
                           <Label htmlFor="lab-dash-to" className="text-xs">
                             To
                           </Label>
                           <Input
                             id="lab-dash-to"
                             type="date"
-                            className="w-[11rem]"
+                            className="h-8 w-[10rem]"
                             value={labDashCustomTo}
                             onChange={(e) => setLabDashCustomTo(e.target.value)}
                           />
@@ -3833,37 +3816,36 @@ const Dashboard = () => {
                     </p>
                   </div>
 
-                  <section className="space-y-4">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <section className="space-y-2">
+                    <h3
+                      className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+                      title="Click Pending (booked) or Completed to open that list; click a booking ID to view its details."
+                    >
                       Booking overview
                     </h3>
-                    <p className="text-xs text-muted-foreground -mt-2">
-                      Click <span className="font-medium text-foreground">Pending (booked)</span> or{" "}
-                      <span className="font-medium text-foreground">Completed</span> to open that list. Click a booking
-                      ID to view details below (same page).
-                    </p>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div
                         className={`${labDashKpiClassName} ${labDashPanel?.key === "overall" ? "ring-2 ring-primary/35" : ""}`}
                       >
                         <ChevronDown
-                          className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "overall" ? "rotate-180" : ""}`}
+                          className={`pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground transition-transform ${labDashPanel?.key === "overall" ? "rotate-180" : ""}`}
                         />
-                        <CalendarDays className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-primary-foreground0/[0.12] transition-opacity group-hover:text-primary-foreground0/20" />
+                        <CalendarDays className="pointer-events-none absolute right-9 top-2.5 h-8 w-8 text-primary-foreground0/[0.12] transition-opacity group-hover:text-primary-foreground0/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
                           Internal Pending Bookings
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
+                        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
                           {labOperatorDash.overall_booking_booked_total - labOperatorDash.external_booking_booked_total}/{labOperatorDash.overall_booking_total}
                         </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           Pending Bookings / Total
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "overall", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-primary/90/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-primary/90/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                               labDashPanel?.key === "overall" && labDashPanel.segment === "BOOKED"
                                 ? "border-primary/50 bg-primary/50/[0.06] ring-1 ring-primary/30"
                                 : "border-border/60 bg-background/40"
@@ -3872,14 +3854,14 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Pending (booked)
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-primary dark:text-sky-200">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-primary dark:text-sky-200">
                               {labOperatorDash.overall_booking_booked_total}
                             </p>
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "overall", segment: "COMPLETED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                               labDashPanel?.key === "overall" && labDashPanel.segment === "COMPLETED"
                                 ? "border-emerald-500/50 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
                                 : "border-border/60 bg-background/40"
@@ -3888,36 +3870,33 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Completed
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-emerald-700 dark:text-emerald-400">
                               {labOperatorDash.overall_booking_completed}
                             </p>
                           </button>
                         </div>
-                        <p className="mt-3 text-[11px] font-normal text-muted-foreground/90">
-                          Total = booked + completed in range
-                        </p>
                       </div>
                       <div
                         className={`${labDashKpiClassName} ${labDashPanel?.key === "external" ? "ring-2 ring-accent/35" : ""}`}
                       >
                         <ChevronDown
-                          className={`pointer-events-none absolute right-3 top-3 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "external" ? "rotate-180" : ""}`}
+                          className={`pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground transition-transform ${labDashPanel?.key === "external" ? "rotate-180" : ""}`}
                         />
-                        <Globe2 className="pointer-events-none absolute right-10 top-3 h-10 w-10 text-accent/[0.12] group-hover:text-accent/20" />
+                        <Globe2 className="pointer-events-none absolute right-9 top-2.5 h-8 w-8 text-accent/[0.12] group-hover:text-accent/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-14 leading-snug">
                           External bookings
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-accent dark:text-sky-300">
+                        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-accent dark:text-sky-300">
                           {labOperatorDash.external_booking_booked_total}/{labOperatorDash.external_booking_total}
                         </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           Pending Bookings / Total
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "external", segment: "BOOKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                               labDashPanel?.key === "external" && labDashPanel.segment === "BOOKED"
                                 ? "border-accent/50 bg-accent/10 ring-1 ring-accent/30"
                                 : "border-border/60 bg-background/40"
@@ -3926,14 +3905,14 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Pending (booked)
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-accent dark:text-sky-300">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-accent dark:text-sky-300">
                               {labOperatorDash.external_booking_booked_total}
                             </p>
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "external", segment: "COMPLETED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                               labDashPanel?.key === "external" && labDashPanel.segment === "COMPLETED"
                                 ? "border-emerald-500/50 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
                                 : "border-border/60 bg-background/40"
@@ -3942,49 +3921,45 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Completed
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-emerald-700 dark:text-emerald-400">
                               {labOperatorDash.external_booking_completed}
                             </p>
                           </button>
                         </div>
-                        <p className="mt-3 text-[11px] font-normal text-muted-foreground/90">
-                          External users · total = booked + completed in range
-                        </p>
                       </div>
                     </div>
                   </section>
 
-                  <section className="space-y-4">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <section className="space-y-2">
+                    <h3
+                      className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+                      title="Click Available or the done count of each queue to open that list."
+                    >
                       Follow-up queues
                     </h3>
-                    <p className="text-xs text-muted-foreground -mt-2">
-                      Click <span className="font-medium text-foreground">Available</span> or{" "}
-                      <span className="font-medium text-foreground">Done</span> (already marked) for each queue.
-                    </p>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div
                         className={`${labDashKpiClassName} ${labDashPanel?.key === "not_util" ? "ring-2 ring-amber-500/35" : ""}`}
                       >
                         <ChevronDown
-                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "not_util" ? "rotate-180" : ""}`}
+                          className={`pointer-events-none absolute right-2 top-2 h-4 w-4 text-muted-foreground transition-transform ${labDashPanel?.key === "not_util" ? "rotate-180" : ""}`}
                         />
-                        <AlertCircle className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-amber-500/[0.12] group-hover:text-amber-500/20" />
+                        <AlertCircle className="pointer-events-none right-8 top-2 h-8 w-8 absolute text-amber-500/[0.12] group-hover:text-amber-500/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
                           Booking available to be marked as not utilized
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-amber-700 dark:text-amber-300">
+                        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-amber-700 dark:text-amber-300">
                           {labOperatorDash.not_utilized_available_total}/
                           {labOperatorDash.not_utilized_available_total + labOperatorDash.not_utilized_marked_total}
                         </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           Current / total (available + already marked)
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "not_util", segment: "AVAILABLE" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-amber-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-amber-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 ${
                               labDashPanel?.key === "not_util" && labDashPanel.segment === "AVAILABLE"
                                 ? "border-amber-500/50 bg-amber-500/[0.06] ring-1 ring-amber-500/30"
                                 : "border-border/60 bg-background/40"
@@ -3993,14 +3968,14 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Available
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-amber-700 dark:text-amber-300">
                               {labOperatorDash.not_utilized_available_total}
                             </p>
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "not_util", segment: "MARKED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                               labDashPanel?.key === "not_util" && labDashPanel.segment === "MARKED"
                                 ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
                                 : "border-border/60 bg-background/40"
@@ -4009,7 +3984,7 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Marked
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-foreground/90">
                               {labOperatorDash.not_utilized_marked_total}
                             </p>
                           </button>
@@ -4019,24 +3994,24 @@ const Dashboard = () => {
                         className={`hidden ${labDashKpiClassName} ${labDashPanel?.key === "sample_return" ? "ring-2 ring-primary/35" : ""}`}
                       >
                         <ChevronDown
-                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "sample_return" ? "rotate-180" : ""}`}
+                          className={`pointer-events-none absolute right-2 top-2 h-4 w-4 text-muted-foreground transition-transform ${labDashPanel?.key === "sample_return" ? "rotate-180" : ""}`}
                         />
-                        <PackageOpen className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-primary-foreground0/[0.12] group-hover:text-primary-foreground0/20" />
+                        <PackageOpen className="pointer-events-none right-8 top-2 h-8 w-8 absolute text-primary-foreground0/[0.12] group-hover:text-primary-foreground0/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
                           Sample pickup (completed bookings)
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
+                        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-primary dark:text-sky-200">
                           {labOperatorDash.sample_available_to_return_total}/
                           {labOperatorDash.sample_available_to_return_total + labOperatorDash.sample_returned_done_total}
                         </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           Awaiting return / total (awaiting + already returned)
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "sample_return", segment: "AVAILABLE" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-primary/90/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-primary/90/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                               labDashPanel?.key === "sample_return" && labDashPanel.segment === "AVAILABLE"
                                 ? "border-primary/50 bg-primary/50/[0.06] ring-1 ring-primary/30"
                                 : "border-border/60 bg-background/40"
@@ -4045,14 +4020,14 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Awaiting return
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-primary dark:text-sky-200">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-primary dark:text-sky-200">
                               {labOperatorDash.sample_available_to_return_total}
                             </p>
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "sample_return", segment: "RETURNED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                               labDashPanel?.key === "sample_return" && labDashPanel.segment === "RETURNED"
                                 ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
                                 : "border-border/60 bg-background/40"
@@ -4061,7 +4036,7 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Returned
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-foreground/90">
                               {labOperatorDash.sample_returned_done_total}
                             </p>
                           </button>
@@ -4071,24 +4046,24 @@ const Dashboard = () => {
                         className={`${labDashKpiClassName} ${labDashPanel?.key === "dispose" ? "ring-2 ring-rose-500/35" : ""}`}
                       >
                         <ChevronDown
-                          className={`pointer-events-none absolute right-2 top-2 h-5 w-5 text-muted-foreground transition-transform ${labDashPanel?.key === "dispose" ? "rotate-180" : ""}`}
+                          className={`pointer-events-none absolute right-2 top-2 h-4 w-4 text-muted-foreground transition-transform ${labDashPanel?.key === "dispose" ? "rotate-180" : ""}`}
                         />
-                        <Archive className="pointer-events-none right-8 top-2 h-9 w-9 absolute text-rose-500/[0.12] group-hover:text-rose-500/20" />
+                        <Archive className="pointer-events-none right-8 top-2 h-8 w-8 absolute text-rose-500/[0.12] group-hover:text-rose-500/20" />
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pr-10 leading-snug">
                           Sample Available to be Disposed
                         </p>
-                        <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-rose-700 dark:text-rose-300">
+                        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-rose-700 dark:text-rose-300">
                           {labOperatorDash.sample_available_to_dispose_total}/
                           {labOperatorDash.sample_available_to_dispose_total + labOperatorDash.sample_disposed_done_total}
                         </p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           Current / total (available + already disposed)
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "dispose", segment: "AVAILABLE" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-rose-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-rose-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 ${
                               labDashPanel?.key === "dispose" && labDashPanel.segment === "AVAILABLE"
                                 ? "border-rose-500/50 bg-rose-500/[0.06] ring-1 ring-rose-500/30"
                                 : "border-border/60 bg-background/40"
@@ -4097,14 +4072,14 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Available
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-rose-700 dark:text-rose-300">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-rose-700 dark:text-rose-300">
                               {labOperatorDash.sample_available_to_dispose_total}
                             </p>
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleLabDashPanel({ key: "dispose", segment: "DISPOSED" })}
-                            className={`rounded-xl border p-3 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            className={`rounded-lg border px-2.5 py-1.5 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                               labDashPanel?.key === "dispose" && labDashPanel.segment === "DISPOSED"
                                 ? "border-foreground/25 bg-muted/40 ring-1 ring-foreground/15"
                                 : "border-border/60 bg-background/40"
@@ -4113,7 +4088,7 @@ const Dashboard = () => {
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                               Disposed
                             </p>
-                            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground/90">
+                            <p className="text-lg font-bold leading-tight tabular-nums text-foreground/90">
                               {labOperatorDash.sample_disposed_done_total}
                             </p>
                           </button>
@@ -4121,6 +4096,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </section>
+                  </div>
 
                   {labDashPanel && (
                     <div

@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import FinanceReports from "@/pages/FinanceReports";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -164,6 +165,14 @@ const Reports = () => {
   // Equipment utilization (admin only)
   const [equipmentReportData, setEquipmentReportData] = useState<EquipmentReportData | null>(null);
   const [equipmentLoading, setEquipmentLoading] = useState(false);
+  const [expandedEquipmentReports, setExpandedEquipmentReports] = useState<Set<number>>(() => new Set());
+  const toggleEquipmentReport = (id: number) =>
+    setExpandedEquipmentReports((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [dateFrom, setDateFrom] = useState(() => getDefaultReportDateRange().from);
   const [dateTo, setDateTo] = useState(() => getDefaultReportDateRange().to);
   const [equipmentId, setEquipmentId] = useState<string>("all");
@@ -411,18 +420,20 @@ const Reports = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-7xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-            {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
-          </h1>
-          <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
-            {isLabInchargeUser
-              ? "Monthly-style performance metrics (users, samples, hours, working-window availability, ratings) for your assigned equipment. Export to PDF or Excel."
-              : isFacultyUser
-                ? "Your personal booking overview is below. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
-                : "Click any section to view the full list of bookings with amount spent."}
-          </p>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+              {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
+            </h1>
+            <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
+              {isLabInchargeUser
+                ? "Monthly-style performance metrics (users, samples, hours, working-window availability, ratings) for your assigned equipment. Export to PDF or Excel."
+                : isFacultyUser
+                  ? "Your personal booking overview is below. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
+                  : "Click any section to view the full list of bookings with amount spent."}
+            </p>
+          </div>
+        </StandaloneOnly>
 
         {isFacultyUser && !isLabInchargeUser && (
           <Card className="mb-6 overflow-hidden border-primary/25 shadow-md dark:border-primary/40 rounded-2xl">
@@ -993,8 +1004,8 @@ const Reports = () => {
           <>
             {!isLabInchargeUser && (
               <>
-                <h2 className="text-2xl font-bold mb-2 mt-6">Equipment performance reports</h2>
-                <p className="text-muted-foreground mb-6">
+                <h2 className="mb-1 mt-4 text-lg font-semibold tracking-tight">Equipment performance reports</h2>
+                <p className="mb-4 text-sm text-muted-foreground">
                   Monthly-style performance metrics (users, samples from input A, hours, working-window availability, ratings) with PDF/Excel export.
                   Scheduled emails go to each equipment&apos;s Officer(s) in charge and Lab operator(s) (one PDF per equipment).
                 </p>
@@ -1284,7 +1295,7 @@ const Reports = () => {
                   </div>
                 )}
 
-                <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                <div className="mb-6 grid gap-6">
                   <Card>
                     <CardHeader>
                       <CardTitle>Overall equipment utilization</CardTitle>
@@ -1340,20 +1351,42 @@ const Reports = () => {
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Per-equipment charts</CardTitle>
-                      <CardDescription>Slot-hour mix per equipment follows this section</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-muted-foreground text-sm">
-                        Each equipment card below includes users, samples (input A), booking hours, working-window utilization, weekend/holiday slot hours, disruption hours, and user ratings.
-                      </p>
-                    </CardContent>
-                  </Card>
                 </div>
 
-                <div className="space-y-6 mb-6">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-semibold tracking-tight">Equipment-wise report</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {equipmentReportData.equipment.length} equipment · expand a row for charts, slot disposition and ratings
+                    </p>
+                  </div>
+                  {equipmentReportData.equipment.length > 1 && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() =>
+                          setExpandedEquipmentReports(new Set(equipmentReportData.equipment.map((e) => e.equipment_id)))
+                        }
+                      >
+                        Expand all
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => setExpandedEquipmentReports(new Set())}
+                      >
+                        Collapse all
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mb-6 space-y-2">
                   {equipmentReportData.equipment.map((eq) => {
                     const capBar = [
                       { label: "Available (work window)", h: Number(eq.available_hours_working_window ?? 0), fill: "#1e4d8c" },
@@ -1371,38 +1404,60 @@ const Reports = () => {
                       compliance_booking_request_parameters: "Compliance with request",
                     };
                     const ur = eq.user_ratings;
+                    const expanded = expandedEquipmentReports.has(eq.equipment_id);
                     return (
                       <Card
                         key={eq.equipment_id}
-                        className="overflow-hidden border-l-4 border-l-primary shadow-md"
+                        className="overflow-hidden rounded-xl border-border/70 shadow-sm"
                       >
-                        <CardHeader className="bg-gradient-to-r from-slate-50 to-primary/5 dark:from-slate-900 dark:to-primary/15">
-                          <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div>
-                              <CardTitle className="text-xl flex items-center gap-2">
-                                <FlaskConical className="h-5 w-5 text-primary" />
-                                {eq.name}
-                              </CardTitle>
-                              <CardDescription className="mt-1 font-mono text-base text-foreground/80">
-                                {eq.code}
-                                <span className="ml-2 font-sans text-sm text-muted-foreground">
-                                  · Slot window: {eq.slot_window_display ?? "—"}
-                                </span>
-                              </CardDescription>
-                            </div>
-                            <div className="text-right text-sm">
-                              <span
-                                className={
-                                  eq.status === "ACTIVE"
-                                    ? "inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
-                                    : "inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
-                                }
-                              >
-                                {eq.status_display || eq.status || ""}
-                              </span>
-                            </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleEquipmentReport(eq.equipment_id)}
+                          aria-expanded={expanded}
+                          className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        >
+                          <FlaskConical className="h-4 w-4 shrink-0 text-primary" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">{eq.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              <span className="font-mono">{eq.code}</span>
+                              {eq.slot_window_display ? ` · ${eq.slot_window_display}` : ""}
+                            </p>
                           </div>
-                          <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
+                            <span>
+                              Users <strong className="text-foreground">{eq.distinct_users_served ?? 0}</strong>
+                            </span>
+                            <span>
+                              Samples <strong className="text-foreground">{eq.total_samples ?? 0}</strong>
+                            </span>
+                            <span>
+                              Hours <strong className="text-foreground">{Number(eq.total_booking_hours ?? 0).toFixed(1)}</strong>
+                            </span>
+                            <span>
+                              Utilization{" "}
+                              <strong className="text-foreground">
+                                {((Number(eq.utilization_vs_working_capacity ?? 0) || 0) * 100).toFixed(1)}%
+                              </strong>
+                            </span>
+                          </div>
+                          <span
+                            className={
+                              eq.status === "ACTIVE"
+                                ? "inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+                                : "inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+                            }
+                          >
+                            {eq.status_display || eq.status || ""}
+                          </span>
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+                          />
+                        </button>
+                        {expanded && (
+                        <>
+                        <div className="border-t border-border/60 bg-muted/20 px-4 py-2.5">
+                          <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
                             <div className="flex items-start gap-2">
                               <Building2 className="h-4 w-4 mt-0.5 shrink-0 text-slate-500" />
                               <span>
@@ -1418,8 +1473,8 @@ const Reports = () => {
                               </span>
                             </div>
                           </div>
-                        </CardHeader>
-                        <CardContent className="space-y-8 pt-6">
+                        </div>
+                        <CardContent className="space-y-6 pt-4">
                           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="rounded-lg border bg-card p-4">
                               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Distinct users served</p>
@@ -1604,6 +1659,8 @@ const Reports = () => {
                             </span>
                           </div>
                         </CardContent>
+                        </>
+                        )}
                       </Card>
                     );
                   })}

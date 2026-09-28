@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type EquipmentOption = { equipment_id: number; name: string; code: string };
 type WaitlistEntry = {
@@ -164,24 +165,26 @@ export default function EquipmentWaitlist() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-4xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Equipment waitlist</h1>
-          <p className="mt-2 text-sm text-white/85">
-            View and clear queues. Users are added when booking fails (if queue depth is set) and notified when slots open.
-          </p>
-        </div>
-        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
-          <CardHeader>
-            <CardTitle>Queue</CardTitle>
+        <StandaloneOnly>
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <h1 className="text-2xl font-semibold tracking-tight">Equipment waitlist</h1>
+            <p className="mt-2 text-sm text-white/85">
+              View and clear queues. Users are added when booking fails (if queue depth is set) and notified when slots open.
+            </p>
+          </div>
+        </StandaloneOnly>
+        <Card className="rounded-xl border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Queue</CardTitle>
             <CardDescription>
               Select an instrument to inspect waitlist entries and clear them when appropriate.
             </CardDescription>
