@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { isExternalBookingUserType } from "@/lib/userTypes";
+import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
+import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { X, FolderDown, Download, Star, Filter, RotateCcw, Banknote } from "lucide-react";
+import { X, FolderDown, Download, Star, Filter, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
@@ -237,6 +238,8 @@ function getReductionFieldMeta(booking: Booking): { key: string; label: string }
 
 const PAGE_SIZE = 50;
 
+const CALENDAR_ELIGIBLE_STATUSES = new Set(["PENDING", "PENDING_PAYMENT", "BOOKED", "HOLD", "DISRUPTION_PENDING"]);
+
 type BookingDailySlot = Booking["daily_slots"][number];
 
 function slotHasStarted(slot: Pick<BookingDailySlot, "start_datetime">): boolean {
@@ -340,6 +343,9 @@ const MyBookings = () => {
   const isFacultyUser = String(currentUserType || "").toLowerCase() === "faculty";
   const isAccountsFinanceUser = String(currentUserType || "").toLowerCase() === "finance";
   const isLabOperatorUser = String(currentUserType || "").toLowerCase() === "operator";
+  const canSyncCalendar = isCalendarSyncUserType(currentUserType);
+  const [calendarSyncOpen, setCalendarSyncOpen] = useState(false);
+  const [calendarIcsLoadingId, setCalendarIcsLoadingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (user?.user_type != null) setCurrentUserType(String(user.user_type));
@@ -752,6 +758,33 @@ const MyBookings = () => {
       if (res.data?.bookings?.[0]) setOverrideBooking(res.data.bookings[0]);
     });
     setTimeout(() => document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  };
+
+  const canAddToCalendar = (booking: Booking) => {
+    if (!canSyncCalendar || isWaitlistedEntry(booking)) return false;
+    if (user?.id == null || Number(booking.user) !== Number(user.id)) return false;
+    if (!CALENDAR_ELIGIBLE_STATUSES.has(String(booking.status || "").toUpperCase())) return false;
+    return (booking.daily_slots ?? []).some((s) => new Date(s.end_datetime).getTime() > Date.now());
+  };
+
+  const downloadBookingCalendar = async (booking: Booking) => {
+    const backendId = getRealBookingId(booking);
+    if (backendId == null) return;
+    setCalendarIcsLoadingId(backendId);
+    const { blob, error } = await apiClient.getBookingCalendarIcsBlob(backendId);
+    setCalendarIcsLoadingId(null);
+    if (!blob) {
+      toast.error(error || "Could not create the calendar file.");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `iic-booking-${String(booking.booking_id).replace(/[^\w-]/g, "_")}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const closeDetail = () => {
@@ -1262,7 +1295,16 @@ const MyBookings = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
-        <h1 className="text-3xl font-bold mb-6">My Bookings</h1>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold">My Bookings</h1>
+          {canSyncCalendar && (
+            <Button variant="outline" onClick={() => setCalendarSyncOpen(true)}>
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Sync to calendar
+            </Button>
+          )}
+        </div>
+        {canSyncCalendar && <CalendarSyncDialog open={calendarSyncOpen} onOpenChange={setCalendarSyncOpen} />}
 
         <Card className="mb-6">
           <CardHeader className="pb-3">
@@ -1554,6 +1596,18 @@ const MyBookings = () => {
                               >
                                 <RotateCcw className="h-3.5 w-3.5 mr-1" />
                                 Book again
+                              </Button>
+                            )}
+                            {canAddToCalendar(booking) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Download this booking as a calendar event (.ics)"
+                                disabled={calendarIcsLoadingId === getRealBookingId(booking)}
+                                onClick={() => downloadBookingCalendar(booking)}
+                              >
+                                <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+                                {calendarIcsLoadingId === getRealBookingId(booking) ? "…" : "Add to calendar"}
                               </Button>
                             )}
                             {!isAccountsFinanceUser &&

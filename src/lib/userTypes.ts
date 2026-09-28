@@ -113,6 +113,11 @@ export function viewerMaySeeInternalRates(
   return String(user.department_type ?? "").toLowerCase() !== "external";
 }
 
+/** Mirrors backend `is_calendar_sync_eligible`: internal and external booking users; staff roles are excluded. */
+export function isCalendarSyncUserType(userType: string | number | null | undefined): boolean {
+  return isInternalRateUserType(userType) || isExternalBookingUserType(userType);
+}
+
 export function chargeEstimateUserTypeOptionsFor(
   maySeeInternal: boolean,
 ): ReadonlyArray<{ code: string; label: string }> {

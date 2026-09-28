@@ -552,6 +552,16 @@ export interface OicEquipmentSettingsRow {
   settings: OicEquipmentSettings;
 }
 
+export interface CalendarSyncSettings {
+  eligible: boolean;
+  feed_url: string;
+  webcal_url: string;
+  google_url: string;
+  outlook_url: string;
+  created_at: string | null;
+  last_accessed_at: string | null;
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -2064,6 +2074,27 @@ class ApiClient {
     }
     const blob = await res.blob();
     return { blob };
+  }
+
+  async getBookingCalendarIcsBlob(bookingId: number): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL}/bookings/${bookingId}/calendar.ics`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { blob };
+  }
+
+  async getCalendarSyncSettings() {
+    return this.request<CalendarSyncSettings>('/calendar-sync/');
+  }
+
+  async regenerateCalendarSyncLink() {
+    return this.request<CalendarSyncSettings>('/calendar-sync/regenerate/', { method: 'POST' });
   }
 
   async getBookingShippingLabelPdfBlob(bookingId: number): Promise<{ blob?: Blob; error?: string }> {
