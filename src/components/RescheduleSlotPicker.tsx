@@ -1,8 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
 import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 /** Monday-start weeks that overlap [minDateStr, maxDateStr] (from slots API slot_window bounds). */
 function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: string): Date[] {
@@ -67,6 +69,7 @@ export interface RescheduleSlot {
   booking_user_phone?: string | null;
   booking_user_department_name?: string | null;
   booking_user_department_code?: string | null;
+  outside_visibility_window?: boolean;
 }
 
 /** Booking holder details shown when hovering the current booking. */
@@ -192,6 +195,7 @@ export default function RescheduleSlotPicker({
   const [holidays, setHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
   const [slotWindowMinDate, setSlotWindowMinDate] = useState<string | null>(null);
   const [slotWindowMaxDate, setSlotWindowMaxDate] = useState<string | null>(null);
+  const [viewWindow, setViewWindow] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selectedSlots, setSelectedSlots] = useState<RescheduleSlot[]>([]);
 
@@ -388,6 +392,7 @@ export default function RescheduleSlotPicker({
     setHolidays(res.data?.holidays ?? {});
     setSlotWindowMinDate(res.data?.slot_window_min_date ?? null);
     setSlotWindowMaxDate(res.data?.slot_window_max_date ?? null);
+    setViewWindow({ from: res.data?.weekly_view_time_from ?? null, to: res.data?.weekly_view_time_to ?? null });
     setSelectedSlots([]);
   }, [targetEquipmentId, weekStart, userType, maintenanceExtraWeekBookingId]);
 
@@ -700,6 +705,10 @@ export default function RescheduleSlotPicker({
         </Button>
       </div>
 
+      {!loadingSlots && slots.some((s) => isOutsideVisibilityWindow(s)) && (
+        <RestrictedSlotLegend from={viewWindow.from} to={viewWindow.to} />
+      )}
+
       {loadingSlots ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
@@ -831,12 +840,17 @@ export default function RescheduleSlotPicker({
                     ? (rawHoliday as { color: string }).color
                     : undefined;
 
+                  const restrictedToStaff = isOutsideVisibilityWindow(slot);
+                  const baseStyle: CSSProperties | undefined =
+                    !slot && holidayColorReschedule
+                      ? { backgroundColor: holidayColorReschedule, color: getContrastTextColor(holidayColorReschedule) }
+                      : undefined;
                   const cell = (
                     <button
                       key={`${day.getTime()}-${timeStr}`}
                       type="button"
                       disabled={disabled}
-                      title={holidayHover}
+                      title={restrictedToStaff ? restrictedSlotHint(viewWindow.from, viewWindow.to) : holidayHover}
                       onClick={() => slot && toggleSlot(slot)}
                       className={`
                         p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center
@@ -848,12 +862,9 @@ export default function RescheduleSlotPicker({
                         ${available && !selected && !currentBooking ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
                         ${available && disabled && !selected && !currentBooking ? "bg-green-100/60 text-green-800 cursor-not-allowed opacity-70" : ""}
                       `}
-                      style={
-                        !slot && holidayColorReschedule
-                          ? { backgroundColor: holidayColorReschedule, color: getContrastTextColor(holidayColorReschedule) }
-                          : undefined
-                      }
+                      style={restrictedToStaff ? restrictedSlotStyle(baseStyle) : baseStyle}
                     >
+                      {restrictedToStaff ? <Lock className="mr-1 h-3 w-3 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
                       {label}
                     </button>
                   );

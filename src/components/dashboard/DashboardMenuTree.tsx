@@ -37,6 +37,8 @@ interface DashboardMenuTreeProps {
   canCustomize: boolean;
   /** Resolves to an error message, or null when saved. */
   onSaveLayout: (layout: DashboardMenuLayout) => Promise<string | null>;
+  /** Rendered after the last menu item (above "Customize menu"). */
+  footer?: ReactNode;
 }
 
 const COLLAPSED_KEY = "iic-dashboard-menu-collapsed";
@@ -53,7 +55,7 @@ function readCollapsed(): Set<string> {
   }
 }
 
-export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize, onSaveLayout }: DashboardMenuTreeProps) {
+export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize, onSaveLayout, footer }: DashboardMenuTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -88,21 +90,26 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
           }
           const isOpen = !collapsed.has(node.group.id);
           return (
-            <div key={`group-${node.group.id}`} className="flex flex-col gap-1" data-dashboard-menu-group>
+            <div key={`group-${node.group.id}`} className="flex flex-col gap-[0.3rem]" data-dashboard-menu-group>
+              {/* Sized like the compact nav rows in index.css (.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer). */}
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-2 py-1.5 text-left text-[0.78rem] font-semibold text-foreground transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex w-full items-center gap-2 rounded-[0.45rem] border border-border/85 bg-card px-[0.55rem] py-[0.4rem] text-left text-card-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-[2.75rem] max-sm:px-[0.7rem] max-sm:py-[0.65rem]"
                 aria-expanded={isOpen}
                 data-menu-keep-open
                 onClick={() => toggleGroup(node.group.id)}
               >
-                {isOpen ? (
-                  <FolderOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                ) : (
-                  <Folder className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                )}
-                <span className="min-w-0 flex-1 truncate">{node.group.name}</span>
-                <span className="rounded-full bg-primary/15 px-1.5 text-[0.65rem] font-semibold text-primary">
+                <span className="flex h-[1.65rem] w-[1.65rem] shrink-0 items-center justify-center rounded-[0.4rem] bg-gradient-to-br from-slate-500 to-slate-700 text-white max-sm:h-8 max-sm:w-8">
+                  {isOpen ? (
+                    <FolderOpen className="h-[0.85rem] w-[0.85rem] max-sm:h-4 max-sm:w-4" aria-hidden />
+                  ) : (
+                    <Folder className="h-[0.85rem] w-[0.85rem] max-sm:h-4 max-sm:w-4" aria-hidden />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[0.78rem] font-semibold leading-[1.15rem] tracking-[-0.01em] max-sm:text-[0.9rem] max-sm:leading-5">
+                  {node.group.name}
+                </span>
+                <span className="rounded-full bg-muted px-1.5 text-[0.65rem] font-semibold text-muted-foreground">
                   {node.items.length}
                 </span>
                 {isOpen ? (
@@ -122,6 +129,7 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
           );
         })}
       </div>
+      {footer}
       {canCustomize && (
         <Button
           type="button"

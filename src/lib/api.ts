@@ -2871,6 +2871,8 @@ class ApiClient {
         booking_user_department_name?: string | null;
         booking_user_email?: string | null;
         booking_user_phone?: string | null;
+        /** Staff views only: slot lies outside weekly_view_time_from/to, so regular users never see it. */
+        outside_visibility_window?: boolean;
         created_at: string;
         updated_at: string;
       }>;

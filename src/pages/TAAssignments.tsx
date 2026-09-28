@@ -3,6 +3,8 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 /** Same helpers as BookEquipment weekly grid. */
 function getContrastTextColor(hex: string): string {
@@ -78,6 +80,7 @@ type WeekSlot = {
   booking_id?: string | null;
   real_booking_id?: number | null;
   blocked_label?: string | null;
+  outside_visibility_window?: boolean;
 };
 
 type WeekSlotBundle = {
@@ -93,6 +96,8 @@ type WeekSlotBundle = {
     sunday_color?: string;
   };
   weekly_holidays?: Record<string, string | { label: string; color?: string }>;
+  weekly_view_time_from?: string | null;
+  weekly_view_time_to?: string | null;
 };
 
 function buildWeeklyTimeRows(ws: WeekSlotBundle | null): string[] {
@@ -352,6 +357,8 @@ export default function TAAssignments() {
         slot_duration_minutes: data.slot_duration_minutes,
         calendar_colors: data.calendar_colors,
         weekly_holidays: data.holidays as WeekSlotBundle["weekly_holidays"],
+        weekly_view_time_from: data.weekly_view_time_from,
+        weekly_view_time_to: data.weekly_view_time_to,
       });
       if (canAllocateTa && !cancelled) {
         const ar = await apiClient.listTAAssignments({ equipment_id: eqId });
@@ -638,6 +645,14 @@ export default function TAAssignments() {
                       </Button>
                     </div>
 
+                    {weekSlotState?.slots.some((s) => isOutsideVisibilityWindow(s)) && (
+                      <RestrictedSlotLegend
+                        className="mb-4"
+                        from={weekSlotState.weekly_view_time_from}
+                        to={weekSlotState.weekly_view_time_to}
+                      />
+                    )}
+
                     <div className="overflow-x-auto relative">
                       {slotsLoading && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 rounded-lg">
@@ -754,6 +769,20 @@ export default function TAAssignments() {
                                   cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                                 }
 
+                                const restrictedToStaff = isOutsideVisibilityWindow(slotData);
+                                const cellTitle =
+                                  taDutyLocked
+                                    ? taDuty?.status === "ACCEPTED"
+                                      ? "TA has accepted this duty"
+                                      : "TA duty already allocated — cancel in the table below to assign again"
+                                    : canSelectTa
+                                      ? canAllocateTa
+                                        ? "Click to add or remove this slot (multi-select)"
+                                        : "Click to select this booking for allocation"
+                                      : !slotData && holidayLabel
+                                        ? holidayHoverText(holidayLabel)
+                                        : undefined;
+
                                 return (
                                   <button
                                     key={dayOffset}
@@ -777,21 +806,22 @@ export default function TAAssignments() {
                                       ${taDutyLocked ? "opacity-100" : !canSelectTa && slotData ? "opacity-90" : ""}
                                       ${isSelected ? "!bg-primary !text-primary-foreground border-primary" : ""}
                                     `}
-                                    style={isSelected ? undefined : cellStyle}
+                                    style={
+                                      restrictedToStaff
+                                        ? restrictedSlotStyle(isSelected ? undefined : cellStyle)
+                                        : isSelected
+                                          ? undefined
+                                          : cellStyle
+                                    }
                                     title={
-                                      taDutyLocked
-                                        ? taDuty?.status === "ACCEPTED"
-                                          ? "TA has accepted this duty"
-                                          : "TA duty already allocated — cancel in the table below to assign again"
-                                        : canSelectTa
-                                          ? canAllocateTa
-                                            ? "Click to add or remove this slot (multi-select)"
-                                            : "Click to select this booking for allocation"
-                                          : !slotData && holidayLabel
-                                            ? holidayHoverText(holidayLabel)
-                                            : undefined
+                                      restrictedToStaff
+                                        ? [restrictedSlotHint(weekSlotState?.weekly_view_time_from, weekSlotState?.weekly_view_time_to), cellTitle]
+                                            .filter(Boolean)
+                                            .join(" ")
+                                        : cellTitle
                                     }
                                   >
+                                    {restrictedToStaff ? <Lock className="h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
                                     <span className="text-center leading-tight px-1">{displayStatus}</span>
                                   </button>
                                 );

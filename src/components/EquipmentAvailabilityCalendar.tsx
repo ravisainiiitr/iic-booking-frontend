@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { addDays, addWeeks, format, parseISO, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Lock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { apiClient } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 
 type SlotsPayload = NonNullable<Awaited<ReturnType<typeof apiClient.getEquipmentSlots>>["data"]>;
 type CalendarSlot = SlotsPayload["slots"][number] & {
@@ -300,14 +302,16 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         bg = slotColors[status] || slotColors.NOT_AVAILABLE;
       }
     }
-    const style: CSSProperties = { backgroundColor: bg, color: getContrastTextColor(bg) };
+    const baseStyle: CSSProperties = { backgroundColor: bg, color: getContrastTextColor(bg) };
+    const restrictedToStaff = isOutsideVisibilityWindow(slot);
     return (
       <div
         key={dateStr}
         className="flex min-h-[48px] w-full items-center justify-center rounded-md border-2 border-white/50 p-2 text-center text-xs font-medium leading-tight shadow-sm sm:text-sm"
-        style={style}
-        title={hover}
+        style={restrictedToStaff ? restrictedSlotStyle(baseStyle) : baseStyle}
+        title={restrictedToStaff ? restrictedSlotHint(payload?.weekly_view_time_from, payload?.weekly_view_time_to) : hover}
       >
+        {restrictedToStaff ? <Lock className="mr-1 h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
         {label}
       </div>
     );
@@ -366,6 +370,10 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
           </Button>
         </div>
       </div>
+
+      {!error && ((payload?.slots ?? []) as CalendarSlot[]).some((s) => isOutsideVisibilityWindow(s)) ? (
+        <RestrictedSlotLegend from={payload?.weekly_view_time_from} to={payload?.weekly_view_time_to} />
+      ) : null}
 
       {error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-6 text-center text-sm text-destructive">

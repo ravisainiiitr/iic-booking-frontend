@@ -3087,7 +3087,6 @@ const Dashboard = () => {
         {dashboardHomeButton}
         {isAccountsInChargeUser ? (
         <>
-        {downloadBrochureButton}
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
@@ -3170,18 +3169,17 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+        {downloadBrochureButton}
         </>
         ) : (
-        <>
-        {downloadBrochureButton}
         <DashboardMenuTree
           entries={dashboardMenuEntries}
           defaultOrder={dashboardMenuDefaultOrder}
           layout={dashboardMenuLayout}
           canCustomize={canCustomizeDashboardMenu}
           onSaveLayout={saveDashboardMenuLayout}
+          footer={downloadBrochureButton}
         />
-        </>
         )}
     </>
   );

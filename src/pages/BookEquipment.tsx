@@ -38,6 +38,8 @@ import {
 } from "@/lib/numericFieldLimits";
 import { formatINR } from "@/lib/money";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
@@ -73,7 +75,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, CalendarPlus, FlaskConical } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
@@ -164,6 +166,8 @@ interface DailySlot {
   blocked_label?: string | null;
   mode_overlay_color?: string | null;
   mode_overlay?: string | null;
+  /** Staff views only: outside the equipment's weekly visibility window (hidden from regular users). */
+  outside_visibility_window?: boolean;
   /** @deprecated Prefer available_for_external / status AVAILABLE; quota replaces reserved-for-external marking. */
   reserved_for_external?: boolean;
   /** True when only the equipment's home-department students/faculty may book (default false = any dept). */
@@ -232,6 +236,9 @@ interface EquipmentDetail {
   slot_end_time?: string | null;
   /** Actual Slot Master open_time values (HH:mm:ss) - use these for calendar time axis to match user-defined timings. */
   slot_master_times?: string[];
+  /** Regular-user visibility window (HH:mm); staff see slots outside it hatched. */
+  weekly_view_time_from?: string | null;
+  weekly_view_time_to?: string | null;
   /** When 'SLOT_ID', weekly grid shows slot number/name on vertical axis; when 'TIME', shows time. */
   weekly_view_display?: 'TIME' | 'SLOT_ID';
   /** Slot masters (for SLOT_ID row labels). */
@@ -9026,6 +9033,14 @@ const BookEquipment = () => {
                   </Button>
                 </div>
 
+                {isAdminOrOIC() && (equipmentDetail?.daily_slots ?? []).some((s) => isOutsideVisibilityWindow(s)) && (
+                  <RestrictedSlotLegend
+                    className="mb-3"
+                    from={equipmentDetail?.weekly_view_time_from}
+                    to={equipmentDetail?.weekly_view_time_to}
+                  />
+                )}
+
                 {/* Slot Grid */}
                 {(() => {
                   return (
@@ -9459,7 +9474,12 @@ const BookEquipment = () => {
                             cellStyle = { backgroundColor: naBg, color: getContrastTextColor(naBg) };
                           }
 
-                          const unavailableReason = unavailableBookingSlotReason({
+                          const restrictedToStaff = slotExists && isAdminOrOIC() && isOutsideVisibilityWindow(slotData);
+                          if (restrictedToStaff) {
+                            cellStyle = restrictedSlotStyle(cellStyle);
+                          }
+
+                          const slotReason = unavailableBookingSlotReason({
                             slotExists,
                             isDisabled,
                             isSelected,
@@ -9480,6 +9500,12 @@ const BookEquipment = () => {
                             chargeNotCalculated,
                             isAdminOrOic: isAdminOrOIC(),
                           });
+                          const unavailableReason = restrictedToStaff
+                            ? [
+                                restrictedSlotHint(equipmentDetail?.weekly_view_time_from, equipmentDetail?.weekly_view_time_to),
+                                slotReason,
+                              ].filter(Boolean).join(" ")
+                            : slotReason;
 
                           const cellButton = (
                             <button
@@ -9512,6 +9538,7 @@ const BookEquipment = () => {
                               `}
                               style={cellStyle}
                             >
+                              {restrictedToStaff ? <Lock className="mr-1 h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
                               {displayStatus}
                             </button>
                           );
