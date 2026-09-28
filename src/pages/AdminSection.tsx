@@ -819,6 +819,8 @@ export default function AdminSection() {
       data = {
         name: formData.name,
         description: formData.description ?? "",
+        alternative_booking_enabled: formData.alternative_booking_enabled === true,
+        alternative_search_other_slots: formData.alternative_search_other_slots === true,
         equipment_ids: equipment.map((e) => e.equipment_id),
         quotas: ["WEEKLY", "MONTHLY"].map((quotaType) => {
           const q = getQuota(quotaType);
@@ -2291,6 +2293,34 @@ export default function AdminSection() {
                       />
                     </div>
                   </div>
+                  {editingId !== null && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Alternate equipment during booking</Label>
+                      <p className="text-xs text-muted-foreground">
+                        When on, users booking equipment of this group get the booking option &quot;Automatically search
+                        and allocate alternate equipment&quot;. Only the Main Administrator can change these settings.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="group-alternative_booking_enabled"
+                          checked={formData.alternative_booking_enabled === true}
+                          onCheckedChange={(c) => setFormData((prev) => ({ ...prev, alternative_booking_enabled: c === true }))}
+                        />
+                        <Label htmlFor="group-alternative_booking_enabled">Offer alternate equipment of this group</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="group-alternative_search_other_slots"
+                          checked={formData.alternative_search_other_slots === true}
+                          disabled={formData.alternative_booking_enabled !== true}
+                          onCheckedChange={(c) => setFormData((prev) => ({ ...prev, alternative_search_other_slots: c === true }))}
+                        />
+                        <Label htmlFor="group-alternative_search_other_slots">
+                          Also offer the earliest other time when the same slot is not free
+                        </Label>
+                      </div>
+                    </div>
+                  )}
                   {(formData.created_at != null || formData.updated_at != null) && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Timestamps</Label>

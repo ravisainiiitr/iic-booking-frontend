@@ -6511,6 +6511,8 @@ class ApiClient {
     print_analysis_batch_id?: string;
     /** Ask the backend to offer same-group alternative equipment before waitlisting (feature-flagged). */
     offer_group_alternatives?: boolean;
+    /** "Automatically search and allocate alternate equipment": true books the first alternative, false asks first. */
+    auto_allocate_alternative?: boolean;
     /** User chose "Continue to Waitlist" after alternatives were offered. */
     skip_group_alternatives?: boolean;
     /** Booking an alternative offered for this equipment (audit only; backend re-validates). */

@@ -1442,6 +1442,17 @@ const BookEquipment = () => {
     user_label?: string | null;
   } | null>(null);
   const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
+  /** Booking option: book the first free equipment of the group automatically (else ask before booking it). */
+  const [autoAllocateAlternative, setAutoAllocateAlternative] = useState(false);
+  const groupAlternativeOption =
+    !!equipmentDetail?.group_alternatives_enabled &&
+    equipmentDetail?.profile_type !== "PRINT_3D" &&
+    !isUrgentTypeBHoldMode &&
+    !repeatSourceBooking;
+  /** No free slot this week on the chosen equipment: the request itself asks for the group's earliest slot. */
+  const groupAlternativeSearchWithoutSlots =
+    groupAlternativeOption && !hasBookableSlotInSelectedWeek && selectedSlots.length === 0;
+  const canSubmitWithoutSlots = waitlistIntentEffective || groupAlternativeSearchWithoutSlots;
   const repeatBookableFromMs = useMemo(() => {
     const iso = repeatSourceBooking?.bookable_from;
     if (!iso) return null;
@@ -5165,6 +5176,7 @@ const BookEquipment = () => {
     lastCalculatedValuesRef.current = '';
     setBookAnyAvailableSlots(false);
     setBookEvenIfSingleSlotAvailable(false);
+    setAutoAllocateAlternative(false);
     if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
       const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
       equipmentDetail.input_fields.forEach((field: any) => {
@@ -5183,7 +5195,7 @@ const BookEquipment = () => {
   }, [equipmentDetail?.input_fields]);
 
   const handleBooking = async () => {
-    if (!userId || !selectedEquipment || (selectedSlots.length === 0 && !waitlistIntentEffective)) {
+    if (!userId || !selectedEquipment || (selectedSlots.length === 0 && !canSubmitWithoutSlots)) {
       toast.error("Please select at least one time slot");
       return;
     }
@@ -5260,7 +5272,7 @@ const BookEquipment = () => {
     }
 
     // Validate selection per business rules (skip this for explicit waitlist mode)
-    if (!waitlistIntentEffective && calculatedCharge && !isSelectionValidForBooking()) {
+    if (!waitlistIntentEffective && !groupAlternativeSearchWithoutSlots && calculatedCharge && !isSelectionValidForBooking()) {
       const required = calculatedCharge.total_time_minutes;
       const selected = getTotalSelectedMinutes();
       const oneSlot = getOneSlotDurationMinutes(selectedSlots[0]);
@@ -5316,9 +5328,9 @@ const BookEquipment = () => {
     setIsSubmittingBooking(true);
 
     try {
-      // No-slots visible flow: user explicitly confirmed waitlist booking.
-      if (waitlistIntentEffective && !canUseSlotIds) {
-        const res = await apiClient.bookEquipment(selectedEquipment.id, {
+      // No-slots visible flow: waitlist booking and/or a search for alternate equipment in the group.
+      if (canSubmitWithoutSlots && !canUseSlotIds) {
+        const noSlotBody: Parameters<typeof apiClient.bookEquipment>[1] = {
           input_values: inputFieldValues,
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
@@ -5328,7 +5340,27 @@ const BookEquipment = () => {
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...print3dBookExtras,
+        };
+        const res = await apiClient.bookEquipment(selectedEquipment.id, {
+          ...noSlotBody,
+          ...(groupAlternativeOption
+            ? { offer_group_alternatives: true, auto_allocate_alternative: autoAllocateAlternative }
+            : {}),
         });
+        const noSlotAltPayload = res.data as unknown as GroupAlternativesPayload | undefined;
+        if (
+          res.error &&
+          res.errorCode === "GROUP_ALTERNATIVES_AVAILABLE" &&
+          Array.isArray(noSlotAltPayload?.alternatives) &&
+          noSlotAltPayload.alternatives.length > 0
+        ) {
+          setGroupAlternatives({
+            payload: noSlotAltPayload,
+            requestBody: noSlotBody,
+            originalEquipmentId: Number(selectedEquipment.id),
+          });
+          return;
+        }
         const errRes = res as { error?: string; waitlist_position?: number; waitlist_code?: string };
         if (res.error || errRes.waitlist_position != null || errRes.waitlist_code) {
           const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
@@ -5347,6 +5379,49 @@ const BookEquipment = () => {
           return;
         }
         logBookingServerTimings(res);
+        const allocatedData = res.data as unknown as {
+          real_booking_id?: number;
+          id?: number;
+          virtual_booking_id?: string;
+          booking_id?: string | number;
+          payment_required?: boolean;
+          amount_due?: string;
+          require_istem_fbr?: boolean;
+          istem_fbr_status?: string | null;
+          allocated_alternative?: GroupAllocatedAlternative;
+        } | undefined;
+        const allocatedRealId =
+          allocatedData?.real_booking_id ?? (typeof allocatedData?.id === "number" ? allocatedData.id : undefined);
+        if (allocatedRealId != null) linkBookingToResearchWorkspace(allocatedRealId);
+        const allocated = allocatedData?.allocated_alternative;
+        const allocatedName = allocated?.equipment.name ?? "the alternate equipment";
+        resetBookingPageToDefaults();
+        if (allocatedData?.payment_required && allocatedRealId != null) {
+          navigate(`/bookings/${allocatedRealId}/payment`);
+          toast.info(`Booking reserved on ${allocatedName}. Please pay ₹${Number(allocatedData.amount_due || 0).toFixed(2)} to confirm.`);
+          return;
+        }
+        if (allocatedRealId != null && (allocatedData?.require_istem_fbr === true || allocatedData?.istem_fbr_status != null)) {
+          navigate(`/bookings/${allocatedRealId}/next-steps`);
+          toast.success(`Booking confirmed on ${allocatedName}. Complete I-STEM steps on the next page.`);
+          return;
+        }
+        const allocatedView =
+          (typeof allocatedData?.virtual_booking_id === "string" && allocatedData.virtual_booking_id.trim()) ||
+          (typeof allocatedData?.booking_id === "string" && allocatedData.booking_id.trim()) ||
+          (allocatedRealId != null ? String(allocatedRealId) : undefined);
+        setBookingResultDialog({
+          open: true,
+          success: true,
+          variant: "success",
+          bookingViewQuery: allocatedView,
+          bookingDisplayId: allocatedView,
+          message: allocated
+            ? `${allocated.original_equipment.name} had no free slot, so your booking was allocated to ` +
+              `${allocated.equipment.name} (same equipment group) for ${describeGroupSlotWindow(allocated.start, allocated.end)}.`
+            : "Booking created successfully!",
+        });
+        return;
       }
 
       // Backend resolves "book any available slots" / single-slot fallback; avoid an extra getEquipmentSlots round-trip here.
@@ -5446,7 +5521,9 @@ const BookEquipment = () => {
         };
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           ...bookBody,
-          ...(offerGroupAlternatives ? { offer_group_alternatives: true } : {}),
+          ...(offerGroupAlternatives
+            ? { offer_group_alternatives: true, auto_allocate_alternative: autoAllocateAlternative }
+            : {}),
         });
         const altPayload = res.data as unknown as GroupAlternativesPayload | undefined;
         if (
@@ -5734,6 +5811,7 @@ const BookEquipment = () => {
       visible_week_end: _we,
       total_cost: _cost,
       total_hours: _hours,
+      request_waitlist_without_slot_selection: _noSelection,
       ...rest
     } = requestBody;
     setGroupAltBookingId(alt.equipment_id);
@@ -9509,15 +9587,38 @@ const BookEquipment = () => {
                       </div>
                     )}
 
-                    {/* Booking options — internal users only; external users book selected slots or get an unsuccessful result (no waitlist). */}
-                    {!bookingAsExternalTarget && (
+                    {/* Booking options — waitlist / fallback options are internal only; external users book selected slots or get an unsuccessful result (no waitlist). */}
+                    {(!bookingAsExternalTarget || groupAlternativeOption) && (
                     <div className="mt-6 rounded-xl border border-border/80 bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                       <div className="flex items-center gap-2">
                         <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
                         <p className="text-sm font-medium text-foreground">Booking options</p>
                       </div>
                       <div className="space-y-3">
-                        {Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek ? (
+                        {groupAlternativeOption ? (
+                          <>
+                            <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
+                              <Checkbox
+                                id="auto-allocate-alternative"
+                                checked={autoAllocateAlternative}
+                                onCheckedChange={(c) => setAutoAllocateAlternative(c === true)}
+                                className="mt-0.5 h-4 w-4"
+                              />
+                              <span className="text-sm text-foreground group-hover:text-foreground">
+                                Automatically search and allocate alternate equipment
+                              </span>
+                            </label>
+                            <p className="text-xs text-muted-foreground pl-7">
+                              {autoAllocateAlternative
+                                ? "If this equipment has no free slot for your booking, the next available equipment in the same group is searched and your booking is allocated there automatically."
+                                : "If this equipment has no free slot for your booking, the next available equipment in the same group is searched and shown to you; nothing is booked on it until you confirm."}
+                              {groupAlternativeSearchWithoutSlots
+                                ? " No slot is free on this equipment in the selected week, so you can submit without selecting a slot."
+                                : ""}
+                            </p>
+                          </>
+                        ) : null}
+                        {!bookingAsExternalTarget && Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek ? (
                           <>
                             <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
                               <Checkbox
@@ -9535,7 +9636,7 @@ const BookEquipment = () => {
                             </p>
                           </>
                         ) : null}
-                        {hasBookableSlotInSelectedWeek ? (
+                        {!bookingAsExternalTarget && hasBookableSlotInSelectedWeek ? (
                           <>
                             <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
                               <Checkbox
@@ -9642,7 +9743,7 @@ const BookEquipment = () => {
                       <Button
                         className="flex-1 min-w-[140px]"
                         onClick={handleBooking}
-                        disabled={!selectedEquipmentIsOperational || (selectedSlots.length === 0 && !waitlistIntentEffective) || isSubmittingBooking}
+                        disabled={!selectedEquipmentIsOperational || (selectedSlots.length === 0 && !canSubmitWithoutSlots) || isSubmittingBooking}
                       >
                         {isSubmittingBooking ? (
                           <>
@@ -9661,6 +9762,8 @@ const BookEquipment = () => {
                                   : <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>)
                               : (waitlistIntentEffective && selectedSlots.length === 0
                                   ? <>Confirm Waitlisted Booking</>
+                                  : groupAlternativeSearchWithoutSlots
+                                  ? <>Find alternate equipment</>
                                   : <>Confirm Booking ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>)}
                           </>
                         )}
