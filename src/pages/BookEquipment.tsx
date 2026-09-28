@@ -1448,6 +1448,7 @@ const BookEquipment = () => {
     !!equipmentDetail?.group_alternatives_enabled &&
     equipmentDetail?.profile_type !== "PRINT_3D" &&
     !isUrgentTypeBHoldMode &&
+    !isRushReliefMode &&
     !repeatSourceBooking;
   /** No free slot this week on the chosen equipment: the request itself asks for the group's earliest slot. */
   const groupAlternativeSearchWithoutSlots =
@@ -5498,7 +5499,9 @@ const BookEquipment = () => {
         const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
         const weekEnd = addDays(weekStart, 6);
         const offerGroupAlternatives =
-          !!equipmentDetail?.group_alternatives_enabled && equipmentDetail?.profile_type !== "PRINT_3D";
+          !!equipmentDetail?.group_alternatives_enabled &&
+          equipmentDetail?.profile_type !== "PRINT_3D" &&
+          !isRushReliefMode;
         const bookBody: Parameters<typeof apiClient.bookEquipment>[1] = {
           slot_ids: finalSlotIds,
           total_hours: totalHours,
