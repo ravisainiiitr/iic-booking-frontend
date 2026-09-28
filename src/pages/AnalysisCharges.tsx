@@ -187,6 +187,15 @@ export default function AnalysisCharges() {
       if (presentation.simplified && presentation.mode === "multi_param") {
         const opts = presentation.optionColumns ?? [];
         for (const row of presentation.multiParamRows ?? []) {
+          if (row.chargeLine) {
+            rows.push({
+              equipmentName: eq.name,
+              userCategory: row.label,
+              charge: row.chargeLine,
+              gst: row.gstLine,
+            });
+            continue;
+          }
           const chargeLines = opts.map((opt) => ({
             option: opt,
             amount: row.chargesByOption[opt] ?? "—",

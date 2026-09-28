@@ -12,6 +12,8 @@ export type ChargeCategoryRowInput = {
   notes?: string;
   /** Admin-authored rate-card line; preferred when non-empty. */
   displayText?: string | null;
+  /** This user category's own profile type; falls back to the equipment profile type. */
+  profileType?: string | null;
 };
 
 export type MultiParamSlotOptionInput = {
@@ -51,8 +53,28 @@ export type ChargeCategoryPresentation = {
     label: string;
     chargesByOption: Record<string, string>;
     gstLine: string;
+    /**
+     * Set when this category is on a non multi-parameter profile (mixed-profile equipment):
+     * one charge line that applies to every option instead of per-option charges.
+     */
+    chargeLine?: string;
   }>;
 };
+
+function isMultiParamProfile(profileType: string): boolean {
+  return profileType === "MULTI_PARAM" || profileType === "MULTI-PARAMETER";
+}
+
+function rowProfileType(row: ChargeCategoryRowInput, equipmentProfileType: string): string {
+  return String(row.profileType || "").toUpperCase() || equipmentProfileType;
+}
+
+/** Charge line for one category using only its own profile type. */
+function singleRowChargeLine(row: ChargeCategoryRowInput, profileType: string): string {
+  const own = buildChargeCategoryPresentation(profileType, [{ ...row, profileType }]);
+  if (own.simplified && own.rows[0]?.chargeLine) return own.rows[0].chargeLine;
+  return trimmedDisplayText(row.displayText) || moneyOrDash(row.primary);
+}
 
 function formatBreakpoint(raw: string | number | null | undefined): string | null {
   if (raw == null || String(raw).trim() === "") return null;
@@ -185,7 +207,8 @@ function findSlotOptionForLabel(
 
 function buildMultiParamPresentation(
   rows: ChargeCategoryRowInput[],
-  context: ChargeCategoryPresentationContext
+  context: ChargeCategoryPresentationContext,
+  equipmentProfileType = "MULTI_PARAM"
 ): ChargeCategoryPresentation | null {
   const slotOptions = Array.isArray(context.slotOptions) ? context.slotOptions : [];
   const fieldBOptions = getMultiParamFieldBOptions(context.inputFields);
@@ -193,7 +216,19 @@ function buildMultiParamPresentation(
 
   if (optionColumns.length === 0) return null;
 
+  let mixed = false;
   const multiParamRows = rows.map((row) => {
+    const ownProfile = rowProfileType(row, equipmentProfileType);
+    if (!isMultiParamProfile(ownProfile)) {
+      mixed = true;
+      return {
+        userType: row.userType,
+        label: row.label,
+        chargesByOption: {},
+        gstLine: gstLineForUserType(row.userType),
+        chargeLine: singleRowChargeLine(row, ownProfile),
+      };
+    }
     const chargesByOption: Record<string, string> = {};
     for (const opt of optionColumns) {
       const hit = findSlotOptionForLabel(slotOptions, row.userType, opt);
@@ -211,14 +246,20 @@ function buildMultiParamPresentation(
     };
   });
 
-  const anyPerSample = rows.some((r) => isMultiParamPerSampleFlag(r.breakpoint));
+  const anyPerSample = rows.some(
+    (r) =>
+      isMultiParamProfile(rowProfileType(r, equipmentProfileType)) &&
+      isMultiParamPerSampleFlag(r.breakpoint)
+  );
 
   return {
     simplified: true,
     mode: "multi_param",
-    subtitle: anyPerSample
-      ? "Standard rates for this equipment by option (per sample when Breakpoint Flag is 1), including student and faculty categories."
-      : "Standard rates for this equipment by option, including student and faculty categories.",
+    subtitle: mixed
+      ? "Standard rates for this equipment. Categories charged by option show a rate per option (per sample when Breakpoint Flag is 1); other categories show their own rate."
+      : anyPerSample
+        ? "Standard rates for this equipment by option (per sample when Breakpoint Flag is 1), including student and faculty categories."
+        : "Standard rates for this equipment by option, including student and faculty categories.",
     rows: [],
     optionColumns,
     multiParamRows,
@@ -244,11 +285,33 @@ export function buildChargeCategoryPresentation(
   rows: ChargeCategoryRowInput[],
   context?: ChargeCategoryPresentationContext | null
 ): ChargeCategoryPresentation {
-  const t = String(profileType || "").toUpperCase();
+  const equipmentProfile = String(profileType || "").toUpperCase();
   const anySecondary = rows.some((r) => hasSecondaryCharge(r.secondary));
   const anyBreakpoint = rows.some((r) => formatBreakpoint(r.breakpoint) != null);
 
-  if (t === "MULTI_PARAM" || t === "MULTI-PARAMETER") {
+  const rowProfiles = new Set(rows.map((r) => rowProfileType(r, equipmentProfile)));
+  const t = rowProfiles.size === 1 ? [...rowProfiles][0] : equipmentProfile;
+  if (rowProfiles.size > 1) {
+    // Mixed-profile equipment (e.g. internal users GENERIC, external users MULTI_PARAM):
+    // each category is presented with its own profile type.
+    if ([...rowProfiles].some(isMultiParamProfile)) {
+      const multi = buildMultiParamPresentation(rows, context ?? {}, t);
+      if (multi) return multi;
+    }
+    return {
+      simplified: true,
+      mode: "generic",
+      subtitle: "Standard rates for this equipment, including student and faculty categories.",
+      rows: rows.map((row) => ({
+        userType: row.userType,
+        label: row.label,
+        chargeLine: singleRowChargeLine(row, rowProfileType(row, t)),
+        gstLine: gstLineForUserType(row.userType),
+      })),
+    };
+  }
+
+  if (isMultiParamProfile(t)) {
     const multi = buildMultiParamPresentation(rows, context ?? {});
     if (multi) return multi;
     return {

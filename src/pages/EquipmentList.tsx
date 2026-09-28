@@ -423,7 +423,10 @@ const EquipmentList = () => {
                 statusUpdatingId={statusUpdatingId}
                 onRequestStatusChange={(next) => setPendingStatusChange(next)}
                 onOpenEquipment={(id) => {
-                  if (expandedParentId == null && isCatalogFamilyParent(rawEquipment, id)) {
+                  if (
+                    expandedParentId == null &&
+                    isCatalogFamilyParent(rawEquipment, id, { searchActive: Boolean(searchQuery.trim()) })
+                  ) {
                     setSearchQuery("");
                     setExpandedParentId(id);
                     return true;

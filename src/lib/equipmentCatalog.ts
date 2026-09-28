@@ -63,16 +63,20 @@ export function isExpandableParent<T extends CatalogEquipmentLike>(
 
 /**
  * True when this card should open a parent+child family view.
- * Uses enable_multi_mode on the base instrument even if children are not in the
- * current (e.g. search-filtered) result set yet.
+ * While a search is active, enable_multi_mode on the base instrument is enough,
+ * because its children may be filtered out of the result set. Without a search
+ * the list is complete, so a multi-mode instrument with no published children
+ * opens its own page instead of a one-card family view.
  */
 export function isCatalogFamilyParent<T extends CatalogEquipmentLike>(
   list: T[],
   equipmentId: number,
+  options?: { searchActive?: boolean },
 ): boolean {
   const id = Number(equipmentId);
   if (!Number.isFinite(id)) return false;
   if (isExpandableParent(list, id)) return true;
+  if (!options?.searchActive) return false;
   const self = list.find((eq) => Number(eq.equipment_id) === id);
   return (
     !!self &&

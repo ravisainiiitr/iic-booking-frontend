@@ -123,11 +123,20 @@ export function ChargeCategoryMultiParamTable({ presentation }: MultiParamProps)
               className={cn(rowClass, idx % 2 === 1 && "bg-muted/25")}
             >
               <TableCell className={categoryCellClass}>{row.label}</TableCell>
-              {optionColumns.map((opt) => (
-                <AmountCell key={`${row.userType}-${opt}`}>
-                  {row.chargesByOption[opt] ?? "—"}
-                </AmountCell>
-              ))}
+              {row.chargeLine ? (
+                <TableCell
+                  colSpan={Math.max(optionColumns.length, 1)}
+                  className="px-3 py-3.5 text-center text-[0.95rem] font-semibold leading-snug text-foreground sm:px-4"
+                >
+                  {row.chargeLine}
+                </TableCell>
+              ) : (
+                optionColumns.map((opt) => (
+                  <AmountCell key={`${row.userType}-${opt}`}>
+                    {row.chargesByOption[opt] ?? "—"}
+                  </AmountCell>
+                ))
+              )}
               <TableCell className="px-3 py-3.5 text-center sm:px-4">
                 <GstBadge text={row.gstLine} />
               </TableCell>

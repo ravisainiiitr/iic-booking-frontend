@@ -14,7 +14,23 @@ export type ChargeCategorySummaryRow = {
   notes: string;
   /** Optional admin-authored rate-card line (preferred over synthesized copy). */
   displayText?: string;
+  /** Profile type of this user category's charge profile (may differ from the equipment default). */
+  profileType?: string;
 };
+
+function basisForProfileType(profileType: string): string {
+  return profileType === "HOUR"
+    ? "Per hour"
+    : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
+      ? "Per sample"
+      : profileType === "GENERIC"
+        ? "Generic formula"
+        : profileType === "PRINT_3D"
+          ? "Per print (see profile)"
+          : profileType
+            ? `Profile: ${profileType}`
+            : "";
+}
 
 /** Build charge-by-user-category rows for View Charges / Calculate Charges summaries. */
 export function buildChargeCategorySummaryRows(eq: {
@@ -22,6 +38,7 @@ export function buildChargeCategorySummaryRows(eq: {
   base_charges_by_user_type?: Array<{
     user_type: string;
     user_type_display?: string;
+    profile_type?: string | null;
     profile_type_display?: string | null;
     primary_unit_charge?: string;
     secondary_unit_charge?: string;
@@ -32,18 +49,7 @@ export function buildChargeCategorySummaryRows(eq: {
 } | null | undefined): ChargeCategorySummaryRow[] {
   if (!eq) return [];
   const profileType = String(eq.profile_type || "").toUpperCase();
-  const defaultBasis =
-    profileType === "HOUR"
-      ? "Per hour"
-      : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
-        ? "Per sample"
-        : profileType === "GENERIC"
-          ? "Generic formula"
-          : profileType === "PRINT_3D"
-            ? "Per print (see profile)"
-            : profileType
-              ? `Profile: ${profileType}`
-              : "";
+  const defaultBasis = basisForProfileType(profileType);
 
   const byType = new Map<string, ChargeCategorySummaryRow>();
 
@@ -66,8 +72,10 @@ export function buildChargeCategorySummaryRows(eq: {
       cp.display_text != null && String(cp.display_text).trim() !== ""
         ? String(cp.display_text).trim()
         : "";
+    const rowProfileType = String(cp.profile_type || "").toUpperCase() || profileType;
+    const basis = basisForProfileType(rowProfileType);
     const noteParts: string[] = [];
-    if (defaultBasis) noteParts.push(defaultBasis);
+    if (basis) noteParts.push(basis);
     if (breakpoint) noteParts.push(`Applies after ${breakpoint} units`);
     byType.set(code, {
       userType: code,
@@ -77,6 +85,7 @@ export function buildChargeCategorySummaryRows(eq: {
       breakpoint,
       notes: noteParts.join(" · "),
       displayText,
+      profileType: rowProfileType,
     });
   }
 
@@ -94,6 +103,7 @@ export function buildChargeCategorySummaryRows(eq: {
           : "",
       breakpoint: "",
       notes: row.profile_type_display || defaultBasis,
+      profileType: String(row.profile_type || "").toUpperCase() || profileType,
     });
   }
 
@@ -114,6 +124,7 @@ export function buildChargeCategorySummaryRows(eq: {
         secondary: "",
         breakpoint: "",
         notes: defaultBasis,
+        profileType: "MULTI_PARAM",
       });
     }
   }

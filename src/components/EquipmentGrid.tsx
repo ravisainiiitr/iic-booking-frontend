@@ -369,7 +369,10 @@ const EquipmentGrid = () => {
               statusUpdatingId={statusUpdatingId}
               onRequestStatusChange={(next) => setPendingStatusChange(next)}
               onOpenEquipment={(id) => {
-                if (expandedParentId == null && isCatalogFamilyParent(equipment, id)) {
+                if (
+                  expandedParentId == null &&
+                  isCatalogFamilyParent(equipment, id, { searchActive: Boolean(searchQuery.trim()) })
+                ) {
                   openFamilyView(id);
                   return true;
                 }
