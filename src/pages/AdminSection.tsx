@@ -228,7 +228,7 @@ export default function AdminSection() {
   const [equipmentCategoryFilter, setEquipmentCategoryFilter] = useState("");
   const [equipmentGroupFilter, setEquipmentGroupFilter] = useState("");
   const [equipmentCategoriesList, setEquipmentCategoriesList] = useState<Array<{ id: number; name: string; code?: string }>>([]);
-  const [equipmentGroupsListForFilter, setEquipmentGroupsListForFilter] = useState<Array<{ equipment_group_id: number; name: string; code: string }>>([]);
+  const [equipmentGroupsListForFilter, setEquipmentGroupsListForFilter] = useState<Array<{ equipment_group_id: number; name: string }>>([]);
   const [bookingStatusFilter, setBookingStatusFilter] = useState("");
   const [bookingDateFilter, setBookingDateFilter] = useState("");
   const [bookingEquipmentFilter, setBookingEquipmentFilter] = useState("");
@@ -412,12 +412,11 @@ export default function AdminSection() {
       });
       apiClient.adminList("equipmentGroups").then((res) => {
         if (!res.error && Array.isArray(res.data)) {
-          const raw = res.data as Array<{ equipment_group_id?: number; name?: string; code?: string }>;
+          const raw = res.data as Array<{ equipment_group_id?: number; name?: string }>;
           setEquipmentGroupsListForFilter(
             raw.map((g) => ({
               equipment_group_id: g.equipment_group_id ?? (g as Record<string, unknown>).id as number,
               name: String(g.name ?? ""),
-              code: String(g.code ?? ""),
             }))
           );
         } else setEquipmentGroupsListForFilter([]);
@@ -819,7 +818,6 @@ export default function AdminSection() {
         quotasRaw.find((q) => String(q.quota_type) === quotaType) ?? {};
       data = {
         name: formData.name,
-        code: formData.code,
         description: formData.description ?? "",
         equipment_ids: equipment.map((e) => e.equipment_id),
         quotas: ["WEEKLY", "MONTHLY"].map((quotaType) => {
@@ -1405,7 +1403,7 @@ export default function AdminSection() {
                       <SelectContent>
                         <SelectItem value="all">All groups</SelectItem>
                         {equipmentGroupsListForFilter.map((g) => (
-                          <SelectItem key={g.equipment_group_id} value={String(g.equipment_group_id)}>{g.name} ({g.code})</SelectItem>
+                          <SelectItem key={g.equipment_group_id} value={String(g.equipment_group_id)}>{g.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -2275,23 +2273,13 @@ export default function AdminSection() {
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Basic Information</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground text-xs">Name</Label>
-                        <Input
-                          value={String(formData.name ?? "")}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                          placeholder="Group name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground text-xs">Code</Label>
-                        <Input
-                          value={String(formData.code ?? "")}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
-                          placeholder="Unique code"
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground text-xs">Name</Label>
+                      <Input
+                        value={String(formData.name ?? "")}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="Group name (must be unique)"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-muted-foreground text-xs">Description</Label>

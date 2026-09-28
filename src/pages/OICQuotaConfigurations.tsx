@@ -28,7 +28,6 @@ type QuotaRow = {
 type GroupRow = {
   equipment_group_id: number;
   name: string;
-  code: string;
   description?: string;
   equipment?: Array<{ equipment_id: number; code?: string; name?: string }>;
   quotas?: QuotaRow[];
@@ -201,7 +200,7 @@ export default function OICQuotaConfigurations() {
                   <SelectContent>
                     {groups.map((g) => (
                       <SelectItem key={g.equipment_group_id} value={String(g.equipment_group_id)}>
-                        {g.code} — {g.name}
+                        {g.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -288,7 +288,7 @@ type StaffUserChoice = {
 
 type EquipmentFormChoices = {
   categories: Array<{ id: number; name: string; code?: string | null }>;
-  equipment_groups: Array<{ equipment_group_id: number; name: string; code: string }>;
+  equipment_groups: Array<{ equipment_group_id: number; name: string }>;
   parent_equipment_choices?: Array<{ equipment_id: number; code: string; name: string }>;
   internal_departments: Array<{ id: number; name: string; code: string; department_type?: string }>;
   user_groups: Array<{ id: number; name: string; code: string }>;
@@ -465,10 +465,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       toast.error("Name is required.");
       return;
     }
-    if (addLookupOpen === "group" && !code) {
-      toast.error("Code is required for an equipment group.");
-      return;
-    }
     setAddLookupSaving(true);
     try {
       if (addLookupOpen === "category") {
@@ -498,8 +494,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         const res = await apiClient.adminCreate<{
           equipment_group_id: number;
           name: string;
-          code: string;
-        }>("equipmentGroups", { name, code, description: "" });
+        }>("equipmentGroups", { name, description: "" });
         if (res.error || !res.data) {
           toast.error(res.error || "Failed to create equipment group.");
           return;
@@ -514,7 +509,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   {
                     equipment_group_id: created.equipment_group_id,
                     name: created.name,
-                    code: created.code,
                   },
                 ],
               }
@@ -1351,7 +1345,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             <SelectContent>
               <SelectItem value="none">— None —</SelectItem>
               {choices.equipment_groups.map((g) => (
-                <SelectItem key={g.equipment_group_id} value={String(g.equipment_group_id)}>{g.name} ({g.code})</SelectItem>
+                <SelectItem key={g.equipment_group_id} value={String(g.equipment_group_id)}>{g.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -3526,17 +3520,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 placeholder={addLookupOpen === "group" ? "e.g. Electron Microscopy" : "e.g. Analytical"}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="lookup-code">
-                Code{addLookupOpen === "group" ? " *" : " (optional)"}
-              </Label>
-              <Input
-                id="lookup-code"
-                value={addLookupCode}
-                onChange={(e) => setAddLookupCode(e.target.value)}
-                placeholder={addLookupOpen === "group" ? "e.g. EM-GRP" : "e.g. ANALYTICAL"}
-              />
-            </div>
+            {addLookupOpen === "category" ? (
+              <div className="space-y-2">
+                <Label htmlFor="lookup-code">Code (optional)</Label>
+                <Input
+                  id="lookup-code"
+                  value={addLookupCode}
+                  onChange={(e) => setAddLookupCode(e.target.value)}
+                  placeholder="e.g. ANALYTICAL"
+                />
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAddLookupOpen(null)} disabled={addLookupSaving}>

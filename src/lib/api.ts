@@ -7826,7 +7826,6 @@ class ApiClient {
       groups: Array<{
         equipment_group_id: number;
         name: string;
-        code: string;
         description?: string;
         equipment?: Array<{ equipment_id: number; code?: string; name?: string }>;
         quotas?: Array<{
@@ -10645,7 +10644,7 @@ class ApiClient {
   async getEquipmentFormChoices() {
     return this.request<{
       categories: Array<{ id: number; name: string; code?: string | null }>;
-      equipment_groups: Array<{ equipment_group_id: number; name: string; code: string }>;
+      equipment_groups: Array<{ equipment_group_id: number; name: string }>;
       parent_equipment_choices?: Array<{ equipment_id: number; code: string; name: string }>;
       internal_departments: Array<{ id: number; name: string; code: string; department_type?: string }>;
       user_groups: Array<{ id: number; name: string; code: string }>;
