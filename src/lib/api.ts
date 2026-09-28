@@ -10270,6 +10270,8 @@ class ApiClient {
       count: number;
       limit: number;
       offset: number;
+      /** Set when an OIC views a user outside their department: only these departments' spend is listed. */
+      scoped_department_names?: string[] | null;
     }>(`${endpoint}${userId}/transaction-history/?${params}`, { method: 'GET' });
   }
 

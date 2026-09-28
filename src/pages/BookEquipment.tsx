@@ -1329,7 +1329,7 @@ const BookEquipment = () => {
   } | null>(null);
 
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
-  const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null }>({ loading: false, transactions: [], error: null });
+  const [userTransactionHistory, setUserTransactionHistory] = useState<{ loading: boolean; transactions: Array<{ id: number; transaction_type: "credit" | "debit"; amount: string; description: string; description_display?: string; created_at: string; balance_after?: string | null; equipment_name?: string | null; department_name?: string | null; department_code?: string | null; related_user_name?: string | null; related_user_email?: string | null; virtual_booking_id?: string | null }>; error: string | null; scopedDepartmentNames?: string[] | null }>({ loading: false, transactions: [], error: null });
   const [expandedSlotBooking, setExpandedSlotBooking] = useState<BookingDetailCardBooking | null>(null);
   const [expandedSlotBookingLoading, setExpandedSlotBookingLoading] = useState(false);
   const [urgentDialogOpen, setUrgentDialogOpen] = useState(false);
@@ -7605,6 +7605,7 @@ const BookEquipment = () => {
                                   loading: false,
                                   transactions: res.data?.transactions ?? [],
                                   error: null,
+                                  scopedDepartmentNames: res.data?.scoped_department_names ?? null,
                                 });
                               } catch (e: unknown) {
                                 setUserTransactionHistory({
@@ -10190,6 +10191,7 @@ const BookEquipment = () => {
                         loading: false,
                         transactions: res.data?.transactions ?? [],
                         error: null,
+                        scopedDepartmentNames: res.data?.scoped_department_names ?? null,
                       });
                     } catch (e: any) {
                       setUserTransactionHistory({ loading: false, transactions: [], error: e?.message ?? "Failed to load transactions" });
@@ -10232,6 +10234,15 @@ const BookEquipment = () => {
                   <DialogDescription>
                     Verify that the correct amount was debited from the user&apos;s wallet after the booking.
                   </DialogDescription>
+                  {!userTransactionHistory.loading && (userTransactionHistory.scopedDepartmentNames?.length ?? 0) > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Showing only amounts spent on equipment of{" "}
+                      <span className="font-medium text-foreground">
+                        {(userTransactionHistory.scopedDepartmentNames ?? []).join(", ")}
+                      </span>
+                      . Transactions with other departments are not shown.
+                    </p>
+                  )}
                 </div>
                 {!userTransactionHistory.loading && userTransactionHistory.transactions.length > 0 && (
                   <DropdownMenu>
