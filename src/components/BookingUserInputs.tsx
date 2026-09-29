@@ -24,7 +24,7 @@ import { Pencil, Check, Plus, Trash2, FileText, Info } from "lucide-react";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
-import { formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveNumericFieldBounds, roundToStepPrecision } from "@/lib/numericFieldLimits";
+import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveFieldAFormulaMax, resolveNumericFieldBounds, roundToStepPrecision, type NumericFieldBounds } from "@/lib/numericFieldLimits";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import {
   resolveTableColumns,
@@ -45,6 +45,7 @@ export interface InputFieldDef {
   field_type: string;
   is_required?: boolean;
   editing_required?: boolean;
+  /** Choice list for RADIO/COMBO; NUMERIC fields carry a limits object (e.g. { min, max_formula }). */
   options?: (string | { value?: string; label?: string })[];
   help_text?: string;
   source_element_field_key?: string | null;
@@ -68,6 +69,10 @@ interface BookingUserInputsProps {
   /** Open Edit User Inputs once when editable fields are available (post-booking CTA). */
   autoOpenEdit?: boolean;
   onAutoOpenEditConsumed?: () => void;
+  /** Used by max formulas that reference SLOT_DURATION_MINUTES. */
+  slotDurationMinutes?: number | null;
+  /** External booking users are exempt from the field A max formula (same as at booking creation). */
+  skipFormulaLimits?: boolean;
 }
 
 function formatVal(v: unknown): string {
@@ -141,6 +146,8 @@ export function BookingUserInputs({
   atmosphereSensitiveSample,
   autoOpenEdit = false,
   onAutoOpenEditConsumed,
+  slotDurationMinutes,
+  skipFormulaLimits = false,
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -199,6 +206,43 @@ export function BookingUserInputs({
         ? editableInputFields
         : fields.filter((f) => f.editing_required);
   const hasEditableFields = canEdit && editableFields.length > 0;
+
+  const numericBoundsFor = (f: InputFieldDef, values: Record<string, unknown>): NumericFieldBounds =>
+    resolveNumericFieldBounds(
+      f,
+      skipFormulaLimits ? undefined : resolveFieldAFormulaMax(f, values, slotDurationMinutes),
+    );
+
+  /** First numeric-limit violation in `values`, mirroring the backend check on save. */
+  const numericLimitError = (values: Record<string, unknown>): { key: string; message: string } | null => {
+    const numericDefs = new Map<string, InputFieldDef>();
+    [...fields, ...editableFields].forEach((f) => {
+      if (String(f.field_type || "").toUpperCase() === "NUMERIC") numericDefs.set(f.field_key, f);
+    });
+    for (const f of numericDefs.values()) {
+      const raw = values[f.field_key];
+      if (raw === undefined || raw === null || raw === "") continue;
+      const n = typeof raw === "number" ? raw : Number(String(raw).trim().replace(",", "."));
+      if (!Number.isFinite(n)) continue;
+      const { min, max } = numericBoundsFor(f, values);
+      const label = f.field_label || f.field_key;
+      if (n < min) return { key: f.field_key, message: `${label} cannot be less than ${formatNumericBound(min)}.` };
+      if (n > max) return { key: f.field_key, message: `${label} cannot be greater than ${formatNumericBound(max)}.` };
+    }
+    return null;
+  };
+
+  const comparable = (v: unknown) =>
+    v === undefined || v === null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).trim();
+  const valuesChangedFrom = (values: Record<string, unknown>) =>
+    Object.keys({ ...iv, ...values }).some(
+      (k) => !isCommentsInputFieldKey(k) && comparable(values[k]) !== comparable(iv[k]),
+    );
+
+  const editLimitError =
+    editDialogOpen && valuesChangedFrom(editFormValues) ? numericLimitError(editFormValues) : null;
+  const editLimitErrorOnReadOnlyField =
+    editLimitError != null && !editableFields.some((f) => f.field_key === editLimitError.key);
   const hasPeriodicTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"
   );
@@ -466,6 +510,13 @@ export function BookingUserInputs({
 
       setEditFormValues(nextValues);
 
+      const limitError = valuesChangedFrom(nextValues) ? numericLimitError(nextValues) : null;
+      if (limitError) {
+        toast.error(limitError.message);
+        document.getElementById(`edit-field-wrap-${limitError.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
       const allowedKeys = new Set<string>(["comments"]);
       editableFields.forEach((f) => {
         allowedKeys.add(f.field_key);
@@ -479,7 +530,7 @@ export function BookingUserInputs({
       toast.success("Booking information has been updated.");
       setEditDialogOpen(false);
     } catch (e) {
-      toast.error("Failed to update");
+      toast.error(e instanceof Error && e.message ? e.message : "Failed to update");
     } finally {
       setSaving(false);
     }
@@ -739,8 +790,9 @@ export function BookingUserInputs({
                     ) : null}
                   </Label>
                   {type === "NUMERIC" && (() => {
-                    const bounds = resolveNumericFieldBounds(f);
+                    const bounds = numericBoundsFor(f, editFormValues);
                     const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
+                    const fieldLimitError = editLimitError?.key === f.field_key ? editLimitError.message : null;
                     const allowsNegative = numericFieldAllowsNegative(bounds);
                     const stepAttr = formatStepAttr(effectiveStep);
                     const nudge = (direction: 1 | -1) => {
@@ -820,6 +872,15 @@ export function BookingUserInputs({
                             </Button>
                           </div>
                         </div>
+                        {fieldLimitError ? (
+                          <p className="text-xs font-medium text-destructive" role="alert">
+                            {fieldLimitError}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Allowed: {formatNumericBound(effectiveMin)} – {formatNumericBound(effectiveMax)}
+                          </p>
+                        )}
                       </div>
                     );
                   })()}
@@ -1110,11 +1171,16 @@ export function BookingUserInputs({
               );
             })}
           </div>
+          {editLimitErrorOnReadOnlyField ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              {editLimitError?.message} Adjust the values above to stay within this limit.
+            </p>
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} disabled={saving}>
+            <Button onClick={handleSaveEdit} disabled={saving || Boolean(editLimitError)}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

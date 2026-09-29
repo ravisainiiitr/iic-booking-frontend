@@ -163,6 +163,52 @@ export function initialNumericFieldValue(field: {
   return formatNumericBound(min);
 }
 
+function strictFiniteNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "" || typeof value === "boolean") return undefined;
+  const n = typeof value === "number" ? value : Number(String(value).trim());
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Upper limit for field A from options.max_formula (tokens A..Z and SLOT_DURATION_MINUTES,
+ * e.g. "4*B"), falling back to options.max. Mirrors the backend's _resolve_numeric_max_for_field_a.
+ */
+export function resolveFieldAFormulaMax(
+  field: { field_key?: string; options?: unknown } | null | undefined,
+  values: Record<string, unknown>,
+  slotDurationMinutes?: number | null,
+): number | undefined {
+  if (String(field?.field_key || "").toUpperCase() !== "A") return undefined;
+  const rawOptions = field?.options;
+  const opts =
+    rawOptions && typeof rawOptions === "object" && !Array.isArray(rawOptions)
+      ? (rawOptions as Record<string, unknown>)
+      : undefined;
+  const formula =
+    typeof opts?.max_formula === "string"
+      ? opts.max_formula.trim()
+      : typeof rawOptions === "string"
+        ? rawOptions.trim()
+        : Array.isArray(rawOptions) && rawOptions.length === 1 && typeof rawOptions[0] === "string"
+          ? rawOptions[0].trim()
+          : "";
+  if (formula) {
+    let expr = formula;
+    for (const token of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+      const tokenValue = strictFiniteNumber(values[token]) ?? 0;
+      expr = expr.replace(new RegExp(`\\b${token}\\b`, "g"), String(tokenValue));
+    }
+    expr = expr.replace(/\bSLOT_DURATION_MINUTES\b/g, String(strictFiniteNumber(slotDurationMinutes) ?? 0));
+    if (!/^[0-9+\-*/().\s]+$/.test(expr)) return undefined;
+    try {
+      return strictFiniteNumber(Function(`"use strict"; return (${expr});`)());
+    } catch {
+      return undefined;
+    }
+  }
+  return strictFiniteNumber(opts?.max);
+}
+
 /** True when a numeric input is present and within resolved [min, max]. */
 export function isNumericValueWithinBounds(
   raw: unknown,

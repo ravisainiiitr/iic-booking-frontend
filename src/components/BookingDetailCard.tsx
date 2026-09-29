@@ -3240,6 +3240,8 @@ export function BookingDetailCard({
               atmosphereSensitiveSample={!!booking.atmosphere_sensitive_sample}
               autoOpenEdit={autoOpenEditInputs}
               onAutoOpenEditConsumed={onAutoOpenEditInputsConsumed}
+              slotDurationMinutes={booking.equipment_slot_duration_minutes}
+              skipFormulaLimits={isExternalBookingType}
               onUpdate={async (newInputValues) => {
                 if (bookingPk == null) {
                   toast.error("This booking cannot be updated right now.");
