@@ -10,7 +10,7 @@ import {
   type PrintMaterial,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
-import { ServerClock } from "@/components/ServerClock";
+import { useShowServerClockInHeader } from "@/lib/serverClockHeader";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
@@ -976,6 +976,7 @@ const BookEquipment = () => {
   const isCalculateChargesFlow = searchParams.get("mode") === "calculate";
   /** Embedded in equipment profile / dashboard workspace — omit full-page chrome. */
   const isEmbedFlow = embedded || searchParams.get("embed") === "1";
+  useShowServerClockInHeader(!isCalculateChargesFlow && !isProformaFlow);
   const proformaEditLineIndex = useMemo((): number | null => {
     const raw = searchParams.get("proformaLineIndex");
     if (raw == null || raw === "") return null;
@@ -7749,10 +7750,8 @@ const BookEquipment = () => {
                       )}
                     </CardDescription>
                   </div>
-                  {(!isEmbedFlow || !isCalculateChargesFlow) && (
+                  {!isEmbedFlow && (
                   <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-                    {!isCalculateChargesFlow && <ServerClock />}
-                    {!isEmbedFlow && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -7770,7 +7769,6 @@ const BookEquipment = () => {
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Back
                     </Button>
-                    )}
                   </div>
                   )}
                 </div>

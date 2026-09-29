@@ -21,6 +21,9 @@ import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
+import { ServerClock } from "@/components/ServerClock";
+import { useHeaderServerClockRequested } from "@/lib/serverClockHeader";
+import { cn } from "@/lib/utils";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -51,6 +54,7 @@ const DashboardHeader = () => {
   const { available: myResearchAvailable } = useMyResearchAvailability(mayUseMyResearch);
   const isOnDashboard =
     location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
+  const showServerClock = useHeaderServerClockRequested();
   
   // Refs to prevent multiple simultaneous API calls
   const balanceFetchingRef = useRef(false);
@@ -299,11 +303,12 @@ const DashboardHeader = () => {
   return (
     <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-primary/5">
       <div
-        className={
-          isAuthenticated
-            ? "mx-auto flex w-full max-w-none items-center justify-between px-4 py-4 sm:px-6 lg:px-8"
-            : "container mx-auto flex items-center justify-between px-4 py-4"
-        }
+        className={cn(
+          isAuthenticated ? "mx-auto w-full max-w-none px-4 py-4 sm:px-6 lg:px-8" : "container mx-auto px-4 py-4",
+          showServerClock
+            ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 lg:grid-cols-[auto_minmax(0,1fr)_auto]"
+            : "flex items-center justify-between",
+        )}
       >
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <BackButton />
@@ -314,6 +319,11 @@ const DashboardHeader = () => {
             <IITRBanner size="md" />
           </div>
         </div>
+        {showServerClock && (
+          <div className="server-clock-slot col-span-2 row-start-2 flex min-w-0 justify-center lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:px-3">
+            <ServerClock />
+          </div>
+        )}
         <div className="flex items-center gap-2 sm:gap-3">
           {isAuthenticated && !isOnDashboard && <BackToDashboardButton />}
           <button

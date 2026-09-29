@@ -508,3 +508,22 @@ body:has([data-embed-chrome]),
 .dashboard-embed-iframe-body {
   background: hsl(var(--background));
 }
+
+/* Header server clock: sized by the space left between the banner and the header actions */
+.server-clock-slot {
+  container-type: inline-size;
+}
+.server-clock-time {
+  font-size: clamp(1.1rem, 16cqw, 2.75rem);
+}
+.server-clock-extra {
+  display: none;
+}
+@container (min-width: 30rem) {
+  .server-clock-time {
+    font-size: clamp(2.25rem, 10cqw, 3rem);
+  }
+  .server-clock-extra {
+    display: inline-flex;
+  }
+}

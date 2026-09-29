@@ -72,30 +72,23 @@ export function ServerClock({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-3 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-background px-3.5 py-2 shadow-sm",
+        "flex w-full min-w-0 items-center justify-center gap-3 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 px-3 py-1.5 shadow-sm",
         className,
       )}
       role="timer"
       aria-live="off"
       aria-label={`Server time ${time} ${sync.zoneLabel}`}
-      title="Portal server time. Booking windows open by this clock."
+      title={`Portal server time (${sync.zoneLabel}). Booking windows open by this clock.`}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Clock className="h-4 w-4" aria-hidden />
+      <Clock className="server-clock-extra h-7 w-7 shrink-0 text-primary" aria-hidden />
+      <span className="server-clock-time font-mono font-extrabold leading-none tabular-nums tracking-tight text-foreground">
+        {time}
       </span>
-      <span className="flex flex-col leading-none">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          </span>
-          Server time · {sync.zoneLabel}
-        </span>
-        <span className="mt-1 font-mono text-xl font-bold tabular-nums tracking-tight text-foreground md:text-2xl">
-          {time}
-        </span>
-        <span className="mt-0.5 text-[11px] text-muted-foreground">{date}</span>
+      <span className="relative flex h-2.5 w-2.5 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
       </span>
+      <span className="server-clock-extra whitespace-nowrap text-sm font-medium text-muted-foreground">{date}</span>
     </div>
   );
 }
