@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   addMenuGroup,
   buildMenuTree,
+  menuNodeKey,
+  moveGroupItem,
   moveMenuItem,
+  moveMenuNode,
   normalizeMenuLayout,
   orderMenuIds,
   removeMenuGroup,
@@ -75,9 +78,39 @@ describe("layout edits", () => {
   });
 
   it("normalizes unexpected server data", () => {
-    expect(normalizeMenuLayout(null)).toEqual({ groups: [] });
+    expect(normalizeMenuLayout(null)).toEqual({ groups: [], order: [] });
     expect(
-      normalizeMenuLayout({ groups: [{ id: "g", name: "N", items: ["a", 5] }, { id: 1 }] }),
-    ).toEqual({ groups: [{ id: "g", name: "N", items: ["a"] }] });
+      normalizeMenuLayout({ groups: [{ id: "g", name: "N", items: ["a", 5] }, { id: 1 }], order: ["a", 3] }),
+    ).toEqual({ groups: [{ id: "g", name: "N", items: ["a"] }], order: ["a"] });
+  });
+});
+
+describe("menu priority", () => {
+  const ids = ["browse", "booking", "urgent", "reports", "support"];
+  const keys = (layout: Parameters<typeof buildMenuTree>[1]) => buildMenuTree(ids, layout).map(menuNodeKey);
+
+  it("sorts top-level entries by the saved order and keeps unlisted entries after their default neighbour", () => {
+    expect(keys({ groups: [], order: ["urgent", "browse"] })).toEqual(["urgent", "reports", "support", "browse", "booking"]);
+    expect(
+      keys({ groups: [{ id: "g1", name: "Daily", items: ["reports"] }], order: ["group:g1", "support", "browse"] }),
+    ).toEqual(["group:g1", "support", "browse", "booking", "urgent"]);
+  });
+
+  it("moves top-level entries up and down and keeps hidden keys", () => {
+    const layout = { groups: [], order: ["hidden_item"] };
+    const moved = moveMenuNode(layout, ["browse", "booking", "urgent"], "urgent", -1);
+    expect(moved.order).toEqual(["browse", "urgent", "booking", "hidden_item"]);
+    expect(moveMenuNode(layout, ["browse", "booking"], "browse", -1)).toBe(layout);
+  });
+
+  it("moves items inside a menu, skipping hidden items", () => {
+    const layout = { groups: [{ id: "g1", name: "Daily", items: ["a", "hidden", "b"] }] };
+    const moved = moveGroupItem(layout, "g1", "b", -1, new Set(["a", "b"]));
+    expect(moved.groups[0].items).toEqual(["b", "hidden", "a"]);
+  });
+
+  it("drops a removed menu from the order", () => {
+    const layout = { groups: [{ id: "g1", name: "Daily", items: ["a"] }], order: ["group:g1", "b"] };
+    expect(removeMenuGroup(layout, "g1").order).toEqual(["b"]);
   });
 });

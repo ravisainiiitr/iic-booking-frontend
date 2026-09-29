@@ -129,6 +129,8 @@ export type EquipmentFormData = {
   latitude?: string | number | null;
   longitude?: string | number | null;
   google_maps_url?: string | null;
+  office_address?: string | null;
+  alternate_phone_number?: string | null;
   profile_type?: string | null;
   category?: number | null;
   equipment_group?: number | null;
@@ -348,6 +350,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     latitude: "",
     longitude: "",
     google_maps_url: "",
+    office_address: "",
+    alternate_phone_number: "",
     profile_type: null,
     category: null,
     equipment_group: null,
@@ -621,6 +625,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         latitude: formatCoordinate(d.latitude as string | number | null | undefined),
         longitude: formatCoordinate(d.longitude as string | number | null | undefined),
         google_maps_url: (d.google_maps_url as string) ?? "",
+        office_address: (d.office_address as string) ?? "",
+        alternate_phone_number: (d.alternate_phone_number as string) ?? "",
         profile_type: (d.profile_type as string | null) ?? null,
         category: (d.category as number | null) ?? null,
         equipment_group: (d.equipment_group as number | null) ?? (d.equipment_group_id as number | null) ?? null,
@@ -810,6 +816,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       istem_fbr_status_url: formData.istem_fbr_status_url?.trim() || "",
       status: formData.status || "ACTIVE",
       location: formData.location || null,
+      office_address: formData.office_address?.trim() || "",
+      alternate_phone_number: formData.alternate_phone_number?.trim() || "",
       latitude: (() => {
         const raw = String(formData.latitude ?? "").trim();
         if (!raw) return null;
@@ -1848,6 +1856,31 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         }}
         onChange={(next) => setFormData((p) => ({ ...p, ...next }))}
       />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="equipment-office-address">Office Address</Label>
+          <Textarea
+            id="equipment-office-address"
+            value={formData.office_address ?? ""}
+            onChange={(e) => setFormData((p) => ({ ...p, office_address: e.target.value }))}
+            placeholder="e.g. Room 105, Institute Instrumentation Centre"
+            rows={2}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="equipment-alternate-phone">Alternate Phone Number</Label>
+          <Input
+            id="equipment-alternate-phone"
+            type="tel"
+            inputMode="tel"
+            maxLength={40}
+            value={formData.alternate_phone_number ?? ""}
+            onChange={(e) => setFormData((p) => ({ ...p, alternate_phone_number: e.target.value }))}
+            placeholder="e.g. +91 1332 28xxxx"
+          />
+        </div>
+      </div>
         </FormSection>
 
       <FormSection id="eq-sec-instruction" title="Important Instruction" description="Optional instructions shown prominently on the equipment page (above specifications)." defaultOpen>

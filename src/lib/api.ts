@@ -529,6 +529,8 @@ export interface DashboardMenuGroup {
 
 export interface DashboardMenuLayout {
   groups: DashboardMenuGroup[];
+  /** Top-level menu priority: item ids and `group:<id>` keys. Unlisted entries keep their default place. */
+  order?: string[];
 }
 
 export interface OicEquipmentSettings {

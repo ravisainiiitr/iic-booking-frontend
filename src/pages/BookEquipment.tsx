@@ -74,7 +74,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, CalendarPlus, FlaskConical } from "lucide-react";
+import { CalendarIcon, CalendarPlus, FlaskConical, MousePointerClick } from "lucide-react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
@@ -3689,7 +3689,7 @@ const BookEquipment = () => {
     const weekStartTime = firstWeekStart.getTime();
     const weekEndTime = firstWeekEnd.getTime();
     const hasAnyAvailableSlot = equipmentDetail.daily_slots.some(slot => {
-      if (isAdminUser()) {
+      if (isAdminOrOIC()) {
         if (slot.status !== "AVAILABLE") return false;
       } else if (!isDailySlotSelectableForUserBooking(slot)) {
         return false;
@@ -3738,10 +3738,10 @@ const BookEquipment = () => {
 
     // If only one slot is needed (including tolerance), select only one slot
     if (minSlotsNeeded <= 1) {
-      // Find the first available slot (admin: allow past and non-BOOKED)
+      // Find the first available slot (admin/OIC: allow past and non-BOOKED)
       const availableSlot = equipmentDetail.daily_slots.find(slot => {
         const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-        if (isAdminUser()) {
+        if (isAdminOrOIC()) {
           if (isBookedSlot) return false;
         } else {
           if (!isDailySlotSelectableForUserBooking(slot)) return false;
@@ -3751,7 +3751,7 @@ const BookEquipment = () => {
         const slotDateTime = new Date(slotDate);
         const [hours, minutes] = slotTime.split(':').map(Number);
         slotDateTime.setHours(hours, minutes || 0, 0, 0);
-        return (isAdminUser() || slotDateTime >= new Date()) && !isSlotBooked(slotDate, slotTime);
+        return (isAdminOrOIC() || slotDateTime >= new Date()) && !isSlotBooked(slotDate, slotTime);
       });
 
       if (availableSlot) {
@@ -3782,10 +3782,10 @@ const BookEquipment = () => {
     let bestSlotChain: TimeSlot[] = [];
     let bestTotalMinutes = 0;
 
-    // Try each available slot as a potential starting point (in chronological order). Admin: allow past and non-BOOKED.
+    // Try each available slot as a potential starting point (in chronological order). Admin/OIC: allow past and non-BOOKED.
     for (const slot of sortedDailySlots) {
       const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-      if (isAdminUser()) {
+      if (isAdminOrOIC()) {
         if (isBookedSlot) continue;
       } else {
         if (!isDailySlotSelectableForUserBooking(slot)) continue;
@@ -3795,7 +3795,7 @@ const BookEquipment = () => {
       const slotDateTime = new Date(slotDate);
       const [hours, minutes] = slotTime.split(':').map(Number);
       slotDateTime.setHours(hours, minutes || 0, 0, 0);
-      if (!isAdminUser() && slotDateTime < new Date()) continue;
+      if (!isAdminOrOIC() && slotDateTime < new Date()) continue;
       if (isSlotBooked(slotDate, slotTime)) continue;
       
       // Try building consecutive slots from this starting slot
@@ -4177,7 +4177,7 @@ const BookEquipment = () => {
 
     const matchByDateTime = (slot: DailySlot): boolean => {
       const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-      if (isAdminUser()) {
+      if (isAdminOrOIC()) {
         if (isBookedSlot || (lastSlotId != null && slot.id === lastSlotId)) return false;
       } else {
         if (!isDailySlotSelectableForUserBooking(slot) || (lastSlotId != null && slot.id === lastSlotId)) return false;
@@ -4187,7 +4187,7 @@ const BookEquipment = () => {
         : "";
       const slotStartTimeStr = slot.start_datetime ? parseIsoDateAndTime(slot.start_datetime).timeStr : "";
       if (slotDateStr !== lastEnd.dateStr || slotStartTimeStr !== lastEnd.timeStr) return false;
-      if (!isAdminUser()) {
+      if (!isAdminOrOIC()) {
         const slotStart = parseISO(slot.start_datetime);
         if (slotStart.getTime() < new Date().getTime()) return false;
       }
@@ -4205,14 +4205,14 @@ const BookEquipment = () => {
       if (currentIndex >= 0 && currentIndex + 1 < sortedByStart.length) {
         const candidate = sortedByStart[currentIndex + 1];
         const candidateBooked = candidate.status === "BOOKED" || !!candidate.booking_id;
-        const candidateOk = isAdminUser()
+        const candidateOk = isAdminOrOIC()
           ? !candidateBooked
           : isDailySlotSelectableForUserBooking(candidate);
         if (candidateOk && candidate.id !== lastSlotId) {
           const slotStart = parseISO(candidate.start_datetime);
           const slotDate = startOfDay(parseISO(candidate.date));
           const slotTime = timeKeyFromDailySlot(candidate);
-          if (isAdminUser() || slotStart.getTime() >= new Date().getTime()) {
+          if (isAdminOrOIC() || slotStart.getTime() >= new Date().getTime()) {
             if (!isSlotBooked(slotDate, slotTime)) nextSlotData = candidate;
           }
         }
@@ -4332,7 +4332,7 @@ const BookEquipment = () => {
     
     equipmentDetail.daily_slots.forEach(slot => {
       const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-      if (isAdminUser()) {
+      if (isAdminOrOIC()) {
         if (isBookedSlot || excludeSlotIds.has(slot.id)) return;
       } else {
         if (!isDailySlotSelectableForUserBooking(slot) || excludeSlotIds.has(slot.id)) return;
@@ -4342,7 +4342,7 @@ const BookEquipment = () => {
       const slotDateTime = new Date(slotDate);
       const [hours, minutes] = slotTime.split(':').map(Number);
       slotDateTime.setHours(hours, minutes || 0, 0, 0);
-      if ((isAdminUser() || slotDateTime >= new Date()) && !isSlotBooked(slotDate, slotTime)) {
+      if ((isAdminOrOIC() || slotDateTime >= new Date()) && !isSlotBooked(slotDate, slotTime)) {
         availableSlots.push({
           date: slotDate,
           time: slotTime,
@@ -4822,7 +4822,7 @@ const BookEquipment = () => {
     const weekStartTime = firstWeekStart.getTime();
     const weekEndTime = firstWeekEnd.getTime();
     const hasAnyAvailableSlot = equipmentDetail.daily_slots.some(slot => {
-      if (isAdminUser()) {
+      if (isAdminOrOIC()) {
         if (slot.status !== "AVAILABLE") return false;
       } else if (!isDailySlotSelectableForUserBooking(slot)) {
         return false;
@@ -6131,7 +6131,8 @@ const BookEquipment = () => {
                     <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
                       Select entire year
                     </Button>
-                    <div className="text-xs md:text-sm text-muted-foreground font-medium px-1">
+                    <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
+                      <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
                       Double-click a month to open Month view below
                     </div>
                     <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium" onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
@@ -6199,7 +6200,8 @@ const BookEquipment = () => {
                   <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectMonthForStatus}>
                     Select entire month
                   </Button>
-                  <div className="text-xs md:text-sm text-muted-foreground font-medium px-1">
+                  <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
+                    <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
                     Tip: double-click a date to open Week view
                   </div>
                   <Button

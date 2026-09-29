@@ -31,6 +31,8 @@ import {
   ScrollText,
   Download,
   Loader2,
+  Building2,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { InPanelRoute } from "@/components/InPanelRouter";
@@ -81,6 +83,8 @@ interface EquipmentProfile {
   status_display: string;
   location: string;
   google_maps_url?: string | null;
+  office_address?: string | null;
+  alternate_phone_number?: string | null;
   internal_department_name?: string | null;
   internal_department_code?: string | null;
   important_instruction?: string | null;
@@ -1233,6 +1237,33 @@ const EquipmentProfile = () => {
                             </span>
                           )}
                         </div>
+                      </div>
+                    ) : null}
+                    {equipment.office_address?.trim() || equipment.alternate_phone_number?.trim() ? (
+                      <div className="mt-3 flex flex-col gap-2 rounded-xl bg-muted/50 border px-3.5 py-2.5 text-sm">
+                        {equipment.office_address?.trim() ? (
+                          <div className="flex items-start gap-2.5">
+                            <Building2 className="h-4 w-4 shrink-0 mt-0.5 text-primary" aria-hidden />
+                            <span className="whitespace-pre-line leading-snug">
+                              <span className="font-medium text-foreground">Office: </span>
+                              {equipment.office_address.trim()}
+                            </span>
+                          </div>
+                        ) : null}
+                        {equipment.alternate_phone_number?.trim() ? (
+                          <div className="flex items-center gap-2.5">
+                            <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                            <span>
+                              <span className="font-medium text-foreground">Alternate phone: </span>
+                              <a
+                                href={`tel:${equipment.alternate_phone_number.trim().replace(/[^\d+]/g, "")}`}
+                                className="hover:text-primary hover:underline underline-offset-2"
+                              >
+                                {equipment.alternate_phone_number.trim()}
+                              </a>
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                     {publicationCount > 0 ? (

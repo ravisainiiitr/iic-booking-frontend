@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, GripVertical, Loader2, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, GripVertical, Loader2, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,13 +11,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { DashboardMenuLayout } from "@/lib/api";
+import type { DashboardMenuGroup, DashboardMenuLayout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_DASHBOARD_MENU_LAYOUT,
   addMenuGroup,
   buildMenuTree,
+  menuNodeKey,
+  moveGroupItem,
   moveMenuItem,
+  moveMenuNode,
   orderMenuIds,
   removeMenuGroup,
   renameMenuGroup,
@@ -182,16 +185,54 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
   }, [open, layout]);
 
   const visible = useMemo(() => new Set(orderedIds), [orderedIds]);
-  const grouped = useMemo(() => {
-    const ids = new Set<string>();
-    for (const g of draft.groups) for (const i of g.items) if (visible.has(i)) ids.add(i);
-    return ids;
-  }, [draft, visible]);
-  const mainItems = orderedIds.filter((id) => !grouped.has(id));
+  const draftTree = useMemo(() => buildMenuTree(orderedIds, draft), [orderedIds, draft]);
+  const emptyGroups = useMemo(() => {
+    const shown = new Set(draftTree.flatMap((n) => (n.kind === "group" ? [n.group.id] : [])));
+    return draft.groups.filter((g) => !shown.has(g.id));
+  }, [draftTree, draft.groups]);
 
   const move = (itemId: string, target: string, beforeId?: string) => {
     setDraft((d) => moveMenuItem(d, itemId, target === MAIN_MENU ? null : target, beforeId));
   };
+
+  const moveTop = (key: string, delta: -1 | 1) => {
+    setDraft((d) => moveMenuNode(d, buildMenuTree(orderedIds, d).map(menuNodeKey), key, delta));
+  };
+
+  const priorityControls = (position: number, count: number, label: string, onMove: (delta: -1 | 1) => void) => (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <span
+        className="min-w-[1.6rem] rounded bg-muted px-1 text-center text-xs font-semibold tabular-nums text-muted-foreground"
+        title="Priority (1 = top of the menu)"
+      >
+        {position + 1}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        aria-label={`Move ${label} up`}
+        title="Move up"
+        disabled={position === 0}
+        onClick={() => onMove(-1)}
+      >
+        <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        aria-label={`Move ${label} down`}
+        title="Move down"
+        disabled={position >= count - 1}
+        onClick={() => onMove(1)}
+      >
+        <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+      </Button>
+    </div>
+  );
 
   const dropProps = (target: string, beforeId?: string) => ({
     onDragOver: (e: DragEvent) => {
@@ -211,7 +252,7 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
     },
   });
 
-  const renderItem = (id: string, container: string) => (
+  const renderItem = (id: string, container: string, controls?: ReactNode) => (
     <div
       key={id}
       draggable
@@ -227,6 +268,7 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
     >
       <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" aria-hidden />
       <span className="min-w-0 flex-1 truncate">{labels.get(id)?.label ?? id}</span>
+      {controls}
       <Select value={container} onValueChange={(target) => move(id, target)}>
         <SelectTrigger className="h-7 w-[9.5rem] shrink-0 text-xs" aria-label={`Move ${labels.get(id)?.label ?? id} to`}>
           <SelectValue />
@@ -243,6 +285,55 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
     </div>
   );
 
+  const renderGroup = (g: DashboardMenuGroup, items: string[], controls?: ReactNode) => (
+    <div
+      key={g.id}
+      {...dropProps(g.id)}
+      className={cn(
+        "rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-2",
+        dropTarget === g.id && "border-primary bg-primary/10",
+      )}
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <FolderOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+        <Input
+          value={g.name}
+          maxLength={60}
+          className="h-8 text-sm font-semibold"
+          aria-label="Menu name"
+          onChange={(e) => setDraft((d) => renameMenuGroup(d, g.id, e.target.value))}
+        />
+        {controls}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-destructive"
+          aria-label={`Remove menu ${g.name}`}
+          title="Remove menu (items go back to the main menu)"
+          onClick={() => setDraft((d) => removeMenuGroup(d, g.id))}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
+      <div className="ml-3 space-y-1 border-l-2 border-primary/20 pl-3">
+        {items.length === 0 ? (
+          <p className="py-2 text-xs text-muted-foreground">Drop menu items here.</p>
+        ) : (
+          items.map((id, index) =>
+            renderItem(
+              id,
+              g.id,
+              priorityControls(index, items.length, labels.get(id)?.label ?? id, (delta) =>
+                setDraft((d) => moveGroupItem(d, g.id, id, delta, visible)),
+              ),
+            ),
+          )
+        )}
+      </div>
+    </div>
+  );
+
   const addGroup = () => {
     if (!newName.trim()) return;
     setDraft((d) => addMenuGroup(d, newName));
@@ -256,8 +347,10 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
     }
     setSaving(true);
     setError(null);
+    const groupKeys = new Set(draft.groups.map((g) => `group:${g.id}`));
     const cleaned: DashboardMenuLayout = {
       groups: draft.groups.map((g) => ({ ...g, name: g.name.trim() })),
+      order: (draft.order ?? []).filter((k) => !k.startsWith("group:") || groupKeys.has(k)),
     };
     const err = await onSave(cleaned);
     setSaving(false);
@@ -271,8 +364,8 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
         <DialogHeader>
           <DialogTitle>Customize dashboard menu</DialogTitle>
           <DialogDescription>
-            Create your own menus, then drag items into them (or use &ldquo;Move to&rdquo;). Moving an item back to
-            the main menu returns it to its original place.
+            Set the priority of each entry with the up and down arrows (1 is shown at the top). You can also create
+            your own menus and drag items into them (or use &ldquo;Move to&rdquo;).
           </DialogDescription>
         </DialogHeader>
 
@@ -296,55 +389,23 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
         </div>
 
         <div className="space-y-3">
-          {draft.groups.map((g) => {
-            const items = g.items.filter((i) => visible.has(i));
-            return (
-              <div
-                key={g.id}
-                {...dropProps(g.id)}
-                className={cn(
-                  "rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-2",
-                  dropTarget === g.id && "border-primary bg-primary/10",
-                )}
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                  <Input
-                    value={g.name}
-                    maxLength={60}
-                    className="h-8 text-sm font-semibold"
-                    aria-label="Menu name"
-                    onChange={(e) => setDraft((d) => renameMenuGroup(d, g.id, e.target.value))}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-destructive"
-                    aria-label={`Remove menu ${g.name}`}
-                    title="Remove menu (items go back to the main menu)"
-                    onClick={() => setDraft((d) => removeMenuGroup(d, g.id))}
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                  </Button>
-                </div>
-                <div className="ml-3 space-y-1 border-l-2 border-primary/20 pl-3">
-                  {items.length === 0 ? (
-                    <p className="py-2 text-xs text-muted-foreground">Drop menu items here.</p>
-                  ) : (
-                    items.map((id) => renderItem(id, g.id))
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {emptyGroups.map((g) => renderGroup(g, []))}
 
           <div
             {...dropProps(MAIN_MENU)}
             className={cn("rounded-lg border p-2", dropTarget === MAIN_MENU && "border-primary bg-primary/5")}
           >
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Main menu</p>
-            <div className="space-y-1">{mainItems.map((id) => renderItem(id, MAIN_MENU))}</div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Main menu (top to bottom priority)
+            </p>
+            <div className="space-y-1">
+              {draftTree.map((node, index) => {
+                const key = menuNodeKey(node);
+                const label = node.kind === "item" ? labels.get(node.id)?.label ?? node.id : node.group.name;
+                const controls = priorityControls(index, draftTree.length, label, (delta) => moveTop(key, delta));
+                return node.kind === "item" ? renderItem(node.id, MAIN_MENU, controls) : renderGroup(node.group, node.items, controls);
+              })}
+            </div>
           </div>
         </div>
 
@@ -356,7 +417,7 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
             variant="ghost"
             className="gap-1.5"
             onClick={() => setDraft(EMPTY_DASHBOARD_MENU_LAYOUT)}
-            disabled={saving || draft.groups.length === 0}
+            disabled={saving || (draft.groups.length === 0 && !draft.order?.length)}
           >
             <RotateCcw className="h-4 w-4" aria-hidden />
             Reset to default
