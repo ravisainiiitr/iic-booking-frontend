@@ -423,6 +423,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     max_surcharge_urgent_requests_per_week: null,
     booking_not_utilize_window_hours: 24,
     operator_unavailable_after_booking_end_hours: 24,
+    operator_absent_disruption_after_booking_end_hours: 48,
     show_lifecycle_countdowns: true,
     sample_submission_lead_hours: 24,
     atmosphere_sensitive_sample_enabled: false,
@@ -708,7 +709,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         sample_preparation_by_user: d.sample_preparation_by_user === true,
         urgent_peak_window_minutes: (d.urgent_peak_window_minutes as number | null) ?? null,
         operator_absent_disruption_after_booking_end_hours:
-          (d.operator_absent_disruption_after_booking_end_hours as number | null) ?? null,
+          (d.operator_absent_disruption_after_booking_end_hours as number | null) ?? 48,
         show_lifecycle_countdowns: d.show_lifecycle_countdowns !== false,
         sample_submission_lead_hours: (d.sample_submission_lead_hours as number | null) ?? 24,
         atmosphere_sensitive_sample_enabled: d.atmosphere_sensitive_sample_enabled === true,
@@ -929,7 +930,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         formData.operator_absent_disruption_after_booking_end_hours != null &&
         formData.operator_absent_disruption_after_booking_end_hours !== ""
           ? Number(formData.operator_absent_disruption_after_booking_end_hours)
-          : null,
+          : 48,
       operator_unavailable_after_booking_end_hours:
         formData.operator_unavailable_after_booking_end_hours != null && formData.operator_unavailable_after_booking_end_hours !== ''
           ? (typeof formData.operator_unavailable_after_booking_end_hours === 'number'
@@ -2041,7 +2042,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   e.target.value === "" ? null : Number(e.target.value),
               }))
             }
-            placeholder="Optional"
+            placeholder="Default 48, 0 = disabled"
           />
         </div>
       </div>
