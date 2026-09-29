@@ -18,6 +18,14 @@ import { toast } from "sonner";
 import { MessageSquare, Clock, User, CheckCircle, XCircle, Calendar, RefreshCw, DollarSign, CopyPlus, BadgeCheck } from "lucide-react";
 import { format } from "date-fns";
 
+const commentRecipientsLabel = (metadata?: Record<string, unknown> | null): string => {
+  const r = metadata?.comment_recipients as { user?: boolean; oic?: boolean; lab_incharge?: boolean } | undefined;
+  if (!r || typeof r !== "object") return "";
+  return [r.user && "Booking user", r.oic && "Officer In Charge", r.lab_incharge && "Lab Incharge"]
+    .filter(Boolean)
+    .join(", ");
+};
+
 interface BookingEventHistoryProps {
   bookingId: number;
   onEventAdded?: () => void;
@@ -29,7 +37,16 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [sendNotification, setSendNotification] = useState(true);
+  const [notifyOic, setNotifyOic] = useState(false);
+  const [notifyLabIncharge, setNotifyLabIncharge] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const resetCommentForm = () => {
+    setComment("");
+    setSendNotification(true);
+    setNotifyOic(false);
+    setNotifyLabIncharge(false);
+  };
 
   useEffect(() => {
     fetchEvents();
@@ -61,14 +78,25 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
       const response = await apiClient.createBookingEventComment(
         bookingId,
         comment,
-        sendNotification
+        sendNotification,
+        { notifyOic, notifyLabIncharge }
       );
 
       if (response.error) {
         toast.error(response.error || "Failed to add comment");
       } else {
-        toast.success("Comment added successfully");
-        setComment("");
+        const notified = [
+          sendNotification && "user",
+          notifyOic && "Officer In Charge",
+          notifyLabIncharge && "Lab Incharge",
+        ].filter(Boolean);
+        toast.success(
+          notified.length
+            ? `Comment added; notification sent to ${notified.join(", ")}`
+            : "Comment added successfully"
+        );
+        (response.data?.warnings || []).forEach((w) => toast.warning(w));
+        resetCommentForm();
         setCommentDialogOpen(false);
         await fetchEvents();
         if (onEventAdded) {
@@ -226,8 +254,12 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                       <span>Notification sent</span>
                     </div>
                   )}
+                  {commentRecipientsLabel(event.metadata) && (
+                    <span>Sent to: {commentRecipientsLabel(event.metadata)}</span>
+                  )}
                 </div>
-                {event.metadata && Object.keys(event.metadata).length > 0 && (
+                {event.metadata &&
+                  (event.metadata.refund_amount != null || Number(event.metadata.uploaded_files_count) > 0) && (
                   <div className="mt-2 pt-2 border-t text-xs space-y-1">
                     {event.metadata.refund_amount != null && event.metadata.refund_amount !== undefined && (
                       <p className="text-muted-foreground">
@@ -276,15 +308,41 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                 rows={4}
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="send-notification"
-                checked={sendNotification}
-                onCheckedChange={(checked) => setSendNotification(checked === true)}
-              />
-              <Label htmlFor="send-notification" className="text-sm font-normal cursor-pointer">
-                Send notification to user
-              </Label>
+            <div className="space-y-2">
+              <Label className="text-sm">Send notification to</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="send-notification"
+                  checked={sendNotification}
+                  onCheckedChange={(checked) => setSendNotification(checked === true)}
+                />
+                <Label htmlFor="send-notification" className="text-sm font-normal cursor-pointer">
+                  Booking user
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notify-oic"
+                  checked={notifyOic}
+                  onCheckedChange={(checked) => setNotifyOic(checked === true)}
+                />
+                <Label htmlFor="notify-oic" className="text-sm font-normal cursor-pointer">
+                  Officer In Charge of this equipment
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="notify-lab-incharge"
+                  checked={notifyLabIncharge}
+                  onCheckedChange={(checked) => setNotifyLabIncharge(checked === true)}
+                />
+                <Label htmlFor="notify-lab-incharge" className="text-sm font-normal cursor-pointer">
+                  Lab Incharge of this equipment
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Selected recipients get an email and an in-app notification with your comment.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -292,7 +350,7 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
               variant="outline"
               onClick={() => {
                 setCommentDialogOpen(false);
-                setComment("");
+                resetCommentForm();
               }}
               disabled={submitting}
             >

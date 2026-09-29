@@ -5830,13 +5830,24 @@ class ApiClient {
     );
   }
 
-  async createBookingEventComment(bookingId: number, comment: string, sendNotification: boolean = true) {
+  async createBookingEventComment(
+    bookingId: number,
+    comment: string,
+    sendNotification: boolean = true,
+    staff: { notifyOic?: boolean; notifyLabIncharge?: boolean } = {}
+  ) {
     return this.request<{
       message: string;
       event: BookingEvent;
+      warnings?: string[];
     }>(`/bookings/${bookingId}/events/comment/`, {
       method: 'POST',
-      body: JSON.stringify({ comment, send_notification: sendNotification }),
+      body: JSON.stringify({
+        comment,
+        send_notification: sendNotification,
+        notify_oic: !!staff.notifyOic,
+        notify_lab_incharge: !!staff.notifyLabIncharge,
+      }),
     });
   }
 
