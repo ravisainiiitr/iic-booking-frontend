@@ -4,6 +4,7 @@ import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -224,6 +225,15 @@ export default function TAAssignments() {
   }, [assignments, selectedNomination?.equipment_id, canAllocateTa]);
 
   const weekTimeRows = useMemo(() => buildWeeklyTimeRows(weekSlotState), [weekSlotState]);
+  const weekRowEndTimes = useMemo(
+    () =>
+      slotRowEndTimes(
+        weekSlotState?.slots,
+        (s) => parseIsoDateAndTime(s.start_datetime).timeStr,
+        (s) => parseIsoDateAndTime(s.end_datetime).timeStr
+      ),
+    [weekSlotState]
+  );
 
   const selectedSlotsForAllocate = useMemo(() => {
     if (!weekSlotState?.slots?.length || selectedRealBookingIds.length === 0) return [];
@@ -678,7 +688,9 @@ export default function TAAssignments() {
                         ) : (
                           weekTimeRows.map((timeKey) => (
                             <div key={timeKey} className="grid grid-cols-8 gap-2 mb-2">
-                              <div className="text-sm p-2 font-medium flex items-center">{timeKey}</div>
+                              <div className="text-sm p-2 font-medium flex items-center">
+                                {slotTimeRangeLabel(timeKey, weekRowEndTimes.get(timeKey), weekSlotState?.slot_duration_minutes)}
+                              </div>
                               {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                                 const day = addDays(currentWeekStart, dayOffset);
                                 const slotData = weekSlotState ? findSlotForCell(weekSlotState.slots, day, timeKey) : undefined;

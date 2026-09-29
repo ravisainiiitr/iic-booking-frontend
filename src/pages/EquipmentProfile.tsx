@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   LifeBuoy,
@@ -1311,6 +1312,18 @@ const EquipmentProfile = () => {
 
               <div className="order-1 lg:order-1 min-w-0 w-full">
                 <div className="lg:sticky lg:top-6 space-y-2">
+                  {showCreateOrBookCta() && !canManageEquipment() && !isOicUser() && !isEquipmentOperational() && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 rounded-xl border-2 border-amber-500 bg-amber-50 px-3 py-3 text-amber-950 shadow-sm dark:bg-amber-950/40 dark:text-amber-50"
+                    >
+                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                      <p className="text-sm font-bold leading-snug">
+                        Booking is disabled while equipment is{" "}
+                        {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
+                      </p>
+                    </div>
+                  )}
                   {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
                     <button
                       type="button"
@@ -1400,12 +1413,6 @@ const EquipmentProfile = () => {
                           else navigate("/equipments");
                         },
                       })}
-                      {showCreateOrBookCta() && !canManageEquipment() && !isOicUser() && !isEquipmentOperational() && (
-                        <p className="text-[10px] text-amber-600 font-medium pt-1 px-0.5 leading-snug">
-                          Booking is disabled while equipment is{" "}
-                          {String((equipment as any)?.status_display || (equipment as any)?.status || "Not Operational")}.
-                        </p>
-                      )}
                     </CardContent>
                   </Card>
                   <TicketForm

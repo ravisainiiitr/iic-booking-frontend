@@ -3414,13 +3414,7 @@ const Dashboard = () => {
             <div className="sticky top-6 space-y-2">
               <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                 <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
-                <CardHeader className="pb-1.5 pt-3 px-3">
-                  <CardTitle className="text-sm font-semibold tracking-tight">Dashboard menu</CardTitle>
-                  <CardDescription className="text-xs leading-snug">
-                    Opens on the right
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-1.5 px-2.5 pb-3 dashboard-menu-nav">
+                <CardContent className="space-y-1.5 px-2.5 pb-3 pt-3 dashboard-menu-nav">
         {renderDashboardMenu()}
                 </CardContent>
               </Card>
@@ -3432,9 +3426,9 @@ const Dashboard = () => {
               side="left"
               className="flex w-[min(100vw-1.5rem,20rem)] flex-col gap-0 overflow-y-auto p-0 sm:max-w-sm"
             >
-              <SheetHeader className="space-y-1 border-b px-4 py-4 text-left">
+              <SheetHeader className="sr-only">
                 <SheetTitle>Dashboard menu</SheetTitle>
-                <SheetDescription>Opens on the right</SheetDescription>
+                <SheetDescription>Dashboard navigation</SheetDescription>
               </SheetHeader>
               <div
                 className="dashboard-menu-nav space-y-1.5 px-2.5 pb-8 pt-3"

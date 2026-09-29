@@ -119,6 +119,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
 import { cn } from "@/lib/utils";
+import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
   resolveTableColumns,
   resolveTableRowCountSourceKey,
@@ -430,19 +431,6 @@ function bookedSlotUserDetailLines(slot: DailySlot): string[] {
     lines.push(`Booking ID: ${slot.booking_id}`);
   }
   return lines;
-}
-
-/** Start–end label for a slot row when weekly view shows time (e.g. "09:00 – 10:00"). */
-function formatSlotRowTimeLabel(startTimeKey: string, durationMinutes: number): string {
-  const start = normalizeSlotGridTimeKey(startTimeKey);
-  if (!start.includes(":")) return start;
-  const startM = parseTimeToMinutes(start);
-  const duration = Math.max(1, durationMinutes || 60);
-  const endM = startM + duration;
-  const endH = Math.floor(endM / 60) % 24;
-  const endMin = endM % 60;
-  const end = `${String(endH).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`;
-  return `${start} – ${end}`;
 }
 
 /** Normalize grid row keys so "9:00" / "09:00:00" / ISO fragments all match `getSlotData` lookups. */
@@ -4801,9 +4789,12 @@ const BookEquipment = () => {
           ? fromWindow
           : DEFAULT_TIME_SLOTS;
     const slotDuration = equipmentDetail?.slot_duration_minutes || 60;
+    const rowEndTimes = slotRowEndTimes(equipmentDetail?.daily_slots, timeKeyFromDailySlot, (s) =>
+      normalizeSlotGridTimeKey(parseIsoDateAndTime(s.end_datetime).timeStr)
+    );
     return timeSlots.map((t, index) => ({
       key: t,
-      label: hideTime ? `Slot ${index + 1}` : formatSlotRowTimeLabel(t, slotDuration),
+      label: hideTime ? `Slot ${index + 1}` : slotTimeRangeLabel(t, rowEndTimes.get(t), slotDuration),
     }));
   };
 
@@ -6829,7 +6820,7 @@ const BookEquipment = () => {
                   className="min-w-[640px] rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm select-none"
                   onPointerMove={extendStatusSlotDrag}
                 >
-                  <div className="grid gap-0 bg-muted/40 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))" }}>
+                  <div className="grid gap-0 bg-muted/40 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "104px repeat(7, minmax(0, 1fr))" }}>
                     <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground px-1.5 py-1.5 border-r border-border/50 bg-background/95 backdrop-blur-sm sticky left-0 z-30 flex items-center">Time</div>
                     {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                       const day = addDays(statusChangePopupWeekStart, dayOffset);
@@ -6878,6 +6869,9 @@ const BookEquipment = () => {
                     const adminSundayColor = equipmentDetail?.calendar_colors?.sunday_color ?? "#fbcfe8";
                     const adminHolidayDefaultColor = equipmentDetail?.calendar_colors?.holiday_default ?? "#f59e0b";
                     const canSelectSlot = statusChangeCanSelectSlot;
+                    const rowEndTimes = slotRowEndTimes(statusChangeSlots, timeKeyFromDailySlot, (s) =>
+                      normalizeSlotGridTimeKey(parseIsoDateAndTime(s.end_datetime).timeStr)
+                    );
                     if (timeSlots.length === 0) {
                       return (
                         <div className="p-6 text-center text-muted-foreground text-sm">
@@ -6885,11 +6879,13 @@ const BookEquipment = () => {
                         </div>
                       );
                     }
-                    return timeSlots.map((time, rowIndex) => (
-                      <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))" }}>
+                    return timeSlots.map((time, rowIndex) => {
+                      const rowRange = slotTimeRangeLabel(time, rowEndTimes.get(time), equipmentDetail?.slot_duration_minutes);
+                      return (
+                      <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "104px repeat(7, minmax(0, 1fr))" }}>
                         <button
                           type="button"
-                          title={`Select all slots at ${time} (this week)`}
+                          title={`Select all slots at ${rowRange} (this week)`}
                           onClick={() => {
                             setStatusBulkFocusTime(time);
                             selectTimeRowForWeek(time);
@@ -6899,7 +6895,7 @@ const BookEquipment = () => {
                             statusBulkFocusTime === time && "ring-2 ring-inset ring-primary bg-primary/5 dark:bg-primary/15",
                           )}
                         >
-                          <span className="font-semibold text-[11px] tabular-nums leading-none">{time}</span>
+                          <span className="font-semibold text-[11px] tabular-nums leading-none whitespace-nowrap">{rowRange}</span>
                         </button>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                           const day = addDays(statusChangePopupWeekStart, dayOffset);
@@ -7094,7 +7090,8 @@ const BookEquipment = () => {
                           );
                         })}
                       </div>
-                    ));
+                      );
+                    });
                   })()}
                 </div>
                 </TooltipProvider>
@@ -10041,9 +10038,9 @@ const BookEquipment = () => {
                         </div>
                       )}
                       {!selectedEquipmentIsOperational && selectedEquipment ? (
-                        <div className="w-full rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-100">
+                        <div role="alert" className="w-full rounded-lg border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm font-bold text-amber-950 dark:text-amber-50">
                           Booking is disabled while equipment is{" "}
-                          <span className="font-semibold">
+                          <span>
                             {String((selectedEquipment as any)?.status_display || (selectedEquipment as any)?.status || "Not Operational")}
                           </span>
                           .

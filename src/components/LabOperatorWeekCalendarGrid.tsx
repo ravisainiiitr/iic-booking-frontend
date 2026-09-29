@@ -3,6 +3,7 @@ import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 function parseTimeToMinutes(timeStr: string): number {
@@ -178,9 +179,12 @@ function buildRowKeysAndLabels(slotsPayload: LabWeekCalendarSlotsPayload): { key
         : fromWindow.length > 0
           ? fromWindow
           : DEFAULT_TIME_SLOTS;
+  const endTimes = slotRowEndTimes(dailySlots, timeKeyFromDailySlot, (slot) =>
+    normalizeSlotGridTimeKey(slotWallTimeFromStartDatetime(slot.end_datetime))
+  );
   return timeSlots.map((t) => ({
     key: t,
-    label: t,
+    label: slotTimeRangeLabel(t, endTimes.get(t), slotsPayload.slot_duration_minutes),
   }));
 }
 
@@ -260,7 +264,7 @@ export function LabOperatorWeekCalendarGrid({
   const holidays = slotsPayload?.holidays || {};
 
   const gridColsStyle: CSSProperties = {
-    gridTemplateColumns: `minmax(5rem, 6.5rem) repeat(${visibleDayOffsets.length}, minmax(0, 1fr))`,
+    gridTemplateColumns: `minmax(6.5rem, 8rem) repeat(${visibleDayOffsets.length}, minmax(0, 1fr))`,
   };
 
   if (!slotsPayload) {
@@ -313,7 +317,7 @@ export function LabOperatorWeekCalendarGrid({
             const rowLabel = row.label;
             return (
               <div key={rowKey} className="grid gap-1.5 sm:gap-2 mb-1.5 sm:mb-2" style={gridColsStyle}>
-                <div className="text-xs sm:text-sm p-2 font-semibold tabular-nums text-muted-foreground flex items-center">{rowLabel}</div>
+                <div className="text-xs sm:text-sm p-2 font-semibold tabular-nums text-muted-foreground flex items-center whitespace-nowrap">{rowLabel}</div>
                 {visibleDayOffsets.map((dayOffset) => {
                   const day = addDays(currentWeekStart, dayOffset);
                   const slotData = getSlotData(day, rowKey);

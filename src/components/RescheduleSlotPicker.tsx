@@ -4,6 +4,7 @@ import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -466,6 +467,11 @@ export default function RescheduleSlotPicker({
   };
 
   const timeSlots = getUniqueTimes();
+  const rowEndTimes = slotRowEndTimes(
+    slots,
+    (s) => format(parseISO(s.start_datetime), "HH:mm"),
+    (s) => (s.end_datetime ? format(parseISO(s.end_datetime), "HH:mm") : "")
+  );
 
   // Normalize to local (date + minute) so timezone/sub-second differences don't break consecutive check
   const toMinuteKey = (iso: string): string => {
@@ -720,7 +726,7 @@ export default function RescheduleSlotPicker({
       ) : (
         <div className="overflow-x-auto">
           <div className="min-w-[600px]">
-            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}>
+            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: `104px repeat(7, 1fr)` }}>
               <div />
               {days.map((day) => (
                 <div key={day.getTime()} className="text-center text-xs">
@@ -733,9 +739,11 @@ export default function RescheduleSlotPicker({
               <div
                 key={timeStr}
                 className="grid gap-1 mb-1"
-                style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
+                style={{ gridTemplateColumns: `104px repeat(7, 1fr)` }}
               >
-                <div className="text-sm flex items-center font-medium">{timeStr}</div>
+                <div className="text-xs flex items-center font-medium whitespace-nowrap tabular-nums">
+                  {slotTimeRangeLabel(timeStr, rowEndTimes.get(timeStr))}
+                </div>
                 {days.map((day) => {
                   const slot = getSlotAt(day, timeStr);
                   const dateStr = format(day, "yyyy-MM-dd");
