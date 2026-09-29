@@ -544,6 +544,7 @@ export interface OicEquipmentSettings {
   operator_absent_disruption_after_booking_end_hours: number;
   sample_submission_lead_hours: number;
   sample_collect_deadline_hours: number;
+  important_instruction: string;
 }
 
 export interface OicEquipmentSettingsRow {

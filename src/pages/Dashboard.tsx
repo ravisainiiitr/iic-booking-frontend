@@ -78,7 +78,6 @@ const OIC_DASHBOARD_MENU_ORDER = [
   "urgent_requests",
   "multi_mode_equipment",
   "equipment_waitlist",
-  "quota_configurations",
   "equipment_settings",
   "booking_attempt_log",
   "reports_statistics",
@@ -96,8 +95,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/urgent-requests": { title: "Urgent Requests", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
   "/oic/multi-mode": { title: "Multi-mode Equipment" },
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
-  "/oic/quota-configurations": { title: "Quota Configurations" },
-  "/oic/equipment-settings": { title: "Slot Visibility & Timing" },
+  "/oic/equipment-settings": {
+    title: "Booking Rules & Instructions",
+    description: "Important instruction, slot visibility, usage quotas, and booking and sample timings for your equipment.",
+  },
   "/booking-attempt-logs": { title: "Booking Attempt Log" },
   "/reports": { title: "Reports & Statistics" },
   "/oic/accessories": { title: "Accessories" },
@@ -2413,37 +2414,8 @@ const Dashboard = () => {
       ),
     },
     {
-      id: "quota_configurations",
-      label: "Quota configurations",
-      visible: Boolean((isAdmin || isOicUser)),
-      render: () => (
-          <Card
-              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/quota-configurations")}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-700 text-white shadow-lg">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Quota configurations</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      Weekly and monthly quotas for equipment groups you manage
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-emerald-600 mt-3" />
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage quotas</Button>
-              </CardContent>
-            </Card>
-      ),
-    },
-    {
       id: "equipment_settings",
-      label: "Slot visibility & timings",
+      label: "Booking rules & instructions",
       visible: Boolean(isAdmin || isOicUser),
       render: () => (
           <Card
@@ -2456,9 +2428,9 @@ const Dashboard = () => {
                     <Clock className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Slot visibility &amp; timings</CardTitle>
+                    <CardTitle className="text-lg">Booking rules &amp; instructions</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Slot window, external quota, and booking and sample deadlines for your equipment
+                      Important instruction, slot visibility, usage quotas, and booking and sample deadlines
                     </CardDescription>
                   </div>
                 </div>

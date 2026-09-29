@@ -83,7 +83,6 @@ const AdminSettingsQualityImprovement = lazyPage(() => import("@/pages/AdminSett
 const AdminRewardsConfig = lazyPage(() => import("@/pages/AdminRewardsConfig"));
 const OICAccessories = lazyPage(() => import("@/pages/OICAccessories"));
 const OICPrintMaterials = lazyPage(() => import("@/pages/OICPrintMaterials"));
-const OICQuotaConfigurations = lazyPage(() => import("@/pages/OICQuotaConfigurations"));
 const OICEquipmentSettings = lazyPage(() => import("@/pages/OICEquipmentSettings"));
 const OICMultiMode = lazyPage(() => import("@/pages/OICMultiMode"));
 const CalendarColorSettings = lazyPage(() => import("@/pages/CalendarColorSettings"));
@@ -299,8 +298,8 @@ export default function AppRoutes() {
           <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
-          <Route path="/oic/quota-configurations" element={<ErrorBoundary fallbackTitle="Quota Configurations" backPath="/dashboard"><OICQuotaConfigurations /></ErrorBoundary>} />
-          <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Slot visibility & timings" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
+          <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />
+          <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Booking rules & instructions" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
           <Route path="/oic/multi-mode" element={<ErrorBoundary fallbackTitle="Multi-Mode Equipment" backPath="/dashboard"><OICMultiMode /></ErrorBoundary>} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/setup-test-users" element={<SetupTestUsers />} />
