@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Eye, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RESTRICTED_SLOT_HATCH, visibilityWindowRange } from "@/lib/slotVisibilityWindow";
 
@@ -28,6 +28,51 @@ export default function RestrictedSlotLegend({ from, to, className }: Props) {
         <span className="font-semibold">Hatched slots with a lock</span> are outside the user visibility window
         {range ? ` (${range})` : ""}. Regular users cannot see them; only OIC and administrators can.
       </span>
+    </div>
+  );
+}
+
+export type SlotVisibilityScope = "all" | "user";
+
+interface ToggleProps {
+  value: SlotVisibilityScope;
+  onChange: (value: SlotVisibilityScope) => void;
+  className?: string;
+}
+
+/** Lets OIC / administrators switch between every slot and only the slots regular users can see. */
+export function SlotVisibilityScopeToggle({ value, onChange, className }: ToggleProps) {
+  const options: { value: SlotVisibilityScope; label: string }[] = [
+    { value: "all", label: "All slots" },
+    { value: "user", label: "Visible to users" },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Slots to show"
+      className={cn(
+        "inline-flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium",
+        className
+      )}
+    >
+      <Eye className="ml-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            "rounded-md px-2.5 py-1 transition-colors",
+            value === opt.value
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-background hover:text-foreground"
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }

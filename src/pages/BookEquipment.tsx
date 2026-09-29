@@ -39,7 +39,7 @@ import {
 import { formatINR } from "@/lib/money";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
-import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
+import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
@@ -82,6 +82,7 @@ import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import RescheduleSlotPicker, { type RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { PortalFeedbackForm } from "@/components/PortalFeedbackDialog";
+import { publishWorkspaceTitle } from "@/lib/workspaceTitle";
 import {
   Dialog,
   DialogContent,
@@ -856,6 +857,81 @@ function shouldPromptCompleteOptionalParams(
   return hasIncompleteOptionalEditableParams(equipmentDetail?.input_fields, merged);
 }
 
+const FORMULA_LETTER_RE = /(?<![A-Za-z0-9_])[A-Z](?![A-Za-z0-9_])/g;
+
+function formulaLetters(formula: unknown, allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"): string[] {
+  const found = String(formula ?? "").match(FORMULA_LETTER_RE) ?? [];
+  return found.filter((letter) => allowed.includes(letter));
+}
+
+function isLegacyHourSlotFormula(timeFormula: unknown): boolean {
+  const normalized = String(timeFormula ?? "").replace(/\s+/g, "").toUpperCase();
+  return ["", "B", "B*SLOT_DURATION", "SLOT_DURATION*B", "B*SLOTDURATION", "SLOTDURATION*B"].includes(normalized);
+}
+
+/**
+ * Input keys the backend charge/time engines read for the charge profile(s) of `userType`
+ * (mirrors calculators.py), plus keys those fields' max formulas depend on.
+ * Returns null when the profile type is not understood, so callers show every field.
+ */
+function chargeAffectingInputKeys(
+  equipmentDetail: {
+    profile_type?: string;
+    charge_profiles?: Array<Record<string, unknown>>;
+    input_fields?: Array<Record<string, unknown>>;
+  } | null,
+  userType: string
+): Set<string> | null {
+  const profiles = (equipmentDetail?.charge_profiles ?? []).filter(
+    (p) =>
+      p && p.is_active !== false && (!userType || String(p.user_type || "").toLowerCase() === userType.toLowerCase())
+  );
+  if (profiles.length === 0) return null;
+  const keys = new Set<string>();
+  for (const profile of profiles) {
+    const type = String(profile.profile_type || equipmentDetail?.profile_type || "").toUpperCase().trim();
+    const timeLetters = formulaLetters(profile.time_formula, "ABCDEFG");
+    if (type === "SAMPLE") {
+      ["A", ...timeLetters].forEach((k) => keys.add(k));
+    } else if (type === "SAMPLE_ELEMENT") {
+      ["A", "B", "C", ...timeLetters].forEach((k) => keys.add(k));
+    } else if (type === "HOUR") {
+      (isLegacyHourSlotFormula(profile.time_formula) ? ["B", "C"] : timeLetters).forEach((k) => keys.add(k));
+    } else if (type === "GENERIC") {
+      [...formulaLetters(profile.time_formula), ...formulaLetters(profile.charge_formula)].forEach((k) => keys.add(k));
+    } else if (type === "MULTI_PARAM") {
+      ["A", "B"].forEach((k) => keys.add(k));
+    } else {
+      return null;
+    }
+  }
+  const fields = equipmentDetail?.input_fields ?? [];
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const field of fields) {
+      const key = String(field?.field_key || "").trim();
+      if (!keys.has(key)) continue;
+      const opts = field?.options;
+      const maxFormula =
+        opts && typeof opts === "object" && !Array.isArray(opts)
+          ? (opts as Record<string, unknown>).max_formula
+          : key === "A" && typeof opts === "string"
+            ? opts
+            : key === "A" && Array.isArray(opts) && opts.length === 1 && typeof opts[0] === "string"
+              ? opts[0]
+              : undefined;
+      for (const dep of formulaLetters(maxFormula)) {
+        if (!keys.has(dep)) {
+          keys.add(dep);
+          grew = true;
+        }
+      }
+    }
+  }
+  return keys;
+}
+
 /** Fields that only capture notes / free text and do not drive charge formulas. */
 function isNonChargeAffectingInputField(field: {
   field_key?: string | null;
@@ -1018,6 +1094,24 @@ const BookEquipment = () => {
   );
   const [chargeCalculationFailed, setChargeCalculationFailed] = useState(false);
   const [chargeEstimateUserType, setChargeEstimateUserType] = useState<string>("");
+  /** Standalone "Calculate charges": inputs that cannot change the estimate are hidden (and not required). */
+  const calculateHiddenFieldKeys = useMemo(() => {
+    const hidden = new Set<string>();
+    const fields = equipmentDetail?.input_fields;
+    if (!isCalculateChargesFlow || !fields?.length || equipmentDetail?.profile_type === "PRINT_3D") return hidden;
+    const chargeKeys = chargeAffectingInputKeys(equipmentDetail, chargeEstimateUserType);
+    for (const field of fields) {
+      const key = String(field?.field_key || "").trim();
+      if (!key) continue;
+      const type = String(field?.field_type || "").toUpperCase().trim();
+      if (type === "PERIODIC_TABLE" || type === "ICPMS_STANDARD_COVERAGE") continue;
+      // The calculate endpoint only reads single-letter keys (A–Z).
+      if (isNonChargeAffectingInputField(field) || !/^[A-Z]$/.test(key) || (chargeKeys && !chargeKeys.has(key))) {
+        hidden.add(key);
+      }
+    }
+    return hidden;
+  }, [isCalculateChargesFlow, equipmentDetail, chargeEstimateUserType]);
   /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
   const [sampleInfoExpanded, setSampleInfoExpanded] = useState(true);
   const [chargeCalcExpanded, setChargeCalcExpanded] = useState(true);
@@ -1064,6 +1158,8 @@ const BookEquipment = () => {
   const [statusChangeSlots, setStatusChangeSlots] = useState<DailySlot[] | null>(null);
   const [statusChangeSlotMasterTimes, setStatusChangeSlotMasterTimes] = useState<string[]>([]);
   const [statusChangeHolidays, setStatusChangeHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
+  /** OIC / admin: show every slot, or only the slots regular users can see (booking + change slot status grids). */
+  const [slotVisibilityScope, setSlotVisibilityScope] = useState<SlotVisibilityScope>("all");
   const [loadingStatusSlots, setLoadingStatusSlots] = useState(false);
   const [selectedSlotIdsForStatus, setSelectedSlotIdsForStatus] = useState<number[]>([]);
   /** Last focused time row / day column for week-view bulk scope dropdowns */
@@ -1253,6 +1349,19 @@ const BookEquipment = () => {
     () => (bookingAsExternalTarget ? false : waitlistIntentMode),
     [bookingAsExternalTarget, waitlistIntentMode]
   );
+
+  const workspaceEquipmentTitle = (() => {
+    const name = String(equipmentDetail?.name || selectedEquipment?.name || "").trim();
+    const code = String(equipmentDetail?.code || "").trim();
+    if (!name) return code;
+    return code && code.toLowerCase() !== name.toLowerCase() ? `${name} (${code})` : name;
+  })();
+
+  useEffect(() => {
+    if (!isEmbedFlow || !workspaceEquipmentTitle) return;
+    publishWorkspaceTitle(workspaceEquipmentTitle);
+    return () => publishWorkspaceTitle(null);
+  }, [isEmbedFlow, workspaceEquipmentTitle]);
 
   useEffect(() => {
     if (!bookingAsExternalTarget) return;
@@ -2130,10 +2239,134 @@ const BookEquipment = () => {
 
   const statusChangeCanSelectSlot = (s: DailySlot | null | undefined) => {
     if (!s) return false;
+    if (slotVisibilityScope === "user" && isOutsideVisibilityWindow(s)) return false;
     if (newSlotStatus === "BOOKING_NOT_UTILIZED" || newSlotStatus === RESCHEDULE_OPERATION_VALUE)
       return s.status === "BOOKED" && (s.booking_status || "").toUpperCase() !== "COMPLETED";
     if (s.status === "BOOKED" && (s.booking_status || "").toUpperCase() === "COMPLETED") return false;
     return true;
+  };
+
+  /** Time rows of the change-slot-status week grid; in "Visible to users" mode rows entirely outside the user window are dropped. */
+  const getStatusChangeWeekTimeRows = (): string[] => {
+    const base =
+      statusChangeSlotMasterTimes.length > 0
+        ? statusChangeSlotMasterTimes
+        : Array.from(
+            new Set(
+              (statusChangeSlots ?? [])
+                .filter((s) => s.start_datetime || s.slot_open_time)
+                .map((s) => timeKeyFromDailySlot(s))
+            )
+          ).sort();
+    if (slotVisibilityScope !== "user" || !statusChangeSlots?.length) return base;
+    return base.filter((time) => {
+      const rowSlots = statusChangeSlots.filter((s) => timeKeyFromDailySlot(s) === time);
+      return rowSlots.length === 0 || rowSlots.some((s) => !isOutsideVisibilityWindow(s));
+    });
+  };
+
+  type StatusDragState =
+    | { kind: "date"; anchor: string; mode: "add" | "remove"; base: string[]; moved: boolean }
+    | { kind: "slot"; anchorDay: number; anchorRow: number; mode: "add" | "remove"; base: number[]; moved: boolean };
+  const statusDragRef = useRef<StatusDragState | null>(null);
+  /** Swallows the click that the browser fires after a drag ends, so it does not toggle the last cell back. */
+  const statusDragSuppressClickRef = useRef(false);
+
+  useEffect(() => {
+    const endDrag = () => {
+      const drag = statusDragRef.current;
+      if (!drag) return;
+      statusDragRef.current = null;
+      if (drag.moved) {
+        statusDragSuppressClickRef.current = true;
+        window.setTimeout(() => {
+          statusDragSuppressClickRef.current = false;
+        }, 0);
+      }
+    };
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+    return () => {
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+    };
+  }, []);
+
+  const statusDragTargetAt = (e: React.PointerEvent, selector: string): HTMLElement | null => {
+    const hit = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    return hit?.closest<HTMLElement>(selector) ?? null;
+  };
+
+  const beginStatusDateDrag = (e: React.PointerEvent, dateStr: string) => {
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    statusDragRef.current = {
+      kind: "date",
+      anchor: dateStr,
+      mode: selectedDatesForStatus.includes(dateStr) ? "remove" : "add",
+      base: selectedDatesForStatus,
+      moved: false,
+    };
+  };
+
+  const extendStatusDateDrag = (e: React.PointerEvent) => {
+    const drag = statusDragRef.current;
+    if (!drag || drag.kind !== "date" || (e.buttons & 1) === 0) return;
+    const target = statusDragTargetAt(e, "[data-status-date]")?.dataset.statusDate;
+    if (!target || (!drag.moved && target === drag.anchor)) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      if (statusChangeDateClickTimerRef.current) {
+        clearTimeout(statusChangeDateClickTimerRef.current);
+        statusChangeDateClickTimerRef.current = null;
+      }
+    }
+    const [from, to] = drag.anchor <= target ? [drag.anchor, target] : [target, drag.anchor];
+    const next = new Set(drag.base);
+    eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }).forEach((d) => {
+      if (!isSameMonth(d, statusChangeMonthStart)) return;
+      const ds = format(d, "yyyy-MM-dd");
+      if (drag.mode === "add") next.add(ds);
+      else next.delete(ds);
+    });
+    setSelectedDatesForStatus(Array.from(next).sort());
+    setSelectedSlotIdsForStatus([]);
+  };
+
+  const beginStatusSlotDrag = (e: React.PointerEvent, dayOffset: number, rowIndex: number, slot?: DailySlot) => {
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    statusDragRef.current = {
+      kind: "slot",
+      anchorDay: dayOffset,
+      anchorRow: rowIndex,
+      mode: slot && selectedSlotIdsForStatus.includes(slot.id) ? "remove" : "add",
+      base: selectedSlotIdsForStatus,
+      moved: false,
+    };
+  };
+
+  const extendStatusSlotDrag = (e: React.PointerEvent) => {
+    const drag = statusDragRef.current;
+    if (!drag || drag.kind !== "slot" || (e.buttons & 1) === 0 || !statusChangePopupWeekStart) return;
+    const cell = statusDragTargetAt(e, "[data-status-slot-cell]");
+    if (!cell) return;
+    const day = Number(cell.dataset.day);
+    const row = Number(cell.dataset.row);
+    if (Number.isNaN(day) || Number.isNaN(row)) return;
+    if (!drag.moved && day === drag.anchorDay && row === drag.anchorRow) return;
+    drag.moved = true;
+    const rows = getStatusChangeWeekTimeRows();
+    const next = new Set(drag.base);
+    for (let r = Math.min(row, drag.anchorRow); r <= Math.max(row, drag.anchorRow); r++) {
+      const time = rows[r];
+      if (!time) continue;
+      for (let d = Math.min(day, drag.anchorDay); d <= Math.max(day, drag.anchorDay); d++) {
+        const slot = getStatusChangeSlotAt(addDays(statusChangePopupWeekStart, d), time);
+        if (!slot || !statusChangeCanSelectSlot(slot)) continue;
+        if (drag.mode === "add") next.add(slot.id);
+        else next.delete(slot.id);
+      }
+    }
+    setSelectedSlotIdsForStatus(Array.from(next));
   };
 
   const selectEntireWeekInPopup = () => {
@@ -2934,7 +3167,9 @@ const BookEquipment = () => {
     // Validate required input fields before calculating (only if input fields exist)
     // Note: This validation is already done in the useEffect, but keeping as a safety check
     if (equipmentDetail.input_fields && equipmentDetail.input_fields.length > 0) {
-      const requiredFields = equipmentDetail.input_fields.filter((field: any) => field.is_required);
+      const requiredFields = equipmentDetail.input_fields.filter(
+        (field: any) => field.is_required && !calculateHiddenFieldKeys.has(String(field.field_key || "").trim())
+      );
       for (const field of requiredFields) {
         const value = inputFieldValues[field.field_key];
         if (value === undefined || value === null || value === '' || 
@@ -3088,7 +3323,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode, adminManageMode]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -3325,7 +3560,16 @@ const BookEquipment = () => {
     }
 
     const readyToCalculate = isCalculateChargesFlow
-      ? Boolean(chargeEstimateUserType) && inputsReadyForChargeEstimate(equipmentDetail, inputFieldValues)
+      ? Boolean(chargeEstimateUserType) &&
+        inputsReadyForChargeEstimate(
+          {
+            ...equipmentDetail,
+            input_fields: equipmentDetail.input_fields?.filter(
+              (field) => !calculateHiddenFieldKeys.has(String(field?.field_key || "").trim())
+            ),
+          },
+          inputFieldValues
+        )
       : (!hasInputFields || allRequiredFilled);
 
     // Calculate charge when inputs are sufficient
@@ -3372,7 +3616,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType]);
+  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
@@ -4918,6 +5162,51 @@ const BookEquipment = () => {
     });
   }, [equipmentDetail?.input_fields, inputFieldValues]);
 
+  /** Field A's max can depend on other fields (options.max_formula, e.g. "B*4"); lowering B must pull A back within the new max. */
+  useEffect(() => {
+    const fields = equipmentDetail?.input_fields;
+    if (!Array.isArray(fields) || fields.length === 0 || repeatSourceBooking || bookingAsExternalTarget) return;
+    const fieldA = fields.find(
+      (f) =>
+        String(f?.field_key || "").toUpperCase() === "A" &&
+        String(f?.field_type || "").toUpperCase().trim() === "NUMERIC"
+    );
+    if (!fieldA) return;
+    const key = String(fieldA.field_key);
+    const raw = inputFieldValues[key];
+    if (raw === undefined || raw === "" || (typeof raw === "string" && isNumericInputDraft(raw))) return;
+    const current = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(current)) return;
+    const opts = fieldA.options;
+    const formula =
+      opts && typeof opts === "object" && !Array.isArray(opts) && typeof opts.max_formula === "string"
+        ? opts.max_formula
+        : typeof opts === "string"
+          ? opts
+          : Array.isArray(opts) && opts.length === 1 && typeof opts[0] === "string"
+            ? opts[0]
+            : "";
+    // Wait while a field used by the formula is being retyped, so A is not clamped against an empty B.
+    const referenced = Array.from(new Set(String(formula).toUpperCase().match(/\b[A-Z]\b/g) ?? []));
+    const pending = referenced.some((token) => {
+      const v = inputFieldValues[token];
+      return v === undefined || v === "" || (typeof v === "string" && isNumericInputDraft(v));
+    });
+    if (pending) return;
+    const formulaMax = resolveDynamicMaxForFieldA(fieldA, inputFieldValues, equipmentDetail, false);
+    if (formulaMax === undefined) return;
+    const { min, max } = resolveNumericFieldBounds(fieldA, formulaMax);
+    if (!(max >= min) || current <= max) return;
+    const clamped = typeof raw === "number" ? max : formatNumericBound(max);
+    setInputFieldValues((prev) => {
+      const next: Record<string, unknown> = { ...prev, [key]: clamped };
+      applyTableRowSyncToValues(next, fields, key);
+      return next as typeof prev;
+    });
+    lastCalculatedValuesRef.current = "";
+    toast.info(`${fieldA.field_label || key} adjusted to ${formatNumericBound(max)} (maximum for the current selection).`);
+  }, [equipmentDetail, inputFieldValues, repeatSourceBooking, bookingAsExternalTarget]);
+
   const handlePrint3DReady = useCallback((values: Print3DBookingValues | null) => {
     if (!values) {
       setPrintAnalysisId(null);
@@ -6098,43 +6387,32 @@ const BookEquipment = () => {
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
           <Card className="w-full max-w-none mx-auto mb-6 overflow-hidden border border-primary/20 shadow-lg bg-gradient-to-b from-card to-card/95">
-            <div className="bg-gradient-to-r from-primary via-primary to-accent px-5 py-4 text-white">
-              <div className="flex justify-between items-start flex-wrap gap-3">
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-xl md:text-2xl font-bold tracking-tight">Change slot status</h2>
-                  <p className="text-white/90 mt-1 text-sm md:text-base leading-6 max-w-none">
-                    Select one or more dates in the month calendar (click individual days, or use &quot;Select week&quot; / &quot;Select entire month&quot;), then choose the desired status and click Apply. For &quot;Booking Not Utilized&quot; use Week view to select only booked slots; no refund is issued and emails are sent to the user and Supervisor. Other Reasons, Under Maintenance, or Operator Absent will cancel any bookings on those slots and refund users.
-                  </p>
-                </div>
-                <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0 shrink-0" onClick={() => navigate(`/equipment/${selectedEquipment.id}`)}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-              </div>
-            </div>
             <CardContent className="space-y-5 p-4 md:p-6">
               {/* Year calendar */}
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="font-bold text-lg md:text-xl min-w-[96px] text-center text-foreground">
-                      {statusChangeMonthStart.getFullYear()}
-                    </span>
-                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
-                      Select entire year
-                    </Button>
+                <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
+                  <div className="hidden md:block" />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))} aria-label="Previous year">
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="font-bold text-lg md:text-xl min-w-[96px] text-center text-foreground">
+                        {statusChangeMonthStart.getFullYear()}
+                      </span>
+                      <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))} aria-label="Next year">
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
                       <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
                       Double-click a month to open Month view below
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
+                    <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
+                      Select entire year
+                    </Button>
                     <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium" onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
                       Clear selection
                     </Button>
@@ -6170,19 +6448,26 @@ const BookEquipment = () => {
               </div>
 
               {/* Month navigation */}
-              <div className="flex flex-wrap items-center justify-between gap-6">
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="font-bold text-lg md:text-xl min-w-[168px] text-center text-foreground">
-                    {format(statusChangeMonthStart, "MMMM yyyy")}
-                  </span>
-                  <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+              <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
+                <div className="hidden md:block" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-3">
+                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))} aria-label="Previous month">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="font-bold text-lg md:text-xl min-w-[168px] text-center text-foreground">
+                      {format(statusChangeMonthStart, "MMMM yyyy")}
+                    </span>
+                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))} aria-label="Next month">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
+                    <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
+                    Tip: double-click a date to open Week view · drag to select several dates
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
                   <Button
                     variant="outline"
                     size="sm"
@@ -6200,10 +6485,6 @@ const BookEquipment = () => {
                   <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectMonthForStatus}>
                     Select entire month
                   </Button>
-                  <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
-                    <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
-                    Tip: double-click a date to open Week view
-                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -6225,7 +6506,7 @@ const BookEquipment = () => {
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 bg-card">
+                <div className="grid grid-cols-7 bg-card select-none" onPointerMove={extendStatusDateDrag}>
                   {(() => {
                     const monthStart = startOfMonth(statusChangeMonthStart);
                     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -6240,8 +6521,13 @@ const BookEquipment = () => {
                         <button
                           key={dateStr}
                           type="button"
+                          data-status-date={inMonth ? dateStr : undefined}
+                          onPointerDown={(e) => {
+                            if (inMonth) beginStatusDateDrag(e, dateStr);
+                          }}
                           onClick={(e) => {
                             if (!inMonth) return;
+                            if (statusDragSuppressClickRef.current) return;
                             // Second click of a double-click: do not schedule single-click (avoids racing week open).
                             if (e.detail >= 2) {
                               if (statusChangeDateClickTimerRef.current) {
@@ -6519,13 +6805,29 @@ const BookEquipment = () => {
               <p className="mb-2 text-[11px] text-muted-foreground sm:hidden">
                 Swipe sideways to view the full week calendar
               </p>
+              {(Boolean(equipmentDetail?.weekly_view_time_from || equipmentDetail?.weekly_view_time_to) ||
+                (statusChangeSlots ?? []).some((s) => isOutsideVisibilityWindow(s))) && (
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <SlotVisibilityScopeToggle value={slotVisibilityScope} onChange={setSlotVisibilityScope} />
+                  {slotVisibilityScope === "all" && (statusChangeSlots ?? []).some((s) => isOutsideVisibilityWindow(s)) && (
+                    <RestrictedSlotLegend
+                      from={equipmentDetail?.weekly_view_time_from}
+                      to={equipmentDetail?.weekly_view_time_to}
+                      className="flex-1 min-w-[260px]"
+                    />
+                  )}
+                </div>
+              )}
               {loadingStatusSlots ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
                   <span className="animate-pulse">Loading slots…</span>
                 </div>
               ) : (
                 <TooltipProvider delayDuration={200}>
-                <div className="min-w-[640px] rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm">
+                <div
+                  className="min-w-[640px] rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm select-none"
+                  onPointerMove={extendStatusSlotDrag}
+                >
                   <div className="grid gap-0 bg-muted/40 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))" }}>
                     <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground px-1.5 py-1.5 border-r border-border/50 bg-background/95 backdrop-blur-sm sticky left-0 z-30 flex items-center">Time</div>
                     {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
@@ -6533,58 +6835,15 @@ const BookEquipment = () => {
                       const dateStr = format(day, "yyyy-MM-dd");
                       const rawH = statusChangeHolidays[dateStr];
                       const holidayLabel = typeof rawH === "string" ? rawH : (rawH && typeof rawH === "object" && "label" in rawH ? (rawH as { label: string }).label : undefined);
-                      const holidayColor = typeof rawH === "object" && rawH !== null && "color" in rawH ? (rawH as { color?: string }).color : undefined;
                       const dow = day.getDay();
                       const isSatHeader = dow === 6;
                       const isSunHeader = dow === 0;
-                      const adminSat = equipmentDetail?.calendar_colors?.saturday_color ?? "#c7d2fe";
-                      const adminSun = equipmentDetail?.calendar_colors?.sunday_color ?? "#fbcfe8";
-                      const adminHolDefault = equipmentDetail?.calendar_colors?.holiday_default ?? "#f59e0b";
                       const isDayFocused = statusBulkFocusDayOffset === dayOffset;
-                      const headerBadge =
-                        holidayLabel != null && holidayLabel !== "" ? (
-                          <div
-                            className="text-[9px] truncate mt-0.5 leading-tight"
-                            title={holidayHoverText(holidayLabel)}
-                            style={{
-                              backgroundColor: holidayColor ?? adminHolDefault,
-                              color: getContrastTextColor(holidayColor ?? adminHolDefault),
-                              padding: "1px 4px",
-                              borderRadius: 3,
-                            }}
-                          >
-                            {holidayCellLabel(holidayLabel)}
-                          </div>
-                        ) : isSatHeader ? (
-                          <div
-                            className="text-[9px] font-medium truncate mt-0.5 leading-tight"
-                            style={{
-                              backgroundColor: adminSat,
-                              color: getContrastTextColor(adminSat),
-                              padding: "1px 4px",
-                              borderRadius: 3,
-                            }}
-                          >
-                            Sat
-                          </div>
-                        ) : isSunHeader ? (
-                          <div
-                            className="text-[9px] font-medium truncate mt-0.5 leading-tight"
-                            style={{
-                              backgroundColor: adminSun,
-                              color: getContrastTextColor(adminSun),
-                              padding: "1px 4px",
-                              borderRadius: 3,
-                            }}
-                          >
-                            Sun
-                          </div>
-                        ) : null;
                       return (
                         <button
                           key={dayOffset}
                           type="button"
-                          title={`Select all slots on ${format(day, "EEE MMM d")} (this week)`}
+                          title={`Select all slots on ${format(day, "EEE MMM d")} (this week)${holidayLabel ? ` · ${holidayHoverText(holidayLabel)}` : ""}`}
                           onClick={() => {
                             setStatusBulkFocusDayOffset(dayOffset);
                             selectDayColumnForWeek(dayOffset);
@@ -6598,21 +6857,16 @@ const BookEquipment = () => {
                         >
                           <div className="text-[11px] font-bold text-foreground leading-none">{format(day, "EEE")}</div>
                           <div className="text-[10px] text-muted-foreground mt-0.5 leading-none">{format(day, "MMM d")}</div>
-                          {headerBadge}
                         </button>
                       );
                     })}
                   </div>
                   {(() => {
-                    const timeSlots = statusChangeSlotMasterTimes.length > 0
-                      ? statusChangeSlotMasterTimes
-                      : (() => {
-                          const fromSlots = new Set<string>();
-                          statusChangeSlots?.forEach((s) => {
-                            if (s.start_datetime || s.slot_open_time) fromSlots.add(timeKeyFromDailySlot(s));
-                          });
-                          return Array.from(fromSlots).sort();
-                        })();
+                    const timeSlots = getStatusChangeWeekTimeRows();
+                    const restrictedHint = restrictedSlotHint(
+                      equipmentDetail?.weekly_view_time_from,
+                      equipmentDetail?.weekly_view_time_to
+                    );
                     const statusLabel = (slot: DailySlot) => {
                       if (slot.status === "BOOKED") return slot.booking_status_display || "Booked";
                       if (slot.status === "BLOCKED") return slot.blocked_label || "Other Reasons";
@@ -6630,7 +6884,7 @@ const BookEquipment = () => {
                         </div>
                       );
                     }
-                    return timeSlots.map((time) => (
+                    return timeSlots.map((time, rowIndex) => (
                       <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))" }}>
                         <button
                           type="button"
@@ -6648,7 +6902,9 @@ const BookEquipment = () => {
                         </button>
                         {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                           const day = addDays(statusChangePopupWeekStart, dayOffset);
-                          const slot = getStatusChangeSlotAt(day, time);
+                          const rawSlot = getStatusChangeSlotAt(day, time);
+                          const slot =
+                            slotVisibilityScope === "user" && isOutsideVisibilityWindow(rawSlot) ? null : rawSlot;
                           const slotSelectable = canSelectSlot(slot);
                           const isSelected = slot ? selectedSlotIdsForStatus.includes(slot.id) : false;
                           const dateStr = format(day, "yyyy-MM-dd");
@@ -6705,8 +6961,16 @@ const BookEquipment = () => {
                             border: "1px solid rgba(148,163,184,0.3)",
                             borderRadius: "4px",
                           };
+                          const slotRestricted = isOutsideVisibilityWindow(slot);
                           return (
-                            <div key={dayOffset} className="min-h-[32px] p-0.5 border-r border-border/30 last:border-r-0">
+                            <div
+                              key={dayOffset}
+                              data-status-slot-cell
+                              data-day={dayOffset}
+                              data-row={rowIndex}
+                              onPointerDown={(e) => beginStatusSlotDrag(e, dayOffset, rowIndex, slot ?? undefined)}
+                              className="min-h-[32px] p-0.5 border-r border-border/30 last:border-r-0"
+                            >
                               {slot ? (
                                 (() => {
                                   const userDetailLines = bookedSlotUserDetailLines(slot);
@@ -6715,6 +6979,7 @@ const BookEquipment = () => {
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          if (statusDragSuppressClickRef.current) return;
                                           setStatusBulkFocusTime(time);
                                           setStatusBulkFocusDayOffset(dayOffset);
                                           if (slotSelectable) toggleStatusChangeSlotSelection(slot.id);
@@ -6723,7 +6988,9 @@ const BookEquipment = () => {
                                         title={
                                           holidayName && useCalendarDayStyling && userDetailLines.length === 0
                                             ? holidayHoverText(holidayName)
-                                            : undefined
+                                            : slotRestricted && userDetailLines.length === 0
+                                              ? restrictedHint
+                                              : undefined
                                         }
                                         className={cn(
                                           "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
@@ -6733,15 +7000,27 @@ const BookEquipment = () => {
                                         )}
                                         style={
                                           !isSelected && slot
-                                            ? {
-                                                ...cell3dStyle,
-                                                backgroundColor: displayBg,
-                                                color: getContrastTextColor(displayBg),
-                                              }
+                                            ? (() => {
+                                                const base: CSSProperties = {
+                                                  ...cell3dStyle,
+                                                  backgroundColor: displayBg,
+                                                  color: getContrastTextColor(displayBg),
+                                                };
+                                                return slotRestricted ? restrictedSlotStyle(base) : base;
+                                              })()
                                             : isSelected ? cell3dStyle : undefined
                                         }
                                       >
-                                        {isSelected ? "✓" : displayLabel}
+                                        {isSelected ? (
+                                          "✓"
+                                        ) : slotRestricted ? (
+                                          <>
+                                            <Lock className="mr-0.5 h-3 w-3 shrink-0" aria-label="Not visible to users" />
+                                            <span className="truncate">{displayLabel}</span>
+                                          </>
+                                        ) : (
+                                          displayLabel
+                                        )}
                                       </button>
                                       {slot.status === "BOOKED" && slot.booking_id && (
                                         <button
@@ -7874,6 +8153,9 @@ const BookEquipment = () => {
                               }
                             }
                             if (isProformaFlow && isNonChargeAffectingInputField(field)) {
+                              return false;
+                            }
+                            if (calculateHiddenFieldKeys.has(String(field.field_key || "").trim())) {
                               return false;
                             }
                             return true;
@@ -9035,12 +9317,20 @@ const BookEquipment = () => {
                   </Button>
                 </div>
 
-                {isAdminOrOIC() && (equipmentDetail?.daily_slots ?? []).some((s) => isOutsideVisibilityWindow(s)) && (
-                  <RestrictedSlotLegend
-                    className="mb-3"
-                    from={equipmentDetail?.weekly_view_time_from}
-                    to={equipmentDetail?.weekly_view_time_to}
-                  />
+                {isAdminOrOIC() &&
+                  (Boolean(equipmentDetail?.weekly_view_time_from || equipmentDetail?.weekly_view_time_to) ||
+                    (equipmentDetail?.daily_slots ?? []).some((s) => isOutsideVisibilityWindow(s))) && (
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <SlotVisibilityScopeToggle value={slotVisibilityScope} onChange={setSlotVisibilityScope} />
+                    {slotVisibilityScope === "all" &&
+                      (equipmentDetail?.daily_slots ?? []).some((s) => isOutsideVisibilityWindow(s)) && (
+                      <RestrictedSlotLegend
+                        className="flex-1 min-w-[260px]"
+                        from={equipmentDetail?.weekly_view_time_from}
+                        to={equipmentDetail?.weekly_view_time_to}
+                      />
+                    )}
+                  </div>
                 )}
 
                 {/* Slot Grid */}
@@ -9066,7 +9356,15 @@ const BookEquipment = () => {
 
                     {/* Time slots - use Slot Master open_time values (user-defined), else derive from slots */}
                     {(() => {
-                      const rowKeysAndLabels = getWeeklyRowKeysAndLabels();
+                      const hideStaffOnlySlots = slotVisibilityScope === "user" && isAdminOrOIC();
+                      const rowKeysAndLabels = hideStaffOnlySlots
+                        ? getWeeklyRowKeysAndLabels().filter(({ key }) => {
+                            const rowSlots = [0, 1, 2, 3, 4, 5, 6]
+                              .map((d) => getSlotData(addDays(currentWeekStart, d), key))
+                              .filter((s): s is NonNullable<typeof s> => s !== undefined);
+                            return rowSlots.length === 0 || rowSlots.some((s) => !isOutsideVisibilityWindow(s));
+                          })
+                        : getWeeklyRowKeysAndLabels();
                       const rowKeys = rowKeysAndLabels.map((r) => r.key);
                       const hasSlotsFromApi = (equipmentDetail?.daily_slots?.length ?? 0) > 0;
                       const fetchedButEmpty = !loadingSlots && lastFetchedWeek && !hasSlotsFromApi;
@@ -9180,7 +9478,9 @@ const BookEquipment = () => {
                           const isSelected = isSlotSelected(day, time);
                           
                           // Check if slot exists in daily_slots for this day and row key (time or slot_number)
-                          const slotData = useWeeklySlots() ? getSlotData(day, time) : undefined;
+                          const rawSlotData = useWeeklySlots() ? getSlotData(day, time) : undefined;
+                          const slotData =
+                            hideStaffOnlySlots && isOutsideVisibilityWindow(rawSlotData) ? undefined : rawSlotData;
                           const slotExists = slotData !== undefined;
                           // Past: use slot start datetime when available; else parse time "HH:mm" for TIME mode
                           const isPast = (slotData?.start_datetime

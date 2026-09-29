@@ -8,7 +8,7 @@ import {
   notifyEquipmentAccessFailure,
 } from "@/lib/equipmentAccess";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChevronLeft,
   ChevronRight,
@@ -129,6 +129,8 @@ interface EquipmentProfile {
     operator_email?: string | null;
     operator_phone?: string | null;
     operator_profile_picture?: string | null;
+    office_address?: string | null;
+    alternate_phone_number?: string | null;
     created_at: string;
   }>;
   managers?: Array<{
@@ -138,6 +140,8 @@ interface EquipmentProfile {
     manager_email?: string | null;
     manager_phone?: string | null;
     manager_profile_picture?: string | null;
+    office_address?: string | null;
+    alternate_phone_number?: string | null;
     created_at: string;
   }>;
   publications?: Array<{
@@ -708,6 +712,8 @@ const EquipmentProfile = () => {
               name?: string | null;
               email?: string | null;
               phone?: string | null;
+              alternatePhone?: string | null;
+              officeAddress?: string | null;
               profilePicture?: string | null;
               userId?: number | null;
             }>,
@@ -720,6 +726,8 @@ const EquipmentProfile = () => {
                   name={entry.name}
                   email={entry.email}
                   phone={entry.phone}
+                  alternatePhone={entry.alternatePhone}
+                  officeAddress={entry.officeAddress}
                   roleLabel={roleLabel}
                   photoUrl={
                     entry.profilePicture && entry.userId != null
@@ -879,6 +887,8 @@ const EquipmentProfile = () => {
                       name: mgr.manager_name,
                       email: mgr.manager_email,
                       phone: mgr.manager_phone,
+                      alternatePhone: mgr.alternate_phone_number,
+                      officeAddress: mgr.office_address,
                       profilePicture: mgr.manager_profile_picture,
                       userId: mgr.manager,
                     }))
@@ -890,6 +900,8 @@ const EquipmentProfile = () => {
                       name: op.operator_name,
                       email: op.operator_email,
                       phone: op.operator_phone,
+                      alternatePhone: op.alternate_phone_number,
+                      officeAddress: op.office_address,
                       profilePicture: op.operator_profile_picture,
                       userId: op.operator,
                     }))
@@ -903,13 +915,13 @@ const EquipmentProfile = () => {
                       role: "Officer in-charge",
                       name: m.name || "—",
                       email: m.email,
-                      phone: m.phone,
+                      phone: [m.phone, m.alternatePhone?.trim()].filter(Boolean).join(" / ") || m.phone,
                     })),
                     ...brochureOperators.map((o) => ({
                       role: "Lab operator",
                       name: o.name || "—",
                       email: o.email,
-                      phone: o.phone,
+                      phone: [o.phone, o.alternatePhone?.trim()].filter(Boolean).join(" / ") || o.phone,
                     })),
                   ];
                   await exportEquipmentBrochurePdf({
@@ -1105,6 +1117,8 @@ const EquipmentProfile = () => {
                     name: mgr.manager_name,
                     email: mgr.manager_email,
                     phone: mgr.manager_phone,
+                    alternatePhone: mgr.alternate_phone_number,
+                    officeAddress: mgr.office_address,
                     profilePicture: mgr.manager_profile_picture,
                     userId: mgr.manager,
                   }))
@@ -1116,6 +1130,8 @@ const EquipmentProfile = () => {
                     name: op.operator_name,
                     email: op.operator_email,
                     phone: op.operator_phone,
+                    alternatePhone: op.alternate_phone_number,
+                    officeAddress: op.office_address,
                     profilePicture: op.operator_profile_picture,
                     userId: op.operator,
                   }))
@@ -1195,7 +1211,10 @@ const EquipmentProfile = () => {
                 <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
                   <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                   <CardHeader className="pb-3">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <CardTitle className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
+                        {equipment.name}
+                      </CardTitle>
                       {equipment.code ? (
                         <Badge variant="outline" className="font-mono text-xs tracking-wide">
                           {equipment.code}
@@ -1211,9 +1230,6 @@ const EquipmentProfile = () => {
                         {equipment.status_display}
                       </Badge>
                     </div>
-                    <CardTitle className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
-                      {equipment.name}
-                    </CardTitle>
                     <div className="mt-3">
                       <EquipmentDepartmentLabel name={equipment.internal_department_name} />
                     </div>
@@ -1307,13 +1323,7 @@ const EquipmentProfile = () => {
                   )}
                   <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                     <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
-                    <CardHeader className="pb-1.5 pt-3 px-2.5">
-                      <CardTitle className="text-sm font-semibold tracking-tight">Equipment menu</CardTitle>
-                      <CardDescription className="text-xs leading-snug">
-                        Opens on the right
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-1 px-2 pb-2.5">
+                    <CardContent className="space-y-1 px-2 pb-2.5 pt-2.5">
                       {canChangeSlotStatus() && (
                         navBtn("slot_status", "Change slot status", {
                           icon: <CalendarClock className="h-3 w-3" />,

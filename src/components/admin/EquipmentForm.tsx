@@ -205,8 +205,8 @@ export type EquipmentFormData = {
   updated_at?: string | null;
   image_url?: string | null;
   video_url?: string | null;
-  equipment_managers?: Array<{ manager: number; disable_booking_confirmation_email?: boolean }>;
-  equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY'; disable_booking_confirmation_email?: boolean }>;
+  equipment_managers?: Array<{ manager: number; disable_booking_confirmation_email?: boolean } & AssignmentContact>;
+  equipment_operators?: Array<{ operator: number; role?: 'PRIMARY' | 'SECONDARY'; disable_booking_confirmation_email?: boolean } & AssignmentContact>;
   equipment_pis?: Array<{ faculty: number; is_active?: boolean }>;
   equipment_specifications?: Array<{ spec_key: string; spec_value?: string }>;
   equipment_publications?: Array<{
@@ -278,6 +278,49 @@ export type EquipmentFormData = {
 /** Legacy profile types kept for existing rows only; new picks use GENERIC. */
 const LEGACY_CHARGE_PROFILE_TYPES = new Set(["SAMPLE", "HOUR", "SAMPLE_ELEMENT"]);
 const NEW_CHARGE_PROFILE_TYPES = new Set(["GENERIC", "MULTI_PARAM", "PRINT_3D"]);
+
+/** Per-equipment contact details of an Officer In Charge / Lab In-charge (shown in Contact us). */
+type AssignmentContact = { office_address?: string; alternate_phone_number?: string };
+
+function AssignmentContactInputs({
+  idPrefix,
+  value,
+  onChange,
+}: {
+  idPrefix: string;
+  value: AssignmentContact;
+  onChange: (patch: AssignmentContact) => void;
+}) {
+  return (
+    <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="space-y-1">
+        <Label htmlFor={`${idPrefix}-address`} className="text-xs text-muted-foreground">
+          Office address
+        </Label>
+        <Textarea
+          id={`${idPrefix}-address`}
+          rows={2}
+          placeholder="Room / building / department (optional)"
+          value={value.office_address ?? ""}
+          onChange={(e) => onChange({ office_address: e.target.value })}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={`${idPrefix}-phone`} className="text-xs text-muted-foreground">
+          Additional phone number
+        </Label>
+        <Input
+          id={`${idPrefix}-phone`}
+          type="tel"
+          maxLength={40}
+          placeholder="Optional"
+          value={value.alternate_phone_number ?? ""}
+          onChange={(e) => onChange({ alternate_phone_number: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
 
 type StaffUserChoice = {
   id: number;
@@ -566,8 +609,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   useEffect(() => {
     if (initialData && typeof initialData === "object") {
       const d = initialData as Record<string, unknown>;
-      const managers = (d.managers || d.equipment_managers || []) as Array<{ manager: number; disable_booking_confirmation_email?: boolean }>;
-      const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string; disable_booking_confirmation_email?: boolean }>;
+      const managers = (d.managers || d.equipment_managers || []) as Array<{ manager: number; disable_booking_confirmation_email?: boolean } & AssignmentContact>;
+      const operators = (d.operators || d.equipment_operators || []) as Array<{ operator: number; role?: string; disable_booking_confirmation_email?: boolean } & AssignmentContact>;
       const pis = (d.equipment_pis || d.pis || []) as Array<{ faculty?: number; faculty_id?: number; is_active?: boolean }>;
       const specs = (d.specifications || d.equipment_specifications || []) as Array<{ spec_key: string; spec_value?: string }>;
       const publications = (d.publications || d.equipment_publications || []) as Array<{
@@ -686,8 +729,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         updated_at: (d.updated_at as string) ?? null,
         image_url: (d.image_url as string) ?? null,
         video_url: (d.video_url as string) ?? null,
-        equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number, disable_booking_confirmation_email: m.disable_booking_confirmation_email === true })) : prev.equipment_managers ?? [],
-        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY", disable_booking_confirmation_email: o.disable_booking_confirmation_email === true })) : prev.equipment_operators ?? [],
+        equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number, disable_booking_confirmation_email: m.disable_booking_confirmation_email === true, office_address: m.office_address ?? "", alternate_phone_number: m.alternate_phone_number ?? "" })) : prev.equipment_managers ?? [],
+        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY", disable_booking_confirmation_email: o.disable_booking_confirmation_email === true, office_address: o.office_address ?? "", alternate_phone_number: o.alternate_phone_number ?? "" })) : prev.equipment_operators ?? [],
         equipment_pis: Array.isArray(pis)
           ? pis
               .map((p) => ({
@@ -3019,6 +3062,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 Disable booking confirmation email
               </label>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_managers: (p.equipment_managers ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
+              <AssignmentContactInputs
+                idPrefix={`eq-manager-${idx}`}
+                value={m}
+                onChange={(patch) =>
+                  setFormData((p) => {
+                    const arr = [...(p.equipment_managers ?? [])];
+                    arr[idx] = { ...arr[idx], ...patch };
+                    return { ...p, equipment_managers: arr };
+                  })
+                }
+              />
             </div>
           ))
         )}
@@ -3141,7 +3195,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="p-2 text-sm text-muted-foreground">No operators.</p>
         ) : (
           (formData.equipment_operators ?? []).map((o, idx) => (
-            <div key={idx} className="flex items-center justify-between gap-2 p-2">
+            <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2">
               <span className="text-sm flex-1">{(choices.operators ?? []).find((c) => c.id === o.operator)?.name || (choices.operators ?? []).find((c) => c.id === o.operator)?.email || `ID ${o.operator}`}</span>
               <Select
                 value={o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY"}
@@ -3173,6 +3227,17 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 Disable booking confirmation email
               </label>
               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setFormData((p) => ({ ...p, equipment_operators: (p.equipment_operators ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
+              <AssignmentContactInputs
+                idPrefix={`eq-operator-${idx}`}
+                value={o}
+                onChange={(patch) =>
+                  setFormData((p) => {
+                    const arr = [...(p.equipment_operators ?? [])];
+                    arr[idx] = { ...arr[idx], ...patch };
+                    return { ...p, equipment_operators: arr };
+                  })
+                }
+              />
             </div>
           ))
         )}

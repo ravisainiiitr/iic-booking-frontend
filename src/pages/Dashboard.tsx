@@ -68,6 +68,7 @@ import {
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
 import { normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
+import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
 
 /** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
 const OIC_DASHBOARD_MENU_ORDER = [
@@ -1298,6 +1299,7 @@ const Dashboard = () => {
   }, []);
 
   const workspaceBackRef = useRef<(() => void) | null>(null);
+  const workspaceTitleOverride = useWorkspaceTitleOverride();
   const [workspaceCanGoBack, setWorkspaceCanGoBack] = useState(false);
   const workspaceGoBack = useCallback(() => {
     if (workspaceCanGoBack && workspaceBackRef.current) workspaceBackRef.current();
@@ -3469,9 +3471,9 @@ const Dashboard = () => {
                         {workspaceBackButton}
                         <div className="min-w-0">
                           <CardTitle className="truncate text-base font-semibold tracking-tight sm:text-lg">
-                            {workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
+                            {workspaceTitleOverride || workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
                           </CardTitle>
-                          {workspaceMeta?.description ? (
+                          {workspaceMeta?.description && !workspaceTitleOverride ? (
                             <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
                           ) : null}
                         </div>
