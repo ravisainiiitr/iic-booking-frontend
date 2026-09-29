@@ -17,6 +17,7 @@ import NotificationPanel from "@/components/NotificationPanel";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { BackButton } from "@/components/BackButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 
@@ -109,6 +110,7 @@ const Header = () => {
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur-md shadow-sm shadow-primary/5">
       <div className="container mx-auto px-4 sm:px-6 py-3.5 sm:py-4">
         <div className="flex items-center justify-between gap-4 sm:gap-6">
+          <BackButton />
           <div
             className="flex items-center min-w-0 flex-1 cursor-pointer rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             onClick={() => navigate("/")}

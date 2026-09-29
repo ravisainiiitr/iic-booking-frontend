@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { GlobalBackButton } from "@/components/BackButton";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
@@ -33,6 +34,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <EmbedChrome />
+            <GlobalBackButton />
             <ResearchCopilotLauncher />
             <PendingActionsPrompt />
             <AppRoutes />

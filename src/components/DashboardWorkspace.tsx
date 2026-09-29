@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type MutableRefObject } from "react";
 import {
   createPath,
   parsePath,
@@ -58,6 +58,10 @@ type DashboardWorkspaceProps = {
   initialPath: string;
   onClose: () => void;
   onPathChange?: (pathname: string) => void;
+  /** Receives a function that goes one step back inside the panel. */
+  backRef?: MutableRefObject<(() => void) | null>;
+  /** Called with true when there is an earlier page inside the panel to go back to. */
+  onCanGoBackChange?: (canGoBack: boolean) => void;
 };
 
 /**
@@ -70,6 +74,8 @@ export default function DashboardWorkspace({
   initialPath,
   onClose,
   onPathChange,
+  backRef,
+  onCanGoBackChange,
 }: DashboardWorkspaceProps) {
   const handleClose = useCallback(() => {
     onClose();
@@ -174,6 +180,18 @@ export default function DashboardWorkspace({
   useEffect(() => {
     onPathChange?.(location.pathname);
   }, [location.pathname, onPathChange]);
+
+  useEffect(() => {
+    onCanGoBackChange?.(indexRef.current > 0);
+  }, [location, onCanGoBackChange]);
+
+  useEffect(() => {
+    if (!backRef) return;
+    backRef.current = () => navigator.go(-1);
+    return () => {
+      backRef.current = null;
+    };
+  }, [backRef, navigator]);
 
   // Keep the Book CTA / page header visible when drilling into equipment details
   useEffect(() => {

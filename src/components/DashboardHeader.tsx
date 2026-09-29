@@ -16,6 +16,7 @@ import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardL
 import NotificationPanel from "@/components/NotificationPanel";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { BackButton } from "@/components/BackButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
@@ -304,11 +305,14 @@ const DashboardHeader = () => {
             : "container mx-auto flex items-center justify-between px-4 py-4"
         }
       >
-        <div
-          className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={() => navigate("/")}
-        >
-          <IITRBanner size="md" />
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <BackButton />
+          <div
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => navigate("/")}
+          >
+            <IITRBanner size="md" />
+          </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           {isAuthenticated && !isOnDashboard && <BackToDashboardButton />}

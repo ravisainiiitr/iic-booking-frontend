@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
@@ -1297,6 +1297,13 @@ const Dashboard = () => {
     setWorkspaceCurrentPath("");
   }, []);
 
+  const workspaceBackRef = useRef<(() => void) | null>(null);
+  const [workspaceCanGoBack, setWorkspaceCanGoBack] = useState(false);
+  const workspaceGoBack = useCallback(() => {
+    if (workspaceCanGoBack && workspaceBackRef.current) workspaceBackRef.current();
+    else closeWorkspace();
+  }, [workspaceCanGoBack, closeWorkspace]);
+
   useEffect(() => {
     const onMsg = (event: MessageEvent) => {
       if (event?.data?.type === "iic-close-dashboard-embed") {
@@ -1356,6 +1363,20 @@ const Dashboard = () => {
   }
 
   const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(workspaceCurrentPath || workspacePath || "");
+  const workspaceBackButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="shrink-0 gap-1.5"
+      onClick={workspaceGoBack}
+      aria-label="Go back"
+      title={workspaceCanGoBack ? "Back to the previous page" : "Back to the dashboard"}
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden />
+      Back
+    </Button>
+  );
   const workspaceMeta =
     getWorkspacePageMeta(workspaceCurrentPath || workspacePath || "") ?? getWorkspacePageMeta(workspacePath || "");
   const dashboardHomeButton = (
@@ -3444,13 +3465,16 @@ const Dashboard = () => {
                   <>
                     <div className="h-1 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                     <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b border-border/50 px-4 py-2.5">
-                      <div className="min-w-0">
-                        <CardTitle className="truncate text-base font-semibold tracking-tight sm:text-lg">
-                          {workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
-                        </CardTitle>
-                        {workspaceMeta?.description ? (
-                          <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
-                        ) : null}
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        {workspaceBackButton}
+                        <div className="min-w-0">
+                          <CardTitle className="truncate text-base font-semibold tracking-tight sm:text-lg">
+                            {workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
+                          </CardTitle>
+                          {workspaceMeta?.description ? (
+                            <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
+                          ) : null}
+                        </div>
                       </div>
                       <Button
                         type="button"
@@ -3465,12 +3489,23 @@ const Dashboard = () => {
                     </CardHeader>
                   </>
                 )}
+                {hideWorkspaceHeader && (
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-1.5">
+                    {workspaceBackButton}
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0 gap-1.5" onClick={closeWorkspace}>
+                      <LayoutDashboard className="h-4 w-4" aria-hidden />
+                      Dashboard
+                    </Button>
+                  </div>
+                )}
                 <CardContent className="p-0 sm:p-0">
                   <DashboardWorkspace
                     key={workspaceEpoch}
                     initialPath={workspacePath}
                     onClose={closeWorkspace}
                     onPathChange={setWorkspaceCurrentPath}
+                    backRef={workspaceBackRef}
+                    onCanGoBackChange={setWorkspaceCanGoBack}
                   />
                 </CardContent>
               </Card>
