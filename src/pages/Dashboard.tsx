@@ -452,11 +452,9 @@ const Dashboard = () => {
   const canSeeOicRewardConfig =
     isAdmin || (isOicUser && user?.oic_enable_reward_config === true);
   const canSeeOicMultiMode = isAdmin || isOicUser;
-  // Students still need TA duty assignments without OIC flags.
-  const canSeeTaDutyAssignmentsCard =
-    canSeeOicTaDutyAssignments ||
-    userTypeStr === "student" ||
-    userTypeStr === "individual_student";
+  // Nomination requests and TA duty assignments are dashboard menu entries for OIC and Admin only.
+  const canSeeNominationRequestsCard = isAdmin || isOicUser;
+  const canSeeTaDutyAssignmentsCard = canSeeOicTaDutyAssignments;
 
   // Admin and OIC (manager, operator) can see booking attempt log — not Account In-charge
   const canAccessBookingAttemptLog =
@@ -1862,11 +1860,11 @@ const Dashboard = () => {
     {
       id: "nomination_requests",
       label: "Nomination requests",
-      visible: Boolean((userTypeStr === "student" || userTypeStr === "individual_student")),
+      visible: canSeeNominationRequestsCard,
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/my-nomination-requests")}
+              onClick={() => openWorkspace("/ta-nomination-call")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -1876,7 +1874,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Nomination requests</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Manage TA/equipment operating nominations and submit your resume for review
+                      Review TA/equipment operating nominations and resumes received from students
                     </CardDescription>
                   </div>
                 </div>
