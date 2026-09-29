@@ -131,6 +131,7 @@ const MyResearch = lazyPage(() => import("@/pages/MyResearch"));
 const ResearchWorkspace = lazyPage(() => import("@/pages/ResearchWorkspace"));
 const ResearchGroup = lazyPage(() => import("@/pages/ResearchGroup"));
 const EquipmentAvailability = lazyPage(() => import("@/pages/EquipmentAvailability"));
+const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
 function RouteFallback() {
   return (
@@ -173,6 +174,7 @@ export default function AppRoutes() {
           <Route path="/my-research/groups/:groupId" element={<ResearchGroup />} />
           <Route path="/my-research/:workspaceId" element={<ResearchWorkspace />} />
           <Route path="/availability" element={<EquipmentAvailability />} />
+          <Route path="/booking-calendar" element={<BookingCalendar />} />
           <Route path="/booking-management" element={<BookingManagement />} />
           <Route path="/urgent-requests" element={<UrgentRequests />} />
           <Route path="/repeat-sample-requests" element={<RepeatSampleRequests />} />

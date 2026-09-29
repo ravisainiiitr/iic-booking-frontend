@@ -1,19 +1,13 @@
-import { lazy, Suspense, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { Link } from "react-router-dom";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
-// Keeps the ticket form (react-hook-form + zod) out of the startup bundle; loaded on first click.
-const TicketForm = lazy(() => import("@/components/TicketForm"));
-
 const Footer = () => {
   const { isAuthenticated } = useAuth();
   const { openGuide } = useUserGuide();
   const embedded = useEmbeddedMode();
-  const [supportRequested, setSupportRequested] = useState(false);
-  const [supportOpen, setSupportOpen] = useState(false);
   const isEmbed =
     embedded ||
     (typeof window !== "undefined" &&
@@ -48,7 +42,7 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/equipments" className="hover:text-primary transition-colors">
+                <Link to="/booking-calendar" className="hover:text-primary transition-colors">
                   Booking Calendar
                 </Link>
               </li>
@@ -82,23 +76,6 @@ const Footer = () => {
                 <Link to="/tickets" className="hover:text-primary transition-colors">
                   Support Tickets
                 </Link>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="hover:text-primary transition-colors flex items-center gap-1"
-                  onClick={() => {
-                    setSupportRequested(true);
-                    setSupportOpen(true);
-                  }}
-                >
-                  Support
-                </button>
-                {supportRequested && (
-                  <Suspense fallback={null}>
-                    <TicketForm open={supportOpen} onOpenChange={setSupportOpen} />
-                  </Suspense>
-                )}
               </li>
             </ul>
           </div>
