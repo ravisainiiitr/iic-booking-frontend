@@ -130,7 +130,7 @@ import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { hasIncompleteOptionalEditableParams } from "@/lib/bookingInputValues";
 import { toast } from "sonner";
-import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
 
 interface Equipment extends EquipmentData {}
@@ -856,6 +856,14 @@ function shouldPromptCompleteOptionalParams(
   };
   return hasIncompleteOptionalEditableParams(equipmentDetail?.input_fields, merged);
 }
+
+/** Toolbar row: one line from md up (the tip chip shrinks and wraps its text instead). */
+const STATUS_TOOLBAR_CLASS = "flex flex-wrap items-center gap-2 md:flex-nowrap";
+const STATUS_TIP_CHIP_CLASS =
+  "inline-flex min-w-0 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium leading-tight text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100";
+const STATUS_ACTION_BUTTON_CLASS = "h-8 whitespace-nowrap px-2.5 text-xs font-medium";
+const STATUS_PRIMARY_ACTION_CLASS =
+  "border-amber-200 bg-amber-50 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:hover:bg-amber-900/30";
 
 const FORMULA_LETTER_RE = /(?<![A-Za-z0-9_])[A-Z](?![A-Za-z0-9_])/g;
 
@@ -6386,92 +6394,84 @@ const BookEquipment = () => {
 
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <Card className="w-full max-w-none mx-auto mb-6 overflow-hidden border border-primary/20 shadow-lg bg-gradient-to-b from-card to-card/95">
-            <CardContent className="space-y-5 p-4 md:p-6">
-              {/* Year calendar */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
-                  <div className="hidden md:block" />
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-3">
-                      <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))} aria-label="Previous year">
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="font-bold text-lg md:text-xl min-w-[96px] text-center text-foreground">
-                        {statusChangeMonthStart.getFullYear()}
-                      </span>
-                      <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))} aria-label="Next year">
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
-                      <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
-                      Double-click a month to open Month view below
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
-                    <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectYearForStatus}>
-                      Select entire year
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium" onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
-                      Clear selection
-                    </Button>
-                  </div>
+          <Card className="w-full max-w-none mx-auto mb-4 overflow-hidden border border-primary/20 shadow-sm">
+            <CardContent className="space-y-2.5 p-3 md:p-4">
+              {/* Year toolbar + month strip */}
+              <div className={STATUS_TOOLBAR_CLASS}>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))} aria-label="Previous year">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-[56px] text-center text-base font-bold tabular-nums text-foreground">
+                    {statusChangeMonthStart.getFullYear()}
+                  </span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))} aria-label="Next year">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2">
-                  {Array.from({ length: 12 }, (_, i) => {
-                    const d = new Date(statusChangeMonthStart.getFullYear(), i, 1);
-                    const monthKey = format(d, "yyyy-MM");
-                    const isSelected = statusChangeSelectedMonths.includes(monthKey);
-                    const isCurrentMonth = isSameMonth(d, statusChangeMonthStart);
-                    return (
-                      <button
-                        key={monthKey}
-                        type="button"
-                        onClick={() => toggleMonthInYearView(monthKey)}
-                        onDoubleClick={(e) => {
-                          e.preventDefault();
-                          setStatusChangeMonthStart(startOfMonth(d));
-                        }}
-                        className={cn(
-                          "min-h-[40px] md:min-h-[46px] px-2 py-1.5 text-sm md:text-base font-semibold rounded-lg border transition-all duration-200",
-                          "bg-background hover:bg-primary/10 hover:border-primary/30 border-muted/50",
-                          isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary ring-offset-2 shadow-lg border-primary",
-                          isCurrentMonth && !isSelected && "border-primary/50 bg-primary/5"
-                        )}
-                      >
-                        {format(d, "MMM")}
-                      </button>
-                    );
-                  })}
+                <span className={STATUS_TIP_CHIP_CLASS}>
+                  <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Double-click a month to open Month view below
+                </span>
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                  <Button variant="outline" size="sm" className={cn(STATUS_ACTION_BUTTON_CLASS, STATUS_PRIMARY_ACTION_CLASS)} onClick={selectYearForStatus}>
+                    Select entire year
+                  </Button>
+                  <Button variant="outline" size="sm" className={STATUS_ACTION_BUTTON_CLASS} onClick={clearYearSelection} disabled={statusChangeSelectedMonths.length === 0}>
+                    Clear selection
+                  </Button>
                 </div>
               </div>
+              <div className="grid grid-cols-6 gap-1 md:grid-cols-12">
+                {Array.from({ length: 12 }, (_, i) => {
+                  const d = new Date(statusChangeMonthStart.getFullYear(), i, 1);
+                  const monthKey = format(d, "yyyy-MM");
+                  const isSelected = statusChangeSelectedMonths.includes(monthKey);
+                  const isCurrentMonth = isSameMonth(d, statusChangeMonthStart);
+                  return (
+                    <button
+                      key={monthKey}
+                      type="button"
+                      onClick={() => toggleMonthInYearView(monthKey)}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        setStatusChangeMonthStart(startOfMonth(d));
+                      }}
+                      className={cn(
+                        "h-8 rounded-md border px-1 text-sm font-semibold transition-colors",
+                        "border-border/60 bg-background hover:border-primary/30 hover:bg-primary/10",
+                        isSelected && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+                        isCurrentMonth && !isSelected && "border-primary/60 bg-primary/10 text-primary"
+                      )}
+                    >
+                      {format(d, "MMM")}
+                    </button>
+                  );
+                })}
+              </div>
 
-              {/* Month navigation */}
-              <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
-                <div className="hidden md:block" />
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))} aria-label="Previous month">
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="font-bold text-lg md:text-xl min-w-[168px] text-center text-foreground">
-                      {format(statusChangeMonthStart, "MMMM yyyy")}
-                    </span>
-                    <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))} aria-label="Next month">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-1.5 text-base md:text-lg font-semibold text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100">
-                    <MousePointerClick className="h-5 w-5 shrink-0" aria-hidden />
-                    Tip: double-click a date to open Week view · drag to select several dates
-                  </div>
+              {/* Month toolbar */}
+              <div className={cn(STATUS_TOOLBAR_CLASS, "border-t border-border/50 pt-2.5")}>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))} aria-label="Previous month">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-[132px] text-center text-base font-bold text-foreground">
+                    {format(statusChangeMonthStart, "MMMM yyyy")}
+                  </span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))} aria-label="Next month">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
+                <span className={STATUS_TIP_CHIP_CLASS}>
+                  <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Tip: double-click a date to open Week view · drag to select several dates
+                </span>
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 px-3 text-sm font-medium"
+                    className={STATUS_ACTION_BUTTON_CLASS}
                     disabled={selectedDatesForStatus.length === 0}
                     onClick={() => {
                       if (selectedDatesForStatus.length > 0) {
@@ -6482,13 +6482,13 @@ const BookEquipment = () => {
                   >
                     Select selected week
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9 px-3 text-sm font-medium bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/30 border-amber-200 dark:border-amber-800" onClick={selectMonthForStatus}>
+                  <Button variant="outline" size="sm" className={cn(STATUS_ACTION_BUTTON_CLASS, STATUS_PRIMARY_ACTION_CLASS)} onClick={selectMonthForStatus}>
                     Select entire month
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 px-3 text-sm font-medium"
+                    className={STATUS_ACTION_BUTTON_CLASS}
                     onClick={() => { setSelectedDatesForStatus([]); setStatusChangePopupWeekStart(null); setStatusChangeSelectedMonths([]); }}
                     disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                   >
@@ -6497,11 +6497,11 @@ const BookEquipment = () => {
                 </div>
               </div>
 
-              {/* Month calendar grid: Mon–Sun, 6 rows */}
-              <div className="rounded-xl border border-primary/10 overflow-hidden shadow-inner bg-muted/20">
-                <div className="grid grid-cols-7 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700">
+              {/* Month calendar grid: Mon–Sun, only the weeks this month spans */}
+              <div className="overflow-hidden rounded-lg border border-border/60">
+                <div className="grid grid-cols-7 bg-slate-100 dark:bg-slate-800">
                   {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                    <div key={d} className="px-2 py-2 text-center text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200">
+                    <div key={d} className="py-1 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">
                       {d}
                     </div>
                   ))}
@@ -6510,8 +6510,9 @@ const BookEquipment = () => {
                   {(() => {
                     const monthStart = startOfMonth(statusChangeMonthStart);
                     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+                    const calendarEnd = endOfWeek(endOfMonth(monthStart), { weekStartsOn: 1 });
                     const days: Date[] = [];
-                    for (let i = 0; i < 42; i++) days.push(addDays(calendarStart, i));
+                    for (let d = calendarStart; d <= calendarEnd; d = addDays(d, 1)) days.push(d);
                     const effectiveDates = getEffectiveDatesForStatus();
                     return days.map((day) => {
                       const dateStr = format(day, "yyyy-MM-dd");
@@ -6556,9 +6557,9 @@ const BookEquipment = () => {
                             openWeekSlotPopup(day);
                           }}
                           className={cn(
-                            "min-h-[40px] md:min-h-[46px] px-2 py-1.5 text-sm md:text-base font-semibold border-b border-r border-muted/50 transition-all duration-200",
-                            inMonth ? "bg-background hover:bg-primary/10 hover:border-primary/30" : "bg-muted/30 text-muted-foreground",
-                            isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary ring-offset-2 shadow-lg"
+                            "h-8 border-b border-r border-border/40 text-sm font-semibold tabular-nums transition-colors [&:nth-child(7n)]:border-r-0",
+                            inMonth ? "bg-background hover:bg-primary/10" : "bg-muted/30 text-muted-foreground/60",
+                            isSelected && "bg-primary text-primary-foreground hover:bg-primary/90"
                           )}
                         >
                           {format(day, "d")}
@@ -6571,9 +6572,9 @@ const BookEquipment = () => {
 
               {/* Selection summary */}
               {(selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
-                <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4 md:p-5">
-                  <h4 className="text-base md:text-lg font-bold text-foreground mb-2">Selection summary</h4>
-                  <ul className="space-y-1 text-sm md:text-base text-foreground/90">
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+                  <span className="font-semibold text-foreground">Selection:</span>
+                  <ul className="contents text-foreground/90">
                     {statusChangeSelectedMonths.length > 0 && (
                       <li>
                         <strong>{statusChangeSelectedMonths.length}</strong> month(s) selected at year level
@@ -6602,9 +6603,9 @@ const BookEquipment = () => {
                       </li>
                     )}
                   </ul>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Open week view for slot-level selection, then choose an operation in the panel below the calendar.
-                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    Open week view for slot-level selection, then choose an operation below.
+                  </span>
                 </div>
               )}
 
@@ -6614,7 +6615,7 @@ const BookEquipment = () => {
 
         {/* Inline week view (pick by time) */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
-          <div className="w-full max-w-none mx-auto mb-6 rounded-xl overflow-hidden border border-border/60 shadow-md">
+          <div className="w-full max-w-none mx-auto mb-3 rounded-xl overflow-hidden border border-border/60 shadow-md">
             {/* Compact week header */}
             <div className="sticky top-0 z-20 bg-gradient-to-r from-primary via-primary to-accent px-3 py-2 text-white">
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -7127,36 +7128,34 @@ const BookEquipment = () => {
         )}
 
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <div className="sticky bottom-2 sm:bottom-4 z-30 w-full max-w-none mx-auto mb-4 sm:mb-6 rounded-2xl border border-primary/25 bg-card/95 shadow-xl backdrop-blur-sm">
-            <div className="border-b border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 px-4 py-3 sm:px-5 sm:py-4 dark:border-primary/40 dark:from-primary/10 dark:to-accent/10">
-              <h3 className="text-base sm:text-lg font-semibold text-foreground">Apply changes</h3>
-              <p className="text-sm text-muted-foreground mt-1">Select slots or dates above, choose an operation, then apply.</p>
-            </div>
-            <div className="p-4 sm:p-5 md:p-6 space-y-4">
-              {(selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0) && (
-                <div className="rounded-xl border border-primary/70 bg-primary/5 px-4 py-3 dark:border-primary/50 dark:bg-primary/10">
-                  <p className="text-sm font-semibold text-foreground">Selected slots summary</p>
-                  <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                    {selectedSlotIdsForStatus.length > 0 && (
-                      <li><strong className="text-foreground">{selectedSlotIdsForStatus.length}</strong> slot(s) selected</li>
-                    )}
-                    {getEffectiveDatesForStatus().length > 0 && (
-                      <li><strong className="text-foreground">{getEffectiveDatesForStatus().length}</strong> date(s) in scope</li>
-                    )}
-                    {statusChangeSelectedMonths.length > 0 && (
-                      <li><strong className="text-foreground">{statusChangeSelectedMonths.length}</strong> month(s) at year level</li>
-                    )}
-                  </ul>
-                </div>
+          <div className="sticky bottom-2 sm:bottom-3 z-30 w-full max-w-none mx-auto mb-3 rounded-xl border border-primary/25 bg-card/95 shadow-lg backdrop-blur-sm">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-primary/15 bg-primary/5 px-3 py-1.5 dark:border-primary/40 dark:bg-primary/10">
+              <h3 className="text-sm font-semibold text-foreground">Apply changes</h3>
+              {selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0 ? (
+                <ul className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+                  {selectedSlotIdsForStatus.length > 0 && (
+                    <li><strong className="text-foreground">{selectedSlotIdsForStatus.length}</strong> slot(s) selected</li>
+                  )}
+                  {getEffectiveDatesForStatus().length > 0 && (
+                    <li><strong className="text-foreground">{getEffectiveDatesForStatus().length}</strong> date(s) in scope</li>
+                  )}
+                  {statusChangeSelectedMonths.length > 0 && (
+                    <li><strong className="text-foreground">{statusChangeSelectedMonths.length}</strong> month(s) at year level</li>
+                  )}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">Select slots or dates above, choose an operation, then apply.</p>
               )}
-              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
+            </div>
+            <div className="space-y-2 px-3 py-2.5">
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
                                 {updatingSlotStatus && (
                                   <div className="w-full space-y-2">
                                     <p className="text-sm font-medium text-muted-foreground">Applying changes…</p>
                                     <Progress value={applyProgressPercent} className="h-2.5 w-full" />
                                   </div>
                                 )}
-                                <Label className="shrink-0 font-bold text-base sm:text-lg text-foreground">Select Operation</Label>
+                                <Label className="shrink-0 text-sm font-semibold text-foreground">Select Operation</Label>
                                 <Select
                                   value={newSlotStatus}
                                   onValueChange={(v) => {
@@ -7177,7 +7176,7 @@ const BookEquipment = () => {
                                     setNewSlotStatus(v);
                                   }}
                                 >
-                                  <SelectTrigger className="w-full sm:w-[260px] md:w-[280px] h-12 text-base font-medium">
+                                  <SelectTrigger className="h-9 w-full text-sm font-medium sm:w-[260px] md:w-[280px]">
                                     <SelectValue placeholder="Select operation" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -7230,7 +7229,7 @@ const BookEquipment = () => {
                                     placeholder="Other Reasons label (optional)"
                                     value={blockedLabelForStatus}
                                     onChange={(e) => setBlockedLabelForStatus(e.target.value)}
-                                    className="max-w-[240px] h-12 text-base"
+                                    className="h-9 max-w-[240px] text-sm"
                                   />
                                 )}
                                 {newSlotStatus === "BOOKING_NOT_UTILIZED" && isAdminOrOIC() && (
@@ -7241,7 +7240,7 @@ const BookEquipment = () => {
                                       onCheckedChange={(c) => setSendEmailToWalletOwnerForNotUtilized(c === true)}
                                       className="h-5 w-5"
                                     />
-                                    <Label htmlFor="send-email-wallet-owner-not-utilized" className="text-base font-medium cursor-pointer">
+                                    <Label htmlFor="send-email-wallet-owner-not-utilized" className="cursor-pointer text-sm font-medium">
                                       Send email to Supervisor
                                     </Label>
                                   </div>
@@ -7249,7 +7248,7 @@ const BookEquipment = () => {
                                 {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
                                 <Button
                                   size="default"
-                                  className="h-12 px-6 text-base font-semibold bg-primary hover:bg-primary/90 text-white shadow-md"
+                                  className="h-9 px-5 text-sm font-semibold bg-primary hover:bg-primary/90 text-white shadow-sm"
                                   disabled={
                                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                                     updatingSlotStatus ||
@@ -7550,7 +7549,7 @@ const BookEquipment = () => {
                                     ? "Applying…"
                                     : newSlotStatus === RESCHEDULE_OPERATION_VALUE
                                       ? selectedSlotIdsForStatus.length > 0
-                                        ? `Reschedule ${selectedSlotIdsForStatus.length} slot(s)ΓÇª`
+                                        ? `Reschedule ${selectedSlotIdsForStatus.length} slot(s)…`
                                         : "Select booked slots to reschedule"
                                       : selectedSlotIdsForStatus.length > 0
                                       ? `Apply to ${selectedSlotIdsForStatus.length} slot(s)`
@@ -7560,7 +7559,7 @@ const BookEquipment = () => {
                                 <Button
                                   variant="outline"
                                   size="default"
-                                  className="h-12 px-5 text-base font-medium"
+                                  className="h-9 px-4 text-sm font-medium"
                                   onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); setStatusChangePopupWeekStart(null); }}
                                   disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                                 >
