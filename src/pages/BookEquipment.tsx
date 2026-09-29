@@ -7749,9 +7749,10 @@ const BookEquipment = () => {
                       )}
                     </CardDescription>
                   </div>
-                  {!isEmbedFlow && (
+                  {(!isEmbedFlow || !isCalculateChargesFlow) && (
                   <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                     {!isCalculateChargesFlow && <ServerClock />}
+                    {!isEmbedFlow && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -7769,6 +7770,7 @@ const BookEquipment = () => {
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Back
                     </Button>
+                    )}
                   </div>
                   )}
                 </div>

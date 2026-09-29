@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const RESYNC_MS = 5 * 60 * 1000;
+const RETRY_MS = 10 * 1000;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -25,12 +26,18 @@ export function ServerClock({ className }: { className?: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | undefined;
 
     const resync = async () => {
       const sentAt = Date.now();
       const res = await apiClient.getServerTime();
       const receivedAt = Date.now();
-      if (cancelled || res.error || !res.data || typeof res.data.epoch_ms !== "number") return;
+      if (cancelled) return;
+      if (res.error || !res.data || typeof res.data.epoch_ms !== "number") {
+        window.clearTimeout(retryTimer);
+        retryTimer = window.setTimeout(resync, RETRY_MS);
+        return;
+      }
       const next: Sync = {
         offsetMs: res.data.epoch_ms - (sentAt + receivedAt) / 2,
         utcOffsetMinutes: Number(res.data.utc_offset_minutes) || 0,
@@ -49,6 +56,7 @@ export function ServerClock({ className }: { className?: string }) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
       window.clearInterval(resyncTimer);
       window.clearInterval(tick);
       document.removeEventListener("visibilitychange", onVisible);
