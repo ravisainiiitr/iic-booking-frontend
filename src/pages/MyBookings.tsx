@@ -1602,7 +1602,7 @@ const MyBookings = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="Download this booking as a calendar event (.ics)"
+                                title="One-time copy of this booking (.ics). It will not follow later reschedules or cancellations; use Sync to calendar for automatic updates."
                                 disabled={calendarIcsLoadingId === getRealBookingId(booking)}
                                 onClick={() => downloadBookingCalendar(booking)}
                               >

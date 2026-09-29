@@ -136,13 +136,16 @@ export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogPro
 
             <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
               <p>
-                Calendar apps refresh subscribed calendars on their own schedule. Outlook and Apple usually update
-                within a few hours; Google Calendar can take up to a day.
+                New bookings, reschedules, cancellations and sample submission deadlines sync automatically, but each
+                calendar app refreshes on its own schedule: Google Calendar every 8–24 hours, Outlook every few hours,
+                Apple Calendar as often as you set it.
               </p>
               <p>
-                For an instant copy of a single booking, use <span className="font-medium">Add to calendar</span> on
-                that booking.
+                <span className="font-medium">Add to calendar</span> on a booking adds a one-time copy straight away,
+                but that copy does not change if the booking is later rescheduled or cancelled. For automatic updates,
+                subscribe with the link above.
               </p>
+              <p>Add the link on the Google Calendar website; the mobile apps cannot subscribe from a URL.</p>
               {settings.last_accessed_at && (
                 <p>Last fetched by a calendar app: {new Date(settings.last_accessed_at).toLocaleString()}</p>
               )}
