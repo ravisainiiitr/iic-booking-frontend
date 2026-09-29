@@ -69,6 +69,7 @@ import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
 import { normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
+import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
 
 /** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
 const OIC_DASHBOARD_MENU_ORDER = [
@@ -404,6 +405,22 @@ const Dashboard = () => {
   const isAccountsInChargeUser = isAccountsInChargeRole(user);
   /** Same weekly metrics, instrument hero, and week calendar as Lab Incharge. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
+
+  const prefetchBrowseCatalog = useCallback(() => {
+    if (!isLabInchargeUser) prefetchEquipmentCatalog(user);
+  }, [user, isLabInchargeUser]);
+
+  // Warm "Browse and Book Equipment" once the dashboard's own requests have settled.
+  useEffect(() => {
+    if (!user?.id || isLabInchargeUser) return;
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(() => prefetchBrowseCatalog(), { timeout: 4000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(prefetchBrowseCatalog, 1500);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isLabInchargeUser]);
 
   useEffect(() => {
     if (!userTypeStr || labWeekCalendarRoleDefaultAppliedRef.current) return;
@@ -1415,6 +1432,8 @@ const Dashboard = () => {
             role="button"
             tabIndex={0}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-2 border-primary/45 shadow-md shadow-primary/15 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/70 h-full ring-1 ring-primary/25"
+            onPointerEnter={prefetchBrowseCatalog}
+            onFocus={prefetchBrowseCatalog}
             onClick={() => { openWorkspace("/equipments"); }}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/equipments"); } }}
           >

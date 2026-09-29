@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,15 @@ import {
   isCatalogFamilyParent,
   isExpandableParent,
 } from "@/lib/equipmentCatalog";
+import {
+  CATALOG_REVALIDATE_AFTER_MS,
+  DEFAULT_CATALOG_DEPARTMENT_NAME,
+  findPreferredDepartment,
+  loadCatalogEquipment,
+  peekCatalogDepartments,
+  peekCatalogEquipment,
+  type CatalogScope,
+} from "@/lib/catalogCache";
 
 interface Equipment extends EquipmentData, EquipmentCatalogCardItem {
   status?: string;
@@ -96,19 +105,35 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       featuredCitation: eq.featured_citation ?? null,
     }));
 
+/** Default department from an already-loaded department list, or null when it is not cached yet. */
+const cachedDefaultDepartment = (): DepartmentFilterValue | null => {
+  const departments = peekCatalogDepartments();
+  if (!departments) return null;
+  return findPreferredDepartment(departments, DEFAULT_CATALOG_DEPARTMENT_NAME)?.id ?? "all";
+};
+
 const EquipmentList = () => {
   const navigate = useNavigate();
   const embedded = useEmbeddedMode();
   const { user } = useAuth();
-  const [rawEquipment, setRawEquipment] = useState<ApiEquipment[]>([]);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const userTypeAtMount = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
+  const [initialDepartment] = useState<DepartmentFilterValue | null>(() =>
+    userTypeAtMount === "dept_admin" ? null : cachedDefaultDepartment(),
+  );
+  const [rawEquipment, setRawEquipment] = useState<ApiEquipment[]>(() => {
+    if (initialDepartment == null) return [];
+    const scope: CatalogScope = userTypeAtMount === "manager" ? "managed" : null;
+    return (peekCatalogEquipment(initialDepartment, scope)?.data ?? []) as ApiEquipment[];
+  });
   const [expandedParentId, setExpandedParentId] = useState<number | null>(null);
   const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => rawEquipment.length === 0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>(
+    () => initialDepartment ?? "all",
+  );
   /** Gate first catalog fetch until IIC (or DA dept) is resolved — avoid flashing all-departments list. */
-  const [departmentReady, setDepartmentReady] = useState(false);
+  const [departmentReady, setDepartmentReady] = useState(() => initialDepartment != null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     equipmentId: number;
@@ -136,38 +161,53 @@ const EquipmentList = () => {
     return Number.isFinite(n) ? n : null;
   })();
 
-  const [authReady, setAuthReady] = useState(false);
+  // AuthProvider already validates the session on load and every 15 s; only a tab without a
+  // loaded user needs the round trip before the catalog request.
+  const hasSessionUser = Boolean(user);
+  const [authReady, setAuthReady] = useState(() => hasSessionUser && Boolean(apiClient.getToken()));
 
-  useEffect(() => {
-    setEquipment(
+  const equipment = useMemo(
+    () =>
       transformApiEquipment(
         filterCatalogEquipmentForDisplay(rawEquipment, expandedParentId, {
           searchActive: Boolean(searchQuery.trim()),
         }),
       ),
-    );
-  }, [rawEquipment, expandedParentId, searchQuery]);
+    [rawEquipment, expandedParentId, searchQuery],
+  );
 
 
   // Only Department Administrators are pinned to their department; keeping other users' department
   // out of the deps stops the user object hydrating from re-issuing the catalog request.
   const deptAdminDepartmentId = isDeptAdmin ? daDepartmentId : null;
+  const catalogScope: CatalogScope = isOic ? oicCatalogScope : null;
+  const effectiveDepartment = useCallback(
+    (departmentId: DepartmentFilterValue): DepartmentFilterValue =>
+      deptAdminDepartmentId != null ? deptAdminDepartmentId : departmentId,
+    [deptAdminDepartmentId],
+  );
+  const scopeToDepartment = useCallback(
+    (list: ApiEquipment[]) =>
+      deptAdminDepartmentId != null
+        ? list.filter((eq) => Number(eq.internal_department) === Number(deptAdminDepartmentId))
+        : list,
+    [deptAdminDepartmentId],
+  );
   const fetchEquipment = useCallback(
-    async (search?: string, departmentId: DepartmentFilterValue = "all") => {
-      const effectiveDept: DepartmentFilterValue =
-        deptAdminDepartmentId != null ? deptAdminDepartmentId : departmentId;
-      const response = await apiClient.getEquipments(search, undefined, undefined, true, effectiveDept, isOic ? oicCatalogScope : null);
+    async (search?: string, departmentId: DepartmentFilterValue = "all", force = false) => {
+      const effectiveDept = effectiveDepartment(departmentId);
+      if (!search) {
+        const list = await loadCatalogEquipment(effectiveDept, catalogScope, { force });
+        return scopeToDepartment(list as ApiEquipment[]);
+      }
+      const response = await apiClient.getEquipments(search, undefined, undefined, true, effectiveDept, catalogScope);
       if (response.error) {
         throw new Error(response.error || "Failed to load equipment");
       }
       const rawList = response.data?.equipments;
-      let list = Array.isArray(rawList) ? rawList : [];
-      if (deptAdminDepartmentId != null) {
-        list = list.filter((eq) => Number(eq.internal_department) === Number(deptAdminDepartmentId));
-      }
-      return list as ApiEquipment[];
+      return scopeToDepartment((Array.isArray(rawList) ? rawList : []) as ApiEquipment[]);
     },
-    [deptAdminDepartmentId, isOic, oicCatalogScope],
+    [effectiveDepartment, scopeToDepartment, catalogScope],
   );
 
   useEffect(() => {
@@ -187,6 +227,10 @@ const EquipmentList = () => {
         navigate("/auth");
         return;
       }
+      if (hasSessionUser) {
+        setAuthReady(true);
+        return;
+      }
 
       const userResponse = await apiClient.getCurrentUser();
       if (cancelled) return;
@@ -202,44 +246,65 @@ const EquipmentList = () => {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, hasSessionUser]);
 
   useEffect(() => {
     if (!authReady) return;
     if (!departmentReady && !isDeptAdmin) return;
 
     let cancelled = false;
+    const search = searchQuery.trim();
+
+    const applyList = (list: ApiEquipment[]) => {
+      setRawEquipment(list);
+      setExpandedParentId((prev) =>
+        prev != null && isExpandableParent(list, prev) ? prev : null,
+      );
+    };
+
+    // Show the cached catalog at once; refetch in the background only when it is getting old.
+    let showingCached = false;
+    if (!search) {
+      const cached = peekCatalogEquipment(effectiveDepartment(selectedDepartmentId), catalogScope);
+      if (cached) {
+        applyList(scopeToDepartment(cached.data as ApiEquipment[]));
+        setLoading(false);
+        if (cached.ageMs < CATALOG_REVALIDATE_AFTER_MS) return;
+        showingCached = true;
+      }
+    }
 
     const reload = async () => {
       try {
         setLoading(true);
-        const list = await fetchEquipment(
-          searchQuery.trim() || undefined,
-          selectedDepartmentId,
-        );
-        if (!cancelled) {
-          setRawEquipment(list);
-          setExpandedParentId((prev) =>
-            prev != null && isExpandableParent(list, prev) ? prev : null,
-          );
-        }
+        const list = await fetchEquipment(search || undefined, selectedDepartmentId);
+        if (!cancelled) applyList(list);
       } catch (error: unknown) {
-        if (!cancelled) {
+        if (!cancelled && !showingCached) {
           toast.error(error instanceof Error ? error.message : "Failed to load equipment");
           setRawEquipment([]);
-          setEquipment([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
-    const timeoutId = setTimeout(reload, searchQuery.trim() ? 500 : 0);
+    const timeoutId = setTimeout(reload, search ? 500 : 0);
     return () => {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [authReady, departmentReady, isDeptAdmin, searchQuery, selectedDepartmentId, fetchEquipment]);
+  }, [
+    authReady,
+    departmentReady,
+    isDeptAdmin,
+    searchQuery,
+    selectedDepartmentId,
+    fetchEquipment,
+    effectiveDepartment,
+    scopeToDepartment,
+    catalogScope,
+  ]);
 
   const handleStatusToggle = async (
     equipmentId: number,
@@ -268,7 +333,7 @@ const EquipmentList = () => {
       } else if (nb?.needs_notice_expiry && nb.notice_request_id) {
         toast.message("Notice board draft created. OIC can set expiry under Notice board requests.");
       }
-      const list = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId);
+      const list = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId, true);
       setRawEquipment(list);
       setExpandedParentId((prev) =>
         prev != null && isExpandableParent(list, prev) ? prev : null,

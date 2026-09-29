@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
-import { apiClient } from "@/lib/api";
+import {
+  findPreferredDepartment,
+  loadCatalogDepartments,
+  peekCatalogDepartments,
+  type CatalogDepartment,
+} from "@/lib/catalogCache";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
@@ -13,12 +18,7 @@ import {
 
 export type DepartmentFilterValue = "all" | number;
 
-export interface CatalogDepartment {
-  id: number;
-  name: string;
-  code: string;
-  equipment_count: number;
-}
+export { findPreferredDepartment, type CatalogDepartment };
 
 interface DepartmentFilterProps {
   value: DepartmentFilterValue;
@@ -32,22 +32,6 @@ interface DepartmentFilterProps {
   onResolved?: (value: DepartmentFilterValue) => void;
 }
 
-export function findPreferredDepartment(
-  departments: CatalogDepartment[],
-  preferredName: string,
-): CatalogDepartment | undefined {
-  const needle = preferredName.trim().toLowerCase();
-  if (!needle) return undefined;
-  const byName = departments.find((d) => d.name.toLowerCase() === needle);
-  if (byName) return byName;
-  const byContains = departments.find((d) => d.name.toLowerCase().includes(needle));
-  if (byContains) return byContains;
-  if (needle.includes("instrumentation") || needle === "iic") {
-    return departments.find((d) => String(d.code || "").toLowerCase() === "iic");
-  }
-  return undefined;
-}
-
 const DepartmentFilter = ({
   value,
   onChange,
@@ -57,8 +41,8 @@ const DepartmentFilter = ({
   defaultDepartmentName,
   onResolved,
 }: DepartmentFilterProps) => {
-  const [departments, setDepartments] = useState<CatalogDepartment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState<CatalogDepartment[]>(() => peekCatalogDepartments() ?? []);
+  const [loading, setLoading] = useState(() => peekCatalogDepartments() == null);
   const appliedDefaultRef = useRef(false);
   const resolvedRef = useRef(false);
 
@@ -66,11 +50,11 @@ const DepartmentFilter = ({
     let cancelled = false;
 
     const load = async () => {
-      setLoading(true);
+      if (peekCatalogDepartments() == null) setLoading(true);
       try {
-        const response = await apiClient.getCatalogDepartments();
+        const list = await loadCatalogDepartments();
         if (cancelled) return;
-        if (response.error || !response.data) {
+        if (!list) {
           setDepartments([]);
           if (!resolvedRef.current) {
             resolvedRef.current = true;
@@ -78,11 +62,6 @@ const DepartmentFilter = ({
           }
           return;
         }
-        const list = (response.data.departments ?? []).filter((d) => {
-          const name = (d.name || "").trim().toLowerCase();
-          const code = (d.code || "").trim().toLowerCase();
-          return name !== "admin" && code !== "admin";
-        });
         setDepartments(list);
 
         let nextValue: DepartmentFilterValue = value;
