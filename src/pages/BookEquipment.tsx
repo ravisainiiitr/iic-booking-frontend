@@ -10488,7 +10488,10 @@ const BookEquipment = () => {
           payload={groupAlternatives?.payload ?? null}
           busyEquipmentId={groupAltBookingId}
           waitlistBusy={groupAltWaitlistBusy}
-          waitlistAvailable={groupAlternatives?.requestBody.waitlist_on_failure !== false}
+          waitlistAvailable={
+            groupAlternatives?.payload.waitlist_available ??
+            groupAlternatives?.requestBody.waitlist_on_failure !== false
+          }
           onBook={handleBookGroupAlternative}
           onOpenForm={handleOpenGroupAlternativeForm}
           onContinueToWaitlist={handleGroupAltWaitlist}

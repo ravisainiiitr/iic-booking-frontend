@@ -423,6 +423,8 @@ export interface GroupAlternativesPayload {
   original_error: string;
   original_equipment: GroupEquipmentSummary;
   alternatives: GroupAlternative[];
+  /** Whether declining can still waitlist on the original equipment (always true in its peak window). */
+  waitlist_available?: boolean;
 }
 
 export interface GroupAllocatedAlternative {
