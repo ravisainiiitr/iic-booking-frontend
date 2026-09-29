@@ -96,7 +96,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/oic/multi-mode": { title: "Multi-mode Equipment" },
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
   "/oic/equipment-settings": {
-    title: "Booking Rules & Instructions",
+    title: "Equipment Booking Configuration",
     description: "Important instruction, slot visibility, usage quotas, and booking and sample timings for your equipment.",
   },
   "/booking-attempt-logs": { title: "Booking Attempt Log" },
@@ -2415,7 +2415,7 @@ const Dashboard = () => {
     },
     {
       id: "equipment_settings",
-      label: "Booking rules & instructions",
+      label: "Equipment Booking Configuration",
       visible: Boolean(isAdmin || isOicUser),
       render: () => (
           <Card
@@ -2428,7 +2428,7 @@ const Dashboard = () => {
                     <Clock className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking rules &amp; instructions</CardTitle>
+                    <CardTitle className="text-lg">Equipment Booking Configuration</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Important instruction, slot visibility, usage quotas, and booking and sample deadlines
                     </CardDescription>

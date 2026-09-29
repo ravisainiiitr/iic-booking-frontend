@@ -241,7 +241,7 @@ const Hero = () => {
               <Button
                 size="lg"
                 className={primaryCtaClass}
-                onClick={() => navigate("/availability")}
+                onClick={() => navigate("/booking-calendar")}
               >
                 <CalendarClock className="h-4 w-4" />
                 Equipment Availability

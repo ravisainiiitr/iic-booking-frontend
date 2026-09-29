@@ -79,7 +79,7 @@ export const oicGuide: UserGuideContent = {
       bullets: [
         "Accessories — manage bookable accessories for your equipment",
         "3D Print Materials — maintain materials where applicable",
-        "Booking Rules & Instructions — set the important instruction shown to users, slot visibility, usage quotas, and booking and sample timings",
+        "Equipment Booking Configuration — set the important instruction shown to users, slot visibility, usage quotas, and booking and sample timings",
         "Multi-Mode Equipment — configure modes and related schedules",
         "Temporary OIC / Leave Management — delegate coverage when flags allow",
       ],
