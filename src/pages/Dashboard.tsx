@@ -382,9 +382,9 @@ const Dashboard = () => {
   const [labBookingLegendColors, setLabBookingLegendColors] = useState<Record<string, string>>({
     ...DEFAULT_LAB_BOOKING_COLORS,
   });
-  /** Week slot grid: expanded by default for Lab In-charge, collapsed for OIC (slots load only when expanded). */
-  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(
-    () => String(user?.user_type ?? "").toLowerCase() === "operator"
+  /** Week slot grid: expanded by default for Lab In-charge and OIC (slots load only when expanded). */
+  const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(() =>
+    ["operator", "manager"].includes(String(user?.user_type ?? "").toLowerCase())
   );
   const labWeekCalendarRoleDefaultAppliedRef = useRef(false);
   const [labDashSelectedBookingId, setLabDashSelectedBookingId] = useState<number | null>(null);
@@ -407,7 +407,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!userTypeStr || labWeekCalendarRoleDefaultAppliedRef.current) return;
     labWeekCalendarRoleDefaultAppliedRef.current = true;
-    setLabWeekCalendarExpanded(userTypeStr === "operator");
+    setLabWeekCalendarExpanded(userTypeStr === "operator" || userTypeStr === "manager");
   }, [userTypeStr]);
 
   const isOperatorOrManager = 
