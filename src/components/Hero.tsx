@@ -244,7 +244,7 @@ const Hero = () => {
                 onClick={() => navigate("/booking-calendar")}
               >
                 <CalendarClock className="h-4 w-4" />
-                Equipment Availability
+                Booking Calendar
               </Button>
               <Button
                 size="lg"
