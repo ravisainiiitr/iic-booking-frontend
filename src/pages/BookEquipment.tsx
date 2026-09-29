@@ -10,6 +10,7 @@ import {
   type PrintMaterial,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
+import { ServerClock } from "@/components/ServerClock";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
@@ -218,6 +219,8 @@ interface EquipmentDetail {
   name: string;
   /** Equipment Group alternatives active for this equipment (env flag + group switch). */
   group_alternatives_enabled?: boolean;
+  /** Initial state of "Automatically search and allocate alternate equipment" (off = ask the user first). */
+  auto_allocate_alternative_default?: boolean;
   group_cross_reschedule_enabled?: boolean;
   description: string;
   profile_type: string;
@@ -2681,6 +2684,9 @@ const BookEquipment = () => {
       } else {
         setAutoSlotSelection(userAutoSlotSelectionPrefRef.current);
       }
+      setAutoAllocateAlternative(
+        (eq as unknown as { auto_allocate_alternative_default?: boolean }).auto_allocate_alternative_default === true,
+      );
 
       // Internal users: default to current week when switching equipment (before ref = last+current, after ref = current+next)
       const uVal: any = userType;
@@ -5472,7 +5478,7 @@ const BookEquipment = () => {
     lastCalculatedValuesRef.current = '';
     setBookAnyAvailableSlots(false);
     setBookEvenIfSingleSlotAvailable(false);
-    setAutoAllocateAlternative(false);
+    setAutoAllocateAlternative(equipmentDetail?.auto_allocate_alternative_default === true);
     if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
       const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
       equipmentDetail.input_fields.forEach((field: any) => {
@@ -7744,15 +7750,8 @@ const BookEquipment = () => {
                     </CardDescription>
                   </div>
                   {!isEmbedFlow && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate(`/equipment/${selectedEquipment.id}`)}
-                      title="Open full equipment information page"
-                    >
-                      <Info className="h-4 w-4 mr-2" />
-                      More Information
-                    </Button>
+                  <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                    {!isCalculateChargesFlow && <ServerClock />}
                     <Button
                       variant="outline"
                       onClick={() => {

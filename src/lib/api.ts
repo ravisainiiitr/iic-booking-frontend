@@ -5570,6 +5570,15 @@ class ApiClient {
     });
   }
 
+  async getServerTime() {
+    return this.request<{
+      server_time: string;
+      epoch_ms: number;
+      timezone: string;
+      utc_offset_minutes: number;
+    }>(`/server-time/`, { cache: "no-store" });
+  }
+
   async getBookingEvents(bookingId: number) {
     return this.request<{
       booking_id: BookingRef["booking_id"];

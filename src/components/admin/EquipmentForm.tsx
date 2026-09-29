@@ -147,6 +147,8 @@ export type EquipmentFormData = {
   split_booking_enabled?: boolean;
   /** Nullable override: null = use user's preference on booking page. */
   auto_slot_selection_default?: boolean | null;
+  /** Initial state of the booking page's "auto-allocate alternate equipment" option. Off = ask the user first. */
+  auto_allocate_alternative_default?: boolean;
   /** Weekly grid vertical axis: TIME = show time; SLOT_ID = show slot number/name. Only admin and OIC can change. */
   weekly_view_display?: 'TIME' | 'SLOT_ID';
   /** Only show slots starting at or after this time (24h). Leave empty for no limit. */
@@ -409,6 +411,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     results_base_location: "D:\\Results",
     split_booking_enabled: false,
     auto_slot_selection_default: null,
+    auto_allocate_alternative_default: false,
     weekly_view_display: 'TIME',
     weekly_view_time_from: null,
     weekly_view_time_to: null,
@@ -686,6 +689,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         split_booking_enabled: (d.split_booking_enabled as boolean) ?? false,
         auto_slot_selection_default:
           (d.auto_slot_selection_default === true ? true : d.auto_slot_selection_default === false ? false : null) as boolean | null,
+        auto_allocate_alternative_default: d.auto_allocate_alternative_default === true,
         weekly_view_display: (d.weekly_view_display === 'SLOT_ID' ? 'SLOT_ID' : 'TIME') as 'TIME' | 'SLOT_ID',
         weekly_view_time_from: (d.weekly_view_time_from != null && String(d.weekly_view_time_from).trim() !== '') ? String(d.weekly_view_time_from).slice(0, 5) : null,
         weekly_view_time_to: (d.weekly_view_time_to != null && String(d.weekly_view_time_to).trim() !== '') ? String(d.weekly_view_time_to).slice(0, 5) : null,
@@ -897,6 +901,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       split_booking_enabled: formData.split_booking_enabled,
       auto_slot_selection_default:
         formData.auto_slot_selection_default === true ? true : formData.auto_slot_selection_default === false ? false : null,
+      auto_allocate_alternative_default: formData.auto_allocate_alternative_default === true,
       weekly_view_display: formData.weekly_view_display ?? 'TIME',
       weekly_view_time_from: formData.weekly_view_time_from && formData.weekly_view_time_from.trim() !== '' ? formData.weekly_view_time_from.trim() : null,
       weekly_view_time_to: formData.weekly_view_time_to && formData.weekly_view_time_to.trim() !== '' ? formData.weekly_view_time_to.trim() : null,
@@ -2876,6 +2881,27 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         <p className="text-muted-foreground text-xs">
           Controls the default state of the booking page toggle for this equipment. When unset, the user&apos;s profile preference is used.
         </p>
+      </div>
+
+      <div className="flex items-start space-x-2 max-w-2xl">
+        <Checkbox
+          id="auto-allocate-alternative-default"
+          checked={formData.auto_allocate_alternative_default === true}
+          onCheckedChange={(checked) =>
+            setFormData((p) => ({ ...p, auto_allocate_alternative_default: checked === true }))
+          }
+        />
+        <div className="grid gap-1 leading-none">
+          <Label htmlFor="auto-allocate-alternative-default" className="font-medium cursor-pointer">
+            Auto-allocate alternate equipment by default
+          </Label>
+          <p className="text-muted-foreground text-xs">
+            Initial state of &quot;Automatically search and allocate alternate equipment&quot; under Booking options.
+            Off (recommended): if the chosen slots are unavailable, the user is shown which equipment in the same
+            group is free and must confirm before booking. On: the booking is placed on the alternate automatically.
+            Users can change it on each booking. Applies only when this equipment&apos;s group offers alternatives.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-2 max-w-xs">
