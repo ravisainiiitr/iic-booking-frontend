@@ -26,11 +26,13 @@ export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogPro
   const [copied, setCopied] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [googleHint, setGoogleHint] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setConfirmReset(false);
       setCopied(false);
+      setGoogleHint(false);
       return;
     }
     let cancelled = false;
@@ -57,6 +59,17 @@ export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogPro
     } catch {
       toast.error("Could not copy. Select the link and copy it manually.");
     }
+  };
+
+  const addToGoogle = () => {
+    if (!settings) return;
+    // Start the copy before opening the tab: the clipboard write needs this page to still have focus.
+    const copied = navigator.clipboard?.writeText(settings.feed_url);
+    window.open(settings.google_url, "_blank", "noopener,noreferrer");
+    setGoogleHint(true);
+    Promise.resolve(copied)
+      .then(() => toast.success("Link copied. Paste it into Google Calendar's \"URL of calendar\" box."))
+      .catch(() => toast.error("Could not copy. Copy the link below and paste it into Google Calendar."));
   };
 
   const resetLink = async () => {
@@ -97,11 +110,9 @@ export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogPro
         ) : settings ? (
           <div className="space-y-4">
             <div className="grid gap-2 sm:grid-cols-3">
-              <Button asChild variant="outline" size="sm">
-                <a href={settings.google_url} target="_blank" rel="noopener noreferrer">
-                  Google Calendar
-                  <ExternalLink className="ml-1 h-3.5 w-3.5" />
-                </a>
+              <Button type="button" variant="outline" size="sm" onClick={addToGoogle}>
+                Google Calendar
+                <ExternalLink className="ml-1 h-3.5 w-3.5" />
               </Button>
               <Button asChild variant="outline" size="sm">
                 <a href={settings.outlook_url} target="_blank" rel="noopener noreferrer">
@@ -113,6 +124,20 @@ export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogPro
                 <a href={settings.webcal_url}>Apple Calendar</a>
               </Button>
             </div>
+            {googleHint && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs space-y-1">
+                <p className="font-medium">Finish in the Google Calendar tab:</p>
+                <p>
+                  1. Paste the copied link into <span className="font-medium">URL of calendar</span> and click{" "}
+                  <span className="font-medium">Add calendar</span>.
+                </p>
+                <p>
+                  2. If Google says the calendar already exists, first remove the old IIC calendar under{" "}
+                  <span className="font-medium">Settings → Settings for other calendars → Unsubscribe</span>, then
+                  add it again.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="calendar-sync-url">Or copy your private calendar link</Label>
