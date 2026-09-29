@@ -483,7 +483,7 @@ const EquipmentList = () => {
                 item={item}
                 imagePriority={index < 3}
                 accent={accentForEquipmentId(item.id)}
-                canChangeSlotStatus={canChangeEquipmentStatus}
+                canChangeSlotStatus={canChangeEquipmentStatus && !(isOic && oicCatalogScope === "all")}
                 canBookForOtherUsers={canBookForOtherUsers}
                 statusUpdatingId={statusUpdatingId}
                 onRequestStatusChange={(next) => setPendingStatusChange(next)}

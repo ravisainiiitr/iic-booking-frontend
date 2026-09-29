@@ -364,7 +364,7 @@ const EquipmentGrid = () => {
               key={equipmentItem.id}
               item={equipmentItem as any}
               accent={accentForEquipmentId(equipmentItem.id)}
-              canChangeSlotStatus={canChangeEquipmentStatus}
+              canChangeSlotStatus={canChangeEquipmentStatus && !(isOic && oicCatalogScope === "all")}
               canBookForOtherUsers={canBookForOtherUsers}
               statusUpdatingId={statusUpdatingId}
               onRequestStatusChange={(next) => setPendingStatusChange(next)}

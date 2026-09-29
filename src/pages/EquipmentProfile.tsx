@@ -88,6 +88,8 @@ interface EquipmentProfile {
   internal_department_name?: string | null;
   internal_department_code?: string | null;
   important_instruction?: string | null;
+  /** OIC viewing equipment they do not manage (from "All equipment"): read-only, no manage actions. */
+  viewer_catalog_only?: boolean;
   image_url: string;
   specifications: Array<{
     equipment_specification_id: number;
@@ -320,9 +322,11 @@ const EquipmentProfile = () => {
   const canManageEquipment = (): boolean =>
     userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "dept_admin";
 
+  const catalogOnlyView = Boolean(equipment?.viewer_catalog_only);
+
   /** Admin / OIC / Lab In-charge: change slot status (calendar holds). */
   const canChangeSlotStatus = (): boolean =>
-    userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "operator";
+    !catalogOnlyView && (userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "operator");
 
   const isOicUser = (): boolean => userTypeNorm === "manager";
 
@@ -352,7 +356,7 @@ const EquipmentProfile = () => {
 
   /** Show Create Booking / Book CTA in equipment menu. */
   const showCreateOrBookCta = (): boolean => {
-    if (isLabInchargeUser() || userTypeNorm === "finance") return false;
+    if (catalogOnlyView || isLabInchargeUser() || userTypeNorm === "finance") return false;
     if (canManageEquipment() || isOicUser()) return true;
     if (canBookEquipment()) return true;
     return !isAuthenticated;
