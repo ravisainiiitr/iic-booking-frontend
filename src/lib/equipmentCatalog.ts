@@ -4,6 +4,8 @@ export type CatalogEquipmentLike = {
   equipment_id: number;
   parent_equipment?: number | string | { equipment_id?: number } | null;
   enable_multi_mode?: boolean;
+  /** From the catalog API: this instrument has child modes listed for the viewer (search ignored). */
+  has_child_modes?: boolean;
 };
 
 /** Normalize API parent FK (id, numeric string, or nested object) to a number. */
@@ -63,10 +65,9 @@ export function isExpandableParent<T extends CatalogEquipmentLike>(
 
 /**
  * True when this card should open a parent+child family view.
- * While a search is active, enable_multi_mode on the base instrument is enough,
- * because its children may be filtered out of the result set. Without a search
- * the list is complete, so a multi-mode instrument with no published children
- * opens its own page instead of a one-card family view.
+ * A multi-mode instrument with no child modes (e.g. NMR) opens its own page instead
+ * of a one-card family view. The API's has_child_modes answers this even when a search
+ * has filtered the children out; without it, a search falls back to enable_multi_mode.
  */
 export function isCatalogFamilyParent<T extends CatalogEquipmentLike>(
   list: T[],
@@ -76,8 +77,9 @@ export function isCatalogFamilyParent<T extends CatalogEquipmentLike>(
   const id = Number(equipmentId);
   if (!Number.isFinite(id)) return false;
   if (isExpandableParent(list, id)) return true;
-  if (!options?.searchActive) return false;
   const self = list.find((eq) => Number(eq.equipment_id) === id);
+  if (typeof self?.has_child_modes === "boolean") return self.has_child_modes;
+  if (!options?.searchActive) return false;
   return (
     !!self &&
     self.enable_multi_mode === true &&

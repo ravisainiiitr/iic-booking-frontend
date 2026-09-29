@@ -17,4 +17,13 @@ describe("isCatalogFamilyParent", () => {
   it("still opens the family view during a search, where children may be filtered out", () => {
     expect(isCatalogFamilyParent([xps], 4, { searchActive: true })).toBe(true);
   });
+
+  it("uses the API has_child_modes flag during a search", () => {
+    expect(
+      isCatalogFamilyParent([{ ...nmr, has_child_modes: false }], 7, { searchActive: true }),
+    ).toBe(false);
+    expect(
+      isCatalogFamilyParent([{ ...xps, has_child_modes: true }], 4, { searchActive: true }),
+    ).toBe(true);
+  });
 });
