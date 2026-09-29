@@ -139,10 +139,10 @@ export default function AdminWalletWithdrawalRequests() {
             <div className="flex flex-wrap gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="All status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All statuses</SelectItem>
+                  <SelectItem value="__all__">All status</SelectItem>
                   {STATUS_OPTIONS.map((s) => (
                     <SelectItem key={s.value} value={s.value}>
                       {s.label}

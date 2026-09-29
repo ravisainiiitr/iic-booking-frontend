@@ -1538,10 +1538,10 @@ export default function AdminSection() {
                       onValueChange={(v) => setDailySlotStatusFilter(v === "all" ? "" : v)}
                     >
                       <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All statuses" />
+                        <SelectValue placeholder="All status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="all">All status</SelectItem>
                         {DAILY_SLOT_STATUS_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
@@ -1618,10 +1618,10 @@ export default function AdminSection() {
                       onValueChange={(v) => setBookingStatusFilter(v === "all" ? "" : v)}
                     >
                       <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="All statuses" />
+                        <SelectValue placeholder="All status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="all">All status</SelectItem>
                         {BOOKING_STATUS_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}

@@ -1590,7 +1590,7 @@ const Reports = () => {
                                     <TableCell className="text-right">{eq.no_booking_hours}</TableCell>
                                   </TableRow>
                                   <TableRow>
-                                    <TableCell>Booked (all statuses)</TableCell>
+                                    <TableCell>Booked (all status)</TableCell>
                                     <TableCell className="text-right text-emerald-700 dark:text-emerald-300 font-medium">
                                       {eq.booked_hours}
                                     </TableCell>

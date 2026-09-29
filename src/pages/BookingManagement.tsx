@@ -116,7 +116,7 @@ interface Booking extends BookingRef {
 const PAGE_SIZE = 10;
 
 const STATUS_FILTER_LABELS: Record<string, string> = {
-  all: "ALL STATUSES",
+  all: "ALL STATUS",
   BOOKED: "BOOKED",
   DISRUPTION_PENDING: "DISRUPTION PENDING",
   COMPLETED: "COMPLETED",
@@ -422,7 +422,7 @@ const BookingManagement = () => {
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="BOOKED">Booked</SelectItem>
                       {!isLabInchargeUser && (
                         <SelectItem value="DISRUPTION_PENDING">Awaiting your choice (disruption)</SelectItem>

@@ -68,9 +68,9 @@ export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
 export function bookingStatusSection(tweaks?: { extraBullets?: string[] }): GuideSection {
   return {
     id: "statuses",
-    title: "Booking Statuses",
+    title: "Booking Status",
     paragraphs: [
-      "Every booking moves through clearly labelled statuses. Checking My Bookings regularly helps you know what action (if any) is required from you.",
+      "Every booking moves through clearly labelled status stages. Checking My Bookings regularly helps you know what action (if any) is required from you.",
     ],
     bullets: [
       "Pending — Your request is submitted and awaiting confirmation or the next system step.",

@@ -238,12 +238,12 @@ export function sampleSubmissionPolicySection(): GuideSection {
       "Documentation — Complete any forms, safety declarations, or concentration lists requested on the equipment page.",
       "Physical vs digital — Physical samples go to the designated drop point. Digital inputs (STL, CAD, datasets) upload through the booking workflow when the instrument requires them (for example 3D printing).",
       "Your responsibilities — Meet deadlines, label correctly, declare hazards, and keep contact details current.",
-      "Laboratory responsibilities — Acknowledge receipt through the sample lifecycle statuses, run the analysis when ready, and notify you of completion or issues.",
+      "Laboratory responsibilities — Acknowledge receipt through the sample lifecycle status updates, run the analysis when ready, and notify you of completion or issues.",
       "Waitlisted samples — Submitting early helps the lab if you are promoted late; it does not guarantee promotion. If you opt out, contact the lab about any sample already delivered.",
     ],
     callouts: [
       "Important: Atmosphere-sensitive or hazardous samples may have stricter timing — follow on-screen warnings exactly.",
-      "Related: Sample Collection & Discard · Waitlist Policy · Booking Statuses.",
+      "Related: Sample Collection & Discard · Waitlist Policy · Booking Status.",
     ],
     steps: [
       {

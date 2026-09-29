@@ -367,7 +367,7 @@ const AdminSettingsCopilotAnswers = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="all">All status</SelectItem>
                   {statuses.map((s) => (
                     <SelectItem key={s.value} value={s.value}>
                       {s.label}

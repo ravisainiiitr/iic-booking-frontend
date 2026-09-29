@@ -523,10 +523,10 @@ export default function AdminWalletRechargeRequests() {
                 <Label>Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All statuses" />
+                    <SelectValue placeholder="All status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">All statuses</SelectItem>
+                    <SelectItem value="__all__">All status</SelectItem>
                     {STATUS_OPTIONS.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
                         {s.label}

@@ -619,7 +619,7 @@ export default function RemoteAnalysis() {
                     <SelectValue placeholder="Status filter" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">All statuses</SelectItem>
+                    <SelectItem value="ALL">All status</SelectItem>
                     {["AVAILABLE", "ONLINE", "OFFLINE", "BUSY", "MAINTENANCE", "DISABLED", "ERROR"].map((s) => (
                       <SelectItem key={s} value={s}>
                         {s}
