@@ -3185,6 +3185,10 @@ const BookEquipment = () => {
           o.atmosphere_sensitive_sample && equipmentDetail?.atmosphere_sensitive_sample_enabled === true
         );
       }
+      // A workspace chosen in the link from My Research wins over the template's.
+      if (o.research_workspace !== undefined && !researchWorkspaceFromUrl) {
+        setResearchWorkspaceId(o.research_workspace || null);
+      }
       appliedTemplateOptionsRef.current = o;
       setAppliedTemplate({ id: template.id, name: template.name });
       if (dropped.length > 0) {
@@ -3194,7 +3198,7 @@ const BookEquipment = () => {
       }
       return dropped;
     },
-    [equipmentDetail]
+    [equipmentDetail, researchWorkspaceFromUrl]
   );
 
   const handleApplyTemplate = (templateId: string) => {
@@ -3284,6 +3288,7 @@ const BookEquipment = () => {
       auto_allocate_alternative: autoAllocateAlternative,
       sample_return_after_analysis: sampleReturnAfterAnalysis,
       atmosphere_sensitive_sample: atmosphereSensitiveSample,
+      research_workspace: researchWorkspaceId,
     };
     const body = { name, input_values: { ...inputFieldValues }, options };
     setSavingTemplate(true);
@@ -10431,6 +10436,8 @@ const BookEquipment = () => {
                         )}
                       </div>
                     </div>
+
+                    <ResearchWorkspacePicker value={researchWorkspaceId} onChange={setResearchWorkspaceId} />
 
                     <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
                       <Label htmlFor="booking-template-name" className="text-sm font-medium">

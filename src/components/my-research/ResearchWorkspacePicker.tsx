@@ -26,17 +26,26 @@ export function ResearchWorkspacePicker({ value, onChange, className, folderLabe
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
 
   useEffect(() => {
     if (!available) return;
     let alive = true;
     void apiClient.myResearchWorkspaceOptions().then((res) => {
-      if (alive) setOptions(res.error || !res.data ? [] : res.data.results);
+      if (!alive) return;
+      const ok = !res.error && Boolean(res.data);
+      setOptions(ok ? res.data!.results : []);
+      setOptionsLoaded(ok);
     });
     return () => {
       alive = false;
     };
   }, [available]);
+
+  // e.g. a booking template pointing at a workspace that was deleted or is no longer shared with the user.
+  useEffect(() => {
+    if (optionsLoaded && options && value && !options.some((o) => o.id === value)) onChange(null);
+  }, [optionsLoaded, options, value, onChange]);
 
   if (!available || options == null) return null;
   const canCreate = Boolean(bootstrap?.can_create);

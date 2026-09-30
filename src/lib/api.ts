@@ -426,6 +426,8 @@ export interface BookingTemplateOptions {
   auto_allocate_alternative?: boolean;
   sample_return_after_analysis?: boolean;
   atmosphere_sensitive_sample?: boolean;
+  /** My Research workspace id the booking is added to after confirmation; null = none. */
+  research_workspace?: string | null;
 }
 
 export interface BookingTemplate {
