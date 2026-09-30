@@ -2105,7 +2105,7 @@ const Dashboard = () => {
     {
       id: "support_tickets",
       label: "Support tickets",
-      visible: Boolean(!isLabInchargeUser),
+      visible: true,
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
