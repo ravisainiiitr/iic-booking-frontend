@@ -70,6 +70,8 @@ export type RechargeWalletDialogProps = {
   subWallets: SubWalletBalance[];
   initialDepartmentId?: number | null;
   initialAmount?: string | null;
+  /** Admin switch: when false, faculty cannot raise Project Grant recharge requests. */
+  projectGrantEnabled?: boolean;
 };
 
 const PROJECT_INACTIVE_MESSAGE =
@@ -165,8 +167,11 @@ export default function RechargeWalletDialog({
   subWallets,
   initialDepartmentId = null,
   initialAmount = null,
+  projectGrantEnabled = false,
 }: RechargeWalletDialogProps) {
-  const [mode, setMode] = useState<OfflineRechargeMode>(isFaculty ? "project_grant" : "direct_cash_deposit");
+  const [mode, setMode] = useState<OfflineRechargeMode>(
+    isFaculty && projectGrantEnabled ? "project_grant" : "direct_cash_deposit",
+  );
   const [studentPath, setStudentPath] = useState<StudentPath>("cash");
 
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -314,6 +319,28 @@ export default function RechargeWalletDialog({
     }
   };
 
+  useEffect(() => {
+    if (!projectGrantEnabled && mode === "project_grant" && otpStep === "form") {
+      setMode("direct_cash_deposit");
+      setUndertakingAccepted(false);
+      setAddingProject(false);
+      setChangingProject(false);
+    }
+  }, [projectGrantEnabled, mode, otpStep]);
+
+  const handleProjectGrantDisabled = (message?: string | null) => {
+    setOtpStep("form");
+    setRequestId(null);
+    setOtp("");
+    setMode("direct_cash_deposit");
+    setUndertakingAccepted(false);
+    setAddingProject(false);
+    setChangingProject(false);
+    setFormError(
+      message || "Wallet recharge via Project Grant is currently not available. Please use Direct Cash Deposit / Bank Transfer.",
+    );
+  };
+
   const selectProject = (id: number) => {
     if (id !== selectedProjectId) setUndertakingAccepted(false);
     setSelectedProjectId(id);
@@ -419,7 +446,9 @@ export default function RechargeWalletDialog({
         { rechargeMode: effectiveMode, undertakingAccepted },
       );
       if (res.error || !res.data) {
-        if (res.errorCode === "project_inactive" || res.fieldErrors?.project_id) {
+        if (res.errorCode === "project_grant_recharge_disabled") {
+          handleProjectGrantDisabled(res.error);
+        } else if (res.errorCode === "project_inactive" || res.fieldErrors?.project_id) {
           await handleProjectRejected(PROJECT_INACTIVE_MESSAGE);
         } else if (res.errorCode === "undertaking_required") {
           setUndertakingAccepted(false);
@@ -457,7 +486,9 @@ export default function RechargeWalletDialog({
     try {
       const res = await apiClient.createWalletRechargeRequest(requestId, otp);
       if (res.error || !res.data) {
-        if (res.errorCode === "project_inactive") {
+        if (res.errorCode === "project_grant_recharge_disabled") {
+          handleProjectGrantDisabled(res.error);
+        } else if (res.errorCode === "project_inactive") {
           await handleProjectRejected(PROJECT_INACTIVE_MESSAGE);
         } else if (res.errorCode === "undertaking_required") {
           setOtpStep("form");
@@ -822,8 +853,12 @@ export default function RechargeWalletDialog({
               selected={mode === "project_grant"}
               onSelect={() => selectMode("project_grant")}
               title="Project Grant"
-              description="Use an active project to fund this recharge."
-              disabled={busy}
+              description={
+                projectGrantEnabled
+                  ? "Use an active project to fund this recharge."
+                  : "Currently unavailable. Please use Direct Cash Deposit / Bank Transfer."
+              }
+              disabled={busy || !projectGrantEnabled}
             />
             <OptionCard
               selected={mode === "direct_cash_deposit"}

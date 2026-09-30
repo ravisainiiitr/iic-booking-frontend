@@ -14,6 +14,7 @@ import { ArrowLeft, Loader2, Mail } from "lucide-react";
 
 interface WalletSricSettingsData {
   id: number;
+  project_grant_recharge_enabled?: boolean;
   recipient_emails: string;
   bill_section_emails?: string;
   project_grant_cc_emails?: string;
@@ -42,6 +43,7 @@ export default function AdminWalletSricSettings() {
   const [id, setId] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [projectGrantEnabled, setProjectGrantEnabled] = useState(false);
   const [recipientEmails, setRecipientEmails] = useState("");
   const [billSectionEmails, setBillSectionEmails] = useState("");
   const [projectGrantCcEmails, setProjectGrantCcEmails] = useState("");
@@ -78,6 +80,7 @@ export default function AdminWalletSricSettings() {
         }
         if (res.data) {
           setId(res.data.id ?? 1);
+          setProjectGrantEnabled(Boolean(res.data.project_grant_recharge_enabled));
           setRecipientEmails(res.data.recipient_emails ?? "");
           setBillSectionEmails(res.data.bill_section_emails ?? "");
           setProjectGrantCcEmails(res.data.project_grant_cc_emails ?? "");
@@ -99,6 +102,7 @@ export default function AdminWalletSricSettings() {
     setSaving(true);
     const payload: Partial<WalletSricSettingsData> = isAdmin
       ? {
+          project_grant_recharge_enabled: projectGrantEnabled,
           recipient_emails: recipientEmails,
           bill_section_emails: billSectionEmails,
           project_grant_cc_emails: projectGrantCcEmails,
@@ -161,6 +165,20 @@ export default function AdminWalletSricSettings() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="project-grant-enabled">Allow wallet recharge requests via Project Grant</Label>
+                      <p className="text-sm text-muted-foreground">
+                        When off, faculty cannot raise new Project Grant recharge requests or send unsent ones to the
+                        SRIC Office. Direct Cash Deposit / Bank Transfer is unaffected.
+                      </p>
+                    </div>
+                    <Switch
+                      id="project-grant-enabled"
+                      checked={projectGrantEnabled}
+                      onCheckedChange={setProjectGrantEnabled}
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="sric-emails">Approvers: SRIC Office email addresses</Label>
                     <Textarea

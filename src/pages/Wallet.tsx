@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import {
@@ -145,6 +145,7 @@ interface Transaction {
 
 const Wallet = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { alert, confirm, AlertComponent, ConfirmComponent } = useAlert();
   const [balance, setBalance] = useState(0);
@@ -211,6 +212,7 @@ const Wallet = () => {
   const [isStudent, setIsStudent] = useState(false);
   const [isIndividualStudent, setIsIndividualStudent] = useState(false);
   const [iitrStudentRechargeEnabled, setIitrStudentRechargeEnabled] = useState(false);
+  const [projectGrantRechargeEnabled, setProjectGrantRechargeEnabled] = useState(false);
   /** Non-null while the recharge dialog is open; the dialog is remounted (fresh state) on every open. */
   const [rechargeDialog, setRechargeDialog] = useState<RechargeDialogState | null>(null);
   const [sendingSric, setSendingSric] = useState(false);
@@ -289,9 +291,18 @@ const Wallet = () => {
       const res = await apiClient.getWalletStudentRechargeSettings();
       if (!res.error && res.data) {
         setIitrStudentRechargeEnabled(Boolean(res.data.enabled));
+        setProjectGrantRechargeEnabled(Boolean(res.data.project_grant_recharge_enabled));
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (location.hash !== "#wallet-join-requests" || !isFacultyEffective || loadingRequests) return;
+    const t = window.setTimeout(() => {
+      document.getElementById("wallet-join-requests")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => window.clearTimeout(t);
+  }, [location.hash, isFacultyEffective, loadingRequests]);
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -3009,7 +3020,7 @@ const Wallet = () => {
 
         {/* Join Requests for Faculty */}
         {isFacultyEffective && (
-          <Card className="mb-6">
+          <Card id="wallet-join-requests" className="mb-6 scroll-mt-20">
             <CardHeader>
               <CardTitle>Wallet Join Requests</CardTitle>
               <CardDescription>
@@ -3240,6 +3251,7 @@ const Wallet = () => {
           subWallets={subWallets}
           initialDepartmentId={rechargeDialog.departmentId}
           initialAmount={rechargeDialog.amount}
+          projectGrantEnabled={projectGrantRechargeEnabled}
         />
       )}
 

@@ -3587,6 +3587,7 @@ class ApiClient {
       enable_iitr_student_wallet_recharge: boolean;
       department_recharge_available?: boolean | null;
       applies_to_current_user: boolean;
+      project_grant_recharge_enabled?: boolean;
     }>('/wallet/student-recharge/settings/', { method: 'GET' });
   }
 
