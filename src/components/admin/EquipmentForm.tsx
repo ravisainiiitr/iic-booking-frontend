@@ -955,7 +955,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ? (typeof formData.sample_collect_deadline_hours === 'number'
               ? formData.sample_collect_deadline_hours
               : parseInt(String(formData.sample_collect_deadline_hours), 10))
-          : 72,
+          : 0,
       repeat_sample_request_days: formData.repeat_sample_request_days ?? null,
       repeat_sample_disclaimer: formData.repeat_sample_disclaimer != null ? String(formData.repeat_sample_disclaimer) : "",
       enable_remote_analysis: false,
@@ -2806,19 +2806,24 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   id="sample-collect-deadline-hours"
                   type="number"
                   min={0}
-                  placeholder="Default 72"
+                  placeholder="Empty or 0 = no deadline"
                   value={formData.sample_collect_deadline_hours ?? ""}
                   onChange={(e) => {
                     const v = e.target.value.trim();
                     setFormData((p) => ({
                       ...p,
-                      sample_collect_deadline_hours: v === "" ? 72 : Math.max(0, parseInt(v, 10) || 0),
+                      sample_collect_deadline_hours: v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
                     }));
                   }}
                 />
                 <p className="text-muted-foreground text-xs">
-                  After booking completion, hours remaining to collect the sample before discard. 0 = hide this countdown.
+                  After booking completion, hours remaining to collect the sample before discard. Empty or 0 = no collect deadline: no countdown and no collection notice in the completion email.
                 </p>
+              </div>
+              <div className="sm:col-span-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                When both the submission lead time and the collect / discard deadline are empty or 0, the equipment is
+                treated as walk-in: users bring their sample to the slot and take it back. No sample reminder, collection
+                or disposal emails are sent, and bookings are not auto-marked Not Utilized.
               </div>
             </div>
           )}

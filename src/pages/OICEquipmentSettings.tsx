@@ -95,7 +95,7 @@ const INT_FIELDS: Array<{ key: IntField; label: string; hint: string; max: numbe
   {
     key: "sample_collect_deadline_hours",
     label: "Sample collect / discard deadline (hours after completion)",
-    hint: "Hours after completion to collect the sample before it may be discarded. 0 hides this countdown.",
+    hint: "Hours after completion to collect the sample before it may be discarded. 0 = no collect deadline (no countdown and no collection notice in the completion email). When this and the submission lead time are both 0, users bring and take back their samples in person: no sample reminder, collection or disposal emails, and no automatic Not Utilized marking.",
     max: 8760,
     section: "sample",
   },
