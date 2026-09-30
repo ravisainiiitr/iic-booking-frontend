@@ -88,7 +88,7 @@ const INT_FIELDS: Array<{ key: IntField; label: string; hint: string; max: numbe
   {
     key: "sample_submission_lead_hours",
     label: "Sample submission lead time (hours before slot start)",
-    hint: "Users should submit samples this many hours before the slot starts. Does not apply to external users or atmosphere-sensitive samples. 0 = slot start.",
+    hint: "Users should submit samples this many hours before the slot starts. External users and atmosphere-sensitive samples may submit at slot start. 0 = no sample submission deadline (no countdown, reminder email or notification).",
     max: 8760,
     section: "sample",
   },

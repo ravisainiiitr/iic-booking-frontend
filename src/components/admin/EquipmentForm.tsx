@@ -948,7 +948,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ? (typeof formData.sample_submission_lead_hours === 'number'
               ? formData.sample_submission_lead_hours
               : parseInt(String(formData.sample_submission_lead_hours), 10))
-          : 24,
+          : 0,
       atmosphere_sensitive_sample_enabled: formData.atmosphere_sensitive_sample_enabled === true,
       sample_collect_deadline_hours:
         formData.sample_collect_deadline_hours != null && formData.sample_collect_deadline_hours !== ''
@@ -2786,18 +2786,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                   id="sample-submission-lead-hours"
                   type="number"
                   min={0}
-                  placeholder="Default 24"
+                  placeholder="Empty or 0 = no deadline"
                   value={formData.sample_submission_lead_hours ?? ""}
                   onChange={(e) => {
                     const v = e.target.value.trim();
                     setFormData((p) => ({
                       ...p,
-                      sample_submission_lead_hours: v === "" ? 24 : Math.max(0, parseInt(v, 10) || 0),
+                      sample_submission_lead_hours: v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
                     }));
                   }}
                 />
                 <p className="text-muted-foreground text-xs">
-                  Users should submit samples this many hours before the slot starts. Atmosphere-sensitive bookings may submit at slot start (when that option is enabled below). 0 = deadline is slot start.
+                  Users should submit samples this many hours before the slot starts. Atmosphere-sensitive bookings may submit at slot start (when that option is enabled below). Empty or 0 = no sample submission deadline: no countdown, reminder email or notification.
                 </p>
               </div>
               <div className="space-y-2">

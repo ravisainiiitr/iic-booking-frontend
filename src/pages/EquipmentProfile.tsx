@@ -1236,11 +1236,6 @@ const EquipmentProfile = () => {
                       <CardTitle className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
                         {equipment.name}
                       </CardTitle>
-                      {equipment.code ? (
-                        <Badge variant="outline" className="font-mono text-xs tracking-wide">
-                          {equipment.code}
-                        </Badge>
-                      ) : null}
                       <Badge
                         className={cn(
                           equipment.status === "ACTIVE"
