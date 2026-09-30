@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 type Mode = "form" | "reset-request" | "reset-verify";
@@ -53,11 +54,17 @@ function PasswordField({
   );
 }
 
-/** Dual login: after signing in with Channel i, users can set a password to also sign in with email. */
+/**
+ * Sign-in options. Channel i users (IITR students, faculty, OIC, Lab Operator) choose whether email sign-in is
+ * allowed; everyone else signs in with email and password and only sees the password form.
+ */
 export function LoginPasswordCard() {
   const [loading, setLoading] = useState(true);
   const [hasPassword, setHasPassword] = useState(false);
   const [email, setEmail] = useState("");
+  const [hasToggle, setHasToggle] = useState(false);
+  const [emailLoginEnabled, setEmailLoginEnabled] = useState(true);
+  const [toggling, setToggling] = useState(false);
   const [mode, setMode] = useState<Mode>("form");
   const [saving, setSaving] = useState(false);
   const [current, setCurrent] = useState("");
@@ -72,6 +79,8 @@ export function LoginPasswordCard() {
       if (res.data) {
         setHasPassword(Boolean(res.data.has_password));
         setEmail(res.data.email || "");
+        setHasToggle(Boolean(res.data.email_login_toggle));
+        setEmailLoginEnabled(res.data.email_login_enabled !== false);
       }
       setLoading(false);
     });
@@ -79,6 +88,26 @@ export function LoginPasswordCard() {
       cancelled = true;
     };
   }, []);
+
+  const handleToggle = async (enabled: boolean) => {
+    setToggling(true);
+    try {
+      const res = await apiClient.setEmailLoginEnabled(enabled);
+      if (res.error || !res.data) {
+        toast.error(res.error || "Could not update sign-in options.");
+        return;
+      }
+      setEmailLoginEnabled(res.data.email_login_enabled);
+      setHasPassword(res.data.has_password);
+      setMode("form");
+      resetFields();
+      toast.success(res.data.message);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const showPasswordSection = !hasToggle || emailLoginEnabled;
 
   const resetFields = () => {
     setCurrent("");
@@ -167,10 +196,12 @@ export function LoginPasswordCard() {
       <CardHeader className="bg-muted/30 border-b border-border/50">
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-primary" aria-hidden />
-          Login password
+          {hasToggle ? "Sign-in options" : "Login password"}
         </CardTitle>
         <CardDescription>
-          Sign in with {CHANNEL_I_DISPLAY_NAME} or with your email and password.
+          {hasToggle
+            ? `${CHANNEL_I_DISPLAY_NAME} is the preferred way to sign in. You can also allow signing in with your email.`
+            : "You sign in with your email and password."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 pt-6">
@@ -181,6 +212,48 @@ export function LoginPasswordCard() {
           </div>
         ) : (
           <>
+            {hasToggle && (
+              <div className="divide-y divide-border/60 rounded-xl border border-border/60">
+                <div className="flex items-center justify-between gap-4 p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Sign in with {CHANNEL_I_DISPLAY_NAME}</p>
+                    <p className="text-xs text-muted-foreground">Official IIT Roorkee sign-in. Always available.</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    Always on
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4 p-4">
+                  <div className="min-w-0">
+                    <Label htmlFor="email-login-toggle" className="text-sm font-medium">
+                      Sign in with email
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Use <span className="font-medium text-foreground">{email}</span> with a password or a one-time code
+                      (OTP) sent to your email.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {toggling && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                    <Switch
+                      id="email-login-toggle"
+                      checked={emailLoginEnabled}
+                      disabled={toggling}
+                      onCheckedChange={(v) => void handleToggle(v)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {hasToggle && !emailLoginEnabled && (
+              <p className="text-sm text-muted-foreground">
+                Email sign-in is off, so only {CHANNEL_I_DISPLAY_NAME} can be used to sign in to your account.
+              </p>
+            )}
+
+            {showPasswordSection && (
+            <>
             <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 text-sm">
               <ShieldCheck
                 className={`mt-0.5 h-4 w-4 shrink-0 ${hasPassword ? "text-emerald-600" : "text-muted-foreground"}`}
@@ -196,8 +269,9 @@ export function LoginPasswordCard() {
                   </>
                 ) : (
                   <>
-                    Email login is <span className="font-medium text-foreground">not set up</span>. Set a password
-                    to also sign in with <span className="font-medium text-foreground">{email}</span>.
+                    No password is set yet. Set one to sign in with{" "}
+                    <span className="font-medium text-foreground">{email}</span> and a password
+                    {hasToggle ? "; until then you can still use an email OTP on the sign-in page." : "."}
                   </>
                 )}
               </p>
@@ -302,6 +376,8 @@ export function LoginPasswordCard() {
                   </Button>
                 </div>
               </div>
+            )}
+            </>
             )}
           </>
         )}

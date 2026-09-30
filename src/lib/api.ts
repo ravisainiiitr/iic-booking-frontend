@@ -1070,6 +1070,14 @@ export interface LegacyWalletBalanceListResult {
   error?: string;
 }
 
+export interface AccountLoginStatus {
+  has_password: boolean;
+  email: string;
+  /** Channel i users (IITR students, faculty, OIC, Lab Operator) can turn email sign-in on or off. */
+  email_login_toggle: boolean;
+  email_login_enabled: boolean;
+}
+
 export interface LegacySyncUserSearchRow {
   id: number;
   name: string;
@@ -2149,7 +2157,15 @@ class ApiClient {
 
   /** Signed-in user's login password status (dual login: Channel i + email/password). */
   async getAccountPasswordStatus() {
-    return this.request<{ has_password: boolean; email: string }>('/auth/password/');
+    return this.request<AccountLoginStatus>('/auth/password/');
+  }
+
+  /** Channel i users: turn email sign-in (password / email OTP) on or off. */
+  async setEmailLoginEnabled(enabled: boolean) {
+    return this.request<AccountLoginStatus & { message: string }>('/auth/email-login/', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
   }
 
   /** Set (first time) or change the signed-in user's login password. */

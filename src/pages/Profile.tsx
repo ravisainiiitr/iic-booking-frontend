@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { isChannelIUserType, isExternalBookingUserType } from "@/lib/userTypes";
+import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1441,7 +1441,7 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
-        {isChannelIUserType(user?.user_type) && <LoginPasswordCard />}
+        {user && <LoginPasswordCard />}
       </main>
     </div>
   );

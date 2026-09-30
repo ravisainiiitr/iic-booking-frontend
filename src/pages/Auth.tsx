@@ -16,8 +16,55 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff, Upload, X, FileText, User, Home, Mail, ArrowLeft, KeyRound, UserPlus, ChevronsUpDown, ListChecks, Building2, Calendar, FileSignature } from "lucide-react";
+import { Eye, EyeOff, Upload, X, FileText, User, Home, Mail, ArrowLeft, KeyRound, UserPlus, ChevronsUpDown, ListChecks, Building2, Calendar, FileSignature, AlertTriangle, CheckCircle2, FlaskConical, Loader2, LogIn, ShieldCheck, Wallet } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { cn } from "@/lib/utils";
+
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  show,
+  onToggleShow,
+  autoComplete,
+  required,
+  minLength,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+  autoComplete: string;
+  required?: boolean;
+  minLength?: number;
+}) {
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        placeholder="••••••••"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        required={required}
+        minLength={minLength}
+        className="h-11 rounded-xl bg-background pr-10"
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+        onClick={onToggleShow}
+        aria-label={show ? "Hide password" : "Show password"}
+      >
+        {show ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+      </Button>
+    </div>
+  );
+}
 
 const authSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -62,6 +109,8 @@ function isPublicEmailDomain(email: string): boolean {
   const part = email.trim().split("@")[1]?.toLowerCase();
   return !!part && PUBLIC_EMAIL_DOMAINS.has(part);
 }
+
+const EMAIL_LOGIN_DISABLED_CODE = "email_login_disabled";
 
 const signInSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -157,6 +206,7 @@ const Auth = () => {
   const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   const [showForgotNewPasswordConfirm, setShowForgotNewPasswordConfirm] = useState(false);
   const [loadingForgotPassword, setLoadingForgotPassword] = useState(false);
+  const [emailLoginBlocked, setEmailLoginBlocked] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -651,6 +701,11 @@ const Auth = () => {
         // We need to call the API directly to get detailed error information
       const response = await apiClient.signIn(validated.email, validated.password);
 
+      if (response.errorCode === EMAIL_LOGIN_DISABLED_CODE) {
+        setEmailLoginBlocked(response.error || "Email sign-in is turned off for this account.");
+        return;
+      }
+
       if (response.error) {
         const errorData = response.fieldErrors as any;
         const adminApproved = errorData?.admin_approved ?? (response as any).admin_approved;
@@ -729,6 +784,10 @@ const Auth = () => {
     setLoadingLoginOtp(true);
     try {
       const res = await apiClient.requestLoginOtp(emailVal);
+      if (res.errorCode === EMAIL_LOGIN_DISABLED_CODE) {
+        setEmailLoginBlocked(res.error || "Email sign-in is turned off for this account.");
+        return;
+      }
       if (res.error) {
         toast.error(res.error);
         return;
@@ -780,6 +839,10 @@ const Auth = () => {
     setLoadingForgotPassword(true);
     try {
       const res = await apiClient.requestForgotPasswordOtp(emailVal);
+      if (res.errorCode === EMAIL_LOGIN_DISABLED_CODE) {
+        setEmailLoginBlocked(res.error || "Email sign-in is turned off for this account.");
+        return;
+      }
       if (res.error) {
         toast.error(res.error);
         return;
@@ -843,373 +906,515 @@ const Auth = () => {
     );
   }
 
+  const switchEmailMethod = (method: "password" | "otp") => {
+    setEmailLoginBlocked(null);
+    if (method === "otp") {
+      setLoginOtpEmail(email.trim() || loginOtpEmail);
+      setLoginOtpValue("");
+      setLoginViaOtpStep("email");
+      return;
+    }
+    if (loginOtpEmail.trim()) setEmail(loginOtpEmail.trim());
+    setLoginOtpValue("");
+    setLoginViaOtpStep(null);
+  };
+
+  const openForgotPassword = () => {
+    setEmailLoginBlocked(null);
+    setForgotEmail((loginViaOtpStep !== null ? loginOtpEmail : email).trim() || forgotEmail);
+    setForgotPasswordStep("email");
+  };
+
+  const closeForgotPassword = () => {
+    setForgotPasswordStep(null);
+    setForgotEmail("");
+    setForgotOtp("");
+    setForgotNewPassword("");
+    setForgotNewPasswordConfirm("");
+    setEmailLoginBlocked(null);
+  };
+
+  const emailLoginBlockedNotice = emailLoginBlocked ? (
+    <div
+      role="alert"
+      className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+    >
+      <div className="flex gap-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <div className="space-y-3">
+          <p className="leading-relaxed">{emailLoginBlocked}</p>
+          <Button type="button" size="sm" className="rounded-lg" onClick={handleOmniportLogin} disabled={loading}>
+            Sign in with {CHANNEL_I_DISPLAY_NAME}
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const brandLogo = (
+    <a
+      href="https://en.wikipedia.org/wiki/IIT_Roorkee"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex rounded-2xl bg-white p-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+      title="IIT Roorkee (Wikipedia)"
+    >
+      <img
+        src="https://en.wikipedia.org/wiki/Special:FilePath/Indian_Institute_of_Technology_Roorkee_Logo.svg"
+        alt="IIT Roorkee logo"
+        className="h-14 w-14 object-contain"
+      />
+    </a>
+  );
+
   return (
-    <div className="page-shell flex items-center justify-center p-4 sm:px-6 sm:py-4 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(215_50%_40%/0.14),transparent)] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(215_40%_30%/0.2),transparent)]">
-      <div className="w-full max-w-2xl">
-        {/* Card */}
-        <Card className="overflow-hidden border border-border/60 shadow-[var(--shadow-elegant)] bg-card/95 backdrop-blur-sm rounded-2xl">
-          {/* Header */}
-          <div className="relative px-6 sm:px-8 pt-5 pb-3 text-center border-b border-border/50 bg-gradient-to-b from-primary/5 to-transparent dark:from-primary/15">
+    <div className="page-shell grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* Brand panel (desktop) */}
+      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-[hsl(215_62%_20%)] via-primary to-[hsl(200_65%_34%)] text-white lg:flex lg:flex-col">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-2xl" aria-hidden />
+        <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-sky-300/10 blur-3xl" aria-hidden />
+        <div className="relative flex h-full flex-col justify-between gap-10 p-10 xl:p-14">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {brandLogo}
+              <div>
+                <p className="text-lg font-semibold leading-tight">Indian Institute of Technology Roorkee</p>
+                <p className="text-sm text-white/75">Institute Equipment Booking Portal</p>
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-2 top-3 h-16 w-16 rounded-2xl text-slate-600 hover:bg-primary/10 hover:text-primary dark:text-slate-300 [&_svg]:size-10"
+              className="h-11 w-11 shrink-0 rounded-xl text-white hover:bg-white/15 hover:text-white"
               onClick={() => navigate("/")}
               title="Go to Home"
               aria-label="Go to Home"
             >
-              <Home strokeWidth={2} />
+              <Home className="h-5 w-5" />
             </Button>
-            <a
-              href="https://en.wikipedia.org/wiki/IIT_Roorkee"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-lg"
-              title="IIT Roorkee (Wikipedia)"
-            >
-              <img
-                src="https://en.wikipedia.org/wiki/Special:FilePath/Indian_Institute_of_Technology_Roorkee_Logo.svg"
-                alt="IIT Roorkee logo"
-                className="h-20 w-auto mx-auto object-contain sm:h-24"
-              />
-            </a>
-            <p className="mt-3 text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
-              Indian Institute of Technology Roorkee
-            </p>
-            <p className="mt-1 text-sm text-primary/80 dark:text-sky-200/90 font-medium">
-              Institute Equipment Booking Portal
-            </p>
+          </div>
+
+          <div className="space-y-8">
+            <h2 className="max-w-md text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
+              Book research equipment, track your samples and manage your wallet in one place.
+            </h2>
+            <ul className="space-y-4 text-sm text-white/85">
+              {[
+                { icon: Calendar, text: "Live slot availability and instant booking for institute equipment" },
+                { icon: FlaskConical, text: "Sample submission, analysis status and results sharing" },
+                { icon: Wallet, text: "Department wallets, recharges and transparent charges" },
+              ].map(({ icon: Icon, text }) => (
+                <li key={text} className="flex items-start gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                    <Icon className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="pt-1.5 leading-relaxed">{text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/70">How to sign in</p>
+            <dl className="space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
+                <div>
+                  <dt className="font-medium">IITR students, faculty, OIC and Lab Operator</dt>
+                  <dd className="text-white/75">{CHANNEL_I_DISPLAY_NAME} (recommended). Email sign-in only if turned on in My Profile.</dd>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" aria-hidden />
+                <div>
+                  <dt className="font-medium">External users, IITR Post-docs, Research Associates and Startups</dt>
+                  <dd className="text-white/75">Email with password or one-time code.</dd>
+                </div>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </aside>
+
+      {/* Form panel */}
+      <main className="flex min-w-0 flex-col items-center bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,hsl(215_50%_40%/0.10),transparent)] px-4 py-6 sm:px-8 sm:py-10 lg:justify-center dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,hsl(215_40%_30%/0.18),transparent)]">
+        {/* Mobile header */}
+        <div className="mb-6 flex w-full max-w-lg items-center justify-between gap-3 lg:hidden">
+          <div className="flex items-center gap-3">
+            {brandLogo}
+            <div>
+              <p className="text-base font-semibold leading-tight">IIT Roorkee</p>
+              <p className="text-xs text-muted-foreground">Institute Equipment Booking Portal</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => navigate("/")} aria-label="Go to Home">
+            <Home className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className={cn("w-full transition-[max-width]", activeTab === "signup" ? "max-w-3xl" : "max-w-lg")}>
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              {activeTab === "signin" ? "Welcome back" : "Create your account"}
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sign in or create an account
+              {activeTab === "signin"
+                ? "Sign in to book equipment and manage your requests."
+                : "For external users and IITR Post-docs, Research Associates and Startups."}
             </p>
           </div>
 
-          <CardContent className="px-6 pt-4 pb-6 sm:px-8 sm:pt-5 sm:pb-7 text-base">
-            {/* Channel i — primary CTA */}
-            <div className="mb-4">
-              <Button
-                onClick={handleOmniportLogin}
-                disabled={loading}
-                className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 text-white font-medium transition-[var(--transition-smooth)]"
-                size="lg"
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid h-11 w-full grid-cols-2 rounded-xl bg-muted/60 p-1">
+              <TabsTrigger
+                value="signin"
+                className="rounded-lg font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
-                <span className="flex items-center justify-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
-                      <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" />
-                    </svg>
-                  </span>
-                  {loading ? "Connecting..." : `Sign in with ${CHANNEL_I_DISPLAY_NAME} IITR`}
-                </span>
-              </Button>
-              <p className="mt-2 text-xs text-muted-foreground text-center leading-relaxed">
-                Official IIT Roorkee authentication. You will be redirected to {CHANNEL_I_DISPLAY_NAME} to sign in.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground text-center leading-relaxed">
-                Students, faculty and staff: your first sign-in is with {CHANNEL_I_DISPLAY_NAME}. Then set a password in
-                My Profile to also sign in with email below.
-              </p>
-            </div>
+                <LogIn className="mr-2 h-4 w-4 opacity-70" />
+                Sign in
+              </TabsTrigger>
+              <TabsTrigger
+                value="signup"
+                className="rounded-lg font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <UserPlus className="mr-2 h-4 w-4 opacity-70" />
+                Create account
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Divider */}
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border/80" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-card px-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-                  Or continue with email
-                </span>
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 h-11 p-1 rounded-xl bg-muted/60">
-                <TabsTrigger
-                  value="signin"
-                  className="rounded-lg font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-[var(--transition-smooth)]"
-                >
-                  <KeyRound className="h-4 w-4 mr-2 opacity-70" />
-                  Sign In
-                </TabsTrigger>
-                <TabsTrigger
-                  value="signup"
-                  className="rounded-lg font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm transition-[var(--transition-smooth)]"
-                >
-                  <UserPlus className="h-4 w-4 mr-2 opacity-70" />
-                  Sign Up
-                </TabsTrigger>
-              </TabsList>
-            
-            <TabsContent value="signin" className="mt-4 focus-visible:outline-none">
+            <TabsContent value="signin" className="mt-6 focus-visible:outline-none">
               {forgotPasswordStep !== null ? (
-                <div className="space-y-5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground -ml-1 gap-1.5"
-                    onClick={() => {
-                      setForgotPasswordStep(null);
-                      setForgotEmail("");
-                      setForgotOtp("");
-                      setForgotNewPassword("");
-                      setForgotNewPasswordConfirm("");
-                    }}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Sign In
-                  </Button>
-                  {forgotPasswordStep === "email" && (
-                    <form onSubmit={handleRequestForgotPasswordOtp} className="space-y-5">
-                      <div className="space-y-2">
-                        <Label htmlFor="forgot-email" className="text-foreground font-medium">Email</Label>
-                        <Input
-                          id="forgot-email"
-                          type="email"
-                          placeholder="you@example.com"
-                          value={forgotEmail}
-                          onChange={(e) => setForgotEmail(e.target.value)}
-                          required
-                          className="h-11 rounded-xl border-border/80 bg-background"
-                        />
+                <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                  <CardContent className="space-y-5 p-5 sm:p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-semibold">Reset your password</p>
+                        <p className="text-sm text-muted-foreground">
+                          {forgotPasswordStep === "email" && "Step 1 of 2 · We will email you a 6-digit code."}
+                          {forgotPasswordStep === "otp-password" && "Step 2 of 2 · Enter the code and choose a new password."}
+                          {forgotPasswordStep === "done" && "All done."}
+                        </p>
                       </div>
-                      <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loadingForgotPassword}>
-                        {loadingForgotPassword ? "Sending..." : "Send OTP to email"}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="-mr-2 shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+                        onClick={closeForgotPassword}
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
                       </Button>
-                    </form>
-                  )}
-                  {forgotPasswordStep === "otp-password" && (
-                    <form onSubmit={handleVerifyForgotPasswordAndSetPassword} className="space-y-5">
-                      <div className="space-y-2">
-                        <Label className="text-foreground font-medium">Email</Label>
-                        <Input type="email" value={forgotEmail} readOnly className="h-11 rounded-xl bg-muted/80 border-border/80" />
+                    </div>
+                    {forgotPasswordStep !== "done" && (
+                      <div className="grid grid-cols-2 gap-1.5" aria-hidden>
+                        <span className="h-1 rounded-full bg-primary" />
+                        <span className={cn("h-1 rounded-full", forgotPasswordStep === "otp-password" ? "bg-primary" : "bg-muted")} />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-foreground font-medium">Enter 6-digit OTP</Label>
-                        <div className="flex justify-center">
+                    )}
+                    {emailLoginBlockedNotice}
+                    {forgotPasswordStep === "email" && (
+                      <form onSubmit={handleRequestForgotPasswordOtp} className="space-y-5">
+                        <div className="space-y-2">
+                          <Label htmlFor="forgot-email" className="font-medium">Email</Label>
+                          <Input
+                            id="forgot-email"
+                            type="email"
+                            autoComplete="email"
+                            placeholder="you@example.com"
+                            value={forgotEmail}
+                            onChange={(e) => {
+                              setForgotEmail(e.target.value);
+                              setEmailLoginBlocked(null);
+                            }}
+                            required
+                            className="h-11 rounded-xl bg-background"
+                          />
+                        </div>
+                        <Button type="submit" className="h-11 w-full rounded-xl font-medium" disabled={loadingForgotPassword}>
+                          {loadingForgotPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          {loadingForgotPassword ? "Sending..." : "Send code"}
+                        </Button>
+                      </form>
+                    )}
+                    {forgotPasswordStep === "otp-password" && (
+                      <form onSubmit={handleVerifyForgotPasswordAndSetPassword} className="space-y-5">
+                        <p className="text-sm text-muted-foreground">
+                          Code sent to <span className="font-medium text-foreground">{forgotEmail}</span>.{" "}
+                          <button
+                            type="button"
+                            className="font-medium text-primary hover:underline"
+                            onClick={() => setForgotPasswordStep("email")}
+                          >
+                            Change
+                          </button>
+                        </p>
+                        <div className="space-y-2">
+                          <Label className="font-medium">6-digit code</Label>
                           <InputOTP maxLength={6} value={forgotOtp} onChange={setForgotOtp}>
                             <InputOTPGroup className="gap-1.5">
-                              <InputOTPSlot index={0} />
-                              <InputOTPSlot index={1} />
-                              <InputOTPSlot index={2} />
-                              <InputOTPSlot index={3} />
-                              <InputOTPSlot index={4} />
-                              <InputOTPSlot index={5} />
+                              {[0, 1, 2, 3, 4, 5].map((i) => (
+                                <InputOTPSlot key={i} index={i} className="h-11 w-11 rounded-lg border text-base" />
+                              ))}
                             </InputOTPGroup>
                           </InputOTP>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="forgot-new-password" className="text-foreground font-medium">New password</Label>
-                        <div className="relative">
-                          <Input
-                            id="forgot-new-password"
-                            type={showForgotNewPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            value={forgotNewPassword}
-                            onChange={(e) => setForgotNewPassword(e.target.value)}
-                            minLength={8}
-                            className="h-11 rounded-xl pr-10 border-border/80 bg-background"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
-                            aria-label={showForgotNewPassword ? "Hide password" : "Show password"}
-                          >
-                            {showForgotNewPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                          </Button>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="forgot-new-password" className="font-medium">New password</Label>
+                            <PasswordInput
+                              id="forgot-new-password"
+                              value={forgotNewPassword}
+                              onChange={setForgotNewPassword}
+                              show={showForgotNewPassword}
+                              onToggleShow={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                              autoComplete="new-password"
+                              minLength={8}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="forgot-new-password-confirm" className="font-medium">Confirm password</Label>
+                            <PasswordInput
+                              id="forgot-new-password-confirm"
+                              value={forgotNewPasswordConfirm}
+                              onChange={setForgotNewPasswordConfirm}
+                              show={showForgotNewPasswordConfirm}
+                              onToggleShow={() => setShowForgotNewPasswordConfirm(!showForgotNewPasswordConfirm)}
+                              autoComplete="new-password"
+                              minLength={8}
+                            />
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">At least 8 characters</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="forgot-new-password-confirm" className="text-foreground font-medium">Confirm new password</Label>
-                        <div className="relative">
-                          <Input
-                            id="forgot-new-password-confirm"
-                            type={showForgotNewPasswordConfirm ? "text" : "password"}
-                            placeholder="••••••••"
-                            value={forgotNewPasswordConfirm}
-                            onChange={(e) => setForgotNewPasswordConfirm(e.target.value)}
-                            minLength={8}
-                            className="h-11 rounded-xl pr-10 border-border/80 bg-background"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => setShowForgotNewPasswordConfirm(!showForgotNewPasswordConfirm)}
-                            aria-label={showForgotNewPasswordConfirm ? "Hide password" : "Show password"}
-                          >
-                            {showForgotNewPasswordConfirm ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loadingForgotPassword}>
-                        {loadingForgotPassword ? "Setting password..." : "Set new password"}
-                      </Button>
-                    </form>
-                  )}
-                  {forgotPasswordStep === "done" && (
-                    <div className="space-y-5 text-center py-2">
-                      <p className="text-sm text-muted-foreground">Your password has been reset. You can now sign in with your new password.</p>
-                      <Button
-                        type="button"
-                        className="w-full h-11 rounded-xl font-medium"
-                        onClick={() => {
-                          setForgotPasswordStep(null);
-                          setActiveTab("signin");
-                        }}
-                      >
-                        Sign In
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : loginViaOtpStep !== null ? (
-                <div className="space-y-5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground -ml-1 gap-1.5"
-                    onClick={() => {
-                      setLoginViaOtpStep(null);
-                      setLoginOtpValue("");
-                    }}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Sign In
-                  </Button>
-                  {loginViaOtpStep === "email" && (
-                    <form onSubmit={handleRequestLoginOtp} className="space-y-5">
-                      <div className="space-y-2">
-                        <Label htmlFor="login-otp-email" className="text-foreground font-medium">Email</Label>
-                        <Input
-                          id="login-otp-email"
-                          type="email"
-                          placeholder="you@example.com"
-                          value={loginOtpEmail}
-                          onChange={(e) => setLoginOtpEmail(e.target.value)}
-                          required
-                          className="h-11 rounded-xl border-border/80 bg-background"
-                        />
-                      </div>
-                      <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loadingLoginOtp}>
-                        {loadingLoginOtp ? "Sending OTP..." : "Send OTP to email"}
-                      </Button>
-                    </form>
-                  )}
-                  {loginViaOtpStep === "otp" && (
-                    <form onSubmit={handleVerifyLoginOtp} className="space-y-5">
-                      <div className="space-y-2">
-                        <Label className="text-foreground font-medium">Email</Label>
-                        <Input type="email" value={loginOtpEmail} readOnly className="h-11 rounded-xl bg-muted/80 border-border/80" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-foreground font-medium">Enter 6-digit OTP</Label>
-                        <div className="flex justify-center">
-                          <InputOTP maxLength={6} value={loginOtpValue} onChange={setLoginOtpValue}>
-                            <InputOTPGroup className="gap-1.5">
-                              <InputOTPSlot index={0} />
-                              <InputOTPSlot index={1} />
-                              <InputOTPSlot index={2} />
-                              <InputOTPSlot index={3} />
-                              <InputOTPSlot index={4} />
-                              <InputOTPSlot index={5} />
-                            </InputOTPGroup>
-                          </InputOTP>
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loadingLoginOtp || loginOtpValue.length !== 6}>
-                        {loadingLoginOtp ? "Verifying..." : "Verify & sign in"}
-                      </Button>
-                    </form>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <form onSubmit={handleSignIn} className="space-y-5">
-                    <div className="space-y-2">
-                      <Label htmlFor="signin-email" className="text-foreground font-medium">Email</Label>
-                      <Input
-                        id="signin-email"
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="h-11 rounded-xl border-border/80 bg-background"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="signin-password" className="text-foreground font-medium">Password</Label>
-                        <button
-                          type="button"
-                          className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors"
-                          onClick={() => {
-                            setForgotEmail(email.trim() || forgotEmail);
-                            setForgotPasswordStep("email");
-                          }}
-                        >
-                          Forgot password?
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <Input
-                          id="signin-password"
-                          type={showSignInPassword ? "text" : "password"}
-                          placeholder="••••••••"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                          className="h-11 rounded-xl pr-10 border-border/80 bg-background"
-                        />
+                        <p className="-mt-2 text-xs text-muted-foreground">At least 8 characters.</p>
+                        <Button type="submit" className="h-11 w-full rounded-xl font-medium" disabled={loadingForgotPassword}>
+                          {loadingForgotPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          {loadingForgotPassword ? "Saving..." : "Set new password"}
+                        </Button>
+                      </form>
+                    )}
+                    {forgotPasswordStep === "done" && (
+                      <div className="space-y-5 py-2 text-center">
+                        <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" aria-hidden />
+                        <p className="text-sm text-muted-foreground">
+                          Your password has been reset. You can now sign in with your new password.
+                        </p>
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={() => setShowSignInPassword(!showSignInPassword)}
-                          aria-label={showSignInPassword ? "Hide password" : "Show password"}
+                          className="h-11 w-full rounded-xl font-medium"
+                          onClick={() => {
+                            setEmail(forgotEmail.trim() || email);
+                            closeForgotPassword();
+                            setLoginViaOtpStep(null);
+                            setActiveTab("signin");
+                          }}
                         >
-                          {showSignInPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
+                          Back to sign in
                         </Button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loading}>
-                        {loading ? "Signing in..." : "Sign In"}
-                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-5">
+                  {/* Channel i — preferred */}
+                  <Card className="rounded-2xl border-primary/25 bg-gradient-to-br from-primary/[0.06] to-transparent shadow-[var(--shadow-card)]">
+                    <CardContent className="space-y-3 p-5 sm:p-6">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">Recommended</span>
+                        <span className="text-sm text-muted-foreground">IITR students, faculty, OIC and Lab Operator</span>
+                      </div>
                       <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full h-11 rounded-xl gap-2 border-border/80 font-medium hover:bg-muted/50"
-                        onClick={() => {
-                          setLoginOtpEmail(email.trim() || loginOtpEmail);
-                          setLoginViaOtpStep("email");
-                        }}
+                        onClick={handleOmniportLogin}
+                        disabled={loading}
+                        className="h-12 w-full rounded-xl bg-primary text-base font-medium text-white shadow-lg shadow-primary/20 hover:bg-primary/90"
+                        size="lg"
                       >
-                        <Mail className="h-4 w-4" />
-                        Login via OTP (email)
+                        <span className="flex items-center justify-center gap-2.5">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
+                            {loading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+                                <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" />
+                              </svg>
+                            )}
+                          </span>
+                          {loading ? "Connecting..." : `Sign in with ${CHANNEL_I_DISPLAY_NAME} IITR`}
+                        </span>
                       </Button>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        You will be redirected to {CHANNEL_I_DISPLAY_NAME}. First time here? Sign in with{" "}
+                        {CHANNEL_I_DISPLAY_NAME}; you can turn on email sign-in later in My Profile.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center" aria-hidden>
+                      <div className="w-full border-t border-border/80" />
                     </div>
-                  </form>
-                </>
+                    <div className="relative flex justify-center">
+                      <span className="bg-background px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Or sign in with email
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Email — password or one-time code */}
+                  <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                    <CardContent className="space-y-5 p-5 sm:p-6">
+                      <div role="tablist" aria-label="Email sign-in method" className="grid grid-cols-2 gap-1 rounded-xl bg-muted/60 p-1">
+                        {(["password", "otp"] as const).map((method) => {
+                          const active = method === "otp" ? loginViaOtpStep !== null : loginViaOtpStep === null;
+                          return (
+                            <button
+                              key={method}
+                              type="button"
+                              role="tab"
+                              aria-selected={active}
+                              onClick={() => switchEmailMethod(method)}
+                              className={cn(
+                                "flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors",
+                                active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                              )}
+                            >
+                              {method === "password" ? <KeyRound className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                              {method === "password" ? "Password" : "One-time code"}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {emailLoginBlockedNotice}
+
+                      {loginViaOtpStep === null && (
+                        <form onSubmit={handleSignIn} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="signin-email" className="font-medium">Email</Label>
+                            <Input
+                              id="signin-email"
+                              type="email"
+                              autoComplete="email"
+                              placeholder="you@example.com"
+                              value={email}
+                              onChange={(e) => {
+                                setEmail(e.target.value);
+                                setEmailLoginBlocked(null);
+                              }}
+                              required
+                              className="h-11 rounded-xl bg-background"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="signin-password" className="font-medium">Password</Label>
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-primary hover:underline"
+                                onClick={openForgotPassword}
+                              >
+                                Forgot password?
+                              </button>
+                            </div>
+                            <PasswordInput
+                              id="signin-password"
+                              value={password}
+                              onChange={setPassword}
+                              show={showSignInPassword}
+                              onToggleShow={() => setShowSignInPassword(!showSignInPassword)}
+                              autoComplete="current-password"
+                              required
+                            />
+                          </div>
+                          <Button type="submit" className="h-11 w-full rounded-xl font-medium" disabled={loading}>
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {loading ? "Signing in..." : "Sign in"}
+                          </Button>
+                        </form>
+                      )}
+
+                      {loginViaOtpStep === "email" && (
+                        <form onSubmit={handleRequestLoginOtp} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="login-otp-email" className="font-medium">Email</Label>
+                            <Input
+                              id="login-otp-email"
+                              type="email"
+                              autoComplete="email"
+                              placeholder="you@example.com"
+                              value={loginOtpEmail}
+                              onChange={(e) => {
+                                setLoginOtpEmail(e.target.value);
+                                setEmailLoginBlocked(null);
+                              }}
+                              required
+                              className="h-11 rounded-xl bg-background"
+                            />
+                            <p className="text-xs text-muted-foreground">We will email you a 6-digit code. No password needed.</p>
+                          </div>
+                          <Button type="submit" className="h-11 w-full rounded-xl font-medium" disabled={loadingLoginOtp}>
+                            {loadingLoginOtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {loadingLoginOtp ? "Sending code..." : "Send code"}
+                          </Button>
+                        </form>
+                      )}
+
+                      {loginViaOtpStep === "otp" && (
+                        <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
+                          <p className="text-sm text-muted-foreground">
+                            Code sent to <span className="font-medium text-foreground">{loginOtpEmail}</span>.{" "}
+                            <button
+                              type="button"
+                              className="font-medium text-primary hover:underline"
+                              onClick={() => {
+                                setLoginViaOtpStep("email");
+                                setLoginOtpValue("");
+                              }}
+                            >
+                              Change
+                            </button>
+                          </p>
+                          <div className="space-y-2">
+                            <Label className="font-medium">6-digit code</Label>
+                            <InputOTP maxLength={6} value={loginOtpValue} onChange={setLoginOtpValue}>
+                              <InputOTPGroup className="gap-1.5">
+                                {[0, 1, 2, 3, 4, 5].map((i) => (
+                                  <InputOTPSlot key={i} index={i} className="h-11 w-11 rounded-lg border text-base" />
+                                ))}
+                              </InputOTPGroup>
+                            </InputOTP>
+                          </div>
+                          <Button
+                            type="submit"
+                            className="h-11 w-full rounded-xl font-medium"
+                            disabled={loadingLoginOtp || loginOtpValue.length !== 6}
+                          >
+                            {loadingLoginOtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {loadingLoginOtp ? "Verifying..." : "Verify and sign in"}
+                          </Button>
+                          <button
+                            type="button"
+                            className="w-full text-center text-xs font-medium text-muted-foreground hover:text-primary"
+                            onClick={(e) => void handleRequestLoginOtp(e as unknown as React.FormEvent)}
+                            disabled={loadingLoginOtp}
+                          >
+                            Resend code
+                          </button>
+                        </form>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <p className="text-center text-sm text-muted-foreground">
+                    New to the portal?{" "}
+                    <button type="button" className="font-medium text-primary hover:underline" onClick={() => setActiveTab("signup")}>
+                      Create an account
+                    </button>
+                  </p>
+                </div>
               )}
             </TabsContent>
-            
             <TabsContent value="signup" className="mt-6 focus-visible:outline-none">
               <form onSubmit={handleSignUp} className="space-y-6">
                 {/* Who can register — elegant info box */}
@@ -1219,7 +1424,11 @@ const Auth = () => {
                     External users and IITR Post Doctoral Fellows, Research Associates in Projects, and IITR Startups can register here.
                   </p>
                   <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary dark:text-primary">
-                    IITR Students, Faculty, and Officer in Charge / Lab Operator → sign in with {CHANNEL_I_DISPLAY_NAME} IITR above.
+                    IITR Students, Faculty, and Officer in Charge / Lab Operator do not need to register: use{" "}
+                    <button type="button" className="underline underline-offset-2" onClick={() => setActiveTab("signin")}>
+                      Sign in with {CHANNEL_I_DISPLAY_NAME} IITR
+                    </button>
+                    .
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/80 bg-muted/20 dark:bg-muted/30 overflow-hidden">
@@ -2102,9 +2311,8 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };
