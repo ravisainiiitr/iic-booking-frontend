@@ -111,7 +111,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/tickets": { title: "Support Tickets" },
   "/admin-settings": { title: "Admin Settings" },
   "/calendar-colors": { title: "Calendar Colours" },
-  "/leave-management": { title: "Leave Management" },
+  "/leave-management": { title: "Intimate Unavailability" },
   "/oic-leave-management": { title: "OIC Leave Management" },
 };
 
@@ -1411,7 +1411,7 @@ const Dashboard = () => {
       Dashboard
     </Button>
   );
-  const downloadBrochureButton = (
+  const downloadBrochureButton = isLabInchargeUser ? null : (
     <Button
       type="button"
       variant="outline"
@@ -1462,7 +1462,7 @@ const Dashboard = () => {
     },
     {
       id: "operator_availability",
-      label: "Operator availability",
+      label: "Intimate Unavailability",
       visible: Boolean(isLabInchargeUser),
       render: () => (
           <Card
@@ -1475,7 +1475,7 @@ const Dashboard = () => {
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Operator availability</CardTitle>
+                    <CardTitle className="text-lg">Intimate Unavailability</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Intimate periods when you are unavailable for equipment operations
                     </CardDescription>
@@ -4194,7 +4194,7 @@ const Dashboard = () => {
 
 
 
-                  {(isLabInchargeUser || isOicUser || isAdmin || isDeptAdmin) && (
+                  {(isOicUser || isAdmin || isDeptAdmin) && (
                     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">

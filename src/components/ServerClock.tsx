@@ -66,13 +66,15 @@ export function ServerClock({ className }: { className?: string }) {
   if (!sync) return null;
 
   const server = new Date(now + sync.offsetMs + sync.utcOffsetMinutes * 60_000);
-  const time = `${pad(server.getUTCHours())}:${pad(server.getUTCMinutes())}:${pad(server.getUTCSeconds())}`;
+  const hhmm = `${pad(server.getUTCHours())}:${pad(server.getUTCMinutes())}`;
+  const ss = pad(server.getUTCSeconds());
+  const time = `${hhmm}:${ss}`;
   const date = `${DAYS[server.getUTCDay()]}, ${server.getUTCDate()} ${MONTHS[server.getUTCMonth()]} ${server.getUTCFullYear()}`;
 
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 items-center justify-center gap-3 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 px-3 py-1.5 shadow-sm",
+        "inline-flex min-w-0 items-center gap-3 rounded-full border border-border/70 bg-background/80 py-1 pl-3 pr-4 shadow-sm backdrop-blur",
         className,
       )}
       role="timer"
@@ -80,15 +82,22 @@ export function ServerClock({ className }: { className?: string }) {
       aria-label={`Server time ${time} ${sync.zoneLabel}`}
       title={`Portal server time (${sync.zoneLabel}). Booking windows open by this clock.`}
     >
-      <Clock className="server-clock-extra h-7 w-7 shrink-0 text-primary" aria-hidden />
-      <span className="server-clock-time font-mono font-extrabold leading-none tabular-nums tracking-tight text-foreground">
-        {time}
+      <Clock className="h-4 w-4 shrink-0 text-primary/80" aria-hidden />
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          </span>
+          Server time · {sync.zoneLabel}
+        </span>
+        <span className="server-clock-time font-mono font-semibold tabular-nums tracking-tight text-foreground">
+          {hhmm}
+          <span className="text-muted-foreground">:{ss}</span>
+        </span>
       </span>
-      <span className="relative flex h-2.5 w-2.5 shrink-0">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-      </span>
-      <span className="server-clock-extra whitespace-nowrap text-sm font-medium text-muted-foreground">{date}</span>
+      <span className="server-clock-extra h-7 w-px shrink-0 bg-border" aria-hidden />
+      <span className="server-clock-extra whitespace-nowrap text-xs font-medium text-muted-foreground">{date}</span>
     </div>
   );
 }

@@ -514,14 +514,14 @@ body:has([data-embed-chrome]),
   container-type: inline-size;
 }
 .server-clock-time {
-  font-size: clamp(1.1rem, 16cqw, 2.75rem);
+  font-size: 1rem;
 }
 .server-clock-extra {
   display: none;
 }
-@container (min-width: 30rem) {
+@container (min-width: 22rem) {
   .server-clock-time {
-    font-size: clamp(2.25rem, 10cqw, 3rem);
+    font-size: 1.125rem;
   }
   .server-clock-extra {
     display: inline-flex;

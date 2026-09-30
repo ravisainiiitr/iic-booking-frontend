@@ -8275,8 +8275,7 @@ const BookEquipment = () => {
                     className="mb-6 rounded-lg border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 dark:border-red-500/50 px-4 py-3"
                     role="note"
                   >
-                    <p className="text-base md:text-lg font-bold text-red-700 dark:text-red-400 animate-note-blink whitespace-pre-wrap">
-                      <span className="uppercase tracking-wide">NOTE:</span>{" "}
+                    <p className="text-base md:text-lg font-bold text-red-700 dark:text-red-400 whitespace-pre-wrap">
                       {(equipmentDetail?.important_instruction || "").trim()}
                     </p>
                   </div>

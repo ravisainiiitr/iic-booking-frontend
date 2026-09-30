@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
-import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { HOLIDAY_LABEL, holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
@@ -341,6 +341,15 @@ export function LabOperatorWeekCalendarGrid({
                       ? (rawHoliday as { color: string }).color
                       : undefined;
                   const holidayName = holidayLabel;
+                  const isWeekendDay = dayOfWeekJs === 6 || dayOfWeekJs === 0;
+                  const namedHoliday =
+                    holidayName && holidayCellLabel(holidayName) === HOLIDAY_LABEL ? holidayName : undefined;
+                  const closedDayLabel = namedHoliday ? HOLIDAY_LABEL : isWeekendDay ? "Weekend" : undefined;
+                  const closedDayHover = namedHoliday
+                    ? holidayHoverText(namedHoliday)
+                    : isWeekendDay
+                      ? `Weekend (${format(day, "EEEE")})`
+                      : undefined;
                   const hasBookedStatus = slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED";
                   const bookingStatusDisplay = hasBookedStatus
                     ? (slotData?.booking_status_display ?? null)
@@ -416,8 +425,10 @@ export function LabOperatorWeekCalendarGrid({
                     return start || rowLabel || "";
                   })();
 
-                  let displayStatus: ReactNode = holidayName ? holidayCellLabel(holidayName) : "—";
+                  let displayStatus: ReactNode = closedDayLabel ?? "—";
                   const considerBooked = hasBookedStatus;
+                  const showsClosedDay =
+                    Boolean(closedDayLabel) && (!slotExists || slotStatusUpper === "NOT_AVAILABLE");
 
                   const bookingCompleted = bookingStatusText.toUpperCase() === "COMPLETED";
                   if (slotExists) {
@@ -438,11 +449,13 @@ export function LabOperatorWeekCalendarGrid({
                           ) : null}
                         </span>
                       );
+                    } else if (showsClosedDay) {
+                      displayStatus = closedDayLabel;
                     } else {
                       displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
                     }
                   } else {
-                    displayStatus = holidayName ? holidayCellLabel(holidayName) : "—";
+                    displayStatus = closedDayLabel ?? "—";
                   }
 
                   const statusOverridesHolidayBg =
@@ -520,8 +533,8 @@ export function LabOperatorWeekCalendarGrid({
                       title={
                         tooltipLines.length
                           ? tooltipLines.join("\n")
-                          : !slotExists && holidayName
-                            ? holidayHoverText(holidayName)
+                          : showsClosedDay
+                            ? closedDayHover
                             : undefined
                       }
                       onClick={() => {

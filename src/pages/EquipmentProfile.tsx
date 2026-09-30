@@ -331,9 +331,9 @@ const EquipmentProfile = () => {
 
   const catalogOnlyView = Boolean(equipment?.viewer_catalog_only);
 
-  /** Admin / OIC / Lab In-charge: change slot status (calendar holds). */
+  /** Admin / OIC: change slot status (calendar holds). */
   const canChangeSlotStatus = (): boolean =>
-    !catalogOnlyView && (userTypeNorm === "admin" || userTypeNorm === "manager" || userTypeNorm === "operator");
+    !catalogOnlyView && (userTypeNorm === "admin" || userTypeNorm === "manager");
 
   const isOicUser = (): boolean => userTypeNorm === "manager";
 
@@ -982,21 +982,23 @@ const EquipmentProfile = () => {
                       ) : null}
                       .
                     </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 gap-2 self-start"
-                      disabled={exportingBrochurePdf}
-                      onClick={() => void handleExportBrochurePdf()}
-                    >
-                      {exportingBrochurePdf ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
-                      {exportingBrochurePdf ? "Exporting…" : "Export PDF"}
-                    </Button>
+                    {!isLabInchargeUser() && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-2 self-start"
+                        disabled={exportingBrochurePdf}
+                        onClick={() => void handleExportBrochurePdf()}
+                      >
+                        {exportingBrochurePdf ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        {exportingBrochurePdf ? "Exporting…" : "Export PDF"}
+                      </Button>
+                    )}
                   </div>
                   <div className="overflow-hidden rounded-xl border bg-muted/10">
                     <EquipmentImage

@@ -45,6 +45,8 @@ type LeaveRow = {
   end_session: LeaveSession;
   reason: string;
   status: string;
+  self_intimated?: boolean;
+  status_display?: string | null;
   rejection_reason?: string | null;
   reviewed_at?: string | null;
 };
@@ -166,8 +168,11 @@ export default function LeaveManagement() {
     [startDate, startSession, endDate, endSession],
   );
 
-  const statusBadgeVariant = (s: string): { label: string; className: string } => {
-    const u = String(s || "").toUpperCase();
+  const statusBadgeVariant = (r: LeaveRow): { label: string; className: string } => {
+    const u = String(r.status || "").toUpperCase();
+    if (u === "APPROVED" && r.self_intimated) {
+      return { label: "Submitted", className: "bg-sky-600 hover:bg-sky-600 text-white" };
+    }
     if (u === "APPROVED") return { label: "Approved", className: "bg-emerald-600 hover:bg-emerald-600 text-white" };
     if (u === "REJECTED") return { label: "Rejected", className: "bg-rose-600 hover:bg-rose-600 text-white" };
     if (u === "CANCELLED") return { label: "Cancelled", className: "bg-slate-600 hover:bg-slate-600 text-white" };
@@ -209,7 +214,7 @@ export default function LeaveManagement() {
                 Dashboard
               </Button>
               <div className="min-w-0">
-                <h1 className="text-2xl font-semibold tracking-tight">Operator Availability</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">Intimate Unavailability</h1>
                 <p className="text-sm text-white/85">
                   Intimate periods when you are unavailable for equipment operations so bookings can be managed.
                 </p>
@@ -413,7 +418,7 @@ export default function LeaveManagement() {
                       attachment,
                     });
                     if (res.error) throw new Error(res.error);
-                    toast.success("Unavailability intimation submitted to OIC.");
+                    toast.success("Unavailability submitted. OIC has been intimated by email.");
                     setReason("");
                     setAttachment(null);
                     setLeaveType("FULL_DAY");
@@ -445,7 +450,7 @@ export default function LeaveManagement() {
                   Total: {leaves.length}
                 </Badge>
               </CardTitle>
-              <CardDescription>Track your unavailability intimations and OIC decisions.</CardDescription>
+              <CardDescription>Track your unavailability intimations. No OIC approval is needed.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
@@ -471,7 +476,7 @@ export default function LeaveManagement() {
                     <TableBody>
                       {leaves.map((r) => {
                         const count = computeLeaveDays(r.start_date, r.start_session, r.end_date, r.end_session);
-                        const badge = statusBadgeVariant(r.status);
+                        const badge = statusBadgeVariant(r);
                         const statusNorm = String(r.status || "").toUpperCase();
                         return (
                           <TableRow key={r.id}>
@@ -481,7 +486,7 @@ export default function LeaveManagement() {
                               </div>
                               {r.reviewed_at ? (
                                 <div className="text-xs">
-                                  Reviewed: {new Date(r.reviewed_at).toLocaleString()}
+                                  {r.self_intimated ? "Submitted" : "Reviewed"}: {new Date(r.reviewed_at).toLocaleString()}
                                 </div>
                               ) : null}
                             </TableCell>

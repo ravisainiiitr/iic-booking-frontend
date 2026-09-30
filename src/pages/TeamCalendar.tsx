@@ -177,11 +177,7 @@ export default function TeamCalendar() {
   const { user } = useAuth();
   const userType = normalizeUserTypeCode(user?.user_type) || "";
   const isMainAdmin = userType === "admin";
-  const canView =
-    userType === "manager" ||
-    userType === "admin" ||
-    userType === "operator" ||
-    userType === "dept_admin";
+  const canView = userType === "manager" || userType === "admin" || userType === "dept_admin";
 
   const [month, setMonth] = useState(() => format(new Date(), "yyyy-MM"));
   const [viewMode, setViewMode] = useState<ViewMode>("month");

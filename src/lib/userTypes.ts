@@ -20,6 +20,23 @@ export function normalizeUserTypeCode(userType: string | number | null | undefin
   return null;
 }
 
+/** Account types that sign in with Channel i (backend UserType.get_omniport_codes). */
+export const CHANNEL_I_USER_TYPE_CODES = [
+  "student",
+  "individual_student",
+  "faculty",
+  "dept_admin",
+  "manager",
+  "operator",
+  "finance",
+] as const;
+
+export function isChannelIUserType(userType: string | number | null | undefined): boolean {
+  const normalized = normalizeUserTypeCode(userType);
+  if (!normalized) return false;
+  return (CHANNEL_I_USER_TYPE_CODES as readonly string[]).includes(normalized);
+}
+
 export function isExternalBookingUserType(userType: string | number | null | undefined): boolean {
   const normalized = normalizeUserTypeCode(userType);
   if (!normalized) return false;

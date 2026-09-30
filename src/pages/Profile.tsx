@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { isExternalBookingUserType } from "@/lib/userTypes";
+import { isChannelIUserType, isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { Upload, Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { formatUserDisplayName } from "@/lib/displayName";
+import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -1440,6 +1441,7 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
+        {isChannelIUserType(user?.user_type) && <LoginPasswordCard />}
       </main>
     </div>
   );

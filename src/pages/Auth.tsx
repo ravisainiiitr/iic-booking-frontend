@@ -906,6 +906,10 @@ const Auth = () => {
               <p className="mt-2 text-xs text-muted-foreground text-center leading-relaxed">
                 Official IIT Roorkee authentication. You will be redirected to {CHANNEL_I_DISPLAY_NAME} to sign in.
               </p>
+              <p className="mt-1 text-xs text-muted-foreground text-center leading-relaxed">
+                Students, faculty and staff: your first sign-in is with {CHANNEL_I_DISPLAY_NAME}. Then set a password in
+                My Profile to also sign in with email below.
+              </p>
             </div>
 
             {/* Divider */}

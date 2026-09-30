@@ -1971,6 +1971,23 @@ class ApiClient {
     });
   }
 
+  /** Signed-in user's login password status (dual login: Channel i + email/password). */
+  async getAccountPasswordStatus() {
+    return this.request<{ has_password: boolean; email: string }>('/auth/password/');
+  }
+
+  /** Set (first time) or change the signed-in user's login password. */
+  async setAccountPassword(body: {
+    current_password?: string;
+    new_password: string;
+    new_password_confirm: string;
+  }) {
+    return this.request<{ has_password: boolean; message: string }>('/auth/password/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async signOut() {
     try {
       // Call the logout API endpoint

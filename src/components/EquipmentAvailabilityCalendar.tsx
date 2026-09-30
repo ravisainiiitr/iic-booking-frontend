@@ -276,8 +276,8 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         label = "Booked";
         bg = slotColors.BOOKED;
       } else if (status === "NOT_AVAILABLE" && (holidayName || dow === 6 || dow === 0)) {
-        label = holidayName ? holidayCellLabel(holidayName) : "Not Available";
-        hover = holidayName ? holidayHoverText(holidayName) : undefined;
+        label = holidayName ? holidayCellLabel(holidayName) : "Weekend";
+        hover = holidayName ? holidayHoverText(holidayName) : `Weekend (${format(day, "EEEE")})`;
         bg = closedDayColor;
       } else if (isPast) {
         label = "Past";

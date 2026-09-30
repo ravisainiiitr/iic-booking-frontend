@@ -187,7 +187,7 @@ export default function AppRoutes() {
           <Route path="/booking-attempt-logs/" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
           <Route path="/equipment-waitlist" element={<ErrorBoundary fallbackTitle="Equipment Waitlist" backPath="/dashboard"><EquipmentWaitlist /></ErrorBoundary>} />
           <Route path="/temporary-oic" element={<ErrorBoundary fallbackTitle="Temporary OIC" backPath="/dashboard"><TemporaryOIC /></ErrorBoundary>} />
-          <Route path="/leave-management" element={<ErrorBoundary fallbackTitle="Operator Availability" backPath="/dashboard"><LeaveManagement /></ErrorBoundary>} />
+          <Route path="/leave-management" element={<ErrorBoundary fallbackTitle="Intimate Unavailability" backPath="/dashboard"><LeaveManagement /></ErrorBoundary>} />
           <Route path="/oic-leave-management" element={<ErrorBoundary fallbackTitle="Leave Management" backPath="/dashboard"><OICLeaveManagement /></ErrorBoundary>} />
           <Route path="/team-calendar" element={<ErrorBoundary fallbackTitle="Team Calendar" backPath="/dashboard"><TeamCalendar /></ErrorBoundary>} />
           <Route path="/ta-nomination-call" element={<TANominationCall />} />

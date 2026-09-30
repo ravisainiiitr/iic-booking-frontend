@@ -16,18 +16,17 @@ export const operatorGuide: UserGuideContent = {
   title: "Lab In-Charge / Operator User Guide",
   subtitle: `${PRODUCT_NAME} — day-of-run operations for assigned equipment`,
   welcomeHeadline: "Welcome, Lab In-Charge",
-  welcomeBody: `As Lab In-Charge / Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, Operator Availability, team calendar, and how your role differs from Officer-in-Charge.`,
+  welcomeBody: `As Lab In-Charge / Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, Intimate Unavailability, and how your role differs from Officer-in-Charge.`,
   sections: [
     purposeSection({
       paragraphs: [
         "You support laboratory operations for instruments where you are assigned as operator.",
-        "Your lab-style dashboard emphasises Booking Management and Operator Availability rather than end-user booking cards.",
+        "Your lab-style dashboard emphasises Booking Management and Intimate Unavailability rather than end-user booking cards.",
       ],
       bullets: [
         "Complete bookings and mark not utilized for assigned equipment",
-        "Change slot status on the equipment calendar where permitted",
-        "Intimate and track unavailability via Operator Availability",
-        "View team calendar and equipment-performance style reports when available",
+        "Intimate and track unavailability via Intimate Unavailability (no OIC approval needed)",
+        "View equipment-performance style reports when available",
       ],
     }),
     loginAccountSection({
@@ -35,7 +34,7 @@ export const operatorGuide: UserGuideContent = {
         "Sign in with the staff credentials or Channel i path provided for your campus account.",
       ],
       bullets: [
-        "Open Dashboard after login — look for Booking Management and Operator Availability.",
+        "Open Dashboard after login — look for Booking Management and Intimate Unavailability.",
         "Keep Profile phone/email current for operational notifications.",
         "Use User Guide from the menu to reopen these instructions.",
       ],
@@ -64,8 +63,8 @@ export const operatorGuide: UserGuideContent = {
         },
         {
           title: "Intimate unavailability when needed",
-          body: "Use Operator Availability so coverage can be planned; coordinate with your OIC for instrument coverage. This is not the Institute leave portal.",
-          screenshotCaption: "Operator Availability",
+          body: "Use Intimate Unavailability so coverage can be planned. It is recorded as Submitted immediately and your OIC is informed by email — no approval is needed. This is not the Institute leave portal.",
+          screenshotCaption: "Intimate Unavailability",
         },
       ],
     },
@@ -74,14 +73,13 @@ export const operatorGuide: UserGuideContent = {
       title: "Common Tasks",
       paragraphs: ["These tasks keep the lab calendar trustworthy for users."],
       bullets: [
-        "Update slot status when a run cannot proceed as scheduled (within your allowed actions).",
+        "Ask the OIC to update slot status when a run cannot proceed as scheduled.",
         "Coordinate with the OIC for maintenance holds, refunds, disruptions, and reschedules.",
-        "Check Team Calendar for overlapping duties across the lab.",
         "Open Reports for equipment-performance views when your permissions allow.",
       ],
     },
     notificationsSection([
-      "Operator availability and duty-related emails when configured by administrators.",
+      "Unavailability intimation and duty-related emails when configured by administrators.",
     ]),
     bestPracticesSection([
       "Complete bookings the same day the run finishes whenever possible.",
@@ -120,7 +118,7 @@ export const operatorGuide: UserGuideContent = {
     troubleshootingSection([
       "No equipment listed: confirm operator assignment with Dept Admin.",
       "Action buttons missing: the booking may require an OIC, or it is already completed/cancelled.",
-      "Operator Availability form errors: refresh and ensure dates do not overlap existing unavailability entries.",
+      "Intimate Unavailability form errors: refresh and ensure dates do not overlap existing unavailability entries.",
     ]),
   ],
 };
