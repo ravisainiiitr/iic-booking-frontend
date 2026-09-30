@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -34,9 +34,11 @@ import {
   Loader2,
   Building2,
   Phone,
+  BookmarkCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { InPanelRoute } from "@/components/InPanelRouter";
+import { BookingTemplatesPanel } from "@/components/BookingTemplatesPanel";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
 import { Badge } from "@/components/ui/badge";
 import ContactIdCard from "@/components/ContactIdCard";
@@ -168,6 +170,7 @@ type ContentPanel =
   | "sample_requirements"
   | "view_charges"
   | "calc_charges"
+  | "booking_templates"
   | "availability"
   | "publications"
   | "brochure"
@@ -187,7 +190,10 @@ const EquipmentProfile = () => {
   const { isAuthenticated, user } = useAuth();
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activePanel, setActivePanel] = useState<ContentPanel>("general");
+  const [searchParams] = useSearchParams();
+  const [activePanel, setActivePanel] = useState<ContentPanel>(() =>
+    searchParams.get("panel") === "booking_templates" ? "booking_templates" : "general"
+  );
   const [supportOpen, setSupportOpen] = useState(false);
   const [exportingBrochurePdf, setExportingBrochurePdf] = useState(false);
   const userType = user?.user_type ?? null;
@@ -635,6 +641,7 @@ const EquipmentProfile = () => {
             sample_requirements: { title: "Sample requirements", icon: <FlaskConical className="h-5 w-5" /> },
             view_charges: { title: "View charges", icon: <IndianRupee className="h-5 w-5" /> },
             calc_charges: { title: "Calculate charges", icon: <IndianRupee className="h-5 w-5" /> },
+            booking_templates: { title: "Booking templates", icon: <BookmarkCheck className="h-5 w-5" /> },
             availability: { title: "Availability calendar", icon: <CalendarDays className="h-5 w-5" /> },
             publications: {
               title:
@@ -1084,6 +1091,15 @@ const EquipmentProfile = () => {
                 </div>
               );
             }
+          } else if (activePanel === "booking_templates") {
+            panelBody = isAuthenticated ? (
+              <BookingTemplatesPanel
+                equipmentId={equipment.equipment_id}
+                canBook={canManageEquipment() || isEquipmentOperational()}
+              />
+            ) : (
+              emptyPanel("Log in to create booking templates for this equipment.")
+            );
           } else if (activePanel === "calc_charges") {
             panelBody = (
               <div className="min-h-[24rem] -mx-1">
@@ -1374,6 +1390,13 @@ const EquipmentProfile = () => {
                         active: activePanel === "calc_charges",
                         onClick: handleCalculateChargesClick,
                       })}
+                      {isAuthenticated &&
+                        navBtn("booking_templates", "Booking templates", {
+                          icon: <BookmarkCheck className="h-3 w-3" />,
+                          variant: "action",
+                          active: activePanel === "booking_templates",
+                          onClick: () => setActivePanel("booking_templates"),
+                        })}
                       {navBtn("availability", "Availability calendar", {
                         icon: <CalendarDays className="h-3 w-3" />,
                         active: activePanel === "availability",

@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   apiClient,
+  type BookingTemplate,
+  type BookingTemplateOptions,
   type GroupAllocatedAlternative,
   type GroupAlternative,
   type GroupAlternativesPayload,
@@ -76,7 +78,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, CalendarPlus, FlaskConical, MousePointerClick } from "lucide-react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock, BookmarkCheck, Save } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
@@ -976,7 +978,11 @@ const BookEquipment = () => {
   const isCalculateChargesFlow = searchParams.get("mode") === "calculate";
   /** Embedded in equipment profile / dashboard workspace — omit full-page chrome. */
   const isEmbedFlow = embedded || searchParams.get("embed") === "1";
-  useShowServerClockInHeader(!isCalculateChargesFlow && !isProformaFlow);
+  /** Create / edit a booking template: the full booking form, saved under a name instead of booking slots. */
+  const isTemplateFlow = searchParams.get("mode") === "template";
+  const editTemplateId = isTemplateFlow ? Number(searchParams.get("template_id")) || null : null;
+  const templateParam = isTemplateFlow ? searchParams.get("template_id") : searchParams.get("template");
+  useShowServerClockInHeader(!isCalculateChargesFlow && !isProformaFlow && !isTemplateFlow);
   const proformaEditLineIndex = useMemo((): number | null => {
     const raw = searchParams.get("proformaLineIndex");
     if (raw == null || raw === "") return null;
@@ -1373,17 +1379,17 @@ const BookEquipment = () => {
   useEffect(() => {
     // If the selected weekly window has no bookable slots, hide/disable fallback booking strategies.
     // (They can't succeed without at least one AVAILABLE slot.)
-    if (bookingAsExternalTarget) return;
+    if (bookingAsExternalTarget || isTemplateFlow) return;
     if (hasBookableSlotInSelectedWeek) return;
     setBookAnyAvailableSlots(false);
     setBookEvenIfSingleSlotAvailable(false);
-  }, [hasBookableSlotInSelectedWeek, bookingAsExternalTarget]);
+  }, [hasBookableSlotInSelectedWeek, bookingAsExternalTarget, isTemplateFlow]);
 
   useEffect(() => {
-    if (bookingAsExternalTarget) return;
+    if (bookingAsExternalTarget || isTemplateFlow) return;
     if (!hasBookableSlotInSelectedWeek) return;
     setWaitlistIntentMode((prev) => (prev ? false : prev));
-  }, [hasBookableSlotInSelectedWeek, bookingAsExternalTarget]);
+  }, [hasBookableSlotInSelectedWeek, bookingAsExternalTarget, isTemplateFlow]);
 
   useEffect(() => {
     if (!isSubmittingBooking) {
@@ -3105,6 +3111,164 @@ const BookEquipment = () => {
     equipmentDetail?.atmosphere_sensitive_sample_enabled,
     userId,
   ]);
+
+  // Booking templates: the user's named inputs + booking options for this equipment.
+  const [bookingTemplates, setBookingTemplates] = useState<BookingTemplate[]>([]);
+  const [appliedTemplate, setAppliedTemplate] = useState<{ id: number; name: string } | null>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const templatePickerAvailable =
+    !isCalculateChargesFlow && !isProformaFlow && !isTemplateFlow && !repeatSourceBooking && userId != null;
+  const appliedTemplateOptionsRef = useRef<BookingTemplateOptions | null>(null);
+
+  // The availability effects above reset slot fallbacks / waitlist as the week's free slots change
+  // (e.g. none until the booking window opens); re-apply the template's choice once it can apply.
+  useEffect(() => {
+    const o = appliedTemplateOptionsRef.current;
+    if (!o || bookingAsExternalTarget || isTemplateFlow) return;
+    if (hasBookableSlotInSelectedWeek) {
+      if (typeof o.book_any_available_slots === "boolean") {
+        setBookAnyAvailableSlots(o.book_any_available_slots);
+        setBookEvenIfSingleSlotAvailable(o.book_any_available_slots && o.book_even_if_single_slot_available === true);
+      }
+      setWaitlistIntentMode(false);
+    } else {
+      setBookAnyAvailableSlots(false);
+      setBookEvenIfSingleSlotAvailable(false);
+      if (typeof o.waitlist_on_failure === "boolean") setWaitlistIntentMode(o.waitlist_on_failure);
+    }
+  }, [hasBookableSlotInSelectedWeek, bookingAsExternalTarget, isTemplateFlow, appliedTemplate]);
+
+  useEffect(() => {
+    const eqId = equipmentDetail?.equipment_id;
+    if (!templatePickerAvailable || eqId == null) {
+      setBookingTemplates([]);
+      return;
+    }
+    let cancelled = false;
+    apiClient.listBookingTemplates(eqId).then((res) => {
+      if (!cancelled) setBookingTemplates(res.data?.templates ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [templatePickerAvailable, equipmentDetail?.equipment_id]);
+
+  const applyBookingTemplate = useCallback(
+    (template: BookingTemplate) => {
+      const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
+      const { carried, dropped } = sanitizeRebookInputValues(
+        template.input_values || {},
+        equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>,
+        isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
+      );
+      setInputFieldValues((prev) => {
+        const next: Record<string, unknown> = { ...prev, ...carried };
+        applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
+        return next as Record<string, string | boolean | string[] | number>;
+      });
+      setChargeCalculated(false);
+      setCalculatedCharge(null);
+      lastCalculatedValuesRef.current = "";
+      const o = template.options || {};
+      if (typeof o.auto_slot_selection === "boolean") setAutoSlotSelection(o.auto_slot_selection);
+      if (typeof o.book_any_available_slots === "boolean") setBookAnyAvailableSlots(o.book_any_available_slots);
+      if (typeof o.book_even_if_single_slot_available === "boolean") {
+        setBookEvenIfSingleSlotAvailable(o.book_any_available_slots !== false && o.book_even_if_single_slot_available);
+      }
+      if (typeof o.waitlist_on_failure === "boolean") setWaitlistIntentMode(o.waitlist_on_failure);
+      if (typeof o.auto_allocate_alternative === "boolean") setAutoAllocateAlternative(o.auto_allocate_alternative);
+      if (typeof o.sample_return_after_analysis === "boolean") setSampleReturnAfterAnalysis(o.sample_return_after_analysis);
+      if (typeof o.atmosphere_sensitive_sample === "boolean") {
+        setAtmosphereSensitiveSample(
+          o.atmosphere_sensitive_sample && equipmentDetail?.atmosphere_sensitive_sample_enabled === true
+        );
+      }
+      appliedTemplateOptionsRef.current = o;
+      setAppliedTemplate({ id: template.id, name: template.name });
+      if (dropped.length > 0) {
+        toast.info(
+          `Some inputs in "${template.name}" no longer match this equipment's current options and were reset: ${dropped.join(", ")}.`
+        );
+      }
+      return dropped;
+    },
+    [equipmentDetail]
+  );
+
+  const handleApplyTemplate = (templateId: string) => {
+    const template = bookingTemplates.find((t) => String(t.id) === templateId);
+    if (!template) return;
+    applyBookingTemplate(template);
+    toast.success(`Template "${template.name}" applied. Charges are recalculated; choose your slots.`);
+  };
+
+  // ?template=<id> on the booking page (or ?template_id=<id> when editing) fills the form once.
+  const appliedTemplateKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const templateId = Number(templateParam);
+    const eqId = equipmentDetail?.equipment_id;
+    if (!templateId || eqId == null || userId == null) return;
+    const key = `${templateId}:${eqId}`;
+    if (appliedTemplateKeyRef.current === key) return;
+    let cancelled = false;
+    (async () => {
+      const res = await apiClient.getBookingTemplate(templateId);
+      if (cancelled) return;
+      appliedTemplateKeyRef.current = key;
+      if (res.error || !res.data) {
+        toast.error("The booking template was not found.");
+        return;
+      }
+      if (Number(res.data.equipment) !== Number(eqId)) {
+        toast.error("This booking template belongs to another equipment.");
+        return;
+      }
+      applyBookingTemplate(res.data);
+      if (isTemplateFlow) {
+        setTemplateName(res.data.name);
+      } else {
+        toast.success(`Template "${res.data.name}" applied. Charges are recalculated; choose your slots.`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [templateParam, equipmentDetail?.equipment_id, userId, isTemplateFlow, applyBookingTemplate]);
+
+  const handleSaveTemplate = async () => {
+    const eqId = equipmentDetail?.equipment_id;
+    if (eqId == null) return;
+    const name = templateName.trim();
+    if (!name) {
+      toast.error("Give the template a name.");
+      return;
+    }
+    const options: BookingTemplateOptions = {
+      auto_slot_selection: autoSlotSelection,
+      book_any_available_slots: bookAnyAvailableSlots,
+      book_even_if_single_slot_available: bookAnyAvailableSlots && bookEvenIfSingleSlotAvailable,
+      waitlist_on_failure: waitlistIntentMode,
+      auto_allocate_alternative: autoAllocateAlternative,
+      sample_return_after_analysis: sampleReturnAfterAnalysis,
+      atmosphere_sensitive_sample: atmosphereSensitiveSample,
+    };
+    const body = { name, input_values: { ...inputFieldValues }, options };
+    setSavingTemplate(true);
+    try {
+      const res = editTemplateId
+        ? await apiClient.updateBookingTemplate(editTemplateId, body)
+        : await apiClient.createBookingTemplate({ equipment: eqId, ...body });
+      if (res.error || !res.data) {
+        toast.error(res.error || "Could not save the template.");
+        return;
+      }
+      toast.success(`Template "${res.data.name}" saved. Choose it on the booking page to fill these details.`);
+      navigate(`/equipment/${eqId}?panel=booking_templates`);
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
   useEffect(() => {
     if (!isCalculateChargesFlow || !equipmentDetail) return;
@@ -6309,6 +6473,8 @@ const BookEquipment = () => {
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 {isCalculateChargesFlow
                   ? `Calculate charges — ${selectedEquipment.name}`
+                  : isTemplateFlow
+                  ? `${editTemplateId ? "Edit" : "Create"} booking template — ${selectedEquipment.name}`
                   : canAccessManageEquipmentModes()
                     ? `Manage ${selectedEquipment.name}`
                     : selectedEquipment.name}
@@ -6356,7 +6522,7 @@ const BookEquipment = () => {
         )}
 
         {/* Admin: mode selector (Manage this Equipment) */}
-        {canAccessManageEquipmentModes() && adminManageMode === null && !isCalculateChargesFlow && (
+        {canAccessManageEquipmentModes() && adminManageMode === null && !isCalculateChargesFlow && !isTemplateFlow && (
           <div className="max-w-2xl mx-auto mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {canBookForOtherUsers() && (
               <Card
@@ -7712,7 +7878,7 @@ const BookEquipment = () => {
         </Dialog>
 
         {/* Booking flow: hide when Admin/OIC/Dept Admin and mode not yet chosen or when in status mode */}
-        {(((!requiresBookModeBeforeForm() || adminManageMode === 'book') && adminManageMode !== 'status') || isCalculateChargesFlow) && (
+        {(((!requiresBookModeBeforeForm() || adminManageMode === 'book') && adminManageMode !== 'status') || isCalculateChargesFlow || isTemplateFlow) && (
         <div className={isEmbedFlow ? "max-w-none mx-auto" : "max-w-6xl mx-auto"}>
           <Card className={isEmbedFlow ? "border-0 shadow-none" : undefined}>
               <CardHeader className={isEmbedFlow ? "px-1 pt-1 pb-2" : undefined}>
@@ -7724,6 +7890,8 @@ const BookEquipment = () => {
                     <CardDescription className={isEmbedFlow ? "text-sm" : "text-base md:text-lg"}>
                       {isCalculateChargesFlow ? (
                         <>Select user type and parameters to estimate charges. No time slots are required.</>
+                      ) : isTemplateFlow ? (
+                        <>Fill the booking details and options once and save them under a name. When booking, choose the template to fill everything in, then just pick your slots.</>
                       ) : (
                         <>
                           {Number(selectedEquipment.internalRate) > 0 && (
@@ -8088,6 +8256,56 @@ const BookEquipment = () => {
                     onAnalyzingChange={setPrint3dAnalyzing}
                     disabled={!!repeatSourceBooking}
                   />
+                )}
+
+                {templatePickerAvailable && !bookingForAnotherUser && equipmentDetail && (
+                  <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <BookmarkCheck className="h-4 w-4 text-primary" aria-hidden />
+                      Booking template
+                    </div>
+                    {bookingTemplates.length > 0 ? (
+                      <Select
+                        value={appliedTemplate ? String(appliedTemplate.id) : undefined}
+                        onValueChange={handleApplyTemplate}
+                      >
+                        <SelectTrigger className="h-9 w-full sm:w-72 bg-background" aria-label="Choose a booking template">
+                          <SelectValue placeholder="Choose a template to fill the form" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bookingTemplates.map((t) => (
+                            <SelectItem key={t.id} value={String(t.id)}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        Save your usual inputs and options as a template to book in one step.
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-0"
+                      onClick={() => navigate(`/book-equipment?equipment_id=${equipmentDetail.equipment_id}&mode=template`)}
+                    >
+                      Create template
+                    </Button>
+                    {bookingTemplates.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0"
+                        onClick={() => navigate(`/equipment/${equipmentDetail.equipment_id}?panel=booking_templates`)}
+                      >
+                        Manage templates
+                      </Button>
+                    )}
+                  </div>
                 )}
 
                 {/* Step 1: Input Fields Section */}
@@ -9160,7 +9378,7 @@ const BookEquipment = () => {
                 </>
 
                 {/* Step 3: Slot Selection (only shown after charge calculation) */}
-                {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && (
+                {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow && (
                   <>
                     <div className="mb-2">
                       <div className="flex items-center justify-between mb-2">
@@ -10097,6 +10315,126 @@ const BookEquipment = () => {
                       </Button>
                     </div>
                   </>
+                )}
+
+                {isTemplateFlow && equipmentDetail && (
+                  <div className="mt-6 space-y-6">
+                    <div className="rounded-xl border border-border/80 bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <p className="text-sm font-medium text-foreground">Booking options</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Slots are chosen when you book. These options are applied to that booking.
+                      </p>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3 rounded-lg p-3">
+                          <Label htmlFor="template-auto-slot-selection" className="text-sm font-normal cursor-pointer">
+                            Auto-select all required slots
+                          </Label>
+                          <Switch
+                            id="template-auto-slot-selection"
+                            checked={autoSlotSelection}
+                            onCheckedChange={setAutoSlotSelection}
+                          />
+                        </div>
+                        {groupAlternativeOption && (
+                          <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 hover:bg-background/50">
+                            <Checkbox
+                              id="template-auto-allocate-alternative"
+                              checked={autoAllocateAlternative}
+                              onCheckedChange={(c) => setAutoAllocateAlternative(c === true)}
+                              className="mt-0.5 h-4 w-4"
+                            />
+                            <span className="text-sm text-foreground">
+                              Automatically search and allocate alternate equipment
+                            </span>
+                          </label>
+                        )}
+                        {!bookingAsExternalTarget && (
+                          <>
+                            <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 hover:bg-background/50">
+                              <Checkbox
+                                id="template-waitlisted-booking"
+                                checked={waitlistIntentMode}
+                                onCheckedChange={(c) => setWaitlistIntentMode(c === true)}
+                                className="mt-0.5 h-4 w-4"
+                              />
+                              <span className="text-sm text-foreground">
+                                Add to the waitlist if the booking cannot be completed
+                              </span>
+                            </label>
+                            <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 hover:bg-background/50">
+                              <Checkbox
+                                id="template-book-any-available-slots"
+                                checked={bookAnyAvailableSlots}
+                                onCheckedChange={(c) => {
+                                  const v = c === true;
+                                  setBookAnyAvailableSlots(v);
+                                  if (!v) setBookEvenIfSingleSlotAvailable(false);
+                                }}
+                                className="mt-0.5 h-4 w-4"
+                              />
+                              <span className="text-sm text-foreground">Book any available slots</span>
+                            </label>
+                            {bookAnyAvailableSlots && (
+                              <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 pl-10 hover:bg-background/50">
+                                <Checkbox
+                                  id="template-book-even-if-single-slot-available"
+                                  checked={bookEvenIfSingleSlotAvailable}
+                                  onCheckedChange={(c) => setBookEvenIfSingleSlotAvailable(c === true)}
+                                  className="mt-0.5 h-4 w-4"
+                                />
+                                <span className="text-sm text-foreground">Book even if single slot is available</span>
+                              </label>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
+                      <Label htmlFor="booking-template-name" className="text-sm font-medium">
+                        Template name
+                      </Label>
+                      <Input
+                        id="booking-template-name"
+                        value={templateName}
+                        maxLength={80}
+                        placeholder="e.g. Routine TGA in nitrogen"
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleSaveTemplate();
+                          }
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1 min-w-[140px]"
+                          onClick={() => navigate(`/equipment/${equipmentDetail.equipment_id}?panel=booking_templates`)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          className="flex-1 min-w-[140px]"
+                          onClick={() => void handleSaveTemplate()}
+                          disabled={savingTemplate || !templateName.trim()}
+                        >
+                          {savingTemplate ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                          )}
+                          {editTemplateId ? "Update template" : "Save template"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>

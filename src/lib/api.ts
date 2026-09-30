@@ -417,6 +417,29 @@ export interface GroupAlternative extends GroupEquipmentSummary {
   input_error: string | null;
 }
 
+/** Booking-page options saved with a booking template (all optional; unknown keys are dropped by the API). */
+export interface BookingTemplateOptions {
+  auto_slot_selection?: boolean;
+  book_any_available_slots?: boolean;
+  book_even_if_single_slot_available?: boolean;
+  waitlist_on_failure?: boolean;
+  auto_allocate_alternative?: boolean;
+  sample_return_after_analysis?: boolean;
+  atmosphere_sensitive_sample?: boolean;
+}
+
+export interface BookingTemplate {
+  id: number;
+  equipment: number;
+  equipment_code: string | null;
+  equipment_name: string | null;
+  name: string;
+  input_values: Record<string, unknown>;
+  options: BookingTemplateOptions;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface GroupAlternativesPayload {
   error: string;
   code: "GROUP_ALTERNATIVES_AVAILABLE";
@@ -5579,6 +5602,38 @@ class ApiClient {
       timezone: string;
       utc_offset_minutes: number;
     }>(`/server-time/`, { cache: "no-store" });
+  }
+
+  async listBookingTemplates(equipmentId?: number) {
+    const q = equipmentId != null ? `?equipment=${encodeURIComponent(String(equipmentId))}` : "";
+    return this.request<{ templates: BookingTemplate[] }>(`/booking-templates/${q}`, { cache: "no-store" });
+  }
+
+  async getBookingTemplate(templateId: number) {
+    return this.request<BookingTemplate>(`/booking-templates/${templateId}/`, { cache: "no-store" });
+  }
+
+  async createBookingTemplate(body: {
+    equipment: number;
+    name: string;
+    input_values: Record<string, unknown>;
+    options: BookingTemplateOptions;
+  }) {
+    return this.request<BookingTemplate>(`/booking-templates/`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async updateBookingTemplate(
+    templateId: number,
+    body: Partial<{ name: string; input_values: Record<string, unknown>; options: BookingTemplateOptions }>
+  ) {
+    return this.request<BookingTemplate>(`/booking-templates/${templateId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteBookingTemplate(templateId: number) {
+    return this.request<void>(`/booking-templates/${templateId}/`, { method: "DELETE" });
   }
 
   async getBookingEvents(bookingId: number) {
