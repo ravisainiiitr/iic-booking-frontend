@@ -32,7 +32,6 @@ import DashboardHeader from "@/components/DashboardHeader";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import DashboardWorkspace from "@/components/DashboardWorkspace";
-import { MigrationPortalBanner } from "@/components/MigrationPortalBanner";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import DepartmentBrochureDialog from "@/components/DepartmentBrochureDialog";
@@ -3427,8 +3426,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
-
-        <MigrationPortalBanner variant="notice" />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-3 items-start">
           <div className="lg:hidden sticky top-16 z-30 -mx-1 mb-2">
