@@ -206,6 +206,7 @@ function describeGroupSlotWindow(start: string, end: string): string {
 
 /** sessionStorage handoff when the user opens the booking form for a same-group alternative. */
 const GROUP_ALT_PREFILL_KEY = "iic_group_alternative_prefill";
+const NO_TEMPLATE_VALUE = "__none__";
 
 type GroupAltPrefill = {
   equipment_id: number;
@@ -3197,11 +3198,42 @@ const BookEquipment = () => {
   );
 
   const handleApplyTemplate = (templateId: string) => {
+    if (templateId === NO_TEMPLATE_VALUE) {
+      resetBookingPageToDefaults();
+      toast.info("Template cleared. The form is back to its default values.");
+      return;
+    }
     const template = bookingTemplates.find((t) => String(t.id) === templateId);
     if (!template) return;
     applyBookingTemplate(template);
     toast.success(`Template "${template.name}" applied. Charges are recalculated; choose your slots.`);
   };
+
+  // On landing, fill the form from the first template in the list (sorted by name), unless the URL
+  // already prefills the form or staff are booking for another user.
+  const repeatOfParam = (searchParams.get("repeatOf") || "").trim();
+  const autoAppliedTemplateEqRef = useRef<number | null>(null);
+  useEffect(() => {
+    const eqId = equipmentDetail?.equipment_id;
+    if (eqId == null || autoAppliedTemplateEqRef.current === eqId) return;
+    if (!templatePickerAvailable || bookingForAnotherUser) return;
+    if (templateParam || rebookOfParam || altFromParam || repeatOfParam) return;
+    const first = bookingTemplates.find((t) => Number(t.equipment) === Number(eqId));
+    if (!first) return;
+    autoAppliedTemplateEqRef.current = eqId;
+    applyBookingTemplate(first);
+    toast.success(`Template "${first.name}" applied automatically. Pick another from the list if needed, then choose your slots.`);
+  }, [
+    bookingTemplates,
+    equipmentDetail?.equipment_id,
+    templatePickerAvailable,
+    bookingForAnotherUser,
+    templateParam,
+    rebookOfParam,
+    altFromParam,
+    repeatOfParam,
+    applyBookingTemplate,
+  ]);
 
   // ?template=<id> on the booking page (or ?template_id=<id> when editing) fills the form once.
   const appliedTemplateKeyRef = useRef<string | null>(null);
@@ -5644,6 +5676,8 @@ const BookEquipment = () => {
     setBookAnyAvailableSlots(false);
     setBookEvenIfSingleSlotAvailable(false);
     setAutoAllocateAlternative(equipmentDetail?.auto_allocate_alternative_default === true);
+    appliedTemplateOptionsRef.current = null;
+    setAppliedTemplate(null);
     if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
       const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
       equipmentDetail.input_fields.forEach((field: any) => {
@@ -8266,13 +8300,18 @@ const BookEquipment = () => {
                     </div>
                     {bookingTemplates.length > 0 ? (
                       <Select
-                        value={appliedTemplate ? String(appliedTemplate.id) : undefined}
+                        value={appliedTemplate ? String(appliedTemplate.id) : ""}
                         onValueChange={handleApplyTemplate}
                       >
                         <SelectTrigger className="h-9 w-full sm:w-72 bg-background" aria-label="Choose a booking template">
                           <SelectValue placeholder="Choose a template to fill the form" />
                         </SelectTrigger>
                         <SelectContent>
+                          {appliedTemplate && (
+                            <SelectItem value={NO_TEMPLATE_VALUE} className="text-muted-foreground">
+                              No template (default form)
+                            </SelectItem>
+                          )}
                           {bookingTemplates.map((t) => (
                             <SelectItem key={t.id} value={String(t.id)}>
                               {t.name}
