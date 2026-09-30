@@ -101,7 +101,7 @@ export function LoginPasswordCard() {
 
   const submitPassword = async () => {
     if (hasPassword && !current) {
-      toast.error("Enter your current password.");
+      toast.error("Enter your current password, or use \u201cSet new password with email OTP\u201d.");
       return;
     }
     if (!validateNew()) return;
@@ -189,8 +189,10 @@ export function LoginPasswordCard() {
               <p className="text-muted-foreground">
                 {hasPassword ? (
                   <>
-                    Email login is <span className="font-medium text-foreground">enabled</span> for{" "}
-                    <span className="font-medium text-foreground">{email}</span>.
+                    A password already exists for <span className="font-medium text-foreground">{email}</span>. If you did
+                    not set it yourself (for example, the account was created for you) or do not remember it, use{" "}
+                    <span className="font-medium text-foreground">Set new password with email OTP</span>; your current
+                    password is not needed.
                   </>
                 ) : (
                   <>
@@ -225,16 +227,17 @@ export function LoginPasswordCard() {
                 <p className="text-xs text-muted-foreground">At least 8 characters; avoid common or easily guessed passwords.</p>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   {hasPassword ? (
-                    <button
+                    <Button
                       type="button"
-                      className="text-sm text-primary hover:underline"
+                      variant="outline"
                       onClick={() => {
                         resetFields();
                         setMode("reset-request");
                       }}
+                      disabled={saving}
                     >
-                      Forgot current password?
-                    </button>
+                      Set new password with email OTP
+                    </Button>
                   ) : (
                     <span />
                   )}
@@ -249,8 +252,8 @@ export function LoginPasswordCard() {
             {mode === "reset-request" && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  We will email a 6-digit OTP to <span className="font-medium text-foreground">{email}</span> to reset your
-                  password.
+                  We will email a 6-digit OTP to <span className="font-medium text-foreground">{email}</span>. Enter it with
+                  your new password; your current password is not needed.
                 </p>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setMode("form")} disabled={saving}>
@@ -295,7 +298,7 @@ export function LoginPasswordCard() {
                   </Button>
                   <Button onClick={() => void submitReset()} disabled={saving}>
                     {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Reset password
+                    Set new password
                   </Button>
                 </div>
               </div>
