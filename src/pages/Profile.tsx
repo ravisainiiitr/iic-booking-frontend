@@ -686,7 +686,7 @@ const Profile = () => {
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Officer In Charge</SelectItem>
-                    <SelectItem value="operator">Lab Incharge</SelectItem>
+                    <SelectItem value="operator">Lab Operator</SelectItem>
                     <SelectItem value="finance">Accounts In Charge</SelectItem>
                     <SelectItem value="student">Student</SelectItem>
                     <SelectItem value="individual_student">Individual Student</SelectItem>

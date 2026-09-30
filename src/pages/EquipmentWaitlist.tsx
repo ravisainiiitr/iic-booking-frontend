@@ -67,7 +67,7 @@ export default function EquipmentWaitlist() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
-  const canView = userType === "admin" || userType === "manager" || userType === "operator"; // admin, OIC, Lab Incharge
+  const canView = userType === "admin" || userType === "manager" || userType === "operator"; // admin, OIC, Lab Operator
 
   const [equipmentList, setEquipmentList] = useState<EquipmentOption[]>([]);
   const [loadingList, setLoadingList] = useState(true);

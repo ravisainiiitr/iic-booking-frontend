@@ -1219,7 +1219,7 @@ const Auth = () => {
                     External users and IITR Post Doctoral Fellows, Research Associates in Projects, and IITR Startups can register here.
                   </p>
                   <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary dark:text-primary">
-                    IITR Students, Faculty, and Officer in Charge / Lab in charge → sign in with {CHANNEL_I_DISPLAY_NAME} IITR above.
+                    IITR Students, Faculty, and Officer in Charge / Lab Operator → sign in with {CHANNEL_I_DISPLAY_NAME} IITR above.
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/80 bg-muted/20 dark:bg-muted/30 overflow-hidden">

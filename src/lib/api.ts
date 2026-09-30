@@ -2738,7 +2738,7 @@ class ApiClient {
     });
   }
 
-  /** Update equipment status. Admin / OIC only (not Lab In-charge). */
+  /** Update equipment status. Admin / OIC only (not Lab Operator). */
   async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER') {
     return this.updateEquipment(String(equipmentId), { status }) as Promise<{
       data?: Record<string, unknown> & {
@@ -5685,7 +5685,7 @@ class ApiClient {
     });
   }
 
-  /** Admin / Dept Admin / OIC / Lab In Charge: flag booking as Analysis Not Possible (requires reason). */
+  /** Admin / Dept Admin / OIC / Lab Operator: flag booking as Analysis Not Possible (requires reason). */
   async bookingOtherDisruption(bookingId: number, reason: string) {
     return this.request<{
       message: string;
@@ -6602,7 +6602,7 @@ class ApiClient {
     }>('/bookings/stats/');
   }
 
-  /** Lab Incharge (operator) and OIC (manager) dashboard: filtered booking totals, week view, follow-up queues. */
+  /** Lab Operator and OIC (manager) dashboard: filtered booking totals, week view, follow-up queues. */
   async getLabOperatorDashboard(opts?: {
     weekStart?: string;
     period?: 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -6758,7 +6758,7 @@ class ApiClient {
     }>(`/bookings/lab-operator-dashboard/${q}`);
   }
 
-  /** Lab In-charge / OIC: personal calendar colours (optional equipment scope). */
+  /** Lab Operator / OIC: personal calendar colours (optional equipment scope). */
   async getLabDashboardCalendarColors(equipmentId?: number) {
     const q =
       equipmentId != null && Number.isFinite(equipmentId)
@@ -6773,7 +6773,7 @@ class ApiClient {
     }>(`/bookings/lab-dashboard-calendar-colors/${q}`, { method: "GET" });
   }
 
-  /** Lab In-charge / OIC: save personal colours for one equipment (does not change admin colours). */
+  /** Lab Operator / OIC: save personal colours for one equipment (does not change admin colours). */
   async updateLabDashboardCalendarColors(payload: {
     equipment_id: number;
     slot_colors: Record<string, string>;

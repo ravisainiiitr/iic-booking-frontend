@@ -12,11 +12,11 @@ import {
 
 export const operatorGuide: UserGuideContent = {
   audience: "operator",
-  audienceLabel: "Lab In-Charge / Operator",
-  title: "Lab In-Charge / Operator User Guide",
+  audienceLabel: "Lab Operator",
+  title: "Lab Operator User Guide",
   subtitle: `${PRODUCT_NAME} — day-of-run operations for assigned equipment`,
-  welcomeHeadline: "Welcome, Lab In-Charge",
-  welcomeBody: `As Lab In-Charge / Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, Intimate Unavailability, and how your role differs from Officer-in-Charge.`,
+  welcomeHeadline: "Welcome, Lab Operator",
+  welcomeBody: `As Lab Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, Intimate Unavailability, and how your role differs from Officer-in-Charge.`,
   sections: [
     purposeSection({
       paragraphs: [
@@ -107,12 +107,12 @@ export const operatorGuide: UserGuideContent = {
       {
         question: "I don’t see Support Tickets on my dashboard — is that normal?",
         answer:
-          "Yes for many Lab In-Charge dashboards. Coordinate ticket follow-up with the OIC or use any staff path your department provides.",
+          "Yes for many Lab Operator dashboards. Coordinate ticket follow-up with the OIC or use any staff path your department provides.",
       },
       {
         question: "How do I get access to another instrument?",
         answer:
-          "Ask your Department Administrator or OIC to assign you as Lab Incharge for that equipment.",
+          "Ask your Department Administrator or OIC to assign you as Lab Operator for that equipment.",
       },
     ]),
     troubleshootingSection([

@@ -1777,7 +1777,7 @@ export function BookingDetailCard({
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Level 1: Lab Incharge</p>
+                    <p className="text-sm font-medium text-foreground">Level 1: Lab Operator</p>
                     {booking.lab_in_charge ? (
                       <div className="text-sm text-muted-foreground space-y-1 mt-1">
                         <div>

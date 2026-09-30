@@ -57,7 +57,7 @@ export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
   project_staff: "Project Staff",
   startup: "Startup Users",
   oic: "Equipment Officer-in-Charge",
-  operator: "Lab In-Charge / Operator",
+  operator: "Lab Operator",
   dept_admin: "Department Administrator",
   admin: "Institute Administrator",
   finance: "Accounts In Charge",

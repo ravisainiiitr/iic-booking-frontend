@@ -21,7 +21,7 @@ import { format } from "date-fns";
 const commentRecipientsLabel = (metadata?: Record<string, unknown> | null): string => {
   const r = metadata?.comment_recipients as { user?: boolean; oic?: boolean; lab_incharge?: boolean } | undefined;
   if (!r || typeof r !== "object") return "";
-  return [r.user && "Booking user", r.oic && "Officer In Charge", r.lab_incharge && "Lab Incharge"]
+  return [r.user && "Booking user", r.oic && "Officer In Charge", r.lab_incharge && "Lab Operator"]
     .filter(Boolean)
     .join(", ");
 };
@@ -88,7 +88,7 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
         const notified = [
           sendNotification && "user",
           notifyOic && "Officer In Charge",
-          notifyLabIncharge && "Lab Incharge",
+          notifyLabIncharge && "Lab Operator",
         ].filter(Boolean);
         toast.success(
           notified.length
@@ -337,7 +337,7 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                   onCheckedChange={(checked) => setNotifyLabIncharge(checked === true)}
                 />
                 <Label htmlFor="notify-lab-incharge" className="text-sm font-normal cursor-pointer">
-                  Lab Incharge of this equipment
+                  Lab Operator of this equipment
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground">

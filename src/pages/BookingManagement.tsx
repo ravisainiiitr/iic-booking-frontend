@@ -171,7 +171,7 @@ const BookingManagement = () => {
     }
 
     if (!isOperatorOrManager) {
-      toast.error("Access denied. Only Lab In-charge, Officer In-charge, Department Administrators, and Admins can access this page.");
+      toast.error("Access denied. Only Lab Operator, Officer In-charge, Department Administrators, and Admins can access this page.");
       navigate("/dashboard");
       return;
     }

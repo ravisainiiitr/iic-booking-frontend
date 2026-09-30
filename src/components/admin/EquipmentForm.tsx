@@ -281,7 +281,7 @@ export type EquipmentFormData = {
 const LEGACY_CHARGE_PROFILE_TYPES = new Set(["SAMPLE", "HOUR", "SAMPLE_ELEMENT"]);
 const NEW_CHARGE_PROFILE_TYPES = new Set(["GENERIC", "MULTI_PARAM", "PRINT_3D"]);
 
-/** Per-equipment contact details of an Officer In Charge / Lab In-charge (shown in Contact us). */
+/** Per-equipment contact details of an Officer In Charge / Lab Operator (shown in Contact us). */
 type AssignmentContact = { office_address?: string; alternate_phone_number?: string };
 
 function AssignmentContactInputs({
@@ -489,7 +489,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     };
   }, [localImagePreview]);
 
-  /** Officers / Lab Incharge from Internal departments only; optionally match selected internal department. */
+  /** Officers / Lab Operator from Internal departments only; optionally match selected internal department. */
   const managersForDepartment = useMemo(() => {
     const list = choices?.managers ?? [];
     if (formData.internal_department == null) return list;
@@ -1530,7 +1530,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             </SelectContent>
           </Select>
           <p className="text-muted-foreground text-xs">
-            Only departments with type Internal are listed. Officer In Charge / Lab Incharge below are limited to users in Internal departments.
+            Only departments with type Internal are listed. Officer In Charge / Lab Operator below are limited to users in Internal departments.
           </p>
             </>
           )}
@@ -3190,7 +3190,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       <FormSection
         id="eq-sec-operators"
         title="Equipment Operators"
-        description={`Lab Incharge users belonging to Internal departments${formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.`}
+        description={`Lab Operator users belonging to Internal departments${formData.internal_department != null ? " (preferentially matching the selected department)" : ""}.`}
         defaultOpen
       >
       <div className="flex flex-wrap items-center gap-2">

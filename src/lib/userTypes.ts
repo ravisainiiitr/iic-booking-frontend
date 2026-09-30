@@ -47,7 +47,7 @@ export const USER_TYPE_DISPLAY_NAMES: Record<string, string> = {
   admin: "Admin",
   dept_admin: "Department Administrator",
   manager: "Officer In Charge",
-  operator: "Lab Incharge",
+  operator: "Lab Operator",
   finance: "Accounts In Charge",
   org_admin: "Organization Administrator",
   external_relations: "External Relations Administrator",

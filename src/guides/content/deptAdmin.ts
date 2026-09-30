@@ -24,7 +24,7 @@ export const deptAdminGuide: UserGuideContent = {
         "Department Administrators keep their department’s participation in the institute-wide portal healthy: correct OIC/Lab/Accounts assignments, department equipment visibility, and local access grants where RBAC applies.",
       ],
       bullets: [
-        "Manage departmental staff roles (OIC, Lab Incharge, Accounts) via Department Administration",
+        "Manage departmental staff roles (OIC, Lab Operator, Accounts) via Department Administration",
         "Work with equipment scoped to your internal department",
         "Book slots for other users on department equipment (same flow as Institute Admin, department-scoped)",
         "Dashboard Upcoming Bookings and Equipment Statistics cover only your department’s equipment",
@@ -48,7 +48,7 @@ export const deptAdminGuide: UserGuideContent = {
       id: "staff-workflow",
       title: "Managing Department Staff",
       paragraphs: [
-        "Assign the right people as Officer In Charge, Lab Incharge, and Accounts for your department’s instruments and finance workflows.",
+        "Assign the right people as Officer In Charge, Lab Operator, and Accounts for your department’s instruments and finance workflows.",
       ],
       steps: [
         {
@@ -87,7 +87,7 @@ export const deptAdminGuide: UserGuideContent = {
       bullets: [
         "Browse /equipments to see department instruments (not the full institute catalog of other units’ private assets).",
         "Use Book now → Book slots for a user to book on behalf of another user; charges apply to the selected user. You can only do this for equipment in your assigned department.",
-        "When booking for a user, filter by type (e.g. IIT Roorkee Students) to see all currently active users of that type across departments. Staff types (Admin, OIC, Lab Incharge) and Other are not listed.",
+        "When booking for a user, filter by type (e.g. IIT Roorkee Students) to see all currently active users of that type across departments. Staff types (Admin, OIC, Lab Operator) and Other are not listed.",
         "When adding equipment (if permitted), Internal Department is typically fixed to your department.",
         "Admin Settings / Equipment modules appear only when Admin Panel Access grants them to your role.",
       ],

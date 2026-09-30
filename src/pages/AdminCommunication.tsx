@@ -1131,7 +1131,7 @@ const AdminCommunication = () => {
               <CardHeader className="pb-4">
                 <CardTitle className="text-base">Email equipment booking users</CardTitle>
                 <CardDescription>
-                  Automatically includes Officer In Charge and Lab In-Charge for the selected equipment,
+                  Automatically includes Officer In Charge and Lab Operator for the selected equipment,
                   plus booking requesters. You can also add any number of additional email addresses.
                 </CardDescription>
               </CardHeader>
@@ -1187,7 +1187,7 @@ const AdminCommunication = () => {
                             </label>
                             <label className="flex items-center gap-2 text-sm">
                               <input type="checkbox" className="h-4 w-4" checked={includeLab} onChange={(e) => setIncludeLab(e.target.checked)} />
-                              Lab In-Charge ({groupRecipients.filter((r) => r.role === "lab").length})
+                              Lab Operator ({groupRecipients.filter((r) => r.role === "lab").length})
                             </label>
                             <label className="flex items-center gap-2 text-sm">
                               <input type="checkbox" className="h-4 w-4" checked={includeBookingRequesters} onChange={(e) => setIncludeBookingRequesters(e.target.checked)} />

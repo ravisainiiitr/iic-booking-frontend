@@ -148,7 +148,7 @@ const Reports = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   /** Account In-charge (finance): dedicated executive finance dashboard, replaces this whole page. */
   const [isFinanceUser, setIsFinanceUser] = useState(false);
-  /** Lab Incharge (operator): restricted view — equipment performance only. */
+  /** Lab Operator: restricted view — equipment performance only. */
   const [isLabInchargeUser, setIsLabInchargeUser] = useState(false);
   /** IITR Faculty: research-group wallet spend vs balance (linked students). */
   const [isFacultyUser, setIsFacultyUser] = useState(false);
@@ -834,7 +834,7 @@ const Reports = () => {
           </Card>
         )}
 
-        {/* My bookings stats — hidden for Lab Incharge (operators see equipment section only) */}
+        {/* My bookings stats — hidden for Lab Operator (operators see equipment section only) */}
         {!isLabInchargeUser && (
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <Link to="/reports/bookings" className="block group">

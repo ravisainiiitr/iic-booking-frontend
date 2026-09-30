@@ -40,7 +40,7 @@ import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
 /** Staff roles Department Administrators may create or map. */
 const DEPT_ADMIN_STAFF_USER_TYPES: Array<{ value: string; label: string }> = [
   { value: "manager", label: "Officer In Charge" },
-  { value: "operator", label: "Lab Incharge" },
+  { value: "operator", label: "Lab Operator" },
   { value: "finance", label: "Accounts In Charge" },
 ];
 
@@ -140,7 +140,7 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "admin", label: "Admin" },
   { value: "dept_admin", label: "Department Administrator" },
   { value: "manager", label: "Officer In Charge" },
-  { value: "operator", label: "Lab Incharge" },
+  { value: "operator", label: "Lab Operator" },
   { value: "finance", label: "Accounts In Charge" },
   { value: "student", label: "Student" },
   { value: "individual_student", label: "Individual Student" },
@@ -158,7 +158,7 @@ const USER_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "admin", label: "Admin" },
   { value: "dept_admin", label: "Department Administrator" },
   { value: "manager", label: "Officer In Charge" },
-  { value: "operator", label: "Lab Incharge" },
+  { value: "operator", label: "Lab Operator" },
   { value: "finance", label: "Accounts In Charge" },
   { value: "faculty", label: "Faculty" },
   { value: "student", label: "Student" },
@@ -906,7 +906,7 @@ export default function AdminSection() {
         toast({
           title: "Invalid user type",
           description:
-            "Department Administrators can only create Officer In Charge, Lab Incharge, or Accounts In Charge (Department Account In-charge for wallet recharges, grants, transactions, and credit facility records).",
+            "Department Administrators can only create Officer In Charge, Lab Operator, or Accounts In Charge (Department Account In-charge for wallet recharges, grants, transactions, and credit facility records).",
           variant: "destructive",
         });
         return;
@@ -1122,7 +1122,7 @@ export default function AdminSection() {
         const noteParts: string[] = [];
         if (data.important_instruction) noteParts.push(String(data.important_instruction));
         if (primaryMgr?.manager) noteParts.push(`Proposed OIC user id: ${primaryMgr.manager}`);
-        if (primaryOp?.operator) noteParts.push(`Proposed Lab Incharge user id: ${primaryOp.operator}`);
+        if (primaryOp?.operator) noteParts.push(`Proposed Lab Operator user id: ${primaryOp.operator}`);
         append("notes", noteParts.join("\n"));
         if (options?.imageFile) {
           fd.append("equipment_image", options.imageFile);
@@ -3337,7 +3337,7 @@ export default function AdminSection() {
               <>
                 <DialogDescription>
                   {currentUserType === "dept_admin"
-                    ? `Map an existing Channel-i (Omniport) user from ${currentUserDepartmentName || "your department"} to OIC, Lab Incharge, or Accounts In Charge. Creating new user accounts is not allowed for Department Administrators.`
+                    ? `Map an existing Channel-i (Omniport) user from ${currentUserDepartmentName || "your department"} to OIC, Lab Operator, or Accounts In Charge. Creating new user accounts is not allowed for Department Administrators.`
                     : "Add a new user (mirrors Django admin/users/user/add/). Email and password are required. User type and department can be set now or later."}
                 </DialogDescription>
                 {currentUserType === "dept_admin" ? (
@@ -3345,7 +3345,7 @@ export default function AdminSection() {
                   // new accounts. Backend rejects create for DA; the "Create new" tab is removed here.
                   <div className="space-y-4 py-4">
                     <p className="text-sm text-muted-foreground">
-                      Select a faculty or student from {currentUserDepartmentName || "your department"} who already signed in via Channel-i, then assign them as OIC, Lab Incharge, or Accounts In Charge.
+                      Select a faculty or student from {currentUserDepartmentName || "your department"} who already signed in via Channel-i, then assign them as OIC, Lab Operator, or Accounts In Charge.
                     </p>
                     <div className="flex gap-2">
                       <Input

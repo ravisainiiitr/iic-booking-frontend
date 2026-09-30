@@ -222,7 +222,7 @@ function filterLabDashRowsByStatus(rows: LabOperatorDashBooking[] | undefined, s
   return (rows ?? []).filter((r) => String(r.status).toUpperCase() === u);
 }
 
-/** Distinct row styling so completed bookings stand out on OIC / Lab Incharge dashboards. */
+/** Distinct row styling so completed bookings stand out on OIC / Lab Operator dashboards. */
 function labDashBookingRowClassName(status: string | undefined): string {
   if (String(status || "").toUpperCase() === "COMPLETED") {
     return "bg-emerald-50/95 hover:bg-emerald-100/95 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/55 border-l-4 border-l-emerald-500";
@@ -389,7 +389,7 @@ const Dashboard = () => {
   const [labBookingLegendColors, setLabBookingLegendColors] = useState<Record<string, string>>({
     ...DEFAULT_LAB_BOOKING_COLORS,
   });
-  /** Week slot grid: expanded by default for Lab In-charge and OIC (slots load only when expanded). */
+  /** Week slot grid: expanded by default for Lab Operator and OIC (slots load only when expanded). */
   const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(() =>
     ["operator", "manager"].includes(String(user?.user_type ?? "").toLowerCase())
   );
@@ -408,7 +408,7 @@ const Dashboard = () => {
   const isOicUser = userTypeStr === "manager";
   /** Department Account In-charge: focused dashboard only (recharge, external bookings, reports). */
   const isAccountsInChargeUser = isAccountsInChargeRole(user);
-  /** Same weekly metrics, instrument hero, and week calendar as Lab Incharge. */
+  /** Same weekly metrics, instrument hero, and week calendar as Lab Operator. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
 
   const prefetchBrowseCatalog = useCallback(() => {
@@ -2148,7 +2148,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Booking management</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Manage bookings as Lab In-charge, Officer In-charge, Department Administrator, or Admin
+                      Manage bookings as Lab Operator, Officer In-charge, Department Administrator, or Admin
                     </CardDescription>
                   </div>
                 </div>
@@ -2590,7 +2590,7 @@ const Dashboard = () => {
                     <CardDescription className="text-sm mt-0.5">
                       {isAdmin
                         ? "Manage department staff modules and permission caps"
-                        : "Manage OIC, Lab In Charge, Accounts In Charge (department finances), and Faculty Credit Facility"}
+                        : "Manage OIC, Lab Operator, Accounts In Charge (department finances), and Faculty Credit Facility"}
                     </CardDescription>
                   </div>
                 </div>
@@ -3261,7 +3261,7 @@ const Dashboard = () => {
           </Card>
         )}
         <PendingActionsSummary className="mb-4" />
-        {/* Profile hero — compact for standard users; Lab Incharge & OIC keep richer instrument layout */}
+        {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
           className={cn(
             "dashboard-hero-card relative overflow-hidden border border-white/25 bg-gradient-to-br from-primary via-primary to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20",

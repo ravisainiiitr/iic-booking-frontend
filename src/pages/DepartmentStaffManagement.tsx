@@ -48,7 +48,7 @@ const ROLE_CONFIG: Record<
   },
   lab: {
     userType: "operator",
-    title: "Lab In Charge",
+    title: "Lab Operator",
     assignPermission: "lab.assign",
     description: "Create, map Channel-i users, edit, and activate/deactivate within your department only.",
   },

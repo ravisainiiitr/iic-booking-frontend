@@ -380,7 +380,7 @@ export default function DepartmentRbacManagement() {
           <CardHeader>
             <CardTitle>Subordinate Grants</CardTitle>
             <CardDescription>
-              Pick an OIC, Lab In-Charge, or Accounts user and grant only the permissions allowed by the department cap.
+              Pick an OIC, Lab Operator, or Accounts user and grant only the permissions allowed by the department cap.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">

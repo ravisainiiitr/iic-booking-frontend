@@ -19,8 +19,8 @@ const MODULES = [
   },
   {
     key: "lab",
-    title: "Manage Lab In Charge",
-    description: "Create, map, edit, and activate/deactivate Lab Incharge (operator) users in your department.",
+    title: "Manage Lab Operators",
+    description: "Create, map, edit, and activate/deactivate Lab Operator users in your department.",
     path: "/manage/department-administration/lab",
     icon: FlaskConical,
     gradient: "from-primary/50 to-accent",
@@ -93,7 +93,7 @@ export default function DepartmentAdministrationHub() {
             Department Administration
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Manage Officer In Charge, Lab In Charge, Accounts In Charge, Faculty Credit Facility, and SRIC Bill
+            Manage Officer In Charge, Lab Operator, Accounts In Charge, Faculty Credit Facility, and SRIC Bill
             Section email settings for your department. All actions are limited to your assigned department.
           </p>
         </div>

@@ -116,7 +116,7 @@ export const oicGuide: UserGuideContent = {
       {
         question: "Can operators do everything I can?",
         answer:
-          "No. Lab In-Charge/operators are typically limited to complete and not-utilized actions, while OICs handle disruption, refunds, and broader configuration.",
+          "No. Lab Operators are typically limited to complete and not-utilized actions, while OICs handle disruption, refunds, and broader configuration.",
       },
       {
         question: "How do I cover leave?",

@@ -5041,7 +5041,7 @@ const BookEquipment = () => {
   /** Admin / OIC / Department Administrator may book slots for another user. */
   const canBookForOtherUsers = (): boolean => isAdminOrOIC();
 
-  /** Admin / OIC / Lab In-charge may change slot status (not Department Administrator). */
+  /** Admin / OIC / Lab Operator may change slot status (not Department Administrator). */
   const canChangeSlotStatus = (): boolean => {
     if (!userType) return false;
     const t = String(userType).toLowerCase();

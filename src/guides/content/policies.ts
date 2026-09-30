@@ -79,7 +79,7 @@ export function urgentBookingPolicySection(): GuideSection {
     ],
     callouts: [
       "Warning: Submit urgent requests only with a genuine need and complete evidence when asked. False urgency delays everyone.",
-      "Related: Contact Lab In-charge / OIC · Raise Support Ticket · Booking Workflow.",
+      "Related: Contact Lab Operator / OIC · Raise Support Ticket · Booking Workflow.",
     ],
     steps: [
       {
@@ -130,7 +130,7 @@ export function operatorAbsentPolicySection(): GuideSection {
     id: "policy-operator-absent",
     title: "Operator Absent Policy",
     paragraphs: [
-      "Laboratory work depends on trained operators. If the assigned Lab In-charge / operator cannot run your session, the portal treats this as an operator-absence disruption (distinct from equipment maintenance).",
+      "Laboratory work depends on trained operators. If the assigned Lab Operator cannot run your session, the portal treats this as an operator-absence disruption (distinct from equipment maintenance).",
     ],
     bullets: [
       "Short absence — Staff may place bookings into a disruption-pending state so you can choose cancel (usually with refund) or wait for reschedule instructions.",
@@ -140,7 +140,7 @@ export function operatorAbsentPolicySection(): GuideSection {
       "Difference from Not Utilized — Operator absence is a laboratory-side issue. Booking Not Utilized is used when the user/sample side did not proceed as expected.",
     ],
     callouts: [
-      "If you already submitted a sample, tell the Lab In-charge immediately so the sample can be safeguarded while disruption is resolved.",
+      "If you already submitted a sample, tell the Lab Operator immediately so the sample can be safeguarded while disruption is resolved.",
       "Related: Under Maintenance · Analysis Not Possible · Sample Submission Policy.",
     ],
     steps: [
@@ -204,7 +204,7 @@ export function otherDisruptionPolicySection(): GuideSection {
       "How bookings are handled — Affected bookings typically enter disruption-pending with a decision deadline, similar to maintenance/operator-absent flows.",
       "Refunds / reschedule — Cancel with refund is commonly available; reschedule unlocks when operations allow. Exact options appear on My Bookings and in email.",
       "Notifications — Email includes the staff-provided reason and deadline.",
-      "Administration — Lab In-charge, OIC, Department Administrator, or Admin can apply Analysis Not Possible and manage slot release when the booking is closed.",
+      "Administration — Lab Operator, OIC, Department Administrator, or Admin can apply Analysis Not Possible and manage slot release when the booking is closed.",
     ],
     callouts: [
       "Read the disruption reason carefully and act before the deadline to protect your refund/reschedule options.",
@@ -279,7 +279,7 @@ export function sampleCollectionDiscardPolicySection(): GuideSection {
     ],
     callouts: [
       "Warning: Do not assume free long-term storage. Treat the collection deadline as firm unless the lab confirms otherwise.",
-      "Related: Sample Submission Policy · Support · Contact Lab In-charge.",
+      "Related: Sample Submission Policy · Support · Contact Lab Operator.",
     ],
     steps: [
       {
@@ -288,7 +288,7 @@ export function sampleCollectionDiscardPolicySection(): GuideSection {
       },
       {
         title: "Example — Extended retention (if allowed)",
-        body: "You will be away until next week. Before the discard deadline you request an extension; the Lab In-charge confirms a new date in writing.",
+        body: "You will be away until next week. Before the discard deadline you request an extension; the Lab Operator confirms a new date in writing.",
       },
       {
         title: "Example — Discard after deadline",
@@ -359,7 +359,7 @@ export function operationalPoliciesFaqs(): GuideFaq[] {
     {
       question: "Who should I contact if my booking is disrupted?",
       answer:
-        "Start with the Lab In-charge / OIC contacts on the equipment page, use Raise Support Ticket for a tracked case, and watch My Bookings for the disruption decision options.",
+        "Start with the Lab Operator / OIC contacts on the equipment page, use Raise Support Ticket for a tracked case, and watch My Bookings for the disruption decision options.",
     },
   ];
 }
