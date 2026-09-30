@@ -113,6 +113,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },
   "/oic-leave-management": { title: "OIC Leave Management" },
+  "/admin/legacy-user-sync": {
+    title: "Legacy User Sync",
+    description: "Map a user to their old booking portal account, test sync, then confirm wallet and booking sync.",
+  },
 };
 
 function getWorkspacePageMeta(path: string): { title: string; description?: string } | null {
@@ -3078,6 +3082,35 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white">Customize colors</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "legacy_user_sync",
+      label: "Legacy user sync",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800"
+              onClick={() => openWorkspace("/admin/legacy-user-sync")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg">
+                    <Server className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Legacy user sync</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Map a user to the old booking portal, test and sync wallet balance and legacy bookings
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Open legacy sync</Button>
               </CardContent>
             </Card>
       ),

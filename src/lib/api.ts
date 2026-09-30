@@ -1070,6 +1070,182 @@ export interface LegacyWalletBalanceListResult {
   error?: string;
 }
 
+export interface LegacySyncUserSearchRow {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  emp_id?: string | null;
+  user_type?: string | null;
+  user_type_display?: string | null;
+  department?: string | null;
+  profile_picture?: string | null;
+  is_active: boolean;
+}
+
+export interface LegacySyncWalletBrief {
+  wallet_id: number;
+  owner_id: number;
+  owner_name: string;
+  owner_email: string;
+  total_balance: string;
+  sub_wallets: Array<{ department: string; balance: string }>;
+}
+
+export interface LegacySyncUserDetail extends LegacySyncUserSearchRow {
+  secondary_phone?: string | null;
+  designation?: string | null;
+  degree_name?: string | null;
+  branch_name?: string | null;
+  joining_date?: string | null;
+  graduation_date?: string | null;
+  date_joined?: string | null;
+  last_login?: string | null;
+  supervisor?: { id: number; name: string; email: string } | null;
+  can_have_own_wallet: boolean;
+  own_wallet: LegacySyncWalletBrief | null;
+  linked_faculty_wallet: LegacySyncWalletBrief | null;
+  legacy_mappings: Array<{
+    employee_id: string;
+    old_user_id: number | null;
+    old_name: string;
+    old_email: string;
+    mapping_status: string;
+    old_wallet_balance: string | null;
+    migration_batch: string;
+    updated_at: string | null;
+  }>;
+  legacy_bookings_synced: number;
+}
+
+export interface LegacySyncCandidate {
+  legacy_user_id: number;
+  emp_id: string;
+  name: string;
+  email: string;
+  wallet_balance: string | null;
+  matched_on: string[];
+}
+
+export interface LegacySyncBookingRow {
+  legacy_booking_id: number;
+  legacy_equipment_id?: number | null;
+  legacy_equipment_name?: string;
+  legacy_equipment_code?: string;
+  new_equipment?: { id: number; code: string; name: string } | null;
+  booking_date?: string | null;
+  duration_minutes?: number | null;
+  status?: string | number | null;
+  charge?: string | number | null;
+  is_deleted?: number | boolean | string | null;
+  is_active?: number | boolean | string | null;
+  created_at?: string | null;
+  synced_at?: string | null;
+}
+
+export interface LegacySyncUserDetailResponse {
+  user: LegacySyncUserDetail;
+  synced_bookings: LegacySyncBookingRow[];
+  legacy_candidates: LegacySyncCandidate[];
+  legacy_error: string | null;
+}
+
+export interface LegacySyncWalletTarget {
+  key: 'own' | 'linked_faculty';
+  label: string;
+  wallet_id: number | null;
+  owner_name: string;
+  owner_email: string;
+  will_create_wallet: boolean;
+}
+
+export interface LegacySyncPreview {
+  ok: boolean;
+  blockers: string[];
+  warnings: string[];
+  new_user: LegacySyncUserDetail;
+  legacy_user: {
+    legacy_user_id: number;
+    emp_id: string;
+    name: string;
+    email: string;
+    details: Record<string, unknown>;
+  };
+  legacy_wallet: {
+    has_wallet: boolean;
+    wallet_id: number | null;
+    balance: string;
+    balance_source: string;
+    wallet_balance: string | null;
+    ledger_balance: string;
+    total_credits: string;
+    total_debits: string;
+    transaction_count: number;
+    recent_transactions: Array<{
+      id: number;
+      type: string;
+      amount: string | number | null;
+      running_balance: string | number | null;
+      date: string | null;
+      description: string;
+    }>;
+  };
+  wallet_sync: {
+    can_sync: boolean;
+    reasons: string[];
+    targets: LegacySyncWalletTarget[];
+    selected_target: LegacySyncWalletTarget['key'] | null;
+    migration_id: string;
+    department: string | null;
+    legacy_balance: string;
+    previously_credited: string;
+    credited_elsewhere: string;
+    delta: string;
+    subwallet_balance_before: string;
+    subwallet_balance_after: string;
+    existing_legacy_credits: Array<{
+      id: number;
+      type: string;
+      amount: string;
+      wallet_owner: string;
+      department: string;
+      description: string;
+      created_at: string | null;
+    }>;
+  };
+  bookings: {
+    ok: boolean;
+    error?: string | null;
+    count: number;
+    deleted_count: number;
+    total_charge: string;
+    already_synced_to_this_user: number;
+    synced_to_other_user: number;
+    truncated: boolean;
+    active_blocks: number;
+    active_blocks_linked_here: number;
+    rows: LegacySyncBookingRow[];
+  };
+}
+
+export interface LegacySyncConfirmResult {
+  ok: boolean;
+  mapping_key: string;
+  wallet: {
+    target: string;
+    wallet_owner: string;
+    legacy_balance: string;
+    delta: string;
+    previously_credited: string;
+    transaction_created: boolean;
+    subwallet_balance: string;
+    ledger_rows: { imported: number; duplicate: number; other: number };
+  } | null;
+  bookings: { archived_created: number; archived_updated: number; blocks_linked: number } | null;
+  user: LegacySyncUserDetail;
+  synced_bookings: LegacySyncBookingRow[];
+}
+
 export interface WalletRechargeParseRow {
   /** Present for rows loaded from server (stored parse entries). */
   id?: number;
@@ -3895,6 +4071,37 @@ class ApiClient {
       return { error: payload.error || `HTTP error! status: ${res.status}`, data: undefined };
     }
     return { data: payload, error: undefined };
+  }
+
+  async searchLegacySyncUsers(query: string, limit = 15) {
+    return this.request<{ results: LegacySyncUserSearchRow[] }>(
+      `/portal-migration/admin/legacy-user-sync/search/?q=${encodeURIComponent(query)}&limit=${limit}`,
+    );
+  }
+
+  async getLegacySyncUserDetail(userId: number) {
+    return this.request<LegacySyncUserDetailResponse>(`/portal-migration/admin/legacy-user-sync/users/${userId}/`);
+  }
+
+  async previewLegacyUserSync(body: { user_id: number; legacy_user_id: number; wallet_target?: string | null }) {
+    return this.request<LegacySyncPreview>('/portal-migration/admin/legacy-user-sync/preview/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async confirmLegacyUserSync(body: {
+    user_id: number;
+    legacy_user_id: number;
+    wallet_target?: string | null;
+    sync_wallet: boolean;
+    sync_bookings: boolean;
+    expected_legacy_balance?: string;
+  }) {
+    return this.request<LegacySyncConfirmResult>('/portal-migration/admin/legacy-user-sync/confirm/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 
   // Wallet join request endpoints

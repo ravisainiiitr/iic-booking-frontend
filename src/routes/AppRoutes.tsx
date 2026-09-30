@@ -117,6 +117,7 @@ const WalletRechargeEmailAction = lazyPage(() => import("@/pages/WalletRechargeE
 const AdminWalletRechargeRequests = lazyPage(() => import("@/pages/AdminWalletRechargeRequests"));
 const WalletRechargeParse = lazyPage(() => import("@/pages/WalletRechargeParse"));
 const LegacyWalletImportTest = lazyPage(() => import("@/pages/LegacyWalletImportTest"));
+const LegacyUserSync = lazyPage(() => import("@/pages/LegacyUserSync"));
 const CmsPageView = lazyPage(() => import("@/pages/CmsPageView"));
 const ExternalUserManagement = lazyPage(() => import("@/pages/ExternalUserManagement"));
 const OrganizationUsersManagement = lazyPage(() => import("@/pages/OrganizationUsersManagement"));
@@ -251,6 +252,7 @@ export default function AppRoutes() {
           <Route path="/notice-board-requests" element={<NoticeBoardRequests />} />
           <Route path="/admin-settings/inbox-email" element={<InboxEmail />} />
           <Route path="/admin-settings/legacy-wallet-import" element={<LegacyWalletImportTest />} />
+          <Route path="/admin/legacy-user-sync" element={<LegacyUserSync />} />
           <Route path="/calendar-colors" element={<CalendarColorSettings />} />
           <Route path="/inventory-management" element={<InventoryManagement />} />
           <Route path="/remote-analysis" element={<RemoteAnalysis />} />
