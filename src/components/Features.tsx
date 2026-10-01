@@ -35,7 +35,7 @@ const features = [
 
 const Features = () => {
   return (
-    <section id="features" className="pt-3 pb-6 sm:pt-4 sm:pb-8 relative overflow-hidden">
+    <section id="features" className="pt-3 pb-4 sm:pt-4 sm:pb-5 relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(215_40%_90%/0.5),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom,hsl(215_30%_20%/0.25),transparent_55%)]" />
       <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6">
         <div className="mb-4 max-w-3xl space-y-1">

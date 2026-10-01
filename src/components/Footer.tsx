@@ -1,8 +1,13 @@
-import { FlaskConical } from "lucide-react";
+import { Clock, FlaskConical, Mail, MapPin, Phone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { Link } from "react-router-dom";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
+
+const LINK_CLASS = "hover:text-primary transition-colors";
+const HEADING_CLASS = "text-sm font-semibold text-foreground mb-2";
+const LIST_CLASS = "space-y-1 text-sm text-muted-foreground";
+const ICON_CLASS = "h-3.5 w-3.5 shrink-0 text-primary/80 dark:text-sky-300/80";
 
 const Footer = () => {
   const { isAuthenticated } = useAuth();
@@ -18,87 +23,99 @@ const Footer = () => {
   }
 
   return (
-    <footer className="bg-card border-t border-border py-6 sm:py-8">
+    <footer className="bg-card border-t border-border pt-5 pb-3">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3 lg:grid-cols-[auto_1fr_1fr_auto] lg:gap-x-12 mb-4">
+          <div className="col-span-2 md:col-span-3 lg:col-span-1 space-y-1.5">
             <div className="flex items-center gap-2">
-              <FlaskConical className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              <FlaskConical className="h-5 w-5 shrink-0 text-primary" />
+              <span className="text-base font-bold leading-tight sm:whitespace-nowrap bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 Institute Equipment Booking Portal
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              IIT Roorkee&apos;s institute-wide platform for booking laboratory equipment across departments, centres, and laboratories.
+            <p className="max-w-xs text-sm leading-snug text-muted-foreground">
+              Book laboratory equipment across departments, centres and labs.
+            </p>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className={ICON_CLASS} aria-hidden="true" />
+              <span>Indian Institute of Technology Roorkee</span>
             </p>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Platform</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+            <h4 className={HEADING_CLASS}>Platform</h4>
+            <ul className={LIST_CLASS}>
               <li>
-                <Link to="/equipments" className="hover:text-primary transition-colors">
+                <Link to="/equipments" className={LINK_CLASS}>
                   Equipment Catalog
                 </Link>
               </li>
               <li>
-                <Link to="/booking-calendar" className="hover:text-primary transition-colors">
+                <Link to="/booking-calendar" className={LINK_CLASS}>
                   Booking Calendar
                 </Link>
               </li>
               <li>
-                <Link to="/dashboard" className="hover:text-primary transition-colors">
+                <Link to="/dashboard" className={LINK_CLASS}>
                   User Dashboard
                 </Link>
               </li>
             </ul>
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-4">Resources</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+          {/* Rightmost on md+: its two links leave the bottom-right free for the fixed Booking Assistant button. */}
+          <div className="md:order-last">
+            <h4 className={HEADING_CLASS}>Resources</h4>
+            <ul className={LIST_CLASS}>
               <li>
                 {isAuthenticated ? (
                   <button
                     type="button"
-                    className="hover:text-primary transition-colors text-left"
+                    className={`${LINK_CLASS} text-left`}
                     onClick={() => openGuide({ force: true })}
                   >
                     User Guide
                   </button>
                 ) : (
-                  <Link to="/auth" className="hover:text-primary transition-colors">
+                  <Link to="/auth" className={LINK_CLASS}>
                     User Guide (sign in)
                   </Link>
                 )}
               </li>
               <li>
-                <Link to="/tickets" className="hover:text-primary transition-colors">
+                <Link to="/tickets" className={LINK_CLASS}>
                   Support Tickets
                 </Link>
               </li>
             </ul>
           </div>
 
-          <div id="contact">
-            <h4 className="font-semibold mb-4">Contact Us</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                TEL: <a href="tel:01332284350" className="hover:text-primary transition-colors">01332-284350</a>
+          <div id="contact" className="col-span-2 md:col-span-1">
+            <h4 className={HEADING_CLASS}>Contact Us</h4>
+            <ul className={LIST_CLASS}>
+              <li className="flex items-center gap-2">
+                <Phone className={ICON_CLASS} aria-hidden="true" />
+                <span className="sr-only">Tel: </span>
+                <a href="tel:01332284350" className={LINK_CLASS}>
+                  01332-284350
+                </a>
               </li>
-              <li>
-                Email:{" "}
-                <a href="mailto:iic@iitr.ac.in" className="hover:text-primary transition-colors">
+              <li className="flex items-center gap-2">
+                <Mail className={ICON_CLASS} aria-hidden="true" />
+                <span className="sr-only">Email: </span>
+                <a href="mailto:iic@iitr.ac.in" className={LINK_CLASS}>
                   iic@iitr.ac.in
                 </a>
               </li>
-              <li>Hours: 24/7 Online Support</li>
-              <li>Indian Institute of Technology Roorkee</li>
+              <li className="flex items-center gap-2">
+                <Clock className={ICON_CLASS} aria-hidden="true" />
+                <span>24/7 Online Support</span>
+              </li>
             </ul>
           </div>
         </div>
 
-        <div className="pt-5 border-t border-border text-center text-sm text-muted-foreground">
+        <div className="border-t border-border pt-3 pr-16 text-xs text-muted-foreground sm:pr-52">
           <p>&copy; {new Date().getFullYear()} Institute Equipment Booking Portal, IIT Roorkee. All rights reserved.</p>
         </div>
       </div>
