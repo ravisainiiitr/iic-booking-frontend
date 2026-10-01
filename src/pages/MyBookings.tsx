@@ -26,13 +26,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,7 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { X, FolderDown, Download, Star, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
+import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
@@ -56,6 +49,8 @@ import {
 import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { formatBookingDateTime } from "@/lib/bookingDates";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -673,6 +668,14 @@ const MyBookings = () => {
     setClearFiltersNonce((n) => n + 1);
   };
 
+  const handleSort = (next: string) => {
+    setOrdering(next);
+    setPage(1);
+    setSelectedBookingId(null);
+    setOverrideBooking(null);
+    void fetchBookings({ ordering: next }, 1);
+  };
+
   const checkAuthAndFetchBookings = async (onlyShowPendingRating?: boolean) => {
     const token = apiClient.getToken();
     if (!token) {
@@ -682,10 +685,14 @@ const MyBookings = () => {
     fetchBookings(onlyShowPendingRating ? { status: "COMPLETED", onlyShowUnrated: true } : undefined, 1);
   };
 
-  const fetchBookings = async (overrides?: { status?: string; onlyShowUnrated?: boolean }, pageOverride?: number) => {
+  const fetchBookings = async (
+    overrides?: { status?: string; onlyShowUnrated?: boolean; ordering?: string },
+    pageOverride?: number
+  ) => {
     try {
       setLoading(true);
       const currentPage = pageOverride ?? page;
+      const effectiveOrdering = overrides?.ordering ?? ordering;
       const params: Record<string, string | number | boolean> = {
         limit: PAGE_SIZE,
         offset: (currentPage - 1) * PAGE_SIZE,
@@ -697,7 +704,7 @@ const MyBookings = () => {
       if (endDate) params.end_date = endDate;
       if (searchQuery.trim()) params.search = searchQuery.trim();
       if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
-      if (ordering) params.ordering = ordering;
+      if (effectiveOrdering) params.ordering = effectiveOrdering;
       const response = await apiClient.getBookings(params);
       if (response.error) {
         toast.error(response.error || "Failed to load bookings");
@@ -721,11 +728,15 @@ const MyBookings = () => {
         if (status === "WAITLISTED") {
           list = list.filter((b: Booking) => isWaitlistedEntry(b));
         }
-        list = [...list].sort((a, b) => {
-          const aTs = a?.created_at ? new Date(a.created_at).getTime() : 0;
-          const bTs = b?.created_at ? new Date(b.created_at).getTime() : 0;
-          return ordering === "created_at" ? aTs - bTs : bTs - aTs;
-        });
+        // Bookings arrive in server order; only the default created-at orderings re-sort client-side
+        // (to interleave waitlist entries). Column sorts keep server order with waitlist entries last.
+        if (effectiveOrdering === "created_at" || effectiveOrdering === "-created_at") {
+          list = [...list].sort((a, b) => {
+            const aTs = a?.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTs = b?.created_at ? new Date(b.created_at).getTime() : 0;
+            return effectiveOrdering === "created_at" ? aTs - bTs : bTs - aTs;
+          });
+        }
         if (overrides?.onlyShowUnrated) {
           list = list.filter(
             (b: Booking) =>
@@ -769,11 +780,8 @@ const MyBookings = () => {
     return colors[statusLower] || "bg-gray-500";
   };
 
-  const formatBookingStartDate = (startTime: string) => {
-    if (!startTime) return "—";
-    const d = new Date(startTime);
-    return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
-  };
+  const formatBookingStartDate = (startTime: string | null | undefined) =>
+    formatBookingDateTime(startTime, { dateStyle: "short", timeStyle: "short" });
 
   const formatDuration = (totalMinutes: number) => {
     if (totalMinutes <= 0) return "—";
@@ -1365,23 +1373,6 @@ const MyBookings = () => {
                     fetchBookings(undefined, 1);
                   }}
                   onClear={clearBookingFilters}
-                  moreFiltersActiveCount={ordering !== "-created_at" ? 1 : 0}
-                  moreFilters={
-                    <div className="space-y-1.5">
-                      <Label>Sort</Label>
-                      <Select value={ordering} onValueChange={setOrdering}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="-created_at">Newest first</SelectItem>
-                          <SelectItem value="created_at">Oldest first</SelectItem>
-                          <SelectItem value="-start_time">Start time (newest)</SelectItem>
-                          <SelectItem value="start_time">Start time (oldest)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  }
                 />
               </CardHeader>
               {!loading && bookings.length === 0 ? (
@@ -1422,13 +1413,25 @@ const MyBookings = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="font-semibold">Booking ID</TableHead>
-                      <TableHead className="font-semibold">Equipment</TableHead>
-                      <TableHead className="font-semibold">Start</TableHead>
-                      <TableHead className="font-semibold">Duration</TableHead>
-                      <TableHead className="font-semibold">Cost</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold">Rating</TableHead>
+                      {[
+                        { key: "booking_ref", label: "Booking ID" },
+                        { key: "equipment_name", label: "Equipment" },
+                        { key: "start_time", label: "Start" },
+                        { key: "duration", label: "Duration" },
+                        { key: "total_charge", label: "Cost" },
+                        { key: "status", label: "Status" },
+                      ].map((col) => (
+                        <SortableTableHead
+                          key={col.key}
+                          sortKey={col.key}
+                          ordering={ordering}
+                          onSort={handleSort}
+                          className="font-semibold"
+                          disabled={loading}
+                        >
+                          {col.label}
+                        </SortableTableHead>
+                      ))}
                       <TableHead className="font-semibold text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1437,7 +1440,7 @@ const MyBookings = () => {
                       <>
                         {[1, 2, 3, 4, 5, 6, 7].map((i) => (
                           <TableRow key={i}>
-                            <TableCell colSpan={8} className="h-12">
+                            <TableCell colSpan={7} className="h-12">
                               <div className="animate-pulse flex gap-2">
                                 <div className="h-4 bg-muted rounded w-24" />
                                 <div className="h-4 bg-muted rounded w-32" />
@@ -1497,20 +1500,6 @@ const MyBookings = () => {
                           <Badge className={getStatusColor(booking.status)}>
                             {booking.status_display}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {booking.rating != null ? (
-                            <span className="inline-flex items-center gap-0.5" title={`${booking.rating}/5`}>
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <Star
-                                  key={s}
-                                  className={`h-4 w-4 ${s <= (booking.rating ?? 0) ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`}
-                                />
-                              ))}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap justify-end gap-1">

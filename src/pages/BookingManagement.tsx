@@ -37,9 +37,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, ChevronLeft, ChevronRight, Star, Loader2 } from "lucide-react";
+import { ExternalLink, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -136,6 +138,7 @@ const BookingManagement = () => {
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
   const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
+  const [ordering, setOrdering] = useState<string>("");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
@@ -243,7 +246,7 @@ const BookingManagement = () => {
 
   const fetchBookings = async (
     pageOverride?: number,
-    opts?: { silent?: boolean; filters?: { status?: string; search?: string } }
+    opts?: { silent?: boolean; filters?: { status?: string; search?: string }; ordering?: string }
   ) => {
     const seq = ++fetchSeqRef.current;
     try {
@@ -251,11 +254,13 @@ const BookingManagement = () => {
       const currentPage = pageOverride ?? page;
       const effectiveStatus = opts?.filters?.status ?? statusFilter;
       const effectiveSearch = (opts?.filters?.search ?? searchQuery).trim();
+      const effectiveOrdering = opts?.ordering ?? ordering;
       const params: any = {
         limit: PAGE_SIZE,
         offset: (currentPage - 1) * PAGE_SIZE,
         list_view: true,
       };
+      if (effectiveOrdering) params.ordering = effectiveOrdering;
       if (effectiveStatus !== "all") {
         params.status = effectiveStatus;
       }
@@ -325,9 +330,17 @@ const BookingManagement = () => {
     setSupervisorNameFilter("");
     setUserTypeFilter("all");
     setIstemFbrFilter("all");
+    setOrdering("");
     setPage(1);
     closeDetail();
     setClearNonce((n) => n + 1);
+  };
+
+  const handleSort = (next: string) => {
+    setOrdering(next);
+    setPage(1);
+    closeDetail();
+    void fetchBookings(1, { ordering: next });
   };
 
   const statusOptions = [
@@ -421,21 +434,6 @@ const BookingManagement = () => {
     }, 150);
   };
 
-  const formatBookingStartDate = (startTime: string) => {
-    if (!startTime) return "—";
-    const d = new Date(startTime);
-    if (Number.isNaN(d.getTime())) return "—";
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yy = String(d.getFullYear()).slice(-2);
-    const time = d.toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    return `${dd}/${mm}/${yy} ${time}`;
-  };
-
   const formatDuration = (totalMinutes: number) => {
     if (totalMinutes < 60) return `${totalMinutes} min`;
     const h = Math.floor(totalMinutes / 60);
@@ -515,15 +513,27 @@ const BookingManagement = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
                       <TableHead className="w-14 font-semibold">S.No.</TableHead>
-                      <TableHead className="font-semibold">Booking ID</TableHead>
-                      <TableHead className="font-semibold">Equipment Name</TableHead>
-                      <TableHead className="font-semibold">User Name</TableHead>
-                      <TableHead className="font-semibold">Supervisor Name</TableHead>
-                      <TableHead className="font-semibold">User Mobile</TableHead>
-                      <TableHead className="font-semibold">User Email</TableHead>
-                      <TableHead className="font-semibold">Booking Start Date</TableHead>
-                      <TableHead className="font-semibold">Duration</TableHead>
-                      <TableHead className="font-semibold">Rating</TableHead>
+                      {[
+                        { key: "booking_ref", label: "Booking ID" },
+                        { key: "equipment_name", label: "Equipment Name" },
+                        { key: "user_name", label: "User Name" },
+                        { key: "supervisor_name", label: "Supervisor Name" },
+                        { key: "user_phone", label: "User Mobile" },
+                        { key: "user_email", label: "User Email" },
+                        { key: "start_time", label: "Booking Start Date" },
+                        { key: "duration", label: "Duration" },
+                      ].map((col) => (
+                        <SortableTableHead
+                          key={col.key}
+                          sortKey={col.key}
+                          ordering={ordering}
+                          onSort={handleSort}
+                          className="font-semibold"
+                          disabled={loadingBookings}
+                        >
+                          {col.label}
+                        </SortableTableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -558,24 +568,10 @@ const BookingManagement = () => {
                           {booking.user_email || "—"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {formatBookingStartDate(booking.start_time)}
+                          {formatBookingDateTimeShort(booking.start_time)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {formatDuration(booking.total_time_minutes)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {booking.rating != null ? (
-                            <span className="inline-flex items-center gap-0.5" title={`${booking.rating}/5`}>
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <Star
-                                  key={s}
-                                  className={`h-4 w-4 ${s <= (booking.rating ?? 0) ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`}
-                                />
-                              ))}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
                         </TableCell>
                       </TableRow>
                       ))}

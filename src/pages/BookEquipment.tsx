@@ -444,6 +444,67 @@ function bookedSlotUserDetailLines(slot: DailySlot): string[] {
   return lines;
 }
 
+const SLOT_STATUS_HOVER_LABELS: Record<string, string> = {
+  NOT_AVAILABLE: "Not Available",
+  BOOKED: "Booked",
+  BLOCKED: "Blocked (other reasons)",
+  UNDER_MAINTENANCE: "Under Maintenance",
+  OPERATOR_ABSENT: "Operator Absent",
+  BOOKING_NOT_UTILIZED: "Booking Not Utilized",
+  HOLD: "On hold",
+  COMPLETED: "Completed",
+};
+
+/**
+ * Staff hover lines for any slot whose status is not plain Available: status, time range,
+ * reason (blocked label / holiday / weekend / mode) and, for booked slots, who booked it.
+ * Returns [] for Available slots.
+ */
+function slotStatusHoverLines(
+  slot: DailySlot | null | undefined,
+  opts: { holidayName?: string; isWeekend?: boolean } = {},
+): string[] {
+  if (!slot) return [];
+  const status = String(slot.status || "").toUpperCase();
+  const statusDisplay = String(slot.status_display || "").trim();
+  const reservedDisplay = status === "AVAILABLE" && statusDisplay !== "" && !statusDisplay.startsWith("Available");
+  const hasBooking = slot.booking_id != null && String(slot.booking_id).trim() !== "";
+  if (status === "AVAILABLE" && !reservedDisplay && !slot.mode_overlay && !hasBooking) return [];
+
+  const lines: string[] = [];
+  const label =
+    (hasBooking && String(slot.booking_status_display || "").trim()) ||
+    statusDisplay ||
+    SLOT_STATUS_HOVER_LABELS[status] ||
+    status.replace(/_/g, " ");
+  lines.push(`Status: ${label}`);
+  if (slot.start_datetime && slot.end_datetime) {
+    lines.push(`Time: ${describeGroupSlotWindow(slot.start_datetime, slot.end_datetime)}`);
+  }
+  const blockedLabel = String(slot.blocked_label || "").trim();
+  if (blockedLabel) lines.push(`Reason: ${blockedLabel}`);
+  if (opts.holidayName) {
+    lines.push(`Holiday: ${opts.holidayName}`);
+  } else if (!blockedLabel && status === "NOT_AVAILABLE" && opts.isWeekend) {
+    lines.push("Reason: Weekend");
+  }
+  if (slot.mode_overlay) lines.push(`Mode: ${slot.mode_overlay}`);
+  if (hasBooking || status === "BOOKED") lines.push(...bookedSlotUserDetailLines(slot));
+  return lines;
+}
+
+function SlotHoverLines({ lines }: { lines: string[] }) {
+  return (
+    <div className="space-y-0.5 text-xs">
+      {lines.map((line, i) => (
+        <div key={i} className={i === 0 ? "font-semibold" : undefined}>
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Normalize grid row keys so "9:00" / "09:00:00" / ISO fragments all match `getSlotData` lookups. */
 function normalizeSlotGridTimeKey(raw: string): string {
   const s = String(raw || "").trim();
@@ -2064,6 +2125,19 @@ const BookEquipment = () => {
     }
   }, [statusChangePopupWeekStart, selectedEquipment?.id, fetchStatusChangeSlotsForWeek]);
 
+  // Change slot status opens on the current week; afterwards only a double-click / double-tap changes the week.
+  const statusDefaultWeekAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (adminManageMode !== "status" || !selectedEquipment?.id) {
+      statusDefaultWeekAppliedRef.current = null;
+      return;
+    }
+    const key = String(selectedEquipment.id);
+    if (statusDefaultWeekAppliedRef.current === key) return;
+    statusDefaultWeekAppliedRef.current = key;
+    setStatusChangePopupWeekStart((prev) => prev ?? startOfWeek(new Date(), { weekStartsOn: 1 }));
+  }, [adminManageMode, selectedEquipment?.id]);
+
   // Admin status-change: get slot at (day, time) for calendar grid
   const getStatusChangeSlotAt = (day: Date, time: string): DailySlot | undefined => {
     if (!statusChangeSlots || statusChangeSlots.length === 0) return undefined;
@@ -2466,6 +2540,19 @@ const BookEquipment = () => {
   };
   const goToNextWeekInPopup = () => {
     if (statusChangePopupWeekStart) setStatusChangePopupWeekStart(addWeeks(statusChangePopupWeekStart, 1));
+  };
+  /** Week arrows act on a double-click / double-tap only, so a stray tap does not switch the week. */
+  const statusWeekNavTapRef = useRef<{ dir: -1 | 1; at: number } | null>(null);
+  const handleStatusWeekNavTap = (dir: -1 | 1) => {
+    const now = Date.now();
+    const last = statusWeekNavTapRef.current;
+    if (last && last.dir === dir && now - last.at <= 450) {
+      statusWeekNavTapRef.current = null;
+      if (dir < 0) goToPrevWeekInPopup();
+      else goToNextWeekInPopup();
+      return;
+    }
+    statusWeekNavTapRef.current = { dir, at: now };
   };
 
   // Change slot status card: open bulk email dialog for selected slots (or slots on selected dates)
@@ -6719,7 +6806,7 @@ const BookEquipment = () => {
                     variant="outline"
                     size="sm"
                     className={STATUS_ACTION_BUTTON_CLASS}
-                    onClick={() => { setSelectedDatesForStatus([]); setStatusChangePopupWeekStart(null); setStatusChangeSelectedMonths([]); }}
+                    onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); }}
                     disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                   >
                     Clear selection
@@ -6850,16 +6937,32 @@ const BookEquipment = () => {
             <div className="sticky top-0 z-20 bg-gradient-to-r from-primary via-primary to-accent px-3 py-2 text-white">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToPrevWeekInPopup} aria-label="Previous week">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-8 w-8 touch-manipulation bg-white/20 hover:bg-white/30 border-0 text-white"
+                    onClick={() => handleStatusWeekNavTap(-1)}
+                    aria-label="Previous week (double-click)"
+                    title="Double-click to go to the previous week"
+                  >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <div className="text-center min-w-[200px]">
-                    <h3 className="text-sm md:text-base font-semibold leading-tight">
+                  <div className="text-center min-w-[220px]">
+                    <h3 className="text-base md:text-lg font-bold leading-tight tracking-tight drop-shadow-sm">
                       Week of {format(statusChangePopupWeekStart, "MMM d")} – {format(addDays(statusChangePopupWeekStart, 6), "MMM d, yyyy")}
                     </h3>
-                    <p className="text-white/80 text-[11px] mt-0.5">Click slots · time labels select rows · day headers select columns</p>
+                    <p className="text-white/90 text-[11px] mt-0.5">
+                      Double-click the arrows (or a date above) to change week · click slots · time labels select rows · day headers select columns
+                    </p>
                   </div>
-                  <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/20 hover:bg-white/30 border-0 text-white" onClick={goToNextWeekInPopup} aria-label="Next week">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-8 w-8 touch-manipulation bg-white/20 hover:bg-white/30 border-0 text-white"
+                    onClick={() => handleStatusWeekNavTap(1)}
+                    aria-label="Next week (double-click)"
+                    title="Double-click to go to the next week"
+                  >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -6875,7 +6978,7 @@ const BookEquipment = () => {
             </div>
 
             {/* Sticky selection toolbar */}
-            <div className="sticky top-[52px] z-20 border-b border-border/60 bg-card/95 backdrop-blur-sm px-3 py-2 shadow-sm">
+            <div className="sticky top-[60px] z-20 border-b border-border/60 bg-card/95 backdrop-blur-sm px-3 py-2 shadow-sm">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary" className="h-7 px-2.5 text-xs font-semibold tabular-nums">
                   {selectedSlotIdsForStatus.length} selected
@@ -7059,8 +7162,8 @@ const BookEquipment = () => {
                   className="min-w-[640px] rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm select-none"
                   onPointerMove={extendStatusSlotDrag}
                 >
-                  <div className="grid gap-0 bg-muted/40 sticky top-0 z-20 border-b border-border/60" style={{ gridTemplateColumns: "104px repeat(7, minmax(0, 1fr))" }}>
-                    <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground px-1.5 py-1.5 border-r border-border/50 bg-background/95 backdrop-blur-sm sticky left-0 z-30 flex items-center">Time</div>
+                  <div className="grid gap-0 bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 border-b-2 border-primary/30" style={{ gridTemplateColumns: "104px repeat(7, minmax(0, 1fr))" }}>
+                    <div className="font-bold text-xs uppercase tracking-wide text-foreground px-1.5 py-2 border-r border-border/60 bg-slate-100 dark:bg-slate-800 sticky left-0 z-30 flex items-center">Time</div>
                     {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                       const day = addDays(statusChangePopupWeekStart, dayOffset);
                       const dateStr = format(day, "yyyy-MM-dd");
@@ -7080,14 +7183,20 @@ const BookEquipment = () => {
                             selectDayColumnForWeek(dayOffset);
                           }}
                           className={cn(
-                            "px-1 py-1.5 text-center border-r border-border/50 last:border-r-0 bg-background/95 backdrop-blur-sm hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer",
-                            isSatHeader && "bg-indigo-50/80 dark:bg-indigo-950/25",
-                            isSunHeader && "bg-rose-50/80 dark:bg-rose-950/25",
+                            "px-1 py-2 text-center border-r border-border/60 last:border-r-0 bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors cursor-pointer",
+                            isSatHeader && "bg-indigo-100 dark:bg-indigo-950/50",
+                            isSunHeader && "bg-rose-100 dark:bg-rose-950/50",
                             isDayFocused && "ring-2 ring-inset ring-primary",
                           )}
                         >
-                          <div className="text-[11px] font-bold text-foreground leading-none">{format(day, "EEE")}</div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5 leading-none">{format(day, "MMM d")}</div>
+                          <div className="text-sm font-extrabold text-foreground leading-none">
+                            <span className="xl:hidden">{format(day, "EEE")}</span>
+                            <span className="hidden xl:inline">{format(day, "EEEE")}</span>
+                          </div>
+                          <div className="text-xs font-bold text-foreground/90 mt-1 leading-none tabular-nums">
+                            <span className="xl:hidden">{format(day, "d MMM")}</span>
+                            <span className="hidden xl:inline">{format(day, "d MMM yyyy")}</span>
+                          </div>
                         </button>
                       );
                     })}
@@ -7209,7 +7318,10 @@ const BookEquipment = () => {
                             >
                               {slot ? (
                                 (() => {
-                                  const userDetailLines = bookedSlotUserDetailLines(slot);
+                                  const userDetailLines = slotStatusHoverLines(slot, {
+                                    holidayName,
+                                    isWeekend: isSaturdayCol || isSundayCol,
+                                  });
                                   const cellInner = (
                                     <div className="w-full h-full min-h-[28px] relative flex items-stretch">
                                       <button
@@ -7301,9 +7413,11 @@ const BookEquipment = () => {
                                       </TooltipTrigger>
                                       <TooltipContent
                                         side="top"
-                                        className="z-[120] max-w-xs whitespace-pre-line text-left px-3 py-2"
+                                        className="z-[120] max-w-xs text-left px-3 py-2"
                                       >
-                                        {userDetailLines.join("\n")}
+                                        <SlotHoverLines
+                                          lines={slotRestricted ? [...userDetailLines, restrictedHint] : userDetailLines}
+                                        />
                                       </TooltipContent>
                                     </Tooltip>
                                   );
@@ -7796,7 +7910,7 @@ const BookEquipment = () => {
                                   variant="outline"
                                   size="default"
                                   className="h-9 px-4 text-sm font-medium"
-                                  onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); setStatusChangePopupWeekStart(null); }}
+                                  onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); }}
                                   disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                                 >
                                   Clear all selection
@@ -10019,6 +10133,28 @@ const BookEquipment = () => {
                                 slotReason,
                               ].filter(Boolean).join(" ")
                             : slotReason;
+                          // OIC/admin: every non-Available slot explains itself on hover, even when still selectable
+                          // (staff can book over Blocked / Not Available slots, so those cells are not disabled).
+                          const staffStatusLines =
+                            isAdminOrOIC() && slotExists && !isSelected
+                              ? slotStatusHoverLines(slotData, {
+                                  holidayName,
+                                  isWeekend: isSaturdayCol || isSundayCol,
+                                })
+                              : [];
+                          const hoverLines = staffStatusLines.length > 0
+                            ? [
+                                ...staffStatusLines,
+                                ...(restrictedToStaff
+                                  ? [restrictedSlotHint(equipmentDetail?.weekly_view_time_from, equipmentDetail?.weekly_view_time_to)]
+                                  : []),
+                                ...(isDisabled && !considerBooked && slotReason && (chargeNotCalculated || notConsecutive || limitReached || wouldExceedLimit)
+                                  ? [slotReason]
+                                  : []),
+                              ]
+                            : unavailableReason
+                              ? [unavailableReason]
+                              : [];
 
                           const cellButton = (
                             <button
@@ -10039,7 +10175,7 @@ const BookEquipment = () => {
                                 toggleSlot(day, time);
                               }}
                               disabled={isDisabled}
-                              aria-label={unavailableReason ? `${displayStatus}. ${unavailableReason}` : undefined}
+                              aria-label={hoverLines.length > 0 ? `${displayStatus}. ${hoverLines.join(". ")}` : undefined}
                               className={`
                                 w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                 ${!slotExists ? 'cursor-not-allowed' : ''}
@@ -10056,7 +10192,7 @@ const BookEquipment = () => {
                             </button>
                           );
 
-                          if (!unavailableReason) {
+                          if (hoverLines.length === 0) {
                             return <div key={dayOffset}>{cellButton}</div>;
                           }
 
@@ -10069,7 +10205,7 @@ const BookEquipment = () => {
                                 side="top"
                                 className="z-[120] max-w-xs text-left px-3 py-2"
                               >
-                                {unavailableReason}
+                                {staffStatusLines.length > 0 ? <SlotHoverLines lines={hoverLines} /> : unavailableReason}
                               </TooltipContent>
                             </Tooltip>
                           );

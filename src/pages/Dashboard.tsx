@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
 import { getUserTypeDisplayName, isExternalBookingUserType } from "@/lib/userTypes";
 import { hasRbacPermission } from "@/lib/rbac";
+import { formatBookingDateTime } from "@/lib/bookingDates";
 import { hasAdminPanelAccess } from "@/lib/adminPanelAccess";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -1218,16 +1219,14 @@ const Dashboard = () => {
     }
   };
 
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
+  const formatDateTime = (dateString: string | null | undefined) =>
+    formatBookingDateTime(dateString, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    });
-  };
+    }, 'en-US');
 
   const fetchEquipmentStatistics = async () => {
     try {
