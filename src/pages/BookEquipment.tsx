@@ -153,6 +153,7 @@ import SampleSetsEditor, { type SampleSetField } from "@/components/SampleSetsEd
 import { DynamicFieldRow } from "@/components/DynamicFieldRow";
 import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
 import { readSampleSets, withSampleSets, withoutSampleSets, type SampleSetValues } from "@/lib/sampleSets";
+import { combinedLimitError } from "@/lib/sampleSetLimits";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { takeBookingAssistantPrefill } from "@/lib/bookingAssistantPrefill";
@@ -1215,6 +1216,14 @@ const BookEquipment = () => {
     }
     return hidden;
   }, [isCalculateChargesFlow, equipmentDetail, chargeEstimateUserType]);
+  /** Field A / B maximums apply to all sample sets combined; the editor shows the error inline. */
+  const sampleSetLimitError = useMemo(
+    () =>
+      equipmentDetail?.profile_type === "PRINT_3D"
+        ? null
+        : combinedLimitError(equipmentDetail?.input_fields, inputFieldValues, sampleSets),
+    [equipmentDetail, inputFieldValues, sampleSets]
+  );
   /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
   const [sampleInfoExpanded, setSampleInfoExpanded] = useState(true);
   const [chargeCalcExpanded, setChargeCalcExpanded] = useState(true);
@@ -4060,7 +4069,7 @@ const BookEquipment = () => {
       : (!hasInputFields || allRequiredFilled);
 
     // Calculate charge when inputs are sufficient
-    if (readyToCalculate) {
+    if (readyToCalculate && !sampleSetLimitError) {
       const currentValuesHash = buildChargeCalculationHash({
         inputFieldValues,
         printAnalysisId,
@@ -4104,7 +4113,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, sampleSets, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
+  }, [inputFieldValues, sampleSets, sampleSetLimitError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).

@@ -43,6 +43,7 @@ import SampleSetsEditor, { PeriodicElementsField } from "@/components/SampleSets
 import { computePeriodicElementUpdates } from "@/lib/periodicElementSelection";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import { readSampleSets, SAMPLE_SETS_KEY, type SampleSetValues } from "@/lib/sampleSets";
+import { combinedLimitError } from "@/lib/sampleSetLimits";
 
 export interface InputFieldDef {
   field_key: string;
@@ -78,6 +79,8 @@ interface BookingUserInputsProps {
   slotDurationMinutes?: number | null;
   /** External booking users are exempt from the field A max formula (same as at booking creation). */
   skipFormulaLimits?: boolean;
+  /** After booking only the equipment's OIC and main administrators may add or remove sample sets. */
+  canChangeSampleSets?: boolean;
 }
 
 function formatVal(v: unknown): string {
@@ -153,6 +156,7 @@ export function BookingUserInputs({
   onAutoOpenEditConsumed,
   slotDurationMinutes,
   skipFormulaLimits = false,
+  canChangeSampleSets = false,
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -243,6 +247,12 @@ export function BookingUserInputs({
     editDialogOpen && valuesChangedFrom(editFormValues) ? numericLimitError(editFormValues) : null;
   const editLimitErrorOnReadOnlyField =
     editLimitError != null && !editableFields.some((f) => f.field_key === editLimitError.key);
+  const sampleSetLimitError = editDialogOpen
+    ? combinedLimitError(sampleSetFields, editFormValues, editSampleSets, {
+        primary: iv as Record<string, unknown>,
+        sets: storedSampleSets,
+      })
+    : null;
   const hasPeriodicTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"
   );
@@ -427,6 +437,10 @@ export function BookingUserInputs({
       if (limitError) {
         toast.error(limitError.message);
         document.getElementById(`edit-field-wrap-${limitError.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (sampleSetLimitError) {
+        toast.error(sampleSetLimitError);
         return;
       }
 
@@ -1127,6 +1141,8 @@ export function BookingUserInputs({
               onChange={setEditSampleSets}
               primaryValues={editFormValues as SampleSetValues}
               disabled={saving}
+              allowAddRemove={canChangeSampleSets}
+              addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
             />
           </div>
           <PeriodicElementsDialog
@@ -1149,7 +1165,7 @@ export function BookingUserInputs({
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} disabled={saving || Boolean(editLimitError)}>
+            <Button onClick={handleSaveEdit} disabled={saving || Boolean(editLimitError) || Boolean(sampleSetLimitError)}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

@@ -93,6 +93,8 @@ export interface BookingDetailCardBooking extends BookingRef {
     editing_required?: boolean;
     options?: (string | { value?: string; label?: string })[];
   }>;
+  /** The viewer is this equipment's OIC (incl. temporary) or a main administrator; null when unknown. */
+  viewer_can_change_sample_sets?: boolean | null;
   selected_parameters: unknown;
   charge_breakdown: Array<{ amount: number; description: string }>;
   status: string;
@@ -3290,6 +3292,10 @@ export function BookingDetailCard({
               onAutoOpenEditConsumed={onAutoOpenEditInputsConsumed}
               slotDurationMinutes={booking.equipment_slot_duration_minutes}
               skipFormulaLimits={isExternalBookingType}
+              canChangeSampleSets={
+                booking.viewer_can_change_sample_sets ??
+                (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager")
+              }
               onUpdate={async (newInputValues) => {
                 if (bookingPk == null) {
                   toast.error("This booking cannot be updated right now.");

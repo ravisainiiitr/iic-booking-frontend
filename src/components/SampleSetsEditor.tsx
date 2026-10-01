@@ -22,8 +22,15 @@ import {
   resolveTableRowCountSourceKey,
   syncTableRowsToCount,
 } from "@/lib/dynamicTableField";
-import { formatStepAttr, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import { formatNumericBound, formatStepAttr, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
 import { computePeriodicElementUpdates, splitElements } from "@/lib/periodicElementSelection";
+import {
+  combinedAllowances,
+  combinedLimitMessage,
+  fitNewSampleSet,
+  formatAllowance,
+  maxForExtraSet,
+} from "@/lib/sampleSetLimits";
 import { MAX_SAMPLE_SETS, type SampleSetValues } from "@/lib/sampleSets";
 
 export type SampleSetField = {
@@ -44,6 +51,10 @@ type Props = {
   /** Values of sample set 1, copied when another set is added. */
   primaryValues: SampleSetValues;
   disabled?: boolean;
+  /** When false, sets cannot be added, duplicated or removed (values inside existing sets stay editable). */
+  allowAddRemove?: boolean;
+  /** Shown when `allowAddRemove` is false. */
+  addRemoveLockedNote?: string;
 };
 
 const fieldTypeOf = (field: SampleSetField) => String(field.field_type || "").toUpperCase().trim();
@@ -95,11 +106,32 @@ export function PeriodicElementsField({
   );
 }
 
-export default function SampleSetsEditor({ fields, sets, onChange, primaryValues, disabled }: Props) {
+export default function SampleSetsEditor({
+  fields,
+  sets,
+  onChange,
+  primaryValues,
+  disabled,
+  allowAddRemove = true,
+  addRemoveLockedNote = "Only the Officer In-Charge or administrator can add or remove sample sets after booking.",
+}: Props) {
   const setsRef = useRef(sets);
   setsRef.current = sets;
   const [periodicTarget, setPeriodicTarget] = useState<{ index: number; field: SampleSetField } | null>(null);
   const [periodicSelection, setPeriodicSelection] = useState<Set<string>>(new Set());
+
+  const allowances = combinedAllowances(fields, primaryValues, sets);
+  const overLimit = allowances.find((a) => a.over);
+  const atSetCap = sets.length >= MAX_SAMPLE_SETS;
+  const newSet = fitNewSampleSet(fields, primaryValues, sets, copyOf(primaryValues));
+  const exhausted = allowances.find((a) => Math.max(0, a.remaining) < a.floor);
+  const addBlockedReason = !allowAddRemove
+    ? addRemoveLockedNote
+    : atSetCap
+      ? `At most ${MAX_SAMPLE_SETS + 1} sample sets are allowed in one booking.`
+      : exhausted
+        ? `${exhausted.label} already uses the maximum allowed (${formatNumericBound(exhausted.max)}) across all sample sets, so another sample set cannot be added.`
+        : null;
 
   const patchSet = (index: number, updates: SampleSetValues, sourceKey?: string) => {
     onChange(
@@ -239,7 +271,10 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
           />
         );
       case "NUMERIC": {
-        const { min, max, step } = resolveNumericFieldBounds(field);
+        const bounds = resolveNumericFieldBounds(field);
+        const { min, step } = bounds;
+        const limit = allowances.find((a) => a.key === key);
+        const max = limit ? Math.max(min, Math.min(bounds.max, maxForExtraSet(limit, primaryValues, sets, index))) : bounds.max;
         return (
           <Input
             id={id}
@@ -380,24 +415,31 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">Sample set {index + 2}</p>
             <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={disabled || sets.length >= MAX_SAMPLE_SETS}
-                onClick={() => onChange([...sets.slice(0, index + 1), copyOf(set), ...sets.slice(index + 1)])}
-                title="Duplicate this sample set"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
+              {(() => {
+                const duplicate = fitNewSampleSet(fields, primaryValues, sets, copyOf(set));
+                return (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled || Boolean(addBlockedReason) || duplicate == null}
+                    onClick={() =>
+                      duplicate && onChange([...sets.slice(0, index + 1), duplicate, ...sets.slice(index + 1)])
+                    }
+                    title={addBlockedReason ?? "Duplicate this sample set"}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                );
+              })()}
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="text-destructive hover:text-destructive"
-                disabled={disabled}
+                disabled={disabled || !allowAddRemove}
                 onClick={() => onChange(sets.filter((_, i) => i !== index))}
-                title="Remove this sample set"
+                title={allowAddRemove ? "Remove this sample set" : addRemoveLockedNote}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -419,16 +461,35 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
           </div>
         </div>
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled || sets.length >= MAX_SAMPLE_SETS}
-        onClick={() => onChange([...sets, copyOf(primaryValues)])}
-      >
-        <Plus className="mr-1.5 h-4 w-4" />
-        Add sample with different parameters
-      </Button>
+      {sets.length > 0 && allowances.length > 0 && (
+        <ul className="space-y-0.5 text-xs text-muted-foreground" aria-live="polite">
+          {allowances.map((a) => (
+            <li key={a.key} className={a.over ? "font-medium text-destructive" : undefined}>
+              {formatAllowance(a)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {sets.length > 0 && overLimit && (
+        <p className="text-sm font-medium text-destructive" role="alert">
+          {combinedLimitMessage(overLimit)} Lower the values in one of the sample sets.
+        </p>
+      )}
+      <div className="space-y-1">
+        <span title={addBlockedReason ?? undefined} className="inline-block">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled || Boolean(addBlockedReason) || newSet == null}
+            onClick={() => newSet && onChange([...sets, newSet])}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add sample with different parameters
+          </Button>
+        </span>
+        {addBlockedReason && !atSetCap && <p className="text-xs text-muted-foreground">{addBlockedReason}</p>}
+      </div>
       <PeriodicElementsDialog
         open={periodicTarget != null}
         onOpenChange={(open) => !open && setPeriodicTarget(null)}
