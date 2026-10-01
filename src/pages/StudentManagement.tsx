@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { UserIdentityCardDialog } from "@/components/UserIdentityCardDialog";
+import { formatProgramme } from "@/lib/programmeLabel";
 import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Users, Loader2, Wallet, Send, ClipboardList, IdCard } from "lucide-react";
 import { format } from "date-fns";
@@ -67,22 +68,19 @@ type WalletStudentRow = {
   responded_at: string | null;
 };
 
-function programLabel(row: WalletStudentRow): string {
-  const parts = [
-    row.student_degree_name,
-    row.student_branch_name,
-    row.student_department_name,
-  ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "—";
+function programLabel(row: WalletStudentRow | EquipmentNomination): string {
+  return formatProgramme(row.student_degree_name, row.student_branch_name) || "—";
 }
 
-function nominationProgramLabel(n: EquipmentNomination): string {
-  const parts = [
-    n.student_degree_name,
-    n.student_branch_name,
-    n.student_department_name,
-  ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "—";
+function ProgramCell({ row }: { row: WalletStudentRow | EquipmentNomination }) {
+  return (
+    <>
+      <p className="text-foreground">{programLabel(row)}</p>
+      {row.student_department_name ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">{row.student_department_name}</p>
+      ) : null}
+    </>
+  );
 }
 
 const StudentManagement = () => {
@@ -414,8 +412,8 @@ const StudentManagement = () => {
                           <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                             {n.student_email || "—"}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {nominationProgramLabel(n)}
+                          <TableCell className="text-sm">
+                            <ProgramCell row={n} />
                           </TableCell>
                           <TableCell>
                             <p className="font-medium text-sm">{n.equipment_name}</p>
@@ -548,8 +546,8 @@ const StudentManagement = () => {
                           <TableCell>
                             <p className="text-muted-foreground text-sm">{row.student_email || "—"}</p>
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {programLabel(row)}
+                          <TableCell className="text-sm">
+                            <ProgramCell row={row} />
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
                             {row.student_phone || "—"}

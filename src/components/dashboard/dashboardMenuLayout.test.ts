@@ -47,7 +47,7 @@ describe("facultyDashboardMenuOrder", () => {
     "support_tickets",
   ];
 
-  it("uses the IITR Faculty order, keeps unlisted items before User guide, and puts User guide last", () => {
+  it("uses the IITR Faculty order with unlisted items and User guide just before Support tickets", () => {
     expect(orderMenuIds(facultyMenu, facultyDashboardMenuOrder(facultyMenu))).toEqual([
       "browse_equipment",
       "view_bookings",
@@ -59,10 +59,10 @@ describe("facultyDashboardMenuOrder", () => {
       "view_results",
       "proforma_invoice",
       "reports_statistics",
-      "support_tickets",
-      "rate_your_experience",
       "my_publications",
       "user_guide",
+      "support_tickets",
+      "rate_your_experience",
     ]);
   });
 

@@ -4,9 +4,9 @@ export const EMPTY_DASHBOARD_MENU_LAYOUT: DashboardMenuLayout = { groups: [], or
 
 /**
  * IITR Faculty menu order below the Dashboard button. "Shared with me" takes My Research's place
- * while My Research is switched off. Other visible items follow, User guide last.
+ * while My Research is switched off. Other visible items go after Reports & Statistics.
  */
-export const FACULTY_DASHBOARD_MENU_ORDER = [
+const FACULTY_DASHBOARD_MENU_HEAD = [
   "browse_equipment",
   "view_bookings",
   "booking_templates",
@@ -18,16 +18,16 @@ export const FACULTY_DASHBOARD_MENU_ORDER = [
   "view_results",
   "proforma_invoice",
   "reports_statistics",
-  "support_tickets",
-  "rate_your_experience",
 ];
+const FACULTY_DASHBOARD_MENU_TAIL = ["user_guide", "support_tickets", "rate_your_experience"];
+export const FACULTY_DASHBOARD_MENU_ORDER = [...FACULTY_DASHBOARD_MENU_HEAD, ...FACULTY_DASHBOARD_MENU_TAIL];
 
-/** Default order for an IITR Faculty user: the faculty order, then any other visible ids, then User guide. */
+/** Default order for an IITR Faculty user: the faculty order, with any other visible ids before User guide. */
 export function facultyDashboardMenuOrder(ids: string[]): string[] {
   return [
-    ...FACULTY_DASHBOARD_MENU_ORDER,
-    ...ids.filter((id) => id !== "user_guide" && !FACULTY_DASHBOARD_MENU_ORDER.includes(id)),
-    "user_guide",
+    ...FACULTY_DASHBOARD_MENU_HEAD,
+    ...ids.filter((id) => !FACULTY_DASHBOARD_MENU_ORDER.includes(id)),
+    ...FACULTY_DASHBOARD_MENU_TAIL,
   ];
 }
 

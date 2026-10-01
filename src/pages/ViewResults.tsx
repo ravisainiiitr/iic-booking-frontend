@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { apiClient, type ResultsInboxItem } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
 import { BookingResultsDialog } from "@/components/BookingResultsDialog";
-import { ArrowLeft, Download, FileCheck2, Loader2, Lock, RefreshCw, RotateCcw, Share2, Star } from "lucide-react";
+import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
+import { Download, FileCheck2, Loader2, Lock, RefreshCw, RotateCcw, Share2, Star } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -54,35 +55,31 @@ export default function ViewResults() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+          <WorkspaceHeaderActions
+            fallback={(actions) => (
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <h1 className="text-2xl font-bold">View Results</h1>
+                <div className="flex items-center gap-2">{actions}</div>
+              </div>
+            )}
+          >
+            {newCount > 0 ? <Badge className="bg-green-600 hover:bg-green-600">{newCount} new</Badge> : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => load(true)}
+              disabled={loading}
+              className="shrink-0 gap-1.5"
+              aria-label="Refresh"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-2">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </div>
+          </WorkspaceHeaderActions>
 
           <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <FileCheck2 className="h-6 w-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    View Results
-                    {newCount > 0 ? <Badge className="bg-green-600 hover:bg-green-600">{newCount} new</Badge> : null}
-                  </CardTitle>
-                  <CardDescription className="mt-0.5">
-                    Bookings with results available. New results are listed first; once downloaded, a booking moves to
-                    the end of the list.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
             <CardContent className="p-0">
               {loading ? (
                 <div className="flex items-center justify-center py-16">

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
+import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -1338,15 +1339,29 @@ const MyBookings = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">My Bookings</h1>
-          {canSyncCalendar && (
-            <Button variant="outline" onClick={() => setCalendarSyncOpen(true)}>
-              <CalendarPlus className="mr-2 h-4 w-4" />
-              Sync to calendar
-            </Button>
+        <WorkspaceHeaderActions
+          fallback={(actions) => (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h1 className="text-3xl font-bold">My Bookings</h1>
+              {actions}
+            </div>
           )}
-        </div>
+        >
+          {canSyncCalendar ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() => setCalendarSyncOpen(true)}
+              aria-label="Sync to calendar"
+              title="Sync to calendar"
+            >
+              <CalendarPlus className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">Sync to calendar</span>
+            </Button>
+          ) : null}
+        </WorkspaceHeaderActions>
         {canSyncCalendar && <CalendarSyncDialog open={calendarSyncOpen} onOpenChange={setCalendarSyncOpen} />}
 
         <>

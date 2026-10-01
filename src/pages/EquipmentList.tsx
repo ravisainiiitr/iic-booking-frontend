@@ -11,6 +11,7 @@ import { type EquipmentData } from "@/data/equipmentData";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
+import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -116,6 +117,7 @@ const cachedDefaultDepartment = (): DepartmentFilterValue | null => {
 const EquipmentList = () => {
   const navigate = useNavigate();
   const embedded = useEmbeddedMode();
+  const workspaceChrome = useWorkspaceChrome();
   const { user } = useAuth();
   // The open family and department live in the URL so Back from an equipment page returns to them.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -413,9 +415,10 @@ const EquipmentList = () => {
           </div>
         )}
 
-        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Equipment catalog
-        </p>
+        <div className="mb-3 flex items-center justify-between gap-3 max-w-5xl">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Equipment catalog</p>
+          {workspaceChrome?.backButton}
+        </div>
 
         {isOic ? (
           <div className="mb-3 flex flex-wrap gap-2">

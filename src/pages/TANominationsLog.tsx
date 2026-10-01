@@ -22,16 +22,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
+import { formatProgramme } from "@/lib/programmeLabel";
 import { ArrowLeft, Loader2, ClipboardList, Check, X, Download } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 function programLabel(n: EquipmentNomination): string {
-  const parts = [
-    n.student_degree_name,
-    n.student_branch_name,
-    n.student_department_name,
-  ].filter(Boolean);
+  const parts = [formatProgramme(n.student_degree_name, n.student_branch_name), n.student_department_name].filter(Boolean);
   return parts.length ? parts.join(" · ") : "—";
 }
 

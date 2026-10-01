@@ -70,6 +70,7 @@ import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
 import { facultyDashboardMenuOrder, normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
+import { WorkspaceChromeProvider } from "@/components/WorkspaceHeaderActions";
 import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
 
 /** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
@@ -1334,6 +1335,7 @@ const Dashboard = () => {
   const workspaceBackRef = useRef<(() => void) | null>(null);
   const workspaceTitleOverride = useWorkspaceTitleOverride();
   const [workspaceCanGoBack, setWorkspaceCanGoBack] = useState(false);
+  const [workspaceActionsSlot, setWorkspaceActionsSlot] = useState<HTMLDivElement | null>(null);
   const workspaceGoBack = useCallback(() => {
     if (workspaceCanGoBack && workspaceBackRef.current) workspaceBackRef.current();
     else closeWorkspace();
@@ -1398,6 +1400,8 @@ const Dashboard = () => {
   }
 
   const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(workspaceCurrentPath || workspacePath || "");
+  // The equipment catalog shows Back in its own header row instead.
+  const workspaceShowsOwnBack = /^\/equipments\/?$/.test(workspaceCurrentPath || workspacePath || "");
   const workspaceBackButton = (
     <Button
       type="button"
@@ -3603,24 +3607,31 @@ const Dashboard = () => {
                           <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
                         ) : null}
                       </div>
-                      {workspaceBackButton}
+                      <div className="flex shrink-0 items-center gap-2">
+                        <div ref={setWorkspaceActionsSlot} className="flex items-center gap-2 empty:hidden" />
+                        {workspaceBackButton}
+                      </div>
                     </CardHeader>
                   </>
                 )}
-                {hideWorkspaceHeader && (
+                {hideWorkspaceHeader && !workspaceShowsOwnBack && (
                   <div className="flex items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5">
                     {workspaceBackButton}
                   </div>
                 )}
                 <CardContent className="p-0 sm:p-0">
-                  <DashboardWorkspace
-                    key={workspaceEpoch}
-                    initialPath={workspacePath}
-                    onClose={closeWorkspace}
-                    onPathChange={setWorkspaceCurrentPath}
-                    backRef={workspaceBackRef}
-                    onCanGoBackChange={setWorkspaceCanGoBack}
-                  />
+                  <WorkspaceChromeProvider
+                    value={{ actionsSlot: hideWorkspaceHeader ? null : workspaceActionsSlot, backButton: workspaceBackButton }}
+                  >
+                    <DashboardWorkspace
+                      key={workspaceEpoch}
+                      initialPath={workspacePath}
+                      onClose={closeWorkspace}
+                      onPathChange={setWorkspaceCurrentPath}
+                      backRef={workspaceBackRef}
+                      onCanGoBackChange={setWorkspaceCanGoBack}
+                    />
+                  </WorkspaceChromeProvider>
                 </CardContent>
               </Card>
             ) : (

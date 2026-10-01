@@ -20,6 +20,7 @@ import {
   type EquipmentDeptOption,
 } from "@/lib/equipmentDepartments";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, FileText, Trash2, Download, Pencil, Save, FolderOpen } from "lucide-react";
+import { Plus, FileText, Trash2, Download, Pencil, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
 function fieldMapFor(entry: ProformaLineItemStored | undefined): Record<string, ProformaLineItemField> {
@@ -227,21 +228,9 @@ export default function ProformaInvoice() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-6xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Proforma invoice</h1>
-          <p className="mt-2 text-sm text-white/85">
-            Add equipment with parameters and charges. Totals update automatically — download PDF when ready.
-          </p>
-        </div>
+        <StandaloneOnly>
+          <h1 className="mb-4 text-2xl font-bold tracking-tight">Proforma invoice</h1>
+        </StandaloneOnly>
 
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
