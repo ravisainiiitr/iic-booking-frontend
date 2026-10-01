@@ -20,6 +20,8 @@ import {
   ThumbsUp,
   X,
 } from "lucide-react";
+import { prepareBookingAssistantHandoff } from "@/lib/bookingAssistantPrefill";
+import { ASSISTANT_CARD_TYPES, AssistantCard, type AssistantActionHandler } from "./AssistantCards";
 import { INTELLIGENCE_CARD_TYPES, IntelligenceCard, renderedChoiceKeys } from "./IntelligenceCards";
 import { isViteCopilotEnabled } from "./softGate";
 
@@ -95,6 +97,8 @@ type CopilotCard = {
   gst_amount?: number | null;
   total_amount?: number | null;
   balance_after_total?: number | null;
+  wallet_label?: string;
+  when_label?: string;
   policy_note?: string;
   cancel_mode?: string;
   refund_amount?: number | string | null;
@@ -123,7 +127,7 @@ type CopilotAction = {
     technique?: string;
     equipment_query?: string;
     topic?: string;
-  };
+  } & Record<string, unknown>;
   choice?: { kind: string; value: string };
   escalate?: { reason: string };
   primary?: boolean;
@@ -211,6 +215,11 @@ type CommandAction = {
 };
 
 const DEFAULT_COMMANDS: CommandAction[] = [
+  { id: "ba_options", label: "FESEM tomorrow?", prompt: "I need FESEM tomorrow — what are my options?" },
+  { id: "ba_upcoming", label: "Upcoming bookings", prompt: "Show my upcoming bookings." },
+  { id: "ba_capability", label: "Which instrument?", prompt: "Which equipment can do x-ray diffraction?" },
+  { id: "ba_charges", label: "Charges", prompt: "What are the charges for XRD?" },
+  { id: "ba_cancel_rules", label: "Cancellation rules", prompt: "How do I cancel a booking?" },
   { id: "find_equipment", label: "Find equipment", prompt: "Help me find suitable equipment for my sample." },
   { id: "search_slots", label: "Find available slots", prompt: "Search available slots for FESEM this week." },
   { id: "estimate_cost", label: "Estimate cost", prompt: "Estimate the cost of booking FESEM for 2 hours." },
@@ -288,6 +297,7 @@ function CopilotCards({
   intelligence = false,
   interactive = false,
   onChoice,
+  onAssistantAction,
 }: {
   cards?: CopilotCard[];
   onNavigate: (href: string) => void;
@@ -297,12 +307,25 @@ function CopilotCards({
   intelligence?: boolean;
   interactive?: boolean;
   onChoice?: (kind: string, value: string, label: string) => void;
+  onAssistantAction?: AssistantActionHandler;
 }) {
   if (!cards?.length) return null;
   return (
     <div className="mt-3 space-y-2">
       {cards.map((card, idx) => {
         const title = card.title || card.type || "Result";
+        if (onAssistantAction && card.type && ASSISTANT_CARD_TYPES.has(card.type)) {
+          return (
+            <AssistantCard
+              key={idx}
+              card={card as unknown as Record<string, unknown>}
+              busy={busy}
+              onAction={onAssistantAction}
+              onNavigate={onNavigate}
+              onHandoff={(href, prefill) => onNavigate(prepareBookingAssistantHandoff(href, prefill))}
+            />
+          );
+        }
         if (intelligence && card.type && INTELLIGENCE_CARD_TYPES.has(card.type)) {
           return (
             <IntelligenceCard
@@ -840,9 +863,9 @@ export default function ResearchCopilot({
   const welcome = useMemo(
     () =>
       isAuthenticated && intelligenceOn
-        ? `Hello! How can I help?\n\nType a question, or pick a quick action below: book equipment, check availability, estimate a cost, change a booking, or get portal help.`
+        ? `Hello! How can I help?\n\nAsk in your own words, for example **"I need FESEM tomorrow — what are my options?"**. I show live free slots you can tap to book, equipment details, charges, contacts and your bookings. Nothing is booked until you press **Confirm booking**.`
         : isAuthenticated
-        ? `I am **${assistantName}** — your laboratory officer, booking assistant, and research guide for IIC IIT Roorkee.\n\nAsk about equipment selection, bookings, wallet, sample status, Remote Analysis, or DSA (admins). I will not invent live data or claim actions I cannot perform.`
+        ? `I am **${assistantName}** — your booking assistant for IIC IIT Roorkee.\n\nTry **"I need FESEM tomorrow — what are my options?"**, "Where is the XRD?", "What are the TEM charges?" or "Show my upcoming bookings". I use live portal data, and nothing is booked until you press **Confirm booking**.`
         : `I am **${assistantName}** (guest mode).\n\nAsk about equipment, free slots, rough charge estimates, HOLD meaning, sample acceptance, manuals, or Remote Analysis troubleshooting. Sign in to book, check wallet, or view your bookings.`,
     [assistantName, isAuthenticated, intelligenceOn],
   );
@@ -1434,6 +1457,9 @@ export default function ResearchCopilot({
                               intelligence={Boolean(msg.metadata?.intelligence)}
                               interactive={msg.id === lastAssistantId}
                               onChoice={(kind, value, label) => void send(label, { kind, value })}
+                              onAssistantAction={
+                                isAuthenticated ? (label, type, payload) => void send(label, undefined, { type, payload }) : undefined
+                              }
                             />
                           )}
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
@@ -1749,7 +1775,8 @@ export default function ResearchCopilot({
 
                 <div className="flex gap-2 border-t p-3">
                   <Input
-                    placeholder="Ask about booking, equipment, wallet, Remote Analysis…"
+                    placeholder={isAuthenticated ? "e.g. I need FESEM tomorrow — what are my options?" : "Ask about booking, equipment, wallet, Remote Analysis…"}
+                    aria-label="Message Booking Assistant"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void send()}
@@ -1777,17 +1804,27 @@ export default function ResearchCopilot({
                 <ul className="mt-2 space-y-1 text-xs">
                   {pendingConfirm.card?.equipment_name ? <li>Equipment: {pendingConfirm.card.equipment_name}</li> : null}
                   {pendingConfirm.card?.booking_id ? <li>Booking: {String(pendingConfirm.card.booking_id)}</li> : null}
-                  {pendingConfirm.card?.date ? <li>Date: {pendingConfirm.card.date}</li> : null}
-                  {pendingConfirm.card?.start_time ? (
+                  {pendingConfirm.card?.when_label ? (
+                    <li>When: {pendingConfirm.card.when_label}</li>
+                  ) : pendingConfirm.card?.date ? (
+                    <li>Date: {pendingConfirm.card.date}</li>
+                  ) : null}
+                  {pendingConfirm.card?.start_time && !pendingConfirm.card.when_label ? (
                     <li>
                       Time: {String(pendingConfirm.card.start_time).slice(11, 16)}
                       {pendingConfirm.card.end_time ? `–${String(pendingConfirm.card.end_time).slice(11, 16)}` : ""}
                     </li>
                   ) : null}
                   {pendingConfirm.card?.sample_count ? <li>Samples: {pendingConfirm.card.sample_count}</li> : null}
-                  {pendingConfirm.card?.estimated_amount != null ? (
+                  {pendingConfirm.card?.total_amount != null ? (
+                    <li>
+                      Estimated total: ₹{String(pendingConfirm.card.total_amount)}
+                      {pendingConfirm.card.gst_amount ? " (incl. GST)" : ""}
+                    </li>
+                  ) : pendingConfirm.card?.estimated_amount != null ? (
                     <li>Estimated charge: ₹{String(pendingConfirm.card.estimated_amount)}</li>
                   ) : null}
+                  {pendingConfirm.card?.wallet_label ? <li>Charged to: {pendingConfirm.card.wallet_label}</li> : null}
                   {pendingConfirm.card?.requested_amount != null ? (
                     <li>Requested credit: ₹{String(pendingConfirm.card.requested_amount)}</li>
                   ) : null}

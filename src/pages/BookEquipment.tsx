@@ -138,6 +138,7 @@ import SampleSetsEditor, { type SampleSetField } from "@/components/SampleSetsEd
 import { readSampleSets, withSampleSets, withoutSampleSets, type SampleSetValues } from "@/lib/sampleSets";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
+import { takeBookingAssistantPrefill } from "@/lib/bookingAssistantPrefill";
 import { hasIncompleteOptionalEditableParams } from "@/lib/bookingInputValues";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
@@ -3108,6 +3109,50 @@ const BookEquipment = () => {
     }
   }, [altFromParam, equipmentDetail?.equipment_id]);
 
+  // Booking Assistant deep links: `date=YYYY-MM-DD` opens that week, and `from=assistant` fills the
+  // inputs the user already gave in chat — once per equipment/date handoff.
+  const assistantDateParam = (searchParams.get("date") || "").trim();
+  const fromAssistant = searchParams.get("from") === "assistant";
+  const appliedAssistantKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const eqId = equipmentDetail?.equipment_id;
+    if (eqId == null || altFromParam) return;
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(assistantDateParam);
+    if (!validDate && !fromAssistant) return;
+    const key = `${eqId}:${assistantDateParam}:${fromAssistant ? 1 : 0}`;
+    if (appliedAssistantKeyRef.current === key) return;
+    appliedAssistantKeyRef.current = key;
+    if (validDate) {
+      try {
+        setCurrentWeekStart(startOfWeek(parseISO(assistantDateParam), { weekStartsOn: 1 }));
+      } catch {
+        // keep current week
+      }
+    }
+    if (!fromAssistant) return;
+    const prefill = takeBookingAssistantPrefill(Number(eqId));
+    if (!prefill) return;
+    const fields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
+    const { carried, dropped } = sanitizeRebookInputValues(prefill.input_values, fields);
+    if (Object.keys(carried).length === 0) return;
+    const inputFields = equipmentDetail?.input_fields;
+    // Deferred: the input_fields reset effect below runs after this one and would wipe the values.
+    window.setTimeout(() => {
+      setInputFieldValues((prev) => {
+        const next: Record<string, unknown> = { ...prev, ...carried };
+        applyTableRowSyncToValues(next, inputFields);
+        return next as Record<string, string | boolean | string[] | number>;
+      });
+      setChargeCalculated(false);
+      setCalculatedCharge(null);
+      lastCalculatedValuesRef.current = "";
+      toast.success("Details from Booking Assistant filled in. Complete the remaining fields and pick your slot.");
+      if (dropped.length > 0) {
+        toast.info(`Some details no longer match this equipment's options and were reset: ${dropped.join(", ")}.`);
+      }
+    }, 0);
+  }, [assistantDateParam, fromAssistant, altFromParam, equipmentDetail?.equipment_id, equipmentDetail?.input_fields]);
+
   // One-click rebooking: copy inputs from any of the user's earlier bookings (any status) or
   // waitlist requests on the same equipment. Unlike repeatOf, inputs stay editable and charges
   // are recalculated normally, so the user can go straight to slot selection.
@@ -3339,7 +3384,7 @@ const BookEquipment = () => {
     const eqId = equipmentDetail?.equipment_id;
     if (eqId == null || autoAppliedTemplateEqRef.current === eqId) return;
     if (!templatePickerAvailable || bookingForAnotherUser) return;
-    if (templateParam || rebookOfParam || altFromParam || repeatOfParam) return;
+    if (templateParam || rebookOfParam || altFromParam || repeatOfParam || fromAssistant) return;
     const first = bookingTemplates.find((t) => Number(t.equipment) === Number(eqId));
     if (!first) return;
     autoAppliedTemplateEqRef.current = eqId;
@@ -3354,6 +3399,7 @@ const BookEquipment = () => {
     rebookOfParam,
     altFromParam,
     repeatOfParam,
+    fromAssistant,
     applyBookingTemplate,
   ]);
 
