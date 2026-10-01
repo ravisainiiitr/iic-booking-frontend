@@ -109,6 +109,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/repeat-sample-requests": { title: "Repeat Sample Requests" },
   "/tickets": { title: "Support Tickets" },
   "/admin-settings": { title: "Admin Settings" },
+  "/admin-settings/wallet-payment-modes": {
+    title: "Wallet Payment Modes",
+    description: "Turn wallet recharge, transfer and credit options on or off for all users.",
+  },
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },
   "/oic-leave-management": { title: "OIC Leave Management" },
@@ -1569,6 +1573,43 @@ const Dashboard = () => {
                   }}
                 >
                   Open list
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "wallet_payment_modes",
+      label: "Wallet payment modes",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+              onClick={() => openWorkspace("/admin-settings/wallet-payment-modes")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                    <Wallet className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Wallet payment modes</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Enable or disable Project Grant, cash, online payment, department transfer and Credit Limit
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin-settings/wallet-payment-modes");
+                  }}
+                >
+                  Manage modes
                 </Button>
               </CardContent>
             </Card>

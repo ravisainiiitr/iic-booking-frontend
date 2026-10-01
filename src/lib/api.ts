@@ -221,6 +221,17 @@ export function flattenApiErrorMessage(value: unknown, path = ""): string {
   }
 }
 
+export interface AdminWalletModeSettings {
+  project_grant_recharge_enabled: boolean;
+  direct_cash_recharge_enabled: boolean;
+  online_gateway_recharge_enabled: boolean;
+  peer_transfer_enabled: boolean;
+  credit_facility_enabled: boolean;
+  credit_facility_available_in_environment: boolean;
+  credit_max_amount: string;
+  credit_max_days: number;
+}
+
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
 export type OverdueFundReceiptRow = {
   id: number;
@@ -3588,7 +3599,23 @@ class ApiClient {
       department_recharge_available?: boolean | null;
       applies_to_current_user: boolean;
       project_grant_recharge_enabled?: boolean;
+      direct_cash_recharge_enabled?: boolean;
+      online_gateway_recharge_enabled?: boolean;
+      peer_transfer_enabled?: boolean;
+      credit_facility_enabled?: boolean;
+      disabled_message?: string;
     }>('/wallet/student-recharge/settings/', { method: 'GET' });
+  }
+
+  async getAdminWalletModeSettings() {
+    return this.request<AdminWalletModeSettings>('/admin/wallet-mode-settings/', { method: 'GET' });
+  }
+
+  async updateAdminWalletModeSettings(data: Partial<Omit<AdminWalletModeSettings, 'credit_facility_available_in_environment'>>) {
+    return this.request<AdminWalletModeSettings>('/admin/wallet-mode-settings/1/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   async getFinancePaymentReceipts(params?: { status?: string; department_id?: number }) {

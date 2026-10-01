@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { AWAITING_APPROVAL_TEXT } from "@/lib/walletModes";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -287,6 +288,17 @@ export default function WalletCreditFacilityRequest() {
                       ? "External users are not entitled to the Wallet Credit Facility."
                       : "Wallet Credit Facility is available only to eligible faculty/staff/internal users. Student accounts are not eligible."}
                   </p>
+                ) : !summary?.feature_enabled ? (
+                  <div
+                    role="status"
+                    className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                  >
+                    <p className="font-semibold">{AWAITING_APPROVAL_TEXT}</p>
+                    <p className="mt-1">
+                      Credit requests will open here as soon as the facility is approved. Existing credits below can
+                      still be repaid.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <div>
@@ -348,9 +360,6 @@ export default function WalletCreditFacilityRequest() {
                       {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Submit Credit Request
                     </Button>
-                    {!summary?.feature_enabled && (
-                      <p className="text-xs text-amber-700">Feature is currently disabled for this environment.</p>
-                    )}
                   </div>
                 )}
               </CardContent>

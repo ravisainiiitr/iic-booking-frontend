@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Loader2, Plus, Search, Send } from "lucide-react";
+import { CheckCircle2, CreditCard, Loader2, Plus, Search, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api";
+import { loadRazorpayScript } from "@/lib/razorpay";
+import { AWAITING_APPROVAL_TEXT, DEFAULT_WALLET_MODE_FLAGS, type WalletModeFlags } from "@/lib/walletModes";
 import {
   EMPTY_PROJECT_FORM,
   PROJECT_GRANT_UNDERTAKING,
@@ -48,7 +50,10 @@ import {
 type Department = { id: number; name: string; code: string | null };
 type SubWalletBalance = { department_id: number; balance: string };
 type OtpStep = "form" | "otp" | "sric" | "done";
-type StudentPath = "cash" | "receipt";
+type StudentPath = "cash" | "receipt" | "online";
+type RechargeMethod = OfflineRechargeMode | "online_gateway";
+
+const ONLINE_MAX_AMOUNT = 100000;
 
 type SubmittedRequest = {
   id: number;
@@ -72,7 +77,22 @@ export type RechargeWalletDialogProps = {
   initialAmount?: string | null;
   /** Admin switch: when false, faculty cannot raise Project Grant recharge requests. */
   projectGrantEnabled?: boolean;
+  /** Admin switches for every funding option; overrides projectGrantEnabled when given. */
+  modeFlags?: WalletModeFlags;
 };
+
+function initialMethod(isFaculty: boolean, flags: WalletModeFlags): RechargeMethod {
+  if (isFaculty && flags.projectGrant) return "project_grant";
+  if (flags.directCash) return "direct_cash_deposit";
+  if (flags.onlineGateway) return "online_gateway";
+  return isFaculty ? "project_grant" : "direct_cash_deposit";
+}
+
+function methodEnabled(method: RechargeMethod, flags: WalletModeFlags): boolean {
+  if (method === "project_grant") return flags.projectGrant;
+  if (method === "online_gateway") return flags.onlineGateway;
+  return flags.directCash;
+}
 
 const PROJECT_INACTIVE_MESSAGE =
   "The selected project is no longer active. Please select another active project.";
@@ -113,37 +133,51 @@ function OptionCard({
   title,
   description,
   disabled,
+  unavailable,
 }: {
   selected: boolean;
   onSelect: () => void;
   title: string;
   description: string;
   disabled?: boolean;
+  /** Switched off by the administrator: shown greyed out with the approval notice. */
+  unavailable?: boolean;
 }) {
+  const active = selected && !unavailable;
   return (
     <button
       type="button"
       role="radio"
-      aria-checked={selected}
+      aria-checked={active}
+      aria-disabled={disabled || undefined}
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40",
+        "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
+        unavailable ? "border-dashed bg-muted/30" : "disabled:opacity-60",
+        active ? "border-primary bg-primary/5 ring-1 ring-primary" : !unavailable && "border-border hover:bg-muted/40",
       )}
     >
       <span
         aria-hidden
         className={cn(
           "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-          selected ? "border-primary" : "border-muted-foreground/60",
+          active ? "border-primary" : "border-muted-foreground/60",
         )}
       >
-        {selected ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
+        {active ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-foreground">{title}</span>
-        <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+        <span className={cn("block text-sm font-medium", unavailable ? "text-muted-foreground" : "text-foreground")}>
+          {title}
+        </span>
+        {unavailable ? (
+          <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            {AWAITING_APPROVAL_TEXT}
+          </span>
+        ) : (
+          <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+        )}
       </span>
     </button>
   );
@@ -168,11 +202,22 @@ export default function RechargeWalletDialog({
   initialDepartmentId = null,
   initialAmount = null,
   projectGrantEnabled = false,
+  modeFlags,
 }: RechargeWalletDialogProps) {
-  const [mode, setMode] = useState<OfflineRechargeMode>(
-    isFaculty && projectGrantEnabled ? "project_grant" : "direct_cash_deposit",
+  const [serverDisabled, setServerDisabled] = useState<Partial<WalletModeFlags>>({});
+  const flags = useMemo<WalletModeFlags>(
+    () => ({
+      ...(modeFlags ?? { ...DEFAULT_WALLET_MODE_FLAGS, projectGrant: projectGrantEnabled }),
+      ...serverDisabled,
+    }),
+    [modeFlags, projectGrantEnabled, serverDisabled],
   );
-  const [studentPath, setStudentPath] = useState<StudentPath>("cash");
+  const [mode, setMode] = useState<RechargeMethod>(() => initialMethod(isFaculty, flags));
+  const [studentPath, setStudentPath] = useState<StudentPath>(() =>
+    flags.directCash ? "cash" : flags.onlineGateway ? "online" : "receipt",
+  );
+  const [paying, setPaying] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loadingDepartments, setLoadingDepartments] = useState(true);
@@ -218,7 +263,10 @@ export default function RechargeWalletDialog({
   const inFlight = useRef(false);
 
   const isReceiptPath = isStudentReceiptOffline && studentPath === "receipt";
-  const isProjectGrant = isFaculty && mode === "project_grant";
+  const isOnline = isStudentReceiptOffline ? studentPath === "online" : mode === "online_gateway";
+  const isProjectGrant = isFaculty && !isOnline && mode === "project_grant";
+  const isCashPath = !isReceiptPath && !isOnline && !isProjectGrant;
+  const offlineMode: OfflineRechargeMode = isProjectGrant ? "project_grant" : "direct_cash_deposit";
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
@@ -229,20 +277,38 @@ export default function RechargeWalletDialog({
   );
   const undertakingText = isProjectGrant ? PROJECT_GRANT_UNDERTAKING : cashUndertakingText(userType, isFaculty);
   const amountError = validateRechargeAmount(amount, isReceiptPath ? 1 : undefined);
-  const busy = sendingOtp || verifying || savingProject || submittingReceipt || sendingSric;
+  const busy = sendingOtp || verifying || savingProject || submittingReceipt || sendingSric || paying;
 
-  const blocker = isReceiptPath
-    ? !departmentId
-      ? "Select the department sub-wallet to credit."
-      : amountError || (!receiptFile ? "Attach the payment receipt." : null)
-    : rechargeFormBlocker({
-        isFaculty,
-        mode: isFaculty ? mode : "direct_cash_deposit",
-        departmentId,
-        amount,
-        projectId: selectedProjectId,
-        undertakingAccepted,
-      });
+  const methodBlocker =
+    isProjectGrant && !flags.projectGrant
+      ? `Project Grant: ${AWAITING_APPROVAL_TEXT}.`
+      : isCashPath && !flags.directCash
+        ? `Direct Cash Deposit / Bank Transfer: ${AWAITING_APPROVAL_TEXT}.`
+        : isOnline && !flags.onlineGateway
+          ? `Online payment: ${AWAITING_APPROVAL_TEXT}.`
+          : null;
+
+  const blocker =
+    methodBlocker ??
+    (isReceiptPath
+      ? !departmentId
+        ? "Select the department sub-wallet to credit."
+        : amountError || (!receiptFile ? "Attach the payment receipt." : null)
+      : isOnline
+        ? !departmentId
+          ? "Select the department sub-wallet to credit."
+          : amountError ||
+            (Number(amount) > ONLINE_MAX_AMOUNT
+              ? `Online recharge is limited to ${formatMoney(ONLINE_MAX_AMOUNT)} per payment.`
+              : null)
+        : rechargeFormBlocker({
+            isFaculty,
+            mode: offlineMode,
+            departmentId,
+            amount,
+            projectId: selectedProjectId,
+            undertakingAccepted,
+          }));
 
   const loadProjects = useCallback(async (): Promise<RechargeProject[]> => {
     setLoadingProjects(true);
@@ -307,38 +373,46 @@ export default function RechargeWalletDialog({
     return () => window.clearTimeout(t);
   }, [resendIn]);
 
-  const selectMode = (next: OfflineRechargeMode) => {
+  const selectMode = (next: RechargeMethod) => {
     if (next === mode) return;
     setMode(next);
     setUndertakingAccepted(false);
     setFormError(null);
     setShowBlockers(false);
-    if (next === "direct_cash_deposit") {
+    if (next !== "project_grant") {
       setAddingProject(false);
       setChangingProject(false);
     }
   };
 
   useEffect(() => {
-    if (!projectGrantEnabled && mode === "project_grant" && otpStep === "form") {
-      setMode("direct_cash_deposit");
-      setUndertakingAccepted(false);
-      setAddingProject(false);
-      setChangingProject(false);
+    if (otpStep !== "form") return;
+    if (!isStudentReceiptOffline && !methodEnabled(mode, flags)) {
+      const next = initialMethod(isFaculty, flags);
+      if (next !== mode && methodEnabled(next, flags)) {
+        setMode(next);
+        setUndertakingAccepted(false);
+        setAddingProject(false);
+        setChangingProject(false);
+      }
     }
-  }, [projectGrantEnabled, mode, otpStep]);
+    if (isStudentReceiptOffline) {
+      if (studentPath === "cash" && !flags.directCash) setStudentPath(flags.onlineGateway ? "online" : "receipt");
+      if (studentPath === "online" && !flags.onlineGateway) setStudentPath(flags.directCash ? "cash" : "receipt");
+    }
+  }, [flags, mode, otpStep, isFaculty, isStudentReceiptOffline, studentPath]);
 
-  const handleProjectGrantDisabled = (message?: string | null) => {
+  const handleModeDisabled = (code: string | undefined, message?: string | null) => {
+    if (code === "project_grant_recharge_disabled") setServerDisabled((p) => ({ ...p, projectGrant: false }));
+    if (code === "direct_cash_recharge_disabled") setServerDisabled((p) => ({ ...p, directCash: false }));
+    if (code === "online_gateway_recharge_disabled") setServerDisabled((p) => ({ ...p, onlineGateway: false }));
     setOtpStep("form");
     setRequestId(null);
     setOtp("");
-    setMode("direct_cash_deposit");
     setUndertakingAccepted(false);
     setAddingProject(false);
     setChangingProject(false);
-    setFormError(
-      message || "Wallet recharge via Project Grant is currently not available. Please use Direct Cash Deposit / Bank Transfer.",
-    );
+    setFormError(message || `This recharge method is not available: ${AWAITING_APPROVAL_TEXT}.`);
   };
 
   const selectProject = (id: number) => {
@@ -437,17 +511,16 @@ export default function RechargeWalletDialog({
     setFormError(null);
     setOtpError(null);
     try {
-      const effectiveMode: OfflineRechargeMode = isFaculty ? mode : "direct_cash_deposit";
       const res = await apiClient.sendUserOtpForRecharge(
         parseFloat(amount),
         departmentId as number,
-        effectiveMode === "project_grant" ? selectedProjectId : null,
+        offlineMode === "project_grant" ? selectedProjectId : null,
         false,
-        { rechargeMode: effectiveMode, undertakingAccepted },
+        { rechargeMode: offlineMode, undertakingAccepted },
       );
       if (res.error || !res.data) {
-        if (res.errorCode === "project_grant_recharge_disabled") {
-          handleProjectGrantDisabled(res.error);
+        if (res.errorCode === "project_grant_recharge_disabled" || res.errorCode === "direct_cash_recharge_disabled") {
+          handleModeDisabled(res.errorCode, res.error);
         } else if (res.errorCode === "project_inactive" || res.fieldErrors?.project_id) {
           await handleProjectRejected(PROJECT_INACTIVE_MESSAGE);
         } else if (res.errorCode === "undertaking_required") {
@@ -486,8 +559,8 @@ export default function RechargeWalletDialog({
     try {
       const res = await apiClient.createWalletRechargeRequest(requestId, otp);
       if (res.error || !res.data) {
-        if (res.errorCode === "project_grant_recharge_disabled") {
-          handleProjectGrantDisabled(res.error);
+        if (res.errorCode === "project_grant_recharge_disabled" || res.errorCode === "direct_cash_recharge_disabled") {
+          handleModeDisabled(res.errorCode, res.error);
         } else if (res.errorCode === "project_inactive") {
           await handleProjectRejected(PROJECT_INACTIVE_MESSAGE);
         } else if (res.errorCode === "undertaking_required") {
@@ -554,6 +627,69 @@ export default function RechargeWalletDialog({
     }
   };
 
+  const payOnline = async () => {
+    if (inFlight.current) return;
+    if (blocker || !departmentId) {
+      setShowBlockers(true);
+      setAmountTouched(true);
+      return;
+    }
+    inFlight.current = true;
+    setPaying(true);
+    setFormError(null);
+    const finish = () => {
+      inFlight.current = false;
+      setPaying(false);
+      setCheckoutOpen(false);
+    };
+    try {
+      const ok = await loadRazorpayScript();
+      if (!ok || !window.Razorpay) {
+        setFormError("Could not load the payment page. Check your connection and try again.");
+        finish();
+        return;
+      }
+      const res = await apiClient.createRazorpayOrder(parseFloat(amount), departmentId);
+      if (res.error || !res.data) {
+        if (res.errorCode === "online_gateway_recharge_disabled") handleModeDisabled(res.errorCode, res.error);
+        else setFormError(res.error || "Could not start the payment. Please try again.");
+        finish();
+        return;
+      }
+      const order = res.data;
+      const rzp = new window.Razorpay({
+        key: order.key || order.key_id,
+        amount: order.amount,
+        currency: order.currency || "INR",
+        name: "IIC Equipment Booking",
+        description: `Wallet recharge — ${selectedDepartment?.name ?? "department sub-wallet"}`,
+        order_id: order.order_id,
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          const verify = await apiClient.verifyRazorpayCheckout(response);
+          if (verify.error) {
+            finish();
+            setFormError(verify.error);
+            return;
+          }
+          toast.success(`Payment successful. ${formatMoney(amount)} added to your wallet.`);
+          await onSubmitted();
+          onClose();
+        },
+        modal: { ondismiss: finish },
+        theme: { color: "#1e4d8c" },
+      });
+      setCheckoutOpen(true);
+      rzp.open();
+    } catch {
+      setFormError("Could not start the payment. Please try again.");
+      finish();
+    }
+  };
+
   const sendToSric = async () => {
     if (!submitted || sendingSric) return;
     setSendingSric(true);
@@ -588,14 +724,13 @@ export default function RechargeWalletDialog({
   };
 
   const steps = useMemo(() => {
-    const list: string[] = [];
-    if (isFaculty || isStudentReceiptOffline) list.push("Method");
+    const list: string[] = ["Method"];
     if (isProjectGrant) list.push("Project");
     list.push("Amount");
-    if (!isReceiptPath) list.push("Undertaking");
-    list.push(isReceiptPath ? "Receipt" : "Verification");
+    if (!isReceiptPath && !isOnline) list.push("Undertaking");
+    list.push(isReceiptPath ? "Receipt" : isOnline ? "Payment" : "Verification");
     return list;
-  }, [isFaculty, isStudentReceiptOffline, isProjectGrant, isReceiptPath]);
+  }, [isProjectGrant, isReceiptPath, isOnline]);
   const stepIndex = (name: string) => steps.indexOf(name) + 1;
 
   const showProjectPicker = isProjectGrant && !addingProject && projects.length > 0 && (!selectedProject || changingProject);
@@ -603,6 +738,7 @@ export default function RechargeWalletDialog({
   const cashDescription = isFaculty
     ? "Use this option when an eligible project cannot be used to fund this recharge."
     : "Deposit cash or transfer funds to SRIC, then share the transaction number.";
+  const onlineDescription = "Card, UPI or net banking through Razorpay. Credited instantly; a convenience fee applies.";
 
   const renderProjectSection = () => {
     if (loadingProjects && projects.length === 0) {
@@ -846,52 +982,76 @@ export default function RechargeWalletDialog({
 
   const renderForm = () => (
     <div className="space-y-6">
-      {isFaculty ? (
+      {isStudentReceiptOffline ? (
         <Section index={stepIndex("Method")} title="Recharge method">
-          <div role="radiogroup" aria-label="Recharge method" className="grid gap-2 sm:grid-cols-2">
-            <OptionCard
-              selected={mode === "project_grant"}
-              onSelect={() => selectMode("project_grant")}
-              title="Project Grant"
-              description={
-                projectGrantEnabled
-                  ? "Use an active project to fund this recharge."
-                  : "Currently unavailable. Please use Direct Cash Deposit / Bank Transfer."
-              }
-              disabled={busy || !projectGrantEnabled}
-            />
-            <OptionCard
-              selected={mode === "direct_cash_deposit"}
-              onSelect={() => selectMode("direct_cash_deposit")}
-              title="Direct Cash Deposit / Bank Transfer"
-              description={cashDescription}
-              disabled={busy}
-            />
-          </div>
-        </Section>
-      ) : isStudentReceiptOffline ? (
-        <Section index={stepIndex("Method")} title="Recharge method">
-          <div role="radiogroup" aria-label="Recharge method" className="grid gap-2 sm:grid-cols-2">
+          <div role="radiogroup" aria-label="Recharge method" className="grid gap-2">
             <OptionCard
               selected={studentPath === "cash"}
               onSelect={() => {
                 setStudentPath("cash");
                 setUndertakingAccepted(false);
+                setFormError(null);
               }}
               title="Direct Cash Deposit / Bank Transfer"
               description="Request routed to the SRIC Bill Section after OTP verification."
-              disabled={busy}
+              disabled={busy || !flags.directCash}
+              unavailable={!flags.directCash}
+            />
+            <OptionCard
+              selected={studentPath === "online"}
+              onSelect={() => {
+                setStudentPath("online");
+                setFormError(null);
+              }}
+              title="Pay online"
+              description={onlineDescription}
+              disabled={busy || !flags.onlineGateway}
+              unavailable={!flags.onlineGateway}
             />
             <OptionCard
               selected={studentPath === "receipt"}
-              onSelect={() => setStudentPath("receipt")}
+              onSelect={() => {
+                setStudentPath("receipt");
+                setFormError(null);
+              }}
               title="Upload payment receipt"
               description="Already paid? Attach the receipt for verification."
               disabled={busy}
             />
           </div>
         </Section>
-      ) : null}
+      ) : (
+        <Section index={stepIndex("Method")} title="Recharge method">
+          <div role="radiogroup" aria-label="Recharge method" className="grid gap-2">
+            {isFaculty ? (
+              <OptionCard
+                selected={mode === "project_grant"}
+                onSelect={() => selectMode("project_grant")}
+                title="Project Grant"
+                description="Use an active project to fund this recharge."
+                disabled={busy || !flags.projectGrant}
+                unavailable={!flags.projectGrant}
+              />
+            ) : null}
+            <OptionCard
+              selected={mode === "direct_cash_deposit"}
+              onSelect={() => selectMode("direct_cash_deposit")}
+              title="Direct Cash Deposit / Bank Transfer"
+              description={cashDescription}
+              disabled={busy || !flags.directCash}
+              unavailable={!flags.directCash}
+            />
+            <OptionCard
+              selected={mode === "online_gateway"}
+              onSelect={() => selectMode("online_gateway")}
+              title="Pay online"
+              description={onlineDescription}
+              disabled={busy || !flags.onlineGateway}
+              unavailable={!flags.onlineGateway}
+            />
+          </div>
+        </Section>
+      )}
 
       {isProjectGrant ? (
         <Section index={stepIndex("Project")} title="Project">
@@ -951,7 +1111,11 @@ export default function RechargeWalletDialog({
               />
             </div>
             <p id="recharge-amount-hint" className="text-xs text-muted-foreground">
-              {isReceiptPath ? "Enter the amount shown on the receipt." : "Minimum ₹100."}
+              {isReceiptPath
+                ? "Enter the amount shown on the receipt."
+                : isOnline
+                  ? "Minimum ₹100, maximum ₹1,00,000 per payment."
+                  : "Minimum ₹100."}
             </p>
             {amountTouched ? <FieldError id="recharge-amount-error" message={amountError ?? undefined} /> : null}
           </div>
@@ -987,6 +1151,14 @@ export default function RechargeWalletDialog({
               member&apos;s wallet for the selected department.
             </p>
           </div>
+        </Section>
+      ) : isOnline ? (
+        <Section index={stepIndex("Payment")} title="Payment">
+          <p className="text-sm text-muted-foreground">
+            You will be taken to the secure Razorpay payment page. A convenience fee and GST are added to the amount and
+            shown there before you pay. The amount is credited to the selected sub-wallet as soon as the payment is
+            confirmed.
+          </p>
         </Section>
       ) : (
         <>
@@ -1141,7 +1313,7 @@ export default function RechargeWalletDialog({
   return (
     <>
       <Dialog
-        open
+        open={!checkoutOpen}
         onOpenChange={(open) => {
           if (!open) requestClose();
         }}
@@ -1193,6 +1365,15 @@ export default function RechargeWalletDialog({
                     <Button type="button" onClick={() => void submitReceipt()} disabled={busy || Boolean(blocker)}>
                       {submittingReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Submit payment receipt
+                    </Button>
+                  ) : isOnline ? (
+                    <Button type="button" onClick={() => void payOnline()} disabled={busy || Boolean(blocker)}>
+                      {paying ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="mr-2 h-4 w-4" />
+                      )}
+                      Proceed to pay
                     </Button>
                   ) : (
                     <Button type="button" onClick={() => void sendOtp()} disabled={busy || Boolean(blocker)}>

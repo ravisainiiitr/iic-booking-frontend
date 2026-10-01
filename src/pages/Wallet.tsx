@@ -12,6 +12,12 @@ import {
   summarizeRechargeRequests,
 } from "@/lib/walletRecharge";
 import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
+import {
+  AWAITING_APPROVAL_TEXT,
+  DEFAULT_WALLET_MODE_FLAGS,
+  walletModeFlagsFromSettings,
+  type WalletModeFlags,
+} from "@/lib/walletModes";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,6 +219,7 @@ const Wallet = () => {
   const [isIndividualStudent, setIsIndividualStudent] = useState(false);
   const [iitrStudentRechargeEnabled, setIitrStudentRechargeEnabled] = useState(false);
   const [projectGrantRechargeEnabled, setProjectGrantRechargeEnabled] = useState(false);
+  const [walletModeFlags, setWalletModeFlags] = useState<WalletModeFlags>(DEFAULT_WALLET_MODE_FLAGS);
   /** Non-null while the recharge dialog is open; the dialog is remounted (fresh state) on every open. */
   const [rechargeDialog, setRechargeDialog] = useState<RechargeDialogState | null>(null);
   const [sendingSric, setSendingSric] = useState(false);
@@ -292,6 +299,7 @@ const Wallet = () => {
       if (!res.error && res.data) {
         setIitrStudentRechargeEnabled(Boolean(res.data.enabled));
         setProjectGrantRechargeEnabled(Boolean(res.data.project_grant_recharge_enabled));
+        setWalletModeFlags(walletModeFlagsFromSettings(res.data));
       }
     })();
   }, []);
@@ -1789,12 +1797,22 @@ const Wallet = () => {
                   {!isShared && (
                     <div className="flex flex-wrap gap-2 shrink-0">
                       {isFacultyEffective && (
-                        <Button variant="outline" size="sm" onClick={() => navigate("/wallet/transfer")}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate("/wallet/transfer")}
+                          title={walletModeFlags.peerTransfer ? undefined : AWAITING_APPROVAL_TEXT}
+                        >
                           <ArrowUp className="h-4 w-4 mr-1.5 rotate-45" />
                           Transfer
                         </Button>
                       )}
-                      <Button variant="outline" size="sm" onClick={() => navigate("/wallet/credit-facility")}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate("/wallet/credit-facility")}
+                        title={walletModeFlags.creditFacility ? undefined : AWAITING_APPROVAL_TEXT}
+                      >
                         <CreditCard className="h-4 w-4 mr-1.5" />
                         Credit Facility
                       </Button>
@@ -3252,6 +3270,7 @@ const Wallet = () => {
           initialDepartmentId={rechargeDialog.departmentId}
           initialAmount={rechargeDialog.amount}
           projectGrantEnabled={projectGrantRechargeEnabled}
+          modeFlags={walletModeFlags}
         />
       )}
 

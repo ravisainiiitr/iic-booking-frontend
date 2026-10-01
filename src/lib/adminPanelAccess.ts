@@ -81,6 +81,7 @@ const PATH_TO_MODULE_KEY: Array<{ path: string; key: string }> = [
   { path: "/admin/section/userGroups", key: "user_management.user_groups" },
   { path: "/admin/section/userGroupMembers", key: "user_management.user_group_members" },
   { path: "/admin-settings/wallet-sric-settings", key: "user_management.wallet_sric_settings" },
+  { path: "/admin-settings/wallet-payment-modes", key: "user_management.wallet_payment_modes" },
   { path: "/admin-settings/wallet-withdrawal-requests", key: "user_management.wallet_withdrawal_requests" },
   { path: "/admin-settings/wallet-credit-facility-settings", key: "user_management.wallet_credit_facility_settings" },
   { path: "/admin-settings/wallet-student-recharge-settings", key: "user_management.wallet_student_recharge_settings" },

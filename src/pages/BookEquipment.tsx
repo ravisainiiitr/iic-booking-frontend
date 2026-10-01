@@ -10084,7 +10084,7 @@ const BookEquipment = () => {
                                 toggleSlot(day, time);
                               }}
                               disabled={isDisabled}
-                              title={unavailableReason || undefined}
+                              aria-label={unavailableReason ? `${displayStatus}. ${unavailableReason}` : undefined}
                               className={`
                                 w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                 ${!slotExists ? 'cursor-not-allowed' : ''}

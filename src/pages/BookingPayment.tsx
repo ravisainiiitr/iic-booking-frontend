@@ -9,12 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, CreditCard, Landmark } from "lucide-react";
 import { toast } from "sonner";
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
-  }
-}
+import { loadRazorpayScript } from "@/lib/razorpay";
 
 type FeeBreakup = {
   base_amount: string;
@@ -24,27 +19,6 @@ type FeeBreakup = {
   fee_percent: string;
   fee_gst_percent: string;
 };
-
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(true));
-      existing.addEventListener("error", () => resolve(false));
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
 
 export default function BookingPayment() {
   const { bookingId } = useParams<{ bookingId: string }>();

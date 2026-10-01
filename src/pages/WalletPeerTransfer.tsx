@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { AWAITING_APPROVAL_TEXT, useWalletModeFlags } from "@/lib/walletModes";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,9 @@ export default function WalletPeerTransfer() {
     () => departments.find((d) => String(d.id) === departmentId) || null,
     [departments, departmentId]
   );
+  const { flags: modeFlags, loaded: modeFlagsLoaded } = useWalletModeFlags();
+  const [serverDisabled, setServerDisabled] = useState(false);
+  const transferDisabled = serverDisabled || (modeFlagsLoaded && !modeFlags.peerTransfer);
 
   useEffect(() => {
     if (authLoading) return;
@@ -191,6 +195,7 @@ export default function WalletPeerTransfer() {
     });
     setSubmitting(false);
     if (res.error) {
+      if (res.errorCode === "peer_transfer_disabled") setServerDisabled(true);
       toast.error(res.error);
       return;
     }
@@ -217,6 +222,10 @@ export default function WalletPeerTransfer() {
     });
     setSubmitting(false);
     if (res.error) {
+      if (res.errorCode === "peer_transfer_disabled") {
+        setServerDisabled(true);
+        resetForm();
+      }
       toast.error(res.error);
       return;
     }
@@ -255,7 +264,18 @@ export default function WalletPeerTransfer() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {step === "form" ? (
+            {transferDisabled ? (
+              <div
+                role="status"
+                className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+              >
+                <p className="font-semibold">{AWAITING_APPROVAL_TEXT}</p>
+                <p className="mt-1">
+                  Transfers within the same department will open here as soon as they are approved. Your transfer
+                  history is shown below.
+                </p>
+              </div>
+            ) : step === "form" ? (
               <>
                 <div className="space-y-2">
                   <Label>From department (grant)</Label>

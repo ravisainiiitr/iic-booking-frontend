@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -316,7 +315,11 @@ const NoticeBoard = () => {
       </CardHeader>
 
       <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
-        <ScrollArea className="max-h-[min(70vh,38rem)] flex-1">
+        <div
+          className="max-h-[min(70vh,38rem)] min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          tabIndex={0}
+          aria-label="Notices"
+        >
           <div className="p-3 sm:p-4">
             {loading ? (
               <div className="space-y-3">
@@ -406,7 +409,7 @@ const NoticeBoard = () => {
               </ul>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
 
       <Dialog open={selectedNotice != null} onOpenChange={(open) => !open && setSelectedNotice(null)}>
