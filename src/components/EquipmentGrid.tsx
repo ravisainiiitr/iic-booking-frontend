@@ -308,7 +308,7 @@ const EquipmentGrid = () => {
             </Button>
           </div>
         ) : null}
-        <div className="w-full mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+        <div className="w-full mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2.5 sm:gap-4">
           {isDeptAdmin ? (
             <div className="min-w-0 flex-1 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
@@ -339,8 +339,8 @@ const EquipmentGrid = () => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);
               }}
-              className="min-w-0 max-w-md"
-              triggerClassName="h-11 w-full text-base font-semibold"
+              className="min-w-0 max-w-none sm:max-w-md"
+              triggerClassName="h-11 w-full rounded-md text-base font-semibold"
               defaultDepartmentName="Institute Instrumentation Centre"
               disabled={!departmentReady && !isDeptAdmin}
             />
@@ -352,7 +352,7 @@ const EquipmentGrid = () => {
               placeholder="Search by name or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-11 text-sm"
+              className="pl-9 h-11 rounded-md text-base md:text-base"
             />
             {loading && (
               <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
