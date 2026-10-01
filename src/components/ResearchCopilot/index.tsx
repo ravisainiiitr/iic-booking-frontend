@@ -66,6 +66,8 @@ type CopilotCard = {
   expires_at?: string;
   equipment_name?: string;
   booking_id?: number | string;
+  booking_ref?: string | null;
+  instruction_ack_required?: boolean;
   date?: string;
   start_time?: string;
   end_time?: string;
@@ -298,6 +300,8 @@ function CopilotCards({
   interactive = false,
   onChoice,
   onAssistantAction,
+  ackedProposals,
+  onAckProposal,
 }: {
   cards?: CopilotCard[];
   onNavigate: (href: string) => void;
@@ -308,6 +312,8 @@ function CopilotCards({
   interactive?: boolean;
   onChoice?: (kind: string, value: string, label: string) => void;
   onAssistantAction?: AssistantActionHandler;
+  ackedProposals?: Set<string>;
+  onAckProposal?: (proposalId: string, acked: boolean) => void;
 }) {
   if (!cards?.length) return null;
   return (
@@ -323,6 +329,8 @@ function CopilotCards({
               onAction={onAssistantAction}
               onNavigate={onNavigate}
               onHandoff={(href, prefill) => onNavigate(prepareBookingAssistantHandoff(href, prefill))}
+              acked={Boolean(card.proposal_id && ackedProposals?.has(card.proposal_id))}
+              onAck={card.proposal_id && onAckProposal ? (v) => onAckProposal(card.proposal_id as string, v) : undefined}
             />
           );
         }
@@ -692,7 +700,7 @@ function CopilotCards({
                     ? "Booking rescheduled"
                     : "Booking confirmed"}
               </div>
-              <div className="mt-1">Booking ID: {String(card.booking_id || "—")}</div>
+              <div className="mt-1 break-all">Booking ID: {String(card.booking_ref || card.booking_id || "—")}</div>
             </div>
           );
         }
@@ -770,6 +778,14 @@ export default function ResearchCopilot({
   const [escalating, setEscalating] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [usedProposals, setUsedProposals] = useState<Set<string>>(() => new Set());
+  const [ackedProposals, setAckedProposals] = useState<Set<string>>(() => new Set());
+  const ackProposal = (proposalId: string, acked: boolean) =>
+    setAckedProposals((prev) => {
+      const next = new Set(prev);
+      if (acked) next.add(proposalId);
+      else next.delete(proposalId);
+      return next;
+    });
   const [quickOpen, setQuickOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasUserMessages = messages.some((m) => m.role === "user");
@@ -1460,6 +1476,8 @@ export default function ResearchCopilot({
                               onAssistantAction={
                                 isAuthenticated ? (label, type, payload) => void send(label, undefined, { type, payload }) : undefined
                               }
+                              ackedProposals={ackedProposals}
+                              onAckProposal={ackProposal}
                             />
                           )}
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
@@ -1559,6 +1577,11 @@ export default function ResearchCopilot({
                               <div className="flex flex-wrap gap-1.5">
                                 {actions.map((a) => {
                                   const primary = a.primary || a.style === "primary" || Boolean(a.proposal_id);
+                                  const needsAck = Boolean(
+                                    a.proposal_id &&
+                                      !ackedProposals.has(a.proposal_id) &&
+                                      msg.cards?.some((c) => c.proposal_id === a.proposal_id && c.instruction_ack_required),
+                                  );
                                   return (
                                     <Button
                                       key={a.id}
@@ -1569,12 +1592,13 @@ export default function ResearchCopilot({
                                         a.enabled === false ||
                                         (loading && Boolean(a.proposal_id || a.type || a.choice || a.action_type)) ||
                                         Boolean(a.proposal_id && usedProposals.has(a.proposal_id)) ||
+                                        needsAck ||
                                         Boolean(a.choice && !isLatest) ||
                                         Boolean(a.escalate && escalating) ||
                                         (!a.href && !a.prompt && !a.proposal_id && !a.choice && !a.escalate &&
                                           !a.action_type && a.type !== "copilot_prepare_booking")
                                       }
-                                      title={a.hint}
+                                      title={needsAck ? "Tick “I have read the instructions” on the summary first" : a.hint}
                                       className="h-8 rounded-full px-3 text-xs"
                                       onClick={() => handleCopilotAction(a, msg)}
                                     >
