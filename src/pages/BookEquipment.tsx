@@ -236,6 +236,8 @@ interface EquipmentDetail {
   /** Calculation type for the current user (from their charge profile); prefer over profile_type when set. */
   viewer_profile_type?: string | null;
   viewer_profile_type_display?: string | null;
+  /** OIC viewing equipment they are not assigned to: charges only, no slot or booking management. */
+  viewer_catalog_only?: boolean;
   status: string;
   status_display: string;
   location: string;
@@ -1064,6 +1066,7 @@ const BookEquipment = () => {
   const selectedEquipmentIsOperational =
     selectedEquipmentStatus === "ACTIVE" || selectedEquipmentStatus === "OPERATIONAL";
   const [equipmentDetail, setEquipmentDetail] = useState<EquipmentDetail | null>(null);
+  const equipmentCatalogOnly = Boolean(equipmentDetail?.viewer_catalog_only);
   const [userId, setUserId] = useState<string | null>(null);
   const [userType, setUserType] = useState<string | number | null>(null);
   const [userDepartmentType, setUserDepartmentType] = useState<string | null>(null);
@@ -1201,6 +1204,9 @@ const BookEquipment = () => {
   const chargeRequestSeqRef = useRef(0);
   // Admin manage-equipment: 'book' = book for user, 'status' = change slot status, null = show mode selector
   const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(null);
+  useEffect(() => {
+    if (equipmentCatalogOnly) setAdminManageMode(null);
+  }, [equipmentCatalogOnly]);
   const [adminBookForUserId, setAdminBookForUserId] = useState<string | null>(null);
   const [rewardPointsToRedeem, setRewardPointsToRedeem] = useState<string>("");
   const [rewardSummary, setRewardSummary] = useState<{
@@ -5153,11 +5159,11 @@ const BookEquipment = () => {
   };
 
   /** Admin / OIC / Department Administrator may book slots for another user. */
-  const canBookForOtherUsers = (): boolean => isAdminOrOIC();
+  const canBookForOtherUsers = (): boolean => isAdminOrOIC() && !equipmentCatalogOnly;
 
   /** Admin / OIC / Lab Operator may change slot status (not Department Administrator). */
   const canChangeSlotStatus = (): boolean => {
-    if (!userType) return false;
+    if (!userType || equipmentCatalogOnly) return false;
     const t = String(userType).toLowerCase();
     return t === 'admin' || t === 'manager' || t === 'operator';
   };
@@ -6672,6 +6678,33 @@ const BookEquipment = () => {
             </div>
           </div>
         </div>
+        )}
+
+        {equipmentCatalogOnly && !isCalculateChargesFlow && !isProformaFlow && !isTemplateFlow && (
+          <Card className="max-w-2xl mx-auto mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">View only</CardTitle>
+              <CardDescription>
+                You can view and calculate charges for this equipment. Slot status and booking for users are
+                available only for equipment assigned to you.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set("mode", "calculate");
+                    return next;
+                  })
+                }
+              >
+                Calculate charges
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Admin: mode selector (Manage this Equipment) */}
