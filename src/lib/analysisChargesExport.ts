@@ -27,6 +27,13 @@ export type AnalysisChargeExportRow = {
 export type AnalysisChargePivotCell = {
   amount: string;
   gst: string;
+  /**
+   * Multi-parameter equipment: a category with a single charge (e.g. internal users on a
+   * Generic profile) spans every parameter row from its first row downward.
+   */
+  rowSpan?: number;
+  /** Covered by a `rowSpan` cell in an earlier parameter row — renderers skip it. */
+  spanned?: boolean;
 };
 
 export type AnalysisChargePivotDisplayRow = {
@@ -133,7 +140,16 @@ export function pivotAnalysisChargeRows(
             cells[cat] = { amount: "—", gst: "—" };
             continue;
           }
-          const line = (src.chargeLines || []).find(
+          if (!src.chargeLines) {
+            const amount = src.charge || "—";
+            const gst = src.gst || "—";
+            cells[cat] =
+              optIdx === 0
+                ? { amount, gst, ...(span > 1 ? { rowSpan: span } : {}) }
+                : { amount, gst, spanned: true };
+            continue;
+          }
+          const line = src.chargeLines.find(
             (l) => String(l.option || "").trim() === opt
           );
           cells[cat] = {
@@ -203,6 +219,7 @@ export function exportAnalysisChargesExcel(
     ...pivot.rows.map((r) => {
       const amounts = pivot.categories.map((cat) => {
         const cell = r.cells[cat];
+        if (cell?.spanned) return "";
         return cell ? cellExportText(cell) : "—";
       });
       if (pivot.hasParameters) {
@@ -234,13 +251,21 @@ export function exportAnalysisChargesExcel(
     { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
     { s: { r: 3, c: 0 }, e: { r: 3, c: lastCol } },
   ];
+  const firstCategoryCol = pivot.hasParameters ? 3 : 2;
   pivot.rows.forEach((r, i) => {
+    const top = firstDataRow + i;
     if (r.isFirstOfEquipment && r.equipmentRowSpan > 1) {
-      const top = firstDataRow + i;
       const bottom = top + r.equipmentRowSpan - 1;
       merges.push({ s: { r: top, c: 0 }, e: { r: bottom, c: 0 } });
       merges.push({ s: { r: top, c: 1 }, e: { r: bottom, c: 1 } });
     }
+    pivot.categories.forEach((cat, catIdx) => {
+      const span = r.cells[cat]?.rowSpan ?? 1;
+      if (span > 1) {
+        const c = firstCategoryCol + catIdx;
+        merges.push({ s: { r: top, c }, e: { r: top + span - 1, c } });
+      }
+    });
   });
   ws["!merges"] = merges;
 
@@ -272,6 +297,9 @@ export function exportAnalysisChargesExcel(
       const isSerial = c === 0;
       const isEquipment = c === 1;
       const isParameter = pivot.hasParameters && c === 2;
+      const catIdx = c - firstCategoryCol;
+      const isSpanningCategory =
+        catIdx >= 0 && (r.cells[pivot.categories[catIdx]]?.rowSpan ?? 1) > 1;
       setStyle(row, c, {
         font: isEquipment
           ? { bold: true, color: { rgb: "0F4C81" } }
@@ -280,7 +308,7 @@ export function exportAnalysisChargesExcel(
             : {},
         alignment: {
           horizontal: isSerial ? "center" : "left",
-          vertical: isSerial || isEquipment ? "center" : "top",
+          vertical: isSerial || isEquipment || isSpanningCategory ? "center" : "top",
           wrapText: true,
         },
         border,
@@ -334,11 +362,12 @@ export async function exportAnalysisChargesPdf(
   const spanned = (content: string, rowSpan: number): PdfCell =>
     rowSpan > 1 ? { content, rowSpan, styles: { valign: "middle" } } : content;
   const body: PdfCell[][] = pivot.rows.map((r) => {
-    const amounts = pivot.categories.map((cat) => {
+    const amounts: PdfCell[] = [];
+    for (const cat of pivot.categories) {
       const cell = r.cells[cat];
-      if (!cell) return "—";
-      return pdfSafeMoney(cellExportText(cell));
-    });
+      if (cell?.spanned) continue;
+      amounts.push(cell ? spanned(pdfSafeMoney(cellExportText(cell)), cell.rowSpan ?? 1) : "—");
+    }
     if (pivot.hasParameters) {
       const lead: PdfCell[] = r.isFirstOfEquipment
         ? [
