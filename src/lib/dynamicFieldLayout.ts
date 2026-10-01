@@ -7,10 +7,11 @@ export const INLINE_DYNAMIC_FIELD_TYPES = new Set([
   "MULTI_SELECT",
   "TOGGLE",
   "PERIODIC_TABLE",
+  "ICPMS_STANDARD_COVERAGE",
 ]);
 
 /** Controls that can grow taller than one line, so the label lines up with their first line instead of their centre. */
-export const TOP_ALIGNED_DYNAMIC_FIELD_TYPES = new Set(["MULTI_SELECT", "PERIODIC_TABLE"]);
+export const TOP_ALIGNED_DYNAMIC_FIELD_TYPES = new Set(["MULTI_SELECT", "PERIODIC_TABLE", "ICPMS_STANDARD_COVERAGE"]);
 
 const LONG_TEXT_LABEL = /requirement|remark|comment|description|note|detail|instruction|purpose/i;
 

@@ -23,7 +23,7 @@ type DynamicFieldRowProps = {
 
 /**
  * Label/control row for a dynamic booking input field: label in a left column and the control beside it on sm+,
- * stacked below sm. Tables and other wide controls always stay stacked.
+ * stacked below sm. Tables always stay stacked.
  */
 export function DynamicFieldRow({
   fieldType,
@@ -48,6 +48,7 @@ export function DynamicFieldRow({
         compact ? "text-xs" : "text-base",
         "leading-snug",
         inline && type === "PERIODIC_TABLE" && (compact ? "sm:pt-2.5" : "sm:pt-2"),
+        inline && type === "ICPMS_STANDARD_COVERAGE" && (compact ? "sm:pt-3" : "sm:pt-2"),
         labelClassName
       )}
     >

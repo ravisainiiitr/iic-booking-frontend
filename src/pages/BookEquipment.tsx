@@ -9186,42 +9186,43 @@ const BookEquipment = () => {
 
                               case 'ICPMS_STANDARD_COVERAGE': {
                                 const value = Number(inputFieldValues[field.field_key]) ?? 0;
-                                const coverage = icpmsCoverageByFieldKey[field.field_key];
                                 const resolvedPeriodicKey = resolvePeriodicFieldKey(String(field.source_element_field_key || ""));
                                 return (
                                   <div className="space-y-2">
-                                    <Input
-                                      id={field.field_key}
-                                      type="number"
-                                      value={String(value)}
-                                      readOnly
-                                      disabled
-                                      className="bg-muted font-medium"
-                                    />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Input
+                                        id={field.field_key}
+                                        type="number"
+                                        value={String(value)}
+                                        readOnly
+                                        disabled
+                                        className="w-20 bg-muted font-medium tabular-nums"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={loadingAvailableIcpmsStandards || !!repeatSourceBooking}
+                                        onClick={async () => {
+                                          try {
+                                            setAvailableIcpmsStandardsDialogOpen(true);
+                                            setSelectedIcpmsStandardIds([]);
+                                            setLoadingAvailableIcpmsStandards(true);
+                                            const res = await apiClient.getIcpmsStandardsFullList();
+                                            setFullIcpmsStandards(res?.data?.standards ?? []);
+                                          } catch (e) {
+                                            toast.error(e instanceof Error ? e.message : "Failed to load standards.");
+                                          } finally {
+                                            setLoadingAvailableIcpmsStandards(false);
+                                          }
+                                        }}
+                                      >
+                                        {loadingAvailableIcpmsStandards ? "Loading..." : "See available standards"}
+                                      </Button>
+                                    </div>
                                     {field.help_text && (
                                       <p className="text-sm text-muted-foreground whitespace-pre-wrap">{field.help_text}</p>
                                     )}
-                                    <Button
-                                      type="button"
-                                      variant="default"
-                                      size="sm"
-                                      disabled={loadingAvailableIcpmsStandards || !!repeatSourceBooking}
-                                      onClick={async () => {
-                                        try {
-                                          setAvailableIcpmsStandardsDialogOpen(true);
-                                          setSelectedIcpmsStandardIds([]);
-                                          setLoadingAvailableIcpmsStandards(true);
-                                          const res = await apiClient.getIcpmsStandardsFullList();
-                                          setFullIcpmsStandards(res?.data?.standards ?? []);
-                                        } catch (e) {
-                                          toast.error(e instanceof Error ? e.message : "Failed to load standards.");
-                                        } finally {
-                                          setLoadingAvailableIcpmsStandards(false);
-                                        }
-                                      }}
-                                    >
-                                      {loadingAvailableIcpmsStandards ? "Loading..." : "See available standards"}
-                                    </Button>
                                     <Dialog
                                       open={availableIcpmsStandardsDialogOpen}
                                       onOpenChange={(open) => {
@@ -9352,33 +9353,6 @@ const BookEquipment = () => {
                                         </DialogFooter>
                                       </DialogContent>
                                     </Dialog>
-                                    {coverage?.standards && coverage.standards.length > 0 && (
-                                      <div className="text-sm text-muted-foreground mt-2 space-y-2">
-                                        <span className="font-medium text-foreground">Standards covering selected elements</span>
-                                        <div className="rounded-md border overflow-x-auto">
-                                          <table className="w-full text-sm border-collapse">
-                                            <thead>
-                                              <tr className="bg-muted/50 border-b">
-                                                <th className="text-left font-medium p-2 border-r last:border-r-0">S.NO.</th>
-                                                <th className="text-left font-medium p-2 border-r last:border-r-0">Name of Std</th>
-                                                <th className="text-left font-medium p-2">List of Element</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody>
-                                              {coverage.standards.map((s) => (
-                                                <tr key={s.id} className="border-b last:border-0 bg-background/60">
-                                                  <td className="p-2 border-r align-top font-medium text-foreground">{s.s_no}</td>
-                                                  <td className="p-2 border-r align-top text-foreground">{s.name_of_std}</td>
-                                                  <td className="p-2 align-top break-words max-w-[min(100%,28rem)]">
-                                                    {(s.list_of_elements && String(s.list_of_elements).trim()) || "—"}
-                                                  </td>
-                                                </tr>
-                                              ))}
-                                            </tbody>
-                                          </table>
-                                        </div>
-                                      </div>
-                                    )}
                                   </div>
                                 );
                               }
@@ -9512,6 +9486,9 @@ const BookEquipment = () => {
                                 );
                             }
                           };
+
+                          const icpmsCoverage =
+                            fieldType === 'ICPMS_STANDARD_COVERAGE' ? icpmsCoverageByFieldKey[field.field_key] : undefined;
                           
                           return (
                             <div key={field.field_key} className="space-y-1.5">
@@ -9525,6 +9502,33 @@ const BookEquipment = () => {
                                   {renderInputField()}
                                 </div>
                               </DynamicFieldRow>
+                              {icpmsCoverage?.standards && icpmsCoverage.standards.length > 0 && (
+                                <div className="text-sm text-muted-foreground mt-2 space-y-2">
+                                  <span className="font-medium text-foreground">Standards covering selected elements</span>
+                                  <div className="rounded-md border overflow-x-auto">
+                                    <table className="w-full text-sm border-collapse">
+                                      <thead>
+                                        <tr className="bg-muted/50 border-b">
+                                          <th className="text-left font-medium p-2 border-r last:border-r-0">S.NO.</th>
+                                          <th className="text-left font-medium p-2 border-r last:border-r-0">Name of Std</th>
+                                          <th className="text-left font-medium p-2">List of Element</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {icpmsCoverage.standards.map((s) => (
+                                          <tr key={s.id} className="border-b last:border-0 bg-background/60">
+                                            <td className="p-2 border-r align-top font-medium text-foreground">{s.s_no}</td>
+                                            <td className="p-2 border-r align-top text-foreground">{s.name_of_std}</td>
+                                            <td className="p-2 align-top break-words max-w-[min(100%,28rem)]">
+                                              {(s.list_of_elements && String(s.list_of_elements).trim()) || "—"}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
                               {bookingAsExternalTarget &&
                                 !repeatSourceBooking &&
                                 String(field.field_label || "").toLowerCase().includes("any other requirements") && (

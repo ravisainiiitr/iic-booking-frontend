@@ -355,7 +355,14 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
       case "ICPMS_STANDARD_COVERAGE":
         return (
           <div className="space-y-1">
-            <Input id={id} type="number" value={String(Number(raw) || 0)} readOnly disabled className="bg-muted font-medium" />
+            <Input
+              id={id}
+              type="number"
+              value={String(Number(raw) || 0)}
+              readOnly
+              disabled
+              className="w-20 bg-muted font-medium tabular-nums"
+            />
             <p className="text-xs text-muted-foreground">Calculated from the elements selected for this sample set.</p>
           </div>
         );

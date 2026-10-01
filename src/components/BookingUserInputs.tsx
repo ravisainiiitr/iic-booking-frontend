@@ -781,7 +781,10 @@ export function BookingUserInputs({
                     fieldType={type}
                     htmlFor={`edit-${f.field_key}`}
                     align={type === "NUMERIC" ? "start" : undefined}
-                    labelClassName={cn("text-sm font-semibold text-foreground", type === "NUMERIC" && "sm:pt-2.5")}
+                    labelClassName={cn(
+                      "text-sm font-semibold text-foreground",
+                      (type === "NUMERIC" || type === "ICPMS_STANDARD_COVERAGE") && "sm:pt-2.5"
+                    )}
                     label={
                       <>
                         {f.field_label}
@@ -953,7 +956,7 @@ export function BookingUserInputs({
                       <Input
                         id={`edit-${f.field_key}`}
                         type="number"
-                        className="text-base h-10 bg-muted font-medium"
+                        className="text-base h-10 w-20 bg-muted font-medium tabular-nums"
                         value={typeof val === "number" ? val : Number(val) ?? ""}
                         readOnly
                         disabled
