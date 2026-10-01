@@ -122,7 +122,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
+import { periodicTableElements, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText } from "@/data/periodicTableData";
+import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import { cn } from "@/lib/utils";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
@@ -9148,124 +9149,24 @@ const BookEquipment = () => {
                   )}
 
                   {/* Periodic table element selector dialog */}
-                  <Dialog open={!!periodicTableFieldKey} onOpenChange={(open) => !open && setPeriodicTableFieldKey(null)}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Select elements</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        {(() => {
-                          const field = equipmentDetail?.input_fields?.find((f: { field_key?: string }) => f.field_key === periodicTableFieldKey);
-                          const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(field?.help_text);
-                          const toggle = (symbol: string) => {
-                            if (disabledSet.has(symbol) || preselectedSet.has(symbol)) return;
-                            setSelectedPeriodicSymbols((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(symbol)) next.delete(symbol);
-                              else next.add(symbol);
-                              // Always keep locked preselected elements selected.
-                              preselectedSet.forEach((s) => next.add(s));
-                              return next;
-                            });
-                          };
-                          return (
-                            <>
-                              <p className="text-sm text-muted-foreground">
-                                {periodicSelectionChargeSummaryFromHelpText(
-                                  selectedPeriodicSymbols,
-                                  field?.help_text
-                                )}
-                              </p>
-                              <div className="overflow-x-auto">
-                                <div className="inline-block min-w-max">
-                                  <div className="flex flex-col gap-1">
-                                    {(() => {
-                                      const grid: (Element | null)[][] = Array(7).fill(null).map(() => Array(18).fill(null));
-                                      periodicTableElements.forEach((el) => {
-                                        if (el.row <= 7 && el.col <= 18) grid[el.row - 1][el.col - 1] = el;
-                                      });
-                                      const lanthanides = periodicTableElements.filter((el) => el.category === "lanthanide");
-                                      const actinides = periodicTableElements.filter((el) => el.category === "actinide");
-                                      const elButton = (el: Element) => {
-                                        const isDisabled = disabledSet.has(el.symbol);
-                                        const isLocked = preselectedSet.has(el.symbol);
-                                        const isSelected = selectedPeriodicSymbols.has(el.symbol) || isLocked;
-                                        return (
-                                          <button
-                                            key={el.atomicNumber}
-                                            type="button"
-                                            onClick={() => toggle(el.symbol)}
-                                            disabled={isDisabled || isLocked}
-                                            title={
-                                              isDisabled
-                                                ? `${el.name} (disabled)`
-                                                : isLocked
-                                                  ? `${el.name} (locked preselected — not charged)`
-                                                  : el.name
-                                            }
-                                            className={cn(
-                                              "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative",
-                                              getCategoryColor(el.category),
-                                              isSelected && "ring-2 ring-primary ring-offset-1 scale-105",
-                                              isLocked && "ring-2 ring-sky-500 ring-offset-1",
-                                              (isDisabled || isLocked) && "opacity-60 cursor-not-allowed pointer-events-none",
-                                              isDisabled && "bg-muted border-dashed"
-                                            )}
-                                          >
-                                            {isSelected && <Check className="w-3 h-3 absolute top-0 right-0" />}
-                                            <span className="font-bold">{el.symbol}</span>
-                                          </button>
-                                        );
-                                      };
-                                      return (
-                                        <>
-                                          {grid.map((row, ri) => (
-                                            <div key={ri} className="flex gap-1">
-                                              {row.map((el, ci) => (
-                                                <div key={`${ri}-${ci}`}>
-                                                  {el ? (
-                                                    elButton(el)
-                                                  ) : (
-                                                    <div className="w-10 h-10" />
-                                                  )}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ))}
-                                          <div className="flex gap-1 mt-1">
-                                            <div className="w-10 h-10 flex items-center justify-center text-xs font-semibold">Ln</div>
-                                            {lanthanides.map((el) => elButton(el))}
-                                          </div>
-                                          <div className="flex gap-1 mt-1">
-                                            <div className="w-10 h-10 flex items-center justify-center text-xs font-semibold">Ac</div>
-                                            {actinides.map((el) => elButton(el))}
-                                          </div>
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                </div>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setPeriodicTableFieldKey(null)}>Cancel</Button>
-                        <Button
-                          onClick={async () => {
-                            if (!periodicTableFieldKey) return;
-                            await applyPeriodicSelectionFromElementSymbols(
-                              periodicTableFieldKey,
-                              Array.from(selectedPeriodicSymbols)
-                            );
-                          }}
-                        >
-                          Apply
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                  <PeriodicElementsDialog
+                    open={!!periodicTableFieldKey}
+                    onOpenChange={(open) => !open && setPeriodicTableFieldKey(null)}
+                    helpText={
+                      equipmentDetail?.input_fields?.find(
+                        (f: { field_key?: string }) => f.field_key === periodicTableFieldKey
+                      )?.help_text
+                    }
+                    selected={selectedPeriodicSymbols}
+                    onSelectedChange={setSelectedPeriodicSymbols}
+                    onApply={async () => {
+                      if (!periodicTableFieldKey) return;
+                      await applyPeriodicSelectionFromElementSymbols(
+                        periodicTableFieldKey,
+                        Array.from(selectedPeriodicSymbols)
+                      );
+                    }}
+                  />
                   
                   {/* Progress while STL analysis or charge calculation is running */}
                   {(print3dAnalyzing || loadingCharge) && (

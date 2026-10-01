@@ -751,16 +751,67 @@ export function BookingUserInputs({
             <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
               {fields
                 .filter((f) => set[f.field_key] !== undefined && !isCommentsInputFieldKey(f.field_key))
-                .map((f) => (
-                  <div key={f.field_key} className="flex justify-between gap-3 text-sm">
-                    <dt className="text-muted-foreground">{f.field_label}</dt>
-                    <dd className="font-medium text-foreground text-right">
-                      {["RADIO", "COMBO"].includes(String(f.field_type || "").toUpperCase())
-                        ? resolveRadioComboDisplay(set[f.field_key], f.options, f.field_type)
-                        : formatVal(set[f.field_key])}
-                    </dd>
-                  </div>
-                ))}
+                .map((f) => {
+                  const fieldType = String(f.field_type || "").toUpperCase();
+                  const setVal = set[f.field_key];
+                  if (fieldType === "TABLE") {
+                    const rows = (Array.isArray(setVal) && Array.isArray(setVal[0]) ? setVal : []) as string[][];
+                    const columns = Array.isArray(f.options)
+                      ? f.options.map((o, i) => normalizeChoiceOption(o, i).label).filter(Boolean)
+                      : [];
+                    return (
+                      <div key={f.field_key} className="space-y-1 text-sm sm:col-span-2">
+                        <dt className="text-muted-foreground">{f.field_label}</dt>
+                        <dd>
+                          {rows.length === 0 ? (
+                            "—"
+                          ) : (
+                            <table className="w-full border-collapse rounded border text-sm">
+                              {columns.length > 0 && (
+                                <thead>
+                                  <tr className="border-b bg-muted/50">
+                                    {columns.map((header, ci) => (
+                                      <th key={ci} className="border-r px-2 py-1 text-left font-medium last:border-r-0">
+                                        {header}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                              )}
+                              <tbody>
+                                {rows.map((row, ri) => (
+                                  <tr key={ri} className="border-b last:border-0">
+                                    {(columns.length > 0 ? columns : row).map((_, ci) => (
+                                      <td key={ci} className="border-r px-2 py-1 font-medium last:border-r-0">
+                                        {row[ci] || "—"}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  }
+                  const elements = set[`${f.field_key}_elements`];
+                  const elementsSuffix =
+                    fieldType === "PERIODIC_TABLE" && elements != null && String(elements).trim() !== ""
+                      ? ` (${formatVal(elements)})`
+                      : "";
+                  return (
+                    <div key={f.field_key} className="flex justify-between gap-3 text-sm">
+                      <dt className="text-muted-foreground">{f.field_label}</dt>
+                      <dd className="font-medium text-foreground text-right">
+                        {["RADIO", "COMBO"].includes(fieldType)
+                          ? resolveRadioComboDisplay(setVal, f.options, f.field_type)
+                          : formatVal(setVal)}
+                        {elementsSuffix}
+                      </dd>
+                    </div>
+                  );
+                })}
             </dl>
           </li>
         ))}

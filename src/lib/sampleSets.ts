@@ -3,7 +3,7 @@ export const SAMPLE_SETS_KEY = "_sample_sets";
 /** Additional sets on top of sample set 1 (matches the backend limit). */
 export const MAX_SAMPLE_SETS = 20;
 
-export type SampleSetValues = Record<string, string | boolean | string[] | number>;
+export type SampleSetValues = Record<string, string | boolean | string[] | string[][] | number>;
 
 export function readSampleSets(inputValues: Record<string, unknown> | null | undefined): SampleSetValues[] {
   const raw = inputValues?.[SAMPLE_SETS_KEY];
