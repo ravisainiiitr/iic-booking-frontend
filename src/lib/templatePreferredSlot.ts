@@ -45,10 +45,11 @@ export interface PreferredSlotDraft {
   consentedMode: TemplateIfSlotTaken | null;
 }
 
+/** `startTime` is "" until a start is chosen in the weekly calendar. */
 export const emptyPreferredSlotDraft = (): PreferredSlotDraft => ({
   enabled: false,
-  weekday: 2,
-  startTime: "10:00",
+  weekday: 0,
+  startTime: "",
   slotCount: 1,
   slotMaster: null,
   ifSlotTaken: "ask",

@@ -105,7 +105,7 @@ export function templatesSection(): GuideSection {
       },
       {
         title: "Set a preferred slot (optional)",
-        body: "Turn on Preferred slot (optional) and choose the Day, Start time and Number of slots. It is pre-selected on the booking page when free.",
+        body: "Turn on Preferred slot (optional). Slots required is worked out from your sample details; click a start in the Monday–Friday calendar and that many back-to-back slots are selected. It is pre-selected on the booking page when free.",
       },
       {
         title: "Choose what happens if the slot is taken",

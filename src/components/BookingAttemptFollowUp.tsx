@@ -10,6 +10,8 @@ import {
   type TemplateSlotFallback,
 } from "@/lib/api";
 import { describePreferredSlot } from "@/lib/templatePreferredSlot";
+import { preferredSlotDraftProblem, type WeeklySlotRow } from "@/lib/weeklySlotTemplate";
+import { WeeklyPreferredSlotPicker, type WeeklySlotSelection } from "@/components/WeeklyPreferredSlotPicker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,12 @@ export interface BookingAttemptSnapshot {
   preferredSlot: TemplatePreferredSlot | null;
   templateId: number | null;
   templateName: string | null;
+  /** The equipment's weekly slot timings, for choosing the template's preferred slot. */
+  slotRows?: WeeklySlotRow[];
+  slotRowsHideTimes?: boolean;
+  /** Slots the attempt's sample details need; null when unknown. */
+  slotsRequired?: number | null;
+  slotDurationMinutes?: number | null;
 }
 
 const MAX_NAME = 80;
@@ -61,21 +69,57 @@ export function SaveAsTemplateDialog({
 }) {
   const [name, setName] = useState("");
   const [rememberSlot, setRememberSlot] = useState(true);
+  const [selection, setSelection] = useState<WeeklySlotSelection | null>(null);
+  const [slotMaster, setSlotMaster] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const rows = snapshot.slotRows ?? [];
+  const useCalendar = rows.length > 0;
 
   useEffect(() => {
     if (!open) return;
+    const p = snapshot.preferredSlot;
     setName(suggestedName(snapshot));
-    setRememberSlot(snapshot.preferredSlot != null);
+    setRememberSlot(p != null);
+    setSelection(
+      p ? { weekday: p.weekday, startTime: p.start_time, slotCount: snapshot.slotsRequired ?? (p.slot_count || 1) } : null
+    );
+    setSlotMaster(p?.slot_master ?? null);
   }, [open, snapshot]);
 
   const inputs = useMemo(() => filledInputs(snapshot.inputValues), [snapshot.inputValues]);
+
+  const preferredSlotBody = () => {
+    if (!rememberSlot) return {};
+    if (!useCalendar) {
+      return snapshot.preferredSlot ? { preferred_slot: { ...snapshot.preferredSlot }, if_slot_taken: "ask" as const } : {};
+    }
+    if (!selection) return {};
+    return {
+      preferred_slot: {
+        weekday: selection.weekday,
+        start_time: selection.startTime,
+        slot_count: selection.slotCount,
+        slot_master: slotMaster,
+      },
+      if_slot_taken: "ask" as const,
+    };
+  };
 
   const save = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
       toast.error("Give the template a name.");
       return;
+    }
+    if (rememberSlot && useCalendar) {
+      const problem = preferredSlotDraftProblem(
+        { enabled: true, weekday: selection?.weekday ?? 0, startTime: selection?.startTime ?? "", slotCount: selection?.slotCount ?? 1 },
+        rows
+      );
+      if (problem) {
+        toast.error(problem);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -84,9 +128,7 @@ export function SaveAsTemplateDialog({
         name: trimmed,
         input_values: snapshot.inputValues,
         options: snapshot.options,
-        ...(rememberSlot && snapshot.preferredSlot
-          ? { preferred_slot: { ...snapshot.preferredSlot }, if_slot_taken: "ask" as const }
-          : {}),
+        ...preferredSlotBody(),
       });
       if (res.error || !res.data) {
         toast.error(res.error || "Could not save the template.");
@@ -102,7 +144,7 @@ export function SaveAsTemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={useCalendar && rememberSlot ? "max-w-3xl max-h-[90vh] overflow-y-auto" : "max-w-md"}>
         <DialogHeader>
           <DialogTitle>Save as a booking template</DialogTitle>
           <DialogDescription>
@@ -127,7 +169,40 @@ export function SaveAsTemplateDialog({
               }}
             />
           </div>
-          {snapshot.preferredSlot && (
+          {useCalendar && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <label htmlFor="save-attempt-remember-slot" className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  id="save-attempt-remember-slot"
+                  checked={rememberSlot}
+                  onCheckedChange={(c) => setRememberSlot(c === true)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span className="space-y-0.5 text-sm">
+                  <span className="block">Pre-select a weekly preferred slot next time</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Saved as a weekly preference. If it is taken you will be asked; edit the template to allow booking the
+                    next free slot automatically.
+                  </span>
+                </span>
+              </label>
+              {rememberSlot && (
+                <WeeklyPreferredSlotPicker
+                  rows={rows}
+                  hideTimes={snapshot.slotRowsHideTimes}
+                  slotsRequired={snapshot.slotsRequired ?? null}
+                  slotDurationMinutes={snapshot.slotDurationMinutes}
+                  requiredBasis="based on the sample details you just used"
+                  value={selection}
+                  onChange={(next, reason) => {
+                    setSelection(next);
+                    if (reason !== "resize") setSlotMaster(null);
+                  }}
+                />
+              )}
+            </div>
+          )}
+          {!useCalendar && snapshot.preferredSlot && (
             <label htmlFor="save-attempt-remember-slot" className="flex items-start gap-3 cursor-pointer rounded-lg border p-3">
               <Checkbox
                 id="save-attempt-remember-slot"

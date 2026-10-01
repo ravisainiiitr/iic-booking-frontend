@@ -3,28 +3,35 @@ import { CalendarClock } from "lucide-react";
 import type { TemplateIfSlotTaken } from "@/lib/api";
 import {
   IF_SLOT_TAKEN_OPTIONS,
-  MAX_PREFERRED_SLOT_COUNT,
-  WEEKDAY_NAMES,
   autoBookConsentText,
   type PreferredSlotDraft,
 } from "@/lib/templatePreferredSlot";
+import type { WeeklySlotRow } from "@/lib/weeklySlotTemplate";
+import { WeeklyPreferredSlotPicker } from "@/components/WeeklyPreferredSlotPicker";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
 /** Template editor: optional weekly preferred slot and what to do if it is taken when the user clicks Book. */
 export function TemplatePreferredSlotFields({
   draft,
   onChange,
-  startTimeSuggestions = [],
+  slotRows,
+  hideTimes = false,
+  slotsRequired,
+  slotsRequiredPending = false,
+  slotDurationMinutes,
 }: {
   draft: PreferredSlotDraft;
   onChange: (next: PreferredSlotDraft) => void;
-  /** Slot start times of this equipment ("HH:MM"), offered as suggestions. */
-  startTimeSuggestions?: string[];
+  /** This equipment's weekly slot timings (vertical axis of the calendar). */
+  slotRows: WeeklySlotRow[];
+  hideTimes?: boolean;
+  /** Slots the template's sample details need; null while unknown. */
+  slotsRequired: number | null;
+  slotsRequiredPending?: boolean;
+  slotDurationMinutes?: number | null;
 }) {
   const id = useId();
   const set = (patch: Partial<PreferredSlotDraft>) => onChange({ ...draft, ...patch });
@@ -42,61 +49,34 @@ export function TemplatePreferredSlotFields({
         <Switch id={`${id}-enabled`} checked={draft.enabled} onCheckedChange={(v) => set({ enabled: v })} />
       </div>
       <p className="text-xs text-muted-foreground">
-        Saved as a weekly preference. When you load this template, the next matching day and time inside your open
-        booking window is selected for you. Next week&apos;s slots open on Wednesday at 9:00 PM, so load the template
-        after that to pick next week&apos;s slot. You still click Book yourself; nothing is booked in advance.
+        A weekly preference. When you load this template, the next matching day and time in your open booking window is
+        selected for you (next week&apos;s slots open on Wednesday at 9:00 PM). You still click Book; nothing is booked in
+        advance.
       </p>
 
       {draft.enabled && (
         <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-weekday`} className="text-xs">Day</Label>
-              <Select value={String(draft.weekday)} onValueChange={(v) => set({ weekday: Number(v), slotMaster: null })}>
-                <SelectTrigger id={`${id}-weekday`} className="h-9 bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEEKDAY_NAMES.map((name, i) => (
-                    <SelectItem key={name} value={String(i)}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-time`} className="text-xs">Start time</Label>
-              <Input
-                id={`${id}-time`}
-                type="time"
-                step={60}
-                className="h-9 bg-background"
-                value={draft.startTime}
-                list={startTimeSuggestions.length > 0 ? `${id}-times` : undefined}
-                onChange={(e) => e.target.value && set({ startTime: e.target.value.slice(0, 5), slotMaster: null })}
-              />
-              {startTimeSuggestions.length > 0 && (
-                <datalist id={`${id}-times`}>
-                  {startTimeSuggestions.map((t) => (
-                    <option key={t} value={t} />
-                  ))}
-                </datalist>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-count`} className="text-xs">Number of slots</Label>
-              <Input
-                id={`${id}-count`}
-                type="number"
-                min={1}
-                max={MAX_PREFERRED_SLOT_COUNT}
-                className="h-9 bg-background"
-                value={draft.slotCount}
-                onChange={(e) => set({ slotCount: Math.min(MAX_PREFERRED_SLOT_COUNT, Math.max(1, Number(e.target.value) || 1)) })}
-              />
-            </div>
-          </div>
+          <WeeklyPreferredSlotPicker
+            rows={slotRows}
+            hideTimes={hideTimes}
+            slotsRequired={slotsRequired}
+            slotsRequiredPending={slotsRequiredPending}
+            slotDurationMinutes={slotDurationMinutes}
+            value={draft.startTime ? { weekday: draft.weekday, startTime: draft.startTime, slotCount: draft.slotCount } : null}
+            onChange={(next, reason) =>
+              onChange(
+                next
+                  ? {
+                      ...draft,
+                      weekday: next.weekday,
+                      startTime: next.startTime,
+                      slotCount: next.slotCount,
+                      slotMaster: reason === "resize" ? draft.slotMaster : null,
+                    }
+                  : { ...draft, startTime: "", slotMaster: null }
+              )
+            }
+          />
           <p className="text-xs text-muted-foreground">
             If your sample details need a different number of slots when you book, that number is used instead.
           </p>

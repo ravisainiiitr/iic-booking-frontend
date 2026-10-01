@@ -26,6 +26,7 @@ import {
   preferredSlotFromSlots,
   type PreferredSlotDraft,
 } from "@/lib/templatePreferredSlot";
+import { buildWeeklySlotRows, preferredSlotDraftProblem, slotsRequiredForMinutes } from "@/lib/weeklySlotTemplate";
 import { useShowServerClockInHeader } from "@/lib/serverClockHeader";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -3400,10 +3401,8 @@ const BookEquipment = () => {
       setPreferredResolveRequest(null);
       return;
     }
-    const oneSlot = equipmentDetail.slot_duration_minutes || 60;
-    const tolerance = Math.max(0, Number(equipmentDetail.slot_tolerance_minutes ?? 0) || 0);
-    const needed = slotsNeededForAnalysisTime(calculatedCharge.total_time_minutes, oneSlot, tolerance);
-    const slotCount = needed >= 1 && needed <= 24 ? needed : undefined;
+    const needed = slotsRequiredForMinutes(calculatedCharge.total_time_minutes, equipmentDetail);
+    const slotCount = needed != null && needed <= 24 ? needed : undefined;
     const { templateId } = preferredResolveRequest;
     setPreferredResolveRequest(null);
     setResolvingPreferredSlot(true);
@@ -3558,6 +3557,11 @@ const BookEquipment = () => {
       atmosphere_sensitive_sample: atmosphereSensitiveSample,
       research_workspace: researchWorkspaceId,
     };
+    const preferredSlotProblem = preferredSlotDraftProblem(preferredSlotDraft, weeklyTemplateSlotRows);
+    if (preferredSlotProblem) {
+      toast.error(preferredSlotProblem);
+      return;
+    }
     if (draftNeedsConsent(preferredSlotDraft)) {
       toast.error("Tick the consent box to let the portal book the next free slot, or choose \"Ask me\".");
       return;
@@ -5334,6 +5338,93 @@ const BookEquipment = () => {
     return equipmentDetail?.weekly_view_display ?? 'TIME';
   };
 
+  // Weekly slot timings (no dates or availability) for a template's preferred-slot calendar.
+  const weeklyRowsHideTimes = getEffectiveWeeklyViewDisplay() === "SLOT_ID";
+  const weeklyTemplateSlotRows = useMemo(
+    () =>
+      buildWeeklySlotRows(
+        equipmentDetail && {
+          slot_masters: equipmentDetail.slot_masters,
+          slot_master_times: equipmentDetail.slot_master_times,
+          slot_start_time: equipmentDetail.slot_start_time,
+          slot_end_time: equipmentDetail.slot_end_time,
+          slot_duration_minutes: equipmentDetail.slot_duration_minutes,
+          weekly_view_time_from: equipmentDetail.weekly_view_time_from,
+          weekly_view_time_to: equipmentDetail.weekly_view_time_to,
+        },
+        // Templates are booked by regular users, who only see slots inside the weekly view window (external users see all).
+        { applyVisibilityWindow: !isExternalUser, hideTimes: weeklyRowsHideTimes }
+      ),
+    [equipmentDetail, isExternalUser, weeklyRowsHideTimes]
+  );
+
+  // Staff have no charge profile of their own, so the page never calculates charges for them while editing a
+  // template; ask for the analysis time under a standard profile so the template's slot count is still known.
+  const [templateStaffAnalysis, setTemplateStaffAnalysis] = useState<{ minutes: number | null; loading: boolean }>({
+    minutes: null,
+    loading: false,
+  });
+  useEffect(() => {
+    if (!isTemplateFlow || !equipmentDetail || !selectedEquipment) return;
+    if (!(isAdminOrOIC() || chargeCalculationFailed) || equipmentDetail.profile_type === "PRINT_3D") {
+      setTemplateStaffAnalysis({ minutes: null, loading: false });
+      return;
+    }
+    const required = (equipmentDetail.input_fields ?? []).filter((f: { is_required?: boolean }) => f.is_required);
+    const missing = required.some((f: { field_key: string }) => {
+      const v = inputFieldValues[f.field_key];
+      return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
+    });
+    const profiles = ((equipmentDetail as { charge_profiles?: Array<{ user_type?: string; is_active?: boolean }> })
+      .charge_profiles ?? []).filter((p) => p.is_active !== false && p.user_type);
+    const profileType =
+      ["student", "faculty"].find((t) => profiles.some((p) => p.user_type === t)) ?? profiles[0]?.user_type;
+    if (missing || !profileType) {
+      setTemplateStaffAnalysis({ minutes: null, loading: false });
+      return;
+    }
+    let cancelled = false;
+    setTemplateStaffAnalysis((prev) => ({ ...prev, loading: true }));
+    const timer = setTimeout(() => {
+      apiClient
+        .calculateEquipmentCharge(selectedEquipment.id, inputFieldValues as Record<string, string | boolean | string[]>, {
+          user_type: profileType,
+          ...(sampleSets.length > 0
+            ? { sample_sets: sampleSets as Array<Record<string, string | boolean | string[] | number>> }
+            : {}),
+        })
+        .then((res) => {
+          if (cancelled) return;
+          const minutes = res.error ? null : Number(res.data?.total_time_minutes);
+          setTemplateStaffAnalysis({ minutes: minutes != null && Number.isFinite(minutes) ? minutes : null, loading: false });
+        })
+        .catch(() => {
+          if (!cancelled) setTemplateStaffAnalysis({ minutes: null, loading: false });
+        });
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // Slot refetches replace equipmentDetail; only the fields read above should re-run the request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isTemplateFlow,
+    equipmentDetail?.equipment_id,
+    equipmentDetail?.input_fields,
+    equipmentDetail?.profile_type,
+    selectedEquipment?.id,
+    inputFieldValues,
+    sampleSets,
+    chargeCalculationFailed,
+    userType,
+  ]);
+
+  const templateSlotsRequired = slotsRequiredForMinutes(
+    calculatedCharge?.total_time_minutes ?? templateStaffAnalysis.minutes,
+    equipmentDetail
+  );
+
   const canAccessManageEquipmentModes = (): boolean => {
     return canBookForOtherUsers() || canChangeSlotStatus();
   };
@@ -6001,6 +6092,10 @@ const BookEquipment = () => {
       preferredSlot: preferredSlotFromSlots(selectedSlots.map((s) => s.slotData)),
       templateId: template?.id ?? null,
       templateName: template?.name ?? null,
+      slotRows: weeklyTemplateSlotRows,
+      slotRowsHideTimes: weeklyRowsHideTimes,
+      slotsRequired: slotsRequiredForMinutes(calculatedCharge?.total_time_minutes, equipmentDetail),
+      slotDurationMinutes: equipmentDetail?.slot_duration_minutes ?? null,
     };
   };
 
@@ -10789,9 +10884,11 @@ const BookEquipment = () => {
                     <TemplatePreferredSlotFields
                       draft={preferredSlotDraft}
                       onChange={setPreferredSlotDraft}
-                      startTimeSuggestions={[
-                        ...new Set((equipmentDetail.slot_master_times ?? []).map((t) => String(t).slice(0, 5))),
-                      ].sort()}
+                      slotRows={weeklyTemplateSlotRows}
+                      hideTimes={weeklyRowsHideTimes}
+                      slotsRequired={templateSlotsRequired}
+                      slotsRequiredPending={loadingCharge || templateStaffAnalysis.loading}
+                      slotDurationMinutes={equipmentDetail.slot_duration_minutes}
                     />
 
                     <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
