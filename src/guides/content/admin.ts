@@ -10,6 +10,13 @@ import {
   supportSection,
   bestPracticesSection,
 } from "../types";
+import {
+  adminRecentSection,
+  bookingAssistantSection,
+  oicRecentToolsSection,
+  staffViewBookingSection,
+  whatsNewSection,
+} from "./recent";
 
 export const adminGuide: UserGuideContent = {
   audience: "admin",
@@ -19,6 +26,7 @@ export const adminGuide: UserGuideContent = {
   welcomeHeadline: "Welcome, Institute Administrator",
   welcomeBody: `You have full administrative access to the ${PRODUCT_NAME}. This guide summarises institute-wide responsibilities: users and departments, equipment lifecycle, communication templates, CMS, wallets/finance settings, and Admin Panel Access for other roles.`,
   sections: [
+    whatsNewSection("admin"),
     purposeSection({
       paragraphs: [
         "Institute Administrators (main Admin) ensure the portal works consistently for every participating department, centre, and laboratory at IIT Roorkee.",
@@ -73,26 +81,31 @@ export const adminGuide: UserGuideContent = {
         },
         {
           title: "Wallets & finance controls",
-          body: "Configure SRIC/wallet settings, credit facility, student recharge rules, and process withdrawal or parse workflows as deployed.",
+          body: "Switch wallet funding options in Wallet payment modes, process Wallet recharge requests, approve credit in Wallet Credit Management, and maintain the Wallet Recharge Cash Book settings.",
           screenshotCaption: "Wallet settings hub",
         },
       ],
     },
+    adminRecentSection(),
     {
       id: "booking-oversight",
       title: "Booking Oversight",
       paragraphs: [
-        "Admins inherit full Booking Management powers (including booking on behalf of users) and can intervene on exceptions across equipment.",
+        "Admins inherit full View Booking powers (including booking on behalf of users) and can intervene on exceptions across equipment.",
       ],
       bullets: [
-        "Open Booking Management for institute-wide operational oversight.",
-        "Review Urgent Requests, waitlists, and booking attempt logs.",
-        "Use Reports for utilisation and performance analytics.",
+        "Open View Booking for institute-wide operational oversight.",
+        "Review urgent bookings, Equipment waitlist and Booking attempt log.",
+        "Use Reports & Statistics for utilisation and performance analytics.",
         "Coordinate with OICs before overriding local lab decisions except for policy or safety issues.",
       ],
     },
+    staffViewBookingSection(),
+    oicRecentToolsSection({ admin: true }),
+    bookingAssistantSection({ staff: true }),
     notificationsSection([
       "System and template-driven emails — keep Communication templates free of outdated centre-only branding.",
+      "New support ticket emails go to the list set in New ticket email alerts.",
     ]),
     bestPracticesSection([
       "Prefer department-scoped admins for day-to-day staff mapping; reserve Institute Admin for cross-cutting change.",

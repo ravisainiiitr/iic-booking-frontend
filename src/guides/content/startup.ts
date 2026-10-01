@@ -12,6 +12,14 @@ import {
   purposeSection,
 } from "../types";
 import { internalOperationalPoliciesSections } from "./policies";
+import {
+  bookingAssistantSection,
+  bookingInputsSection,
+  bookingPageExtrasBullets,
+  bookingTemplatesSection,
+  myBookingsSection,
+  whatsNewSection,
+} from "./recent";
 
 export const startupGuide: UserGuideContent = {
   audience: "startup",
@@ -21,6 +29,7 @@ export const startupGuide: UserGuideContent = {
   welcomeHeadline: "Welcome, startup / MSME user",
   welcomeBody: `Startup and MSME accounts use the ${PRODUCT_NAME} to access instrumentation with category-specific rates. This guide covers booking, payment, and operational policies (waitlist, disruptions, samples) for incubated and external startup/MSME paths.`,
   sections: [
+    whatsNewSection("startup"),
     purposeSection({
       paragraphs: [
         `The ${PRODUCT_NAME} connects startups with laboratories across IIT Roorkee for characterisation, testing, and development work.`,
@@ -59,12 +68,17 @@ export const startupGuide: UserGuideContent = {
         },
         {
           title: "Book and pay",
-          body: "Reserve slots, complete payment steps, then track sample deadlines and results in My Bookings.",
+          body: "Read the Important instruction, fill the inputs (or pick a saved template), reserve slots and complete payment steps. Then open View Booking on the dashboard to track sample deadlines and results.",
           screenshotCaption: "Booking confirmation",
           screenshotSrc: "/guides/booking-confirmation-success.png",
         },
       ],
+      bullets: bookingPageExtrasBullets(),
     },
+    bookingInputsSection(),
+    bookingTemplatesSection(),
+    bookingAssistantSection(),
+    myBookingsSection(),
     bookingStatusSection(),
     ...internalOperationalPoliciesSections(),
     notificationsSection([

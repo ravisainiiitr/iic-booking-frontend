@@ -10,6 +10,7 @@ import {
   supportSection,
   bestPracticesSection,
 } from "../types";
+import { whatsNewSection } from "./recent";
 
 export const financeGuide: UserGuideContent = {
   audience: "finance",
@@ -19,6 +20,7 @@ export const financeGuide: UserGuideContent = {
   welcomeHeadline: "Welcome, Accounts In Charge",
   welcomeBody: `As Department Account In-charge you monitor and manage financial activities for your department in the ${PRODUCT_NAME} — including wallet recharge requests, grant utilization, wallet transactions, credit facility usage, and related department financial records. This guide covers sign-in, receipt processing, and how your role relates to Department Administrators and Officers-in-Charge.`,
   sections: [
+    whatsNewSection("finance"),
     purposeSection({
       paragraphs: [
         "You verify and process user payment / recharge receipts for your department so bookings and wallets stay accurate.",
@@ -37,29 +39,33 @@ export const financeGuide: UserGuideContent = {
         "Sign in with the staff credentials or Channel i path provided for your campus account.",
       ],
       bullets: [
-        "After login you land on Dashboard — open finance / payment receipt tools from there.",
+        "After login you land on Dashboard. Your menu has Wallet recharge requests, External booking requests and Reports & Statistics.",
         "Use User Guide from the menu anytime to reopen these instructions.",
       ],
     }),
     {
       id: "receipts",
-      title: "Payment Receipts",
+      title: "Wallet Recharge Requests and Receipts",
       paragraphs: [
-        "Process receipts promptly so users are not left waiting on wallet or booking confirmation.",
+        "Process requests promptly so users are not left waiting on wallet or booking confirmation.",
       ],
       steps: [
         {
-          title: "Open the receipts queue",
-          body: "From Dashboard, open Payment Receipts (or the finance module assigned to your role).",
+          title: "Open the queue",
+          body: "From Dashboard, click Wallet recharge requests → Review & verify.",
         },
         {
           title: "Verify the payment",
-          body: "Match UTR / amount / user details against bank records before marking processed.",
+          body: "Open Details and match the transaction number or UTR, amount and user details against bank or cash-book records. Use Verify Fund Receipt where the funds must be confirmed.",
         },
         {
-          title: "Complete with remarks",
-          body: "Add clear remarks when rejecting or clarifying a receipt so the user and Dept Admin understand next steps.",
+          title: "Approve, or escalate",
+          body: "Click Approve on a verified pending request. Declining and cancelling are done by the Department Administrator or Institute Admin — escalate a request that does not match, noting what is wrong.",
         },
+      ],
+      bullets: [
+        "Student receipts — where student recharge is enabled, students submit a payment receipt (file plus optional UTR / reference). After you verify it, the funds are added to the supervisor's wallet.",
+        "A dashboard alert lists recharges whose funds have not yet been matched; open it to review them.",
       ],
     },
     notificationsSection([

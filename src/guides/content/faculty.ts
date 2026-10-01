@@ -12,6 +12,16 @@ import {
   purposeSection,
 } from "../types";
 import { internalOperationalPoliciesSections } from "./policies";
+import {
+  bookingAssistantSection,
+  bookingInputsSection,
+  bookingPageExtrasBullets,
+  bookingTemplatesSection,
+  facultyWalletSection,
+  myBookingsSection,
+  studentManagementSection,
+  whatsNewSection,
+} from "./recent";
 
 export const facultyGuide: UserGuideContent = {
   audience: "faculty",
@@ -19,8 +29,9 @@ export const facultyGuide: UserGuideContent = {
   title: "Faculty User Guide",
   subtitle: `${PRODUCT_NAME}`,
   welcomeHeadline: "Welcome, IIT Roorkee faculty",
-  welcomeBody: `Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. This guide explains Channel i login, booking, and operational policies (waitlist, urgent requests, maintenance, disruptions, samples) on the ${PRODUCT_NAME}.`,
+  welcomeBody: `Faculty accounts combine personal booking rights with wallet funding and approval tools for students and project staff. This guide explains Channel i login, booking, booking templates, the Booking Assistant, wallet recharge, transfer and credit, student management, and operational policies (waitlist, urgent requests, maintenance, disruptions, samples) on the ${PRODUCT_NAME}.`,
   sections: [
+    whatsNewSection("faculty"),
     purposeSection({
       paragraphs: [
         `The ${PRODUCT_NAME} is the institute channel for equipment reservations across participating departments, centres, and laboratories at IIT Roorkee.`,
@@ -28,10 +39,9 @@ export const facultyGuide: UserGuideContent = {
       ],
       bullets: [
         "Book equipment at faculty/internal rates",
-        "Create and manage wallets used by your group",
-        "Approve wallet join requests and related student actions",
+        "Recharge, transfer and request credit for the wallet used by your group",
+        "Approve wallet join requests, set student spending limits and approve students' urgent requests",
         "Track bookings, sample deadlines, and published results",
-        "If your department enables Faculty Credit Facility and you are eligible, use Avail Credit Facility on the Wallet page under that department’s sub-wallet — a one-time credit that recharges recover; once closed it cannot be availed again",
       ],
     }),
     loginAccountSection({
@@ -40,6 +50,7 @@ export const facultyGuide: UserGuideContent = {
       ],
       bullets: [
         "Sign in with Channel i using your institute credentials.",
+        "To also sign in with your email and a portal password, turn on Sign in with email under Sign-in options in My Profile.",
         "Update Profile contact details so booking and wallet emails reach you.",
         "Reopen this guide anytime from the user menu → User Guide.",
       ],
@@ -65,40 +76,49 @@ export const facultyGuide: UserGuideContent = {
           screenshotSrc: "/guides/equipment-calculate-charges.png",
         },
         {
-          title: "Reserve slots",
-          body: "Select consecutive free slots on the weekly calendar and confirm. Complete wallet debit when prompted.",
+          title: "Fill the inputs and reserve slots",
+          body: "Read the Important instruction, enter the inputs (or pick a saved template under Booking template), then select consecutive free slots on the weekly calendar and confirm. Complete wallet debit when prompted.",
           screenshotCaption: "Slot selection calendar",
           screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
         {
-          title: "Monitor My Bookings",
-          body: "Track status, sample deadlines, disruptions, and result downloads from the Dashboard.",
+          title: "Monitor your bookings",
+          body: "Open View Booking on the dashboard to track status, sample deadlines, disruptions, and result downloads.",
           screenshotCaption: "Dashboard — My Bookings",
           screenshotSrc: "/guides/my-bookings-dashboard.png",
         },
       ],
+      bullets: bookingPageExtrasBullets(),
     },
+    bookingInputsSection(),
+    bookingTemplatesSection(),
+    bookingAssistantSection(),
+    myBookingsSection(),
+    facultyWalletSection(),
+    studentManagementSection(),
     {
-      id: "wallets",
-      title: "Wallets and Student Funding",
+      id: "supervisor-urgent",
+      title: "Approving Students' Urgent Requests",
       paragraphs: [
-        "Most student bookings debit a faculty or department wallet. Keeping wallets funded and members approved avoids last-minute booking failures.",
+        "When a student you supervise submits a Type B urgent request (urgent with reason, 50% surcharge), it waits for your approval before it reaches the Officer In Charge.",
       ],
-      bullets: [
-        "Open Wallet from the Dashboard to view balances and transactions.",
-        "Approve or reject wallet join requests from students and project staff.",
-        "Initiate recharge requests following institute finance instructions shown in the portal.",
-        "Confirm the correct wallet is selected when you book personally.",
-      ],
-      callouts: [
-        "Credit facility and recharge rules are configured by institute administrators — follow on-screen guidance.",
+      steps: [
+        {
+          title: "Open the queue",
+          body: "Click Urgent booking requests on the dashboard (it shows the number of pending requests), then Manage urgent requests.",
+        },
+        {
+          title: "Approve or reject",
+          body: "Read the student's reason and any supporting document, then approve or reject. After your approval the OIC gives the final decision and may reschedule. The wallet is charged only after the OIC's final approval.",
+        },
       ],
     },
     bookingStatusSection(),
     ...internalOperationalPoliciesSections(),
     notificationsSection([
       "Wallet join and recharge emails — act promptly so students are not blocked from booking.",
-      "Supervisor queues (for example urgent requests) when you are assigned as reviewer.",
+      "Supervisor booking email — one email per booking made by a linked student, matching the student's email, with a Booked by row.",
+      "Urgent booking requests from your students that need your approval.",
       "Waitlist promotion, maintenance, and disruption notices for your own bookings.",
     ]),
     bestPracticesSection([
@@ -120,7 +140,12 @@ export const facultyGuide: UserGuideContent = {
       {
         question: "A student cannot book against my wallet — why?",
         answer:
-          "Confirm their join request is approved and the wallet has sufficient balance. Programme dates on their profile must also be valid.",
+          "Confirm their join request is approved, the Linked toggle is on in Student management, the wallet has sufficient balance and any spending limit you set has room. Programme dates on their profile must also be valid.",
+      },
+      {
+        question: "Why is my Project Grant recharge shown as Declined by SRIC with credit outstanding?",
+        answer:
+          "The SRIC Office declined it (the reason is shown). The amount was given as an auto-approved credit and will be adjusted when the funds of your next approved recharge are received.",
       },
       {
         question: "Can I book on behalf of a student?",

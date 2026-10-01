@@ -11,10 +11,23 @@ import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
  * Full-page / in-dashboard workspace view of the role-specific user guide.
  */
 export default function UserGuidePage() {
-  const { guide } = useUserGuide();
+  const { guide, hasGuide } = useUserGuide();
   const { user } = useAuth();
   const embedded = useEmbeddedMode();
   const displayName = formatUserDisplayName(user) || "there";
+
+  if (!guide && hasGuide) {
+    return (
+      <div className="page-shell">
+        {!embedded ? <DashboardHeader /> : null}
+        <main className="container mx-auto max-w-3xl px-4 py-6">
+          <p className="text-sm text-muted-foreground" role="status">
+            Loading your user guide…
+          </p>
+        </main>
+      </div>
+    );
+  }
 
   if (!guide) {
     return (
@@ -87,13 +100,13 @@ export default function UserGuidePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/90">
-              {section.paragraphs.map((p) => (
-                <p key={p.slice(0, 48)}>{p}</p>
+              {section.paragraphs.map((p, i) => (
+                <p key={i}>{p}</p>
               ))}
               {section.steps?.length ? (
                 <ol className="space-y-3 list-decimal pl-5">
-                  {section.steps.map((step) => (
-                    <li key={step.title} className="pl-1">
+                  {section.steps.map((step, i) => (
+                    <li key={i} className="pl-1">
                       <p className="font-medium text-foreground">{step.title}</p>
                       <p className="text-muted-foreground mt-0.5">{step.body}</p>
                       {step.screenshotSrc ? (
@@ -121,8 +134,8 @@ export default function UserGuidePage() {
               ) : null}
               {section.bullets?.length ? (
                 <ul className="space-y-1.5 list-disc pl-5 text-muted-foreground">
-                  {section.bullets.map((b) => (
-                    <li key={b.slice(0, 48)} className="pl-1 text-foreground/85">
+                  {section.bullets.map((b, i) => (
+                    <li key={i} className="pl-1 text-foreground/85">
                       {b}
                     </li>
                   ))}
@@ -130,9 +143,9 @@ export default function UserGuidePage() {
               ) : null}
               {section.callouts?.length ? (
                 <div className="space-y-2">
-                  {section.callouts.map((c) => (
+                  {section.callouts.map((c, i) => (
                     <div
-                      key={c.slice(0, 48)}
+                      key={i}
                       className="rounded-lg border border-amber-200/80 bg-amber-50/60 px-3 py-2 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
                     >
                       {c}

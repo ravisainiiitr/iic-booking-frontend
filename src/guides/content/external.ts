@@ -11,6 +11,14 @@ import {
   faqSection,
   purposeSection,
 } from "../types";
+import {
+  bookingAssistantSection,
+  bookingInputsSection,
+  bookingPageExtrasBullets,
+  bookingTemplatesSection,
+  myBookingsSection,
+  whatsNewSection,
+} from "./recent";
 
 export const externalGuide: UserGuideContent = {
   audience: "external",
@@ -20,6 +28,7 @@ export const externalGuide: UserGuideContent = {
   welcomeHeadline: `Welcome to the ${PRODUCT_NAME}`,
   welcomeBody: `This portal lets your organisation book laboratory equipment across participating departments, centres, and laboratories at IIT Roorkee, track samples and results, and manage payments. This guide explains registration, your first booking, and common external workflows.`,
   sections: [
+    whatsNewSection("external"),
     purposeSection({
       paragraphs: [
         `The ${PRODUCT_NAME} is the official channel for reserving analytical and specialised instruments at IIT Roorkee for eligible external categories (educational institutes, R&D, industry, and other approved types).`,
@@ -70,12 +79,17 @@ export const externalGuide: UserGuideContent = {
         },
         {
           title: "Submit samples and track status",
-          body: "Follow sample submission deadlines on the booking. Download results from My Bookings when published.",
+          body: "Follow sample submission deadlines on the booking. Open View Booking on the dashboard to download results when published.",
           screenshotCaption: "My Bookings — sample deadline and results",
           screenshotSrc: "/guides/my-bookings-dashboard.png",
         },
       ],
+      bullets: bookingPageExtrasBullets(),
     },
+    bookingInputsSection(),
+    bookingTemplatesSection(),
+    bookingAssistantSection(),
+    myBookingsSection(),
     bookingStatusSection({
       extraBullets: [
         "Awaiting payment is common for external paths — complete payment promptly to secure the slot.",

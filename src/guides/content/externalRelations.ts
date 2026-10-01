@@ -10,6 +10,7 @@ import {
   supportSection,
   bestPracticesSection,
 } from "../types";
+import { whatsNewSection } from "./recent";
 
 export const externalRelationsGuide: UserGuideContent = {
   audience: "external_relations",
@@ -19,6 +20,7 @@ export const externalRelationsGuide: UserGuideContent = {
   welcomeHeadline: "Welcome, External Relations Administrator",
   welcomeBody: `You support external organisations and users on the ${PRODUCT_NAME}. This guide covers sign-in, verification workflows, and coordination with Institute Admin.`,
   sections: [
+    whatsNewSection("external_relations"),
     purposeSection({
       paragraphs: [
         "External Relations Administrators help onboard and verify external users and related organisation requests.",

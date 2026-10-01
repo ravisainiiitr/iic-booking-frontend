@@ -12,6 +12,15 @@ import {
   purposeSection,
 } from "../types";
 import { internalOperationalPoliciesSections } from "./policies";
+import {
+  bookingAssistantSection,
+  bookingInputsSection,
+  bookingPageExtrasBullets,
+  bookingTemplatesSection,
+  memberWalletSection,
+  myBookingsSection,
+  whatsNewSection,
+} from "./recent";
 
 export const projectStaffGuide: UserGuideContent = {
   audience: "project_staff",
@@ -21,6 +30,7 @@ export const projectStaffGuide: UserGuideContent = {
   welcomeHeadline: "Welcome, project staff",
   welcomeBody: `Project staff book laboratory equipment much like students and faculty: internal rates when eligible, wallet or grant funding through the project PI, and the same sample workflows. This guide covers booking plus operational policies (waitlist, disruptions, samples) on the ${PRODUCT_NAME}.`,
   sections: [
+    whatsNewSection("project_staff"),
     purposeSection({
       paragraphs: [
         `The ${PRODUCT_NAME} serves researchers across IIT Roorkee, including project-funded staff working in participating departments, centres, and laboratories.`,
@@ -54,18 +64,24 @@ export const projectStaffGuide: UserGuideContent = {
         },
         {
           title: "Select equipment and slots",
-          body: "Browse and Book Equipment, review charges, and reserve consecutive free slots.",
+          body: "Browse and Book Equipment, review charges, read the Important instruction, fill the inputs (or pick a saved template) and reserve consecutive free slots.",
           screenshotCaption: "Booking calendar",
           screenshotSrc: "/guides/booking-weekly-calendar.png",
         },
         {
           title: "Complete confirmation",
-          body: "Confirm booking and wallet debit. Monitor My Bookings for sample deadlines and results.",
+          body: "Confirm booking and wallet debit. Open View Booking on the dashboard to follow sample deadlines and results.",
           screenshotCaption: "My Bookings list",
           screenshotSrc: "/guides/my-bookings-dashboard.png",
         },
       ],
+      bullets: bookingPageExtrasBullets(),
     },
+    bookingInputsSection(),
+    bookingTemplatesSection(),
+    bookingAssistantSection(),
+    myBookingsSection(),
+    memberWalletSection(),
     bookingStatusSection(),
     ...internalOperationalPoliciesSections(),
     notificationsSection([
@@ -91,7 +107,7 @@ export const projectStaffGuide: UserGuideContent = {
       },
       {
         question: "Who approves my wallet join?",
-        answer: "Usually your faculty PI / wallet owner. Ask them to check Wallet join requests on their dashboard.",
+        answer: "Usually your faculty PI / wallet owner. Send the request from Request to Join Wallet on the Wallet page; it also appears in their list of items needing attention.",
       },
       {
         question: "Where are waitlist and disruption policies explained?",

@@ -10,6 +10,7 @@ import {
   supportSection,
   bestPracticesSection,
 } from "../types";
+import { staffViewBookingSection, whatsNewSection } from "./recent";
 
 export const deptAdminGuide: UserGuideContent = {
   audience: "dept_admin",
@@ -19,6 +20,7 @@ export const deptAdminGuide: UserGuideContent = {
   welcomeHeadline: "Welcome, Department Administrator",
   welcomeBody: `You administer booking-related staff and equipment for your department on the ${PRODUCT_NAME}. This guide covers department administration hubs, equipment scoping, and how your powers differ from Institute Admin.`,
   sections: [
+    whatsNewSection("dept_admin"),
     purposeSection({
       paragraphs: [
         "Department Administrators keep their department’s participation in the institute-wide portal healthy: correct OIC/Lab/Accounts assignments, department equipment visibility, and local access grants where RBAC applies.",
@@ -73,7 +75,7 @@ export const deptAdminGuide: UserGuideContent = {
         },
         {
           title: "Verify equipment coverage",
-          body: "Ensure every active instrument has an OIC (and operators as needed) so Booking Management stays staffed.",
+          body: "Ensure every active instrument has an OIC (and operators as needed) so View Booking stays staffed.",
           screenshotCaption: "Equipment list filtered to department",
         },
       ],
@@ -92,6 +94,19 @@ export const deptAdminGuide: UserGuideContent = {
         "Admin Settings / Equipment modules appear only when Admin Panel Access grants them to your role.",
       ],
     },
+    staffViewBookingSection(),
+    {
+      id: "dept-wallet-requests",
+      title: "Wallet Recharge Requests",
+      paragraphs: [
+        "Open Wallet recharge requests from the dashboard to follow recharge requests from your department's users.",
+      ],
+      bullets: [
+        "Each request shows the method (Project Grant or Cash / Bank transfer), amount, status and any decline reason.",
+        "Decline reasons — Project Grant: Wrong Project Code, Insufficient Funds in the Project, Project Already Closed or Other. Cash / Bank transfer: Mismatch in User Information or Other.",
+        "A Project Grant request declined by SRIC is shown as Declined by SRIC; the amount becomes an auto-approved credit that the user's next approved recharge recovers.",
+      ],
+    },
     notificationsSection([
       "Staff assignment and equipment updates for your department appear in the usual portal channels.",
     ]),
@@ -107,7 +122,7 @@ export const deptAdminGuide: UserGuideContent = {
       bullets: [
         "You typically receive broad department RBAC capabilities on setup (users, equipment, wallets, reports, role assignment) — then you can grant subsets to staff.",
         "You do not see the Admin-only Department Administration dashboard card that Institute Admins use for institute RBAC overview — use /manage/department-administration instead.",
-        "Booking Management lab queues are not your primary dashboard (those belong to OIC/operator).",
+        "You can open View Booking for your department's equipment; day-to-day completion and exception handling stays with the OIC and Lab Operator.",
         "Approve/reject of equipment addition proposals is Admin-only.",
       ],
     }),

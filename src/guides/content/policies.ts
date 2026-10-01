@@ -66,29 +66,29 @@ export function urgentBookingPolicySection(): GuideSection {
     id: "policy-urgent",
     title: "Urgent Booking Policy",
     paragraphs: [
-      "Urgent booking is a controlled exception for situations where the normal calendar cannot meet a genuine short-notice scientific or academic need. It is not a shortcut for everyday planning.",
-      "Availability and review paths depend on the equipment and your role. Many urgent requests require Officer In-charge (OIC) and/or supervisor review.",
+      "Urgent booking is a controlled exception for a genuine short-notice need that the normal calendar cannot meet. It is not a shortcut for everyday planning.",
+      "On the booking page, click Request urgent booking (when the equipment offers it) and choose one of two types. Students can also open Urgent booking request on the dashboard to submit a request or follow its status.",
     ],
     bullets: [
-      "What qualifies — Typically: repeated inability to obtain a slot despite genuine attempts (NO_SLOT path), or a documented urgent need supported by a reviewer/supervisor (REVIEWER_URGENT path with evidence).",
-      "Who can request — Internal users for whom the equipment exposes Urgent Request. External users generally follow different processes.",
-      "Approvals — OIC reviews equipment-linked urgent requests. REVIEWER_URGENT additionally needs documentary evidence and supervisor/reviewer involvement as configured.",
-      "Effect on slots — Approved urgent flows may allocate or hold capacity according to lab rules; they do not silently cancel other users’ confirmed bookings.",
-      "Waitlist — Urgent requests are a separate workflow from the FCFS waitlist. Joining a waitlist is not the same as an urgent approval.",
-      "Limits — Equipment may cap how many urgent requests are accepted; peak-window and disclaimer acknowledgements may apply. Misuse can lead to rejection.",
+      "Type A — Rush relief (no surcharge) — for internal users with at least 2 failed booking attempts in the peak window over the last 14 days (quota-limit failures do not count). You book a slot in the advance week at normal rates. Using Type A resets the 14-day attempt window. The dialog lists your recorded attempts.",
+      "Type B — Urgent with reason (50% surcharge) — select slots with Select Slot, give a reason of at least 10 characters (a supporting document is optional) and tick I confirm my reason is genuine and accept the 50% urgent surcharge. The slots are held, not confirmed.",
+      "Type B approvals — students need their supervisor's approval first (supervisors use Urgent booking requests on their dashboard). The Officer In Charge then gives final approval and may reschedule, including to a weekend. Your wallet is charged only after the final approval.",
+      "Limits — weekly caps on urgent requests may apply. Misuse can lead to rejection.",
+      "Waitlist — urgent requests are separate from the FCFS waitlist. Joining a waitlist is not an urgent approval.",
+      "Effect on other users — approved urgent bookings never cancel other users' confirmed bookings.",
     ],
     callouts: [
-      "Warning: Submit urgent requests only with a genuine need and complete evidence when asked. False urgency delays everyone.",
-      "Related: Contact Lab Operator / OIC · Raise Support Ticket · Booking Workflow.",
+      "Warning: Submit urgent requests only for a genuine need. After a Type B approval, submit your sample at the earliest.",
+      "Related: Contact Lab Operator / OIC · Raise Support Ticket · How to Book Equipment.",
     ],
     steps: [
       {
-        title: "Example — No slot after repeated tries",
-        body: "You tried the calendar several times over days with no free slot. You raise an urgent NO_SLOT request from the equipment/dashboard path, accept the disclaimer, and wait for OIC review. Until approved, you do not have a confirmed booking.",
+        title: "Example — Type A after repeated tries",
+        body: "You tried to book in two peak-window openings and failed both times. In Request urgent booking you choose Type A, tick I confirm the above, select a slot in the advance week and book it at the normal rate.",
       },
       {
-        title: "Example — Supervisor-documented urgency",
-        body: "Your thesis reviewer asks for characterisation before a hard deadline. You submit a REVIEWER_URGENT request with the required evidence file and comments. After approval, follow the booking/hold instructions shown in the portal.",
+        title: "Example — Type B with a deadline",
+        body: "You need characterisation before a thesis deadline. You choose Type B, select slots, explain the reason and accept the 50% surcharge. Your supervisor approves, then the OIC approves (moving you to Saturday). Your wallet is charged after the OIC's approval.",
       },
     ],
   };
@@ -231,7 +231,8 @@ export function sampleSubmissionPolicySection(): GuideSection {
       "Most instruments require you to submit samples (or digital files) before the laboratory can start work. Deadlines are shown on the booking (and often as email/dashboard countdowns).",
     ],
     bullets: [
-      "Deadlines — Submit before the sample submission lead time configured for that equipment (commonly measured in hours before the slot start). Late samples may be refused for that run.",
+      "Deadlines — Submit before the sample submission lead time configured for that equipment (commonly measured in hours before the slot start). Late samples may be refused for that run. If the lead time is 0, there is no sample deadline.",
+      "Walk-in equipment — Some instruments have no sample submission or collection deadlines: you bring your sample to the slot and take it back yourself. No sample emails are sent for these bookings.",
       "When you may submit — After your booking is confirmed (Booked), or while waitlisted when the portal offers “Submit sample while waitlisted”.",
       "Packaging — Follow the equipment page and lab SOPs (sealed vials, secondary containment, cold chain if required).",
       "Labelling — Label every container with booking ID / user name / date as instructed by the lab.",
@@ -354,7 +355,7 @@ export function operationalPoliciesFaqs(): GuideFaq[] {
     {
       question: "Can I request an urgent booking?",
       answer:
-        "When the equipment exposes Urgent Request and you meet the criteria (for example repeated no-slot attempts or documented reviewer urgency). Approval by OIC/supervisor may be required.",
+        "Yes, when the booking page shows Request urgent booking. Type A (rush relief, no surcharge) needs at least 2 failed peak-window attempts in the last 14 days. Type B (urgent with reason) carries a 50% surcharge; students need supervisor approval first and the OIC gives final approval.",
     },
     {
       question: "Who should I contact if my booking is disrupted?",

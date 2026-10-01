@@ -23,12 +23,19 @@ interface UserGuideDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   guide: UserGuideContent | null;
+  /** The role has a guide but its content is still downloading. */
+  loading?: boolean;
   userName?: string | null;
 }
 
 type WindowMode = "normal" | "minimized" | "maximized";
 
-const SECTION_ICONS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫"];
+const SECTION_ICONS = [
+  "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩",
+  "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳",
+  "㉑", "㉒", "㉓", "㉔", "㉕", "㉖", "㉗", "㉘", "㉙", "㉚",
+  "㉛", "㉜", "㉝", "㉞", "㉟",
+];
 
 const NORMAL_WIDTH = 768;
 const NORMAL_HEIGHT = 640;
@@ -44,6 +51,7 @@ export default function UserGuideDialog({
   open,
   onOpenChange,
   guide,
+  loading = false,
   userName,
 }: UserGuideDialogProps) {
   const [step, setStep] = useState(0);
@@ -432,6 +440,12 @@ export default function UserGuideDialog({
               <Button type="button" size="sm" variant="secondary" onClick={restoreFromMinimized}>
                 Restore
               </Button>
+            </div>
+          ) : !guide && loading ? (
+            <div className="p-5">
+              <p className="text-sm text-muted-foreground" role="status">
+                Loading your user guide…
+              </p>
             </div>
           ) : !guide ? (
             <div className="space-y-4 p-5">

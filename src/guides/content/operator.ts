@@ -8,7 +8,9 @@ import {
   purposeSection,
   notificationsSection,
   bestPracticesSection,
+  supportSection,
 } from "../types";
+import { staffViewBookingSection, whatsNewSection } from "./recent";
 
 export const operatorGuide: UserGuideContent = {
   audience: "operator",
@@ -16,12 +18,13 @@ export const operatorGuide: UserGuideContent = {
   title: "Lab Operator User Guide",
   subtitle: `${PRODUCT_NAME} — day-of-run operations for assigned equipment`,
   welcomeHeadline: "Welcome, Lab Operator",
-  welcomeBody: `As Lab Operator you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers Booking Management limits, Intimate Unavailability, and how your role differs from Officer-in-Charge.`,
+  welcomeBody: `As Lab Operator (formerly Lab In-charge) you run day-of-slot operations on equipment assigned to you in the ${PRODUCT_NAME}. This guide covers View Booking, Intimate Unavailability, support tickets, and how your role differs from Officer-in-Charge.`,
   sections: [
+    whatsNewSection("operator"),
     purposeSection({
       paragraphs: [
         "You support laboratory operations for instruments where you are assigned as operator.",
-        "Your lab-style dashboard emphasises Booking Management and Intimate Unavailability rather than end-user booking cards.",
+        "Your lab-style dashboard emphasises View Booking, the week calendar and Intimate Unavailability rather than end-user booking cards.",
       ],
       bullets: [
         "Complete bookings and mark not utilized for assigned equipment",
@@ -34,7 +37,7 @@ export const operatorGuide: UserGuideContent = {
         "Sign in with the staff credentials or Channel i path provided for your campus account.",
       ],
       bullets: [
-        "Open Dashboard after login — look for Booking Management and Intimate Unavailability.",
+        "Open Dashboard after login — look for View Booking, Intimate Unavailability and Support tickets.",
         "Keep Profile phone/email current for operational notifications.",
         "Use User Guide from the menu to reopen these instructions.",
       ],
@@ -48,8 +51,8 @@ export const operatorGuide: UserGuideContent = {
       steps: [
         {
           title: "Review today’s queue",
-          body: "Open Booking Management and filter to your assigned equipment / today’s slots.",
-          screenshotCaption: "Operator Booking Management queue",
+          body: "Open View Booking and filter to your assigned equipment / today’s slots. Check Bookings awaiting completion on the dashboard for earlier runs not yet completed.",
+          screenshotCaption: "Operator View Booking queue",
         },
         {
           title: "Receive samples / prepare the run",
@@ -75,11 +78,14 @@ export const operatorGuide: UserGuideContent = {
       bullets: [
         "Ask the OIC to update slot status when a run cannot proceed as scheduled.",
         "Coordinate with the OIC for maintenance holds, refunds, disruptions, and reschedules.",
+        "Raise and follow your own tickets from Support tickets on the dashboard.",
         "Open Reports for equipment-performance views when your permissions allow.",
       ],
     },
+    staffViewBookingSection(),
     notificationsSection([
       "Unavailability intimation and duty-related emails when configured by administrators.",
+      "Daily 9:00 AM reminder for bookings whose time is over but not yet marked completed.",
     ]),
     bestPracticesSection([
       "Complete bookings the same day the run finishes whenever possible.",
@@ -91,9 +97,9 @@ export const operatorGuide: UserGuideContent = {
         "Operator booking actions are intentionally limited compared with Officer-in-Charge.",
       ],
       bullets: [
-        "Allowed on Booking Management (typical): Complete and Not Utilized.",
+        "Allowed on View Booking (typical): Complete and Not Utilized.",
         "Not typical for operators: refund, absent, maintenance/disruption, reschedule — use OIC/Admin.",
-        "Dashboard usually hides Book Equipment, Feedback, Support Tickets, and Urgent Request cards for this role.",
+        "The dashboard shows Support tickets, but hides Book Equipment, Rate your experience and urgent booking cards for this role.",
         "Admin Settings appear only if Admin Panel Access is enabled for operators in your department.",
         "Equipment scope is limited to instruments assigned to you.",
       ],
@@ -105,9 +111,9 @@ export const operatorGuide: UserGuideContent = {
           "Refunds and most exception actions are reserved for Officer-in-Charge or Institute Admin. Ask your OIC to process the exception.",
       },
       {
-        question: "I don’t see Support Tickets on my dashboard — is that normal?",
+        question: "Where do I raise a support ticket?",
         answer:
-          "Yes for many Lab Operator dashboards. Coordinate ticket follow-up with the OIC or use any staff path your department provides.",
+          "Click Support tickets on your dashboard to raise a ticket and follow the replies. Tickets marked to me lists any ticket assigned to you.",
       },
       {
         question: "How do I get access to another instrument?",
@@ -120,5 +126,6 @@ export const operatorGuide: UserGuideContent = {
       "Action buttons missing: the booking may require an OIC, or it is already completed/cancelled.",
       "Intimate Unavailability form errors: refresh and ensure dates do not overlap existing unavailability entries.",
     ]),
+    supportSection(),
   ],
 };
