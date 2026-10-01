@@ -84,6 +84,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Min
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
+import { MySpendingLimitNotice } from "@/components/wallet/MySpendingLimitNotice";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import RescheduleSlotPicker, { type RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { PortalFeedbackForm } from "@/components/PortalFeedbackDialog";
@@ -6674,6 +6675,7 @@ const BookEquipment = () => {
                     </Button>
                   </div>
                 )}
+                {isEndUserBookingType(userType) && !canAccessManageEquipmentModes() && <MySpendingLimitNotice />}
               </div>
             </div>
           </div>

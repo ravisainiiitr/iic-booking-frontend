@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import type { TANominationCall, EquipmentNomination } from "@/lib/api";
+import type { TANominationCall, EquipmentNomination, StudentSpendingLimit } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
+import { StudentSpendingLimitForm } from "@/components/wallet/StudentSpendingLimitForm";
+import { formatINRWithPaise as formatInr } from "@/lib/money";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,6 +85,9 @@ const StudentManagement = () => {
   const [nominateDialogCall, setNominateDialogCall] = useState<TANominationCall | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [submittingNomination, setSubmittingNomination] = useState(false);
+  const [spendingLimits, setSpendingLimits] = useState<Record<number, StudentSpendingLimit>>({});
+  const [limitFormOpen, setLimitFormOpen] = useState<Record<number, boolean>>({});
+  const [togglingLimitId, setTogglingLimitId] = useState<number | null>(null);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isFaculty = userTypeStr === "faculty";
@@ -98,9 +104,54 @@ const StudentManagement = () => {
       return;
     }
     fetchStudents();
+    fetchSpendingLimits();
     fetchOpenTACalls();
     fetchNominations();
   }, [navigate, isAuthenticated, user?.id, authLoading, isFaculty]);
+
+  const fetchSpendingLimits = async () => {
+    try {
+      const res = await apiClient.getStudentSpendingLimits();
+      const byId: Record<number, StudentSpendingLimit> = {};
+      for (const row of res.data?.limits ?? []) byId[row.join_request_id] = row;
+      setSpendingLimits(byId);
+      setLimitFormOpen(
+        Object.fromEntries(Object.values(byId).map((row) => [row.join_request_id, row.spending_limit_enabled])),
+      );
+    } catch {
+      setSpendingLimits({});
+    }
+  };
+
+  const onLimitSaved = (row: StudentSpendingLimit) => {
+    setSpendingLimits((prev) => ({ ...prev, [row.join_request_id]: row }));
+    setLimitFormOpen((prev) => ({ ...prev, [row.join_request_id]: row.spending_limit_enabled }));
+  };
+
+  const toggleSpendingLimit = async (joinRequestId: number, on: boolean) => {
+    if (on) {
+      setLimitFormOpen((prev) => ({ ...prev, [joinRequestId]: true }));
+      return;
+    }
+    if (!spendingLimits[joinRequestId]?.spending_limit_enabled) {
+      setLimitFormOpen((prev) => ({ ...prev, [joinRequestId]: false }));
+      return;
+    }
+    setTogglingLimitId(joinRequestId);
+    try {
+      const res = await apiClient.updateStudentSpendingLimit(joinRequestId, { spending_limit_enabled: false });
+      if (res.error || !res.data?.limit) {
+        toast.error(res.error || "Could not turn off the spending limit.");
+        return;
+      }
+      toast.success("Spending limit turned off.");
+      onLimitSaved(res.data.limit);
+    } catch {
+      toast.error("Could not turn off the spending limit.");
+    } finally {
+      setTogglingLimitId(null);
+    }
+  };
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -372,7 +423,8 @@ const StudentManagement = () => {
                   <div>
                     <CardTitle className="text-xl">Student Management</CardTitle>
                     <CardDescription className="mt-0.5">
-                      Students for whom you are the supervisor (use in TA nomination above)
+                      Students for whom you are the supervisor (use in TA nomination above). Turn on a
+                      spending limit to cap what a student can charge to your wallet each week or month.
                     </CardDescription>
                   </div>
                 </div>
@@ -417,11 +469,16 @@ const StudentManagement = () => {
                         <TableHead className="min-w-[160px]">Program</TableHead>
                         <TableHead className="hidden sm:table-cell">Phone</TableHead>
                         <TableHead className="text-right whitespace-nowrap">Approved at</TableHead>
+                        <TableHead className="min-w-[170px] whitespace-nowrap">Spending limit</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {students.map((row) => (
-                        <TableRow key={row.id}>
+                      {students.map((row) => {
+                        const limit = spendingLimits[row.id];
+                        const limitOpen = !!limitFormOpen[row.id];
+                        return (
+                        <Fragment key={row.id}>
+                        <TableRow className={limitOpen ? "border-b-0" : undefined}>
                           <TableCell className="w-[56px]">
                             <Avatar className="h-9 w-9 rounded-lg">
                               <AvatarImage
@@ -453,8 +510,43 @@ const StudentManagement = () => {
                                 ? format(new Date(row.updated_at), "dd MMM yyyy")
                                 : "—"}
                           </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={limitOpen}
+                                disabled={togglingLimitId === row.id}
+                                onCheckedChange={(on) => toggleSpendingLimit(row.id, on)}
+                                aria-label={`Spending limit for ${row.student_name || row.student_email}`}
+                              />
+                              <span className="text-xs text-muted-foreground">
+                                {limit?.spending_limit_enabled
+                                  ? [
+                                      limit.weekly_limit_inr != null ? `${formatInr(limit.weekly_limit_inr)}/wk` : null,
+                                      limit.monthly_limit_inr != null ? `${formatInr(limit.monthly_limit_inr)}/mo` : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")
+                                  : limitOpen
+                                    ? "Not saved yet"
+                                    : "Off"}
+                              </span>
+                            </div>
+                          </TableCell>
                         </TableRow>
-                      ))}
+                        {limitOpen && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={7} className="pt-0">
+                              <StudentSpendingLimitForm
+                                joinRequestId={row.id}
+                                limit={limit}
+                                onSaved={onLimitSaved}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        </Fragment>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

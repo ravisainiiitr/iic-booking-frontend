@@ -757,6 +757,26 @@ export interface EquipmentNomination {
 }
 
 /** TA nomination call initiated by OIC/Admin; email sent to all Faculty. */
+/** Supervisor-set spending limit for a student on the faculty wallet (amounts are INR decimal strings). */
+export interface StudentSpendingLimit {
+  join_request_id: number;
+  student: number;
+  faculty: number;
+  spending_limit_enabled: boolean;
+  weekly_limit_inr: string | null;
+  monthly_limit_inr: string | null;
+  week_start: string;
+  week_end: string;
+  month_start: string;
+  month_end: string;
+  week_spent_inr: string;
+  month_spent_inr: string;
+  weekly_remaining_inr: string | null;
+  monthly_remaining_inr: string | null;
+  spending_limit_updated_at: string | null;
+  supervisor_name?: string | null;
+}
+
 export interface TANominationCall {
   id: number;
   equipment_id: number;
@@ -4288,6 +4308,36 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ request_ids: requestIds }),
     });
+  }
+
+  /** Faculty only: weekly / monthly limits and current spend for every approved student on their wallet. */
+  async getStudentSpendingLimits() {
+    return this.request<{ limits: StudentSpendingLimit[] }>('/wallet/student-spending-limits/');
+  }
+
+  /** Faculty only: turn a student's spending limit on/off and set the INR amounts. */
+  async updateStudentSpendingLimit(
+    joinRequestId: number,
+    payload: {
+      spending_limit_enabled: boolean;
+      weekly_limit_inr?: string | null;
+      monthly_limit_inr?: string | null;
+    },
+  ) {
+    return this.request<{ message: string; limit: StudentSpendingLimit }>(
+      `/wallet/join-requests/${joinRequestId}/spending-limit/`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  /** Student: the limit their supervisor set on the wallet they book from (spending_limit_enabled false when none). */
+  async getMySpendingLimit() {
+    return this.request<Partial<StudentSpendingLimit> & { spending_limit_enabled: boolean }>(
+      '/wallet/my-spending-limit/',
+    );
   }
 
   // Wallet recharge request endpoints
