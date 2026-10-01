@@ -327,6 +327,7 @@ export default function ResearchGroup() {
                   onChanged={() => void load()}
                   onAskUpdate={canAsk ? () => setAskOpen(true) : undefined}
                   reloadKey={updatesReload}
+                  sendUpdateTo={!isManager && group.status === "ACTIVE" ? group : undefined}
                 />
               </TabsContent>
               <TabsContent value="workspaces" className="mt-4">

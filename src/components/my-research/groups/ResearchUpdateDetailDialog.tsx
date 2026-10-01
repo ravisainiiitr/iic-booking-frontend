@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBytes, formatDate } from "../researchUtils";
-import { DueLabel, RequestStatusBadge } from "./groupUi";
+import { DueLabel, RequestStatusBadge, UnpromptedBadge } from "./groupUi";
 
 interface Props {
   request: GroupUpdateRequest | null;
@@ -71,7 +71,10 @@ export function ResearchUpdateDetailDialog({ request, onOpenChange, onChanged, o
                 {request?.activity ? ` · ${request.activity.title}` : ""}
               </span>
               {request ? <RequestStatusBadge status={request.status} /> : null}
-              {request ? <DueLabel date={request.due_date} overdue={request.status === "OVERDUE"} daysOverdue={request.days_overdue} /> : null}
+              {request?.is_unprompted ? <UnpromptedBadge /> : null}
+              {request && !request.is_unprompted ? (
+                <DueLabel date={request.due_date} overdue={request.status === "OVERDUE"} daysOverdue={request.days_overdue} />
+              ) : null}
             </div>
           </DialogDescription>
         </DialogHeader>

@@ -178,6 +178,9 @@ export interface GroupUpdateRequest {
   group_id: string;
   group_name: string;
   activity: { id: string; title: string } | null;
+  /** True when the member sent this update without being asked ("Sent by student"). */
+  is_unprompted?: boolean;
+  origin?: "member" | "requested";
   title: string;
   instructions: string;
   due_date: string | null;

@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { BookingsAndResultsSection } from "@/components/my-research/BookingsAndResultsSection";
 import { CreateWorkspaceDialog } from "@/components/my-research/CreateWorkspaceDialog";
 import { WorkspaceCard } from "@/components/my-research/WorkspaceCard";
 import { formatBytes, historyLabel, timeAgo } from "@/components/my-research/researchUtils";
@@ -43,6 +44,7 @@ import { CreateResearchGroupDialog } from "@/components/my-research/groups/Creat
 import { MyActivitiesUpdates } from "@/components/my-research/groups/MyActivitiesUpdates";
 import { ResearchGroupList } from "@/components/my-research/groups/ResearchGroupList";
 import { ResearchNeedsAttention } from "@/components/my-research/groups/ResearchNeedsAttention";
+import { SendUpdateButton } from "@/components/my-research/groups/SendUpdateButton";
 import { eventSentence, groupPath } from "@/components/my-research/groups/groupLabels";
 
 const WORKSPACES_VISIBLE = 3;
@@ -246,6 +248,8 @@ export default function MyResearch() {
   /** Brand-new student: one "Get started" card instead of a stack of empty sections. */
   const isNewStudent = !isFaculty && Boolean(home) && !hasProjects && !filtering;
   const askGroups = managedGroups.filter((g) => g.status === "ACTIVE");
+  const sendGroups = memberGroups.filter((g) => g.status === "ACTIVE" && g.my_role === "MEMBER");
+  const activeProjects = myWorkspaces.filter((w) => w.status === "ACTIVE");
   const pubCounts = publications
     ? {
         total: publications.length,
@@ -644,10 +648,16 @@ export default function MyResearch() {
               </>
             ) : (
               <>
-                {groups && showSummaries ? <MyActivitiesUpdates work={groups.my_work} /> : null}
+                {groups && showSummaries ? (
+                  <MyActivitiesUpdates
+                    work={groups.my_work}
+                    action={sendGroups.length ? <SendUpdateButton groups={sendGroups} onSent={() => void loadGroups()} /> : undefined}
+                  />
+                ) : null}
                 {getStarted}
                 {groupsSection}
                 {workspacesSection}
+                {showSummaries && home ? <BookingsAndResultsSection projects={activeProjects} onLinked={() => void loadHome()} /> : null}
                 {sharedSection}
               </>
             )}

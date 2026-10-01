@@ -4,7 +4,7 @@ import type { GroupActivity, GroupNeedsAttention, GroupUpdateRequest } from "@/l
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TOUCH_TARGET } from "../researchUi";
-import { DueLabel, RequestStatusBadge } from "./groupUi";
+import { DueLabel, RequestStatusBadge, UnpromptedBadge } from "./groupUi";
 
 interface Props {
   data: GroupNeedsAttention;
@@ -97,7 +97,11 @@ export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, on
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {showGroup ? <span className="text-[11px] text-muted-foreground">{r.group_name}</span> : null}
-                <DueLabel date={r.due_date} overdue={r.status === "OVERDUE"} daysOverdue={r.days_overdue} />
+                {r.is_unprompted ? (
+                  <UnpromptedBadge />
+                ) : (
+                  <DueLabel date={r.due_date} overdue={r.status === "OVERDUE"} daysOverdue={r.days_overdue} />
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">

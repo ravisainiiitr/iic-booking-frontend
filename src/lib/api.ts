@@ -4,11 +4,13 @@ import type {
   MyResearchHome,
   ResearchActivity,
   ResearchBooking,
+  ResearchBookingResults,
   ResearchBreadcrumb,
   ResearchEquipment,
   ResearchFile,
   ResearchFolder,
   ResearchMember,
+  ResearchMyBooking,
   ResearchPagination,
   ResearchPermissions,
   ResearchPublication,
@@ -9351,6 +9353,25 @@ class ApiClient {
     });
   }
 
+  /** Official results of the project's linked bookings, limited to what the caller may already open. */
+  async listResearchBookingResults(workspaceId: string, bookingIds?: number[]) {
+    const qs = bookingIds?.length ? `?booking_ids=${bookingIds.join(',')}` : '';
+    return this.request<{ results: ResearchBookingResults[] }>(
+      `/v1/my-research/workspaces/${workspaceId}/booking-results/${qs}`,
+    );
+  }
+
+  /** The caller's recent bookings with results status and projects; `unfiled` keeps completed bookings not in a project. */
+  async listMyResearchBookings(params: { unfiled?: boolean; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (params.unfiled) q.set('unfiled', '1');
+    if (params.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return this.request<{ results: ResearchMyBooking[]; unfiled_count: number }>(
+      `/v1/my-research/my-bookings/${qs ? `?${qs}` : ''}`,
+    );
+  }
+
   async listResearchEquipment(workspaceId: string) {
     return this.request<{ results: ResearchEquipment[] }>(`/v1/my-research/workspaces/${workspaceId}/equipment/`);
   }
@@ -9559,6 +9580,22 @@ class ApiClient {
     return this.request<GroupUpdateRequest>(`/v1/my-research/update-requests/${requestId}/submit/`, {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  }
+
+  /** A member's unprompted update to the group's faculty; pass `request_id` to send a draft that holds attachments. */
+  async sendResearchUpdate(groupId: string, input: GroupUpdateSubmission & { title?: string; request_id?: string | null }) {
+    return this.request<GroupUpdateRequest>(`/v1/my-research/groups/${groupId}/updates/self/`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** Opens a hidden draft so attachments can be uploaded before an unprompted update is sent. */
+  async createResearchUpdateDraft(groupId: string) {
+    return this.request<GroupUpdateRequest>(`/v1/my-research/groups/${groupId}/updates/self/`, {
+      method: 'POST',
+      body: JSON.stringify({ draft: true }),
     });
   }
 

@@ -13,8 +13,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatBytes } from "../researchUtils";
 import { DueLabel } from "./groupUi";
 
+/** Group a member sends an update to without being asked. */
+export interface UnpromptedUpdateTarget {
+  groupId: string;
+  groupName: string;
+  supervisorName: string;
+}
+
 interface Props {
   request: GroupUpdateRequest | null;
+  /** Set instead of `request` to send an update nobody asked for. */
+  unprompted?: UnpromptedUpdateTarget | null;
   onOpenChange: (open: boolean) => void;
   onSubmitted: (req: GroupUpdateRequest) => void;
   maxAttachments?: number;
@@ -26,7 +35,10 @@ async function putFile(url: string, headers: Record<string, string>, file: File)
 }
 
 /** Member's update submission. Attachments go to the existing private My Research bucket via a presigned PUT. */
-export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAttachments = 10 }: Props) {
+export function ResearchUpdateForm({ request, unprompted = null, onOpenChange, onSubmitted, maxAttachments = 10 }: Props) {
+  const [title, setTitle] = useState("");
+  /** Hidden draft that holds attachments of an unprompted update until it is sent. */
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [workCompleted, setWorkCompleted] = useState("");
   const [currentStatus, setCurrentStatus] = useState("");
   const [blockers, setBlockers] = useState("");
@@ -40,7 +52,9 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!request) return;
+    if (!request && !unprompted) return;
+    setTitle("");
+    setDraftId(null);
     setWorkCompleted("");
     setCurrentStatus("");
     setBlockers("");
@@ -49,17 +63,35 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
     setProgress(0);
     setExpected("");
     setAttachments([]);
-  }, [request]);
+  }, [request, unprompted]);
+
+  const open = Boolean(request || unprompted);
+
+  const attachmentTarget = async (): Promise<string | null> => {
+    if (request) return request.id;
+    if (draftId) return draftId;
+    if (!unprompted) return null;
+    const res = await apiClient.createResearchUpdateDraft(unprompted.groupId);
+    if (res.error || !res.data) {
+      toast.error(res.error || "Could not prepare the attachment upload.");
+      return null;
+    }
+    setDraftId(res.data.id);
+    return res.data.id;
+  };
 
   const upload = async (files: FileList | null) => {
-    if (!request || !files?.length) return;
+    if (!open || !files?.length) return;
+    let count = attachments.length;
     for (const file of Array.from(files)) {
-      if (attachments.length >= maxAttachments) {
+      if (count >= maxAttachments) {
         toast.error(`At most ${maxAttachments} attachments.`);
         break;
       }
       setUploading(file.name);
-      const init = await apiClient.initiateResearchUpdateAttachment(request.id, {
+      const targetId = await attachmentTarget();
+      if (!targetId) break;
+      const init = await apiClient.initiateResearchUpdateAttachment(targetId, {
         filename: file.name,
         size: file.size,
         content_type: file.type || "application/octet-stream",
@@ -80,6 +112,7 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
         toast.error(done.error || `Could not verify ${file.name}.`);
         continue;
       }
+      count += 1;
       setAttachments((prev) => [...prev, done.data!]);
     }
     setUploading(null);
@@ -97,13 +130,13 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!request) return;
+    if (!open) return;
     if (!workCompleted.trim() && !currentStatus.trim()) {
       toast.error("Describe the work completed or the current status.");
       return;
     }
     setSaving(true);
-    const res = await apiClient.submitResearchUpdate(request.id, {
+    const body = {
       work_completed: workCompleted.trim(),
       current_status: currentStatus.trim(),
       blockers: blockers.trim(),
@@ -111,7 +144,10 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
       progress_percent: includeProgress ? progress : null,
       expected_completion_date: expected || null,
       attachment_ids: attachments.map((a) => a.id),
-    });
+    };
+    const res = request
+      ? await apiClient.submitResearchUpdate(request.id, body)
+      : await apiClient.sendResearchUpdate(unprompted!.groupId, { ...body, title: title.trim() || undefined, request_id: draftId });
     setSaving(false);
     if (res.error || !res.data) {
       toast.error(res.error || "Could not send your update.");
@@ -125,23 +161,41 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
   const busy = saving || uploading != null;
 
   return (
-    <Dialog open={Boolean(request)} onOpenChange={(open) => !busy && onOpenChange(open)}>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle className="break-words">{request?.title}</DialogTitle>
+            <DialogTitle className="break-words">{request ? request.title : "Send update"}</DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-1">
-                <span className="block">
-                  Requested by {request?.requested_by?.name ?? "your supervisor"}
-                  {request?.activity ? ` · ${request.activity.title}` : ""}
+              {request ? (
+                <div className="space-y-1">
+                  <span className="block">
+                    Requested by {request.requested_by?.name ?? "your supervisor"}
+                    {request.activity ? ` · ${request.activity.title}` : ""}
+                  </span>
+                  <DueLabel date={request.due_date} overdue={request.status === "OVERDUE"} daysOverdue={request.days_overdue} />
+                </div>
+              ) : (
+                <span className="block break-words">
+                  To {unprompted?.supervisorName} ({unprompted?.groupName}). Nobody needs to ask first.
                 </span>
-                {request ? <DueLabel date={request.due_date} overdue={request.status === "OVERDUE"} daysOverdue={request.days_overdue} /> : null}
-              </div>
+              )}
             </DialogDescription>
           </DialogHeader>
           {request?.instructions ? (
             <p className="whitespace-pre-line rounded-md border bg-muted/40 px-3 py-2 text-sm">{request.instructions}</p>
+          ) : null}
+          {!request ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="rg-up-title">Title (optional)</Label>
+              <Input
+                id="rg-up-title"
+                maxLength={250}
+                placeholder="Progress update"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
           ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="rg-up-work">Work completed</Label>

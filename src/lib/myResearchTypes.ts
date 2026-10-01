@@ -151,6 +151,36 @@ export interface ResearchBooking {
   folder_path?: ResearchBreadcrumb[];
 }
 
+export interface ResearchBookingResultFile {
+  name: string;
+  size_bytes: number;
+  source: string;
+  uploaded_at: string | null;
+  /** Existing booking results download URL (presigned or authenticated portal endpoint). */
+  download_url: string;
+}
+
+/**
+ * Official results of a booking as the booking results system would show them to the viewer.
+ * `can_view: false` means the viewer has no results access and nothing else is sent.
+ */
+export interface ResearchBookingResults {
+  booking_id: number;
+  can_view: boolean;
+  has_results?: boolean;
+  locked_code?: string | null;
+  locked_reason?: string | null;
+  results_path?: string;
+  download_all_path?: string;
+  /** Present on the project results endpoint only; lab-folder files are listed by the booking's own results. */
+  files?: ResearchBookingResultFile[];
+}
+
+export interface ResearchMyBooking extends ResearchBooking {
+  projects: Array<{ id: string; name: string; status: ResearchWorkspaceStatus }>;
+  results: ResearchBookingResults;
+}
+
 export interface ResearchEquipment {
   equipment_id: number;
   name: string;

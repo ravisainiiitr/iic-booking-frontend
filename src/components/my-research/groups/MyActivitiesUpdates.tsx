@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, ClipboardList, MessageSquareText } from "lucide-react";
 import type { GroupMyWork } from "@/lib/researchGroupTypes";
@@ -5,15 +6,31 @@ import { Button } from "@/components/ui/button";
 import { ActivityStatusBadge, DueLabel, ProgressLine, RequestStatusBadge, SectionHeading } from "./groupUi";
 import { groupPath } from "./groupLabels";
 
-/** Student "To do": the member's own open tasks and progress update requests across groups. Renders nothing when empty. */
-export function MyActivitiesUpdates({ work }: { work: GroupMyWork }) {
+/**
+ * Student "To do": the member's own open tasks and progress update requests across groups.
+ * Renders nothing when empty unless an `action` (e.g. "Send update") is given.
+ */
+export function MyActivitiesUpdates({ work, action }: { work: GroupMyWork; action?: ReactNode }) {
   const navigate = useNavigate();
   const requests = [...work.update_requests].sort((a, b) => Number(b.status === "OVERDUE") - Number(a.status === "OVERDUE"));
-  if (work.activities.length === 0 && requests.length === 0) return null;
+  const empty = work.activities.length === 0 && requests.length === 0;
+  if (empty && !action) return null;
+
+  if (empty) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-sm" aria-label="To do">
+        <span className="flex items-center gap-2 text-muted-foreground">
+          <ClipboardCheck className="h-4 w-4 shrink-0 text-primary dark:text-sky-300" aria-hidden />
+          Nothing to do right now. You can still send your supervisor an update.
+        </span>
+        {action}
+      </div>
+    );
+  }
 
   return (
     <section className="space-y-3" aria-label="To do">
-      <SectionHeading icon={ClipboardCheck} title="To do" count={requests.length + work.activities.length} />
+      <SectionHeading icon={ClipboardCheck} title="To do" count={requests.length + work.activities.length} action={action} />
       <div className={`grid gap-3 ${requests.length && work.activities.length ? "lg:grid-cols-2" : ""}`}>
         {requests.length > 0 ? (
           <div className="rounded-lg border bg-card">

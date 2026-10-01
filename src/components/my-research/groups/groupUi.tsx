@@ -65,6 +65,15 @@ export function RequestStatusBadge({ status }: { status: UpdateRequestStatus }) 
   );
 }
 
+/** Marks an update the member sent without being asked. */
+export function UnpromptedBadge({ own }: { own?: boolean }) {
+  return (
+    <Badge variant="outline" className="gap-1 whitespace-nowrap border-violet-300 bg-background text-[11px] font-medium text-violet-800 dark:text-violet-300">
+      <Send className="h-3 w-3" aria-hidden /> {own ? "Sent by you" : "Sent by student"}
+    </Badge>
+  );
+}
+
 export function PriorityLabel({ priority }: { priority: GroupActivityPriority }) {
   if (priority === "NORMAL") return null;
   const high = priority === "HIGH";

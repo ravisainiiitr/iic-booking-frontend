@@ -63,6 +63,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookFromWorkspaceDialog } from "@/components/my-research/BookFromWorkspaceDialog";
+import { BookingResultsBadge, BookingResultsFiles, useProjectBookingResults } from "@/components/my-research/BookingResults";
 import { CreateWorkspaceDialog } from "@/components/my-research/CreateWorkspaceDialog";
 import { FilesTab } from "@/components/my-research/FilesTab";
 import { downloadResearchFile } from "@/components/my-research/downloadResearchFile";
@@ -176,6 +177,9 @@ function ResearchWorkspace({ workspaceId }: { workspaceId: string }) {
     params.set("tab", next);
     setSearchParams(params, { replace: true });
   };
+
+  const bookingIds = useMemo(() => bookings.map((b) => b.booking_id), [bookings]);
+  const bookingResults = useProjectBookingResults(workspaceId, bookingIds, tab === "bookings" && loaded.has("bookings"));
 
   const loadWorkspace = useCallback(async () => {
     const res = await apiClient.getResearchWorkspace(workspaceId);
@@ -693,6 +697,7 @@ function ResearchWorkspace({ workspaceId }: { workspaceId: string }) {
                             <Badge variant="outline" className="text-[10px]">
                               {b.status_display}
                             </Badge>
+                            <BookingResultsBadge results={bookingResults.get(b.booking_id)} />
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {b.display_id} · {formatDate(b.booking_date)}
@@ -733,6 +738,11 @@ function ResearchWorkspace({ workspaceId }: { workspaceId: string }) {
                             </Button>
                           ) : null}
                         </div>
+                        {bookingResults.get(b.booking_id)?.has_results ? (
+                          <div className="basis-full">
+                            <BookingResultsFiles results={bookingResults.get(b.booking_id)} bookingId={b.booking_id} />
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

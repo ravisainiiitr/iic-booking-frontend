@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDate } from "../researchUtils";
 import { ResearchUpdateDetailDialog } from "./ResearchUpdateDetailDialog";
 import { ResearchUpdateForm } from "./ResearchUpdateForm";
-import { DueLabel, EmptyHint, RequestStatusBadge } from "./groupUi";
+import { SendUpdateButton, type SendUpdateGroup } from "./SendUpdateButton";
+import { DueLabel, EmptyHint, RequestStatusBadge, UnpromptedBadge } from "./groupUi";
 
 const STATES: Array<{ value: UpdatesState; label: string }> = [
   { value: "pending", label: "Pending" },
@@ -29,6 +30,8 @@ interface Props {
   onAskUpdate?: () => void;
   /** Bumped by the page after new requests are sent. */
   reloadKey?: number;
+  /** Set for a member of an active group so they can send an update nobody asked for. */
+  sendUpdateTo?: SendUpdateGroup;
 }
 
 export function ResearchUpdates({
@@ -41,6 +44,7 @@ export function ResearchUpdates({
   onChanged,
   onAskUpdate,
   reloadKey = 0,
+  sendUpdateTo,
 }: Props) {
   const [state, setState] = useState<UpdatesState>("pending");
   const [assignee, setAssignee] = useState("all");
@@ -85,6 +89,12 @@ export function ResearchUpdates({
     onChanged();
   };
 
+  const onSent = () => {
+    if (state === "submitted") void load();
+    else setState("submitted");
+    onChanged();
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -123,6 +133,7 @@ export function ResearchUpdates({
             <MessageSquarePlus className="h-4 w-4" aria-hidden /> Ask for an update
           </Button>
         ) : null}
+        {sendUpdateTo ? <SendUpdateButton groups={[sendUpdateTo]} variant="default" className="sm:ml-auto" onSent={onSent} /> : null}
       </div>
 
       {loading && items.length === 0 ? (
@@ -134,7 +145,9 @@ export function ResearchUpdates({
           {state === "pending"
             ? isManager
               ? "No progress update requests waiting."
-              : "Nobody has asked you for an update right now."
+              : sendUpdateTo
+                ? "Nobody has asked you for an update right now. You can still send one with Send update."
+                : "Nobody has asked you for an update right now."
             : state === "overdue"
               ? "Nothing overdue."
               : state === "submitted"
@@ -153,6 +166,7 @@ export function ResearchUpdates({
                   {r.title}
                 </p>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  {r.is_unprompted ? <UnpromptedBadge own={!isManager} /> : null}
                   {r.activity ? <span className="truncate text-[11px] text-muted-foreground">{r.activity.title}</span> : null}
                   {r.status === "SUBMITTED" || r.status === "REVIEWED" ? (
                     <span className="text-[11px] text-muted-foreground">Submitted {formatDate(r.completed_at)}</span>
