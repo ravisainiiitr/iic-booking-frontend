@@ -53,6 +53,26 @@ describe("combinedLimitError", () => {
   });
 });
 
+describe("FE-SEM APREO field shape", () => {
+  const apreo = (bHelpText: string) => [
+    { field_key: "A", field_label: "No. of Samples", field_type: "NUMERIC", options: { min: 1, max_formula: "B*4" }, help_text: "" },
+    { field_key: "B", field_label: "Number of Slots", field_type: "NUMERIC", options: [], help_text: bHelpText },
+  ];
+
+  it("has nothing to sum while B has no configured max", () => {
+    expect(combinedLimits(apreo(""))).toEqual([]);
+    expect(combinedLimitError(apreo(""), { A: 8, B: 2 }, [{ A: 8, B: 2 }])).toBeNull();
+  });
+
+  it("caps B across sets once B max 2 is set through help-text line 2", () => {
+    expect(combinedLimits(apreo("1\n2\n1")).map((l) => [l.key, l.max])).toEqual([["B", 2]]);
+    expect(combinedLimitError(apreo("1\n2\n1"), { A: 2, B: 2 }, [{ A: 2, B: 2 }])).toBe(
+      "Total Number of Slots across all sample sets (4) exceeds the maximum allowed (2) for this equipment.",
+    );
+    expect(combinedLimitError(apreo("1\n2\n1"), { A: 4, B: 1 }, [{ A: 4, B: 1 }])).toBeNull();
+  });
+});
+
 describe("allowance helpers", () => {
   it("reports usage and the per-set max", () => {
     const [, b] = combinedAllowances(fields, { A: 1, B: 1 }, [{ A: 1, B: 1 }]);
