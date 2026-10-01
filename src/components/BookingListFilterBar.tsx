@@ -54,13 +54,13 @@ export function BookingListFilterBar({
 }: BookingListFilterBarProps) {
   return (
     <form
-      className="flex flex-wrap items-center justify-end gap-2"
+      className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap"
       onSubmit={(e) => {
         e.preventDefault();
         onApply();
       }}
     >
-      <div className="relative w-full sm:w-56">
+      <div className="relative w-full min-w-[8rem] lg:w-auto lg:flex-[2_1_12rem]">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
           type="search"
@@ -72,7 +72,7 @@ export function BookingListFilterBar({
         />
       </div>
       <Select value={status} onValueChange={onStatusChange}>
-        <SelectTrigger className="h-9 w-[11rem]" aria-label="Status">
+        <SelectTrigger className="h-9 w-[11rem] min-w-[6.5rem] lg:w-auto lg:flex-[1_1_9rem]" aria-label="Status">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -89,7 +89,7 @@ export function BookingListFilterBar({
         title="Start date"
         value={startDate}
         onChange={(e) => onStartDateChange(e.target.value)}
-        className="h-9 w-[9.5rem]"
+        className="h-9 w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]"
       />
       <Input
         type="date"
@@ -97,10 +97,10 @@ export function BookingListFilterBar({
         title="End date"
         value={endDate}
         onChange={(e) => onEndDateChange(e.target.value)}
-        className="h-9 w-[9.5rem]"
+        className="h-9 w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]"
       />
       <Select value={equipment || "all"} onValueChange={onEquipmentChange}>
-        <SelectTrigger className="h-9 w-[13rem]" aria-label="Equipment">
+        <SelectTrigger className="h-9 w-[13rem] min-w-[7rem] lg:w-auto lg:flex-[1.5_1_11rem]" aria-label="Equipment">
           <SelectValue placeholder="All equipment" />
         </SelectTrigger>
         <SelectContent>
@@ -115,7 +115,7 @@ export function BookingListFilterBar({
       {moreFilters ? (
         <Popover>
           <PopoverTrigger asChild>
-            <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
+            <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 gap-1.5">
               <SlidersHorizontal className="h-4 w-4" aria-hidden />
               More filters
               {moreFiltersActiveCount > 0 ? (
@@ -135,11 +135,11 @@ export function BookingListFilterBar({
           </PopoverContent>
         </Popover>
       ) : null}
-      <Button type="submit" size="sm" className="h-9">
+      <Button type="submit" size="sm" className="h-9 shrink-0">
         Apply
       </Button>
       {onClear ? (
-        <Button type="button" variant="ghost" size="sm" className="h-9" onClick={onClear}>
+        <Button type="button" variant="ghost" size="sm" className="h-9 shrink-0" onClick={onClear}>
           Clear
         </Button>
       ) : null}

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,17 +115,6 @@ interface Booking extends BookingRef {
 }
 
 const PAGE_SIZE = 10;
-
-const STATUS_FILTER_LABELS: Record<string, string> = {
-  all: "ALL STATUS",
-  BOOKED: "BOOKED",
-  DISRUPTION_PENDING: "DISRUPTION PENDING",
-  COMPLETED: "COMPLETED",
-  CANCELLED: "CANCELLED",
-  ABSENT: "OPERATOR UNAVAILABLE",
-  REFUNDED: "REFUNDED",
-  BOOKING_NOT_UTILIZED: "BOOKING NOT UTILIZED",
-};
 
 const BookingManagement = () => {
   const navigate = useNavigate();
@@ -483,13 +472,7 @@ const BookingManagement = () => {
         </StandaloneOnly>
 
         <Card className="overflow-hidden border shadow-sm">
-          <CardHeader className="flex flex-col gap-3 space-y-0 border-b bg-muted/30 py-3 xl:flex-row xl:items-center xl:justify-between">
-            <CardTitle className="flex shrink-0 flex-wrap items-center gap-2 text-lg">
-              <span>Bookings</span>
-              <span className="font-bold uppercase tracking-wide text-primary">
-                {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
-              </span>
-            </CardTitle>
+          <CardHeader className="space-y-0 border-b bg-muted/30 py-3">
             <BookingListFilterBar
               search={searchQuery}
               onSearchChange={setSearchQuery}

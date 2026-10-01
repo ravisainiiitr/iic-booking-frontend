@@ -6,7 +6,7 @@ import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -1343,8 +1343,7 @@ const MyBookings = () => {
 
         <>
             <Card className="overflow-hidden border shadow-sm">
-              <CardHeader className="flex flex-col gap-3 space-y-0 border-b bg-muted/30 py-3 xl:flex-row xl:items-center xl:justify-between">
-                <CardTitle className="shrink-0 text-lg">Bookings</CardTitle>
+              <CardHeader className="space-y-0 border-b bg-muted/30 py-3">
                 <BookingListFilterBar
                   search={searchQuery}
                   onSearchChange={setSearchQuery}
