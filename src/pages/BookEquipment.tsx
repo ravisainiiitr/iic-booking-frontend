@@ -2563,20 +2563,6 @@ const BookEquipment = () => {
   const goToNextWeekInPopup = () => {
     if (statusChangePopupWeekStart) setStatusChangePopupWeekStart(addWeeks(statusChangePopupWeekStart, 1));
   };
-  /** Week arrows act on a double-click / double-tap only, so a stray tap does not switch the week. */
-  const statusWeekNavTapRef = useRef<{ dir: -1 | 1; at: number } | null>(null);
-  const handleStatusWeekNavTap = (dir: -1 | 1) => {
-    const now = Date.now();
-    const last = statusWeekNavTapRef.current;
-    if (last && last.dir === dir && now - last.at <= 450) {
-      statusWeekNavTapRef.current = null;
-      if (dir < 0) goToPrevWeekInPopup();
-      else goToNextWeekInPopup();
-      return;
-    }
-    statusWeekNavTapRef.current = { dir, at: now };
-  };
-
   // Change slot status card: open bulk email dialog for selected slots (or slots on selected dates)
   const openBulkEmailFromStatusCard = useCallback(async () => {
     if (!selectedEquipment?.id) return;
@@ -7191,9 +7177,9 @@ const BookEquipment = () => {
                     variant="secondary"
                     size="icon"
                     className="h-8 w-8 touch-manipulation bg-white/20 hover:bg-white/30 border-0 text-white"
-                    onClick={() => handleStatusWeekNavTap(-1)}
-                    aria-label="Previous week (double-click)"
-                    title="Double-click to go to the previous week"
+                    onClick={goToPrevWeekInPopup}
+                    aria-label="Previous week"
+                    title="Previous week"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -7202,16 +7188,16 @@ const BookEquipment = () => {
                       Week of {format(statusChangePopupWeekStart, "MMM d")} – {format(addDays(statusChangePopupWeekStart, 6), "MMM d, yyyy")}
                     </h3>
                     <p className="text-white/90 text-[11px] mt-0.5">
-                      Double-click the arrows (or a date above) to change week · click slots · time labels select rows · day headers select columns
+                      Use the arrows (or double-click a date above) to change week · click slots · time labels select rows · day headers select columns
                     </p>
                   </div>
                   <Button
                     variant="secondary"
                     size="icon"
                     className="h-8 w-8 touch-manipulation bg-white/20 hover:bg-white/30 border-0 text-white"
-                    onClick={() => handleStatusWeekNavTap(1)}
-                    aria-label="Next week (double-click)"
-                    title="Double-click to go to the next week"
+                    onClick={goToNextWeekInPopup}
+                    aria-label="Next week"
+                    title="Next week"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
