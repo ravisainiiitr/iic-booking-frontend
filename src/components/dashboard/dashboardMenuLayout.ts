@@ -2,6 +2,35 @@ import type { DashboardMenuGroup, DashboardMenuLayout } from "@/lib/api";
 
 export const EMPTY_DASHBOARD_MENU_LAYOUT: DashboardMenuLayout = { groups: [], order: [] };
 
+/**
+ * IITR Faculty menu order below the Dashboard button. "Shared with me" takes My Research's place
+ * while My Research is switched off. Other visible items follow, User guide last.
+ */
+export const FACULTY_DASHBOARD_MENU_ORDER = [
+  "browse_equipment",
+  "view_bookings",
+  "booking_templates",
+  "wallet_management",
+  "my_research",
+  "shared_with_me",
+  "student_management",
+  "urgent_booking_requests",
+  "view_results",
+  "proforma_invoice",
+  "reports_statistics",
+  "support_tickets",
+  "rate_your_experience",
+];
+
+/** Default order for an IITR Faculty user: the faculty order, then any other visible ids, then User guide. */
+export function facultyDashboardMenuOrder(ids: string[]): string[] {
+  return [
+    ...FACULTY_DASHBOARD_MENU_ORDER,
+    ...ids.filter((id) => id !== "user_guide" && !FACULTY_DASHBOARD_MENU_ORDER.includes(id)),
+    "user_guide",
+  ];
+}
+
 /** Visible ids in menu order: `defaultOrder` first, then the remaining ids in their original order. */
 export function orderMenuIds(ids: string[], defaultOrder: string[]): string[] {
   const available = new Set(ids);

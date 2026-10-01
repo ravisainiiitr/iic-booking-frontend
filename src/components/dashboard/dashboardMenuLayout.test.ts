@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addMenuGroup,
   buildMenuTree,
+  facultyDashboardMenuOrder,
   menuNodeKey,
   moveGroupItem,
   moveMenuItem,
@@ -25,6 +26,50 @@ describe("orderMenuIds", () => {
 
   it("returns the original order when no default order is given", () => {
     expect(orderMenuIds(["x", "y"], [])).toEqual(["x", "y"]);
+  });
+});
+
+describe("facultyDashboardMenuOrder", () => {
+  const facultyMenu = [
+    "browse_equipment",
+    "view_bookings",
+    "booking_templates",
+    "view_results",
+    "my_research",
+    "urgent_booking_requests",
+    "proforma_invoice",
+    "wallet_management",
+    "my_publications",
+    "reports_statistics",
+    "user_guide",
+    "student_management",
+    "rate_your_experience",
+    "support_tickets",
+  ];
+
+  it("uses the IITR Faculty order, keeps unlisted items before User guide, and puts User guide last", () => {
+    expect(orderMenuIds(facultyMenu, facultyDashboardMenuOrder(facultyMenu))).toEqual([
+      "browse_equipment",
+      "view_bookings",
+      "booking_templates",
+      "wallet_management",
+      "my_research",
+      "student_management",
+      "urgent_booking_requests",
+      "view_results",
+      "proforma_invoice",
+      "reports_statistics",
+      "support_tickets",
+      "rate_your_experience",
+      "my_publications",
+      "user_guide",
+    ]);
+  });
+
+  it("shows Shared with me in My Research's place when My Research is off", () => {
+    const ids = facultyMenu.map((id) => (id === "my_research" ? "shared_with_me" : id));
+    const ordered = orderMenuIds(ids, facultyDashboardMenuOrder(ids));
+    expect(ordered.slice(3, 6)).toEqual(["wallet_management", "shared_with_me", "student_management"]);
   });
 });
 

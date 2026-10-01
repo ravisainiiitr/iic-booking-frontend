@@ -68,7 +68,7 @@ import {
 } from "@/components/ui/table";
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
-import { normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
+import { facultyDashboardMenuOrder, normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
 import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
 
@@ -3234,7 +3234,9 @@ const Dashboard = () => {
           .filter((id) => id !== "admin_settings" && !OIC_DASHBOARD_MENU_ORDER.includes(id)),
         "admin_settings",
       ]
-    : [];
+    : isFacultyUser
+      ? facultyDashboardMenuOrder(dashboardMenuEntries.map((entry) => entry.id))
+      : [];
 
   const renderDashboardMenu = () => (
     <>

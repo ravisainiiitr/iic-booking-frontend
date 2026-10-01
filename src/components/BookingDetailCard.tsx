@@ -350,12 +350,12 @@ function BookingLifecycleCountdown({
     <div className={`mb-4 overflow-hidden rounded-2xl border bg-gradient-to-br ${tone} shadow-sm`}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold tracking-tight">
-            <Timer className={`h-4 w-4 shrink-0 ${overdue ? "text-white" : ""}`} />
+          <div className="flex flex-wrap items-center gap-2 text-base font-semibold tracking-tight">
+            <Timer className={`h-5 w-5 shrink-0 ${overdue ? "text-white" : ""}`} />
             <span>{overdue ? `${title} — overdue` : title}</span>
             {countdown.atmosphere_sensitive && phase === "submit_sample" && (
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                   overdue ? "bg-white/20 text-white" : "bg-primary/15 text-primary dark:text-sky-100"
                 }`}
               >
@@ -364,7 +364,7 @@ function BookingLifecycleCountdown({
             )}
             {countdown.extended && (
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                   overdue ? "bg-white/20 text-white" : "bg-emerald-600/15 text-emerald-800 dark:text-emerald-200"
                 }`}
               >
@@ -372,7 +372,7 @@ function BookingLifecycleCountdown({
               </span>
             )}
           </div>
-          <p className={`text-xs ${overdue ? "text-white/85" : "text-muted-foreground"}`}>
+          <p className={`text-sm ${overdue ? "text-white/85" : "text-muted-foreground"}`}>
             Due {new Date(countdown.deadline_at).toLocaleString()}
             {countdown.atmosphere_sensitive && phase === "submit_sample"
               ? " · Sample may be submitted at slot start"
@@ -383,7 +383,7 @@ function BookingLifecycleCountdown({
           {parts.d > 0 && (
             <div className="text-center">
               <div className={`text-2xl font-bold leading-none sm:text-3xl ${overdue ? "text-white" : ""}`}>{parts.d}</div>
-              <div className={`mt-1 text-[10px] uppercase tracking-wider ${overdue ? "text-white/70" : "text-muted-foreground"}`}>days</div>
+              <div className={`mt-1 text-xs uppercase tracking-wider ${overdue ? "text-white/70" : "text-muted-foreground"}`}>days</div>
             </div>
           )}
           {[
@@ -395,7 +395,7 @@ function BookingLifecycleCountdown({
               <div className={`text-2xl font-bold leading-none sm:text-3xl ${overdue ? "text-white" : ""}`}>
                 {p.v.toString().padStart(2, "0")}
               </div>
-              <div className={`mt-1 text-[10px] uppercase tracking-wider ${overdue ? "text-white/70" : "text-muted-foreground"}`}>
+              <div className={`mt-1 text-xs uppercase tracking-wider ${overdue ? "text-white/70" : "text-muted-foreground"}`}>
                 {p.u}
               </div>
             </div>
@@ -1474,11 +1474,11 @@ export function BookingDetailCard({
       </div>
       <Card className="booking-detail-print-area">
         <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-xl">{booking.equipment_name}</CardTitle>
-              <p className="text-xl font-semibold text-foreground mt-1 tracking-tight flex flex-wrap items-center gap-2">
-                <span>Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}</span>
+          <div className="flex justify-between items-start gap-3">
+            <div className="min-w-0">
+              <CardTitle className="text-xl sm:text-2xl">{booking.equipment_name}</CardTitle>
+              <p className="text-lg sm:text-xl font-semibold text-foreground mt-1 tracking-tight flex flex-wrap items-center gap-2">
+                <span className="break-all">Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}</span>
                 <IstemFbrSeal
                   requireIstemFbr={booking.require_istem_fbr}
                   istemFbrStatus={booking.istem_fbr_status}
@@ -1493,39 +1493,42 @@ export function BookingDetailCard({
                   phone={booking.user_phone}
                   department={booking.user_department}
                   profilePicture={booking.user_profile_picture ? apiClient.getProfilePictureUrl(booking.user) : undefined}
-                  size="sm"
+                  size="md"
+                  nameClassName="font-semibold"
                 />
                 {booking.wallet_owner_name && (
-                  <div className="flex items-center gap-1 text-base text-muted-foreground mt-2 ml-11">
-                    <UserCheck className="h-3.5 w-3.5 shrink-0" />
-                    <span>Supervisor Name: {booking.wallet_owner_name}</span>
+                  <div className="flex items-center gap-1.5 text-base text-muted-foreground mt-2 ml-[3.25rem]">
+                    <UserCheck className="h-4 w-4 shrink-0" />
+                    <span>
+                      Supervisor Name: <span className="font-medium text-foreground">{booking.wallet_owner_name}</span>
+                    </span>
                   </div>
                 )}
               </div>
             </div>
-            <Badge className={`${getStatusColor(booking.status)} text-sm`}>{booking.status_display}</Badge>
+            <Badge className={`${getStatusColor(booking.status)} text-sm shrink-0`}>{booking.status_display}</Badge>
           </div>
         </CardHeader>
         <CardContent className="text-base">
           {!isWaitlistedEntry ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div>
-                <p className="text-base text-muted-foreground">Start Time</p>
-                <p className="font-medium text-base">{formatBookingDateTime(booking.start_time)}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 mb-4">
+              <div className="min-w-0">
+                <p className="text-sm sm:text-base text-muted-foreground">Start Time</p>
+                <p className="font-semibold text-base sm:text-lg leading-snug break-words">{formatBookingDateTime(booking.start_time)}</p>
               </div>
-              <div>
-                <p className="text-base text-muted-foreground">End Time</p>
-                <p className="font-medium text-base">{formatBookingDateTime(booking.end_time)}</p>
+              <div className="min-w-0">
+                <p className="text-sm sm:text-base text-muted-foreground">End Time</p>
+                <p className="font-semibold text-base sm:text-lg leading-snug break-words">{formatBookingDateTime(booking.end_time)}</p>
               </div>
-              <div>
-                <p className="text-base text-muted-foreground">Duration</p>
-                <p className="font-medium text-base">
+              <div className="min-w-0">
+                <p className="text-sm sm:text-base text-muted-foreground">Duration</p>
+                <p className="font-semibold text-base sm:text-lg leading-snug break-words">
                   {booking.total_time_minutes} min ({Number(booking.total_hours).toFixed(2)} hrs)
                 </p>
               </div>
-              <div>
-                <p className="text-base text-muted-foreground">Total Cost</p>
-                <p className="font-medium text-base text-primary">{formatINR(booking.total_charge)}</p>
+              <div className="min-w-0">
+                <p className="text-sm sm:text-base text-muted-foreground">Total Cost</p>
+                <p className="font-semibold text-base sm:text-lg leading-snug text-primary">{formatINR(booking.total_charge)}</p>
               </div>
             </div>
           ) : (
@@ -1621,15 +1624,15 @@ export function BookingDetailCard({
 
           {isCompleted && booking.sample_collection_deadline_at && (
             <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-1">
-              <div className="text-sm font-semibold text-foreground">Sample Collection Deadline</div>
-              <p className="text-sm text-muted-foreground">
+              <div className="text-base font-semibold text-foreground">Sample Collection Deadline</div>
+              <p className="text-base font-medium text-foreground">
                 {new Date(booking.sample_collection_deadline_at).toLocaleDateString(undefined, {
                   day: "numeric",
                   month: "long",
                   year: "numeric",
                 })}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Please collect your sample before this date. Samples not collected may be discarded as per laboratory
                 policy.
               </p>
@@ -1794,12 +1797,12 @@ export function BookingDetailCard({
           <div className="mt-4 pt-4 border-t">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {!isWaitlistedEntry && (
-                <div className="border rounded-md p-3">
+                <div className="border rounded-md p-4 min-w-0">
                   <p className="text-base font-semibold text-foreground mb-2">
                     For Invoice Related Query Please Contact the Undersigned
                   </p>
                   {booking.accounts_in_charge ? (
-                    <div className="text-sm text-muted-foreground space-y-1">
+                    <div className="text-sm sm:text-base text-muted-foreground space-y-1 break-words">
                       <div>
                         <span className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</span>
                       </div>
@@ -1807,21 +1810,21 @@ export function BookingDetailCard({
                       {booking.accounts_in_charge.email ? <div>Email: {booking.accounts_in_charge.email}</div> : null}
                     </div>
                   ) : (
-                    <div className="text-sm text-muted-foreground">Not available.</div>
+                    <div className="text-sm sm:text-base text-muted-foreground">Not available.</div>
                   )}
                 </div>
               )}
 
-              <div className="border rounded-md p-3">
+              <div className="border rounded-md p-4 min-w-0">
                 <p className="text-base font-semibold text-foreground mb-2">
                   For Any Other Technical Query Please Contact the Undersigned-
                 </p>
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Level 1: Lab Operator</p>
+                    <p className="text-sm sm:text-base font-medium text-foreground">Level 1: Lab Operator</p>
                     {booking.lab_in_charge ? (
-                      <div className="text-sm text-muted-foreground space-y-1 mt-1">
+                      <div className="text-sm sm:text-base text-muted-foreground space-y-1 mt-1 break-words">
                         <div>
                           <span className="font-medium text-emerald-700 dark:text-emerald-300">{booking.lab_in_charge.name}</span>
                         </div>
@@ -1829,16 +1832,16 @@ export function BookingDetailCard({
                         {booking.lab_in_charge.email ? <div>Email: {booking.lab_in_charge.email}</div> : null}
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground mt-1">Not available.</div>
+                      <div className="text-sm sm:text-base text-muted-foreground mt-1">Not available.</div>
                     )}
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-foreground">Level 2: Officer In-Charge</p>
+                    <p className="text-sm sm:text-base font-medium text-foreground">Level 2: Officer In-Charge</p>
                     {oicContacts.length > 0 ? (
                       <div className="space-y-2 mt-1">
                         {oicContacts.map((c) => (
-                          <div key={c.user_id} className="text-sm text-muted-foreground space-y-1">
+                          <div key={c.user_id} className="text-sm sm:text-base text-muted-foreground space-y-1 break-words">
                             <div>
                               <span className="font-medium text-violet-700 dark:text-violet-300">{c.name}</span>
                             </div>
@@ -1848,7 +1851,7 @@ export function BookingDetailCard({
                         ))}
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground mt-1">Not available.</div>
+                      <div className="text-sm sm:text-base text-muted-foreground mt-1">Not available.</div>
                     )}
                   </div>
                 </div>
@@ -2020,7 +2023,7 @@ export function BookingDetailCard({
           )}
 
           <div className="mt-4 pt-4 border-t no-print">
-            <p className="text-base font-medium mb-2">Actions:</p>
+            <p className="text-base sm:text-lg font-semibold mb-2">Actions:</p>
             {isRefunded && (
               <p className="text-sm text-muted-foreground mb-2">
                 Actions are disabled for refunded bookings.
@@ -3316,7 +3319,7 @@ export function BookingDetailCard({
               <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
                 <ul className="divide-y divide-border/50">
                   <li className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 sm:gap-4 px-5 py-4 bg-background/50 dark:bg-background/30">
-                    <span className="text-sm font-semibold text-muted-foreground shrink-0 min-w-0">
+                    <span className="text-sm sm:text-base font-semibold text-muted-foreground shrink-0 min-w-0">
                       Atmosphere-sensitive sample
                     </span>
                     <span className="text-base font-medium text-foreground sm:text-right">
@@ -3330,8 +3333,8 @@ export function BookingDetailCard({
 
           {!isWaitlistedEntry && booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
             <div className="mt-4 pt-4 border-t">
-              <p className="text-base font-medium mb-2">Charge Breakdown:</p>
-              <ul className="space-y-1">
+              <p className="text-base sm:text-lg font-semibold mb-2">Charge Breakdown:</p>
+              <ul className="space-y-1.5">
                 {booking.charge_breakdown.map((charge, index) => (
                   <li key={index} className="text-base text-muted-foreground flex justify-between gap-4 items-start">
                     <span className="whitespace-pre-line min-w-0 shrink">{charge.description}</span>
@@ -3369,7 +3372,7 @@ export function BookingDetailCard({
                         </div>
                       </>
                     )}
-                    <div className="flex justify-between font-medium">
+                    <div className="flex justify-between gap-4 font-semibold text-base sm:text-lg">
                       <span>{hasDiscount ? "Final amount after discount" : "Total"}</span>
                       <span className="text-primary">{formatINR(totalCharge)}</span>
                     </div>

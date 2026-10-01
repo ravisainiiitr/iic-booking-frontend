@@ -11,6 +11,7 @@ interface UserProfileProps {
   size?: 'sm' | 'md' | 'lg';
   showPhone?: boolean;
   className?: string;
+  nameClassName?: string;
 }
 
 const sizeClasses = {
@@ -40,6 +41,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   size = 'md',
   showPhone = true,
   className = '',
+  nameClassName = 'font-medium',
 }) => {
   const sizes = sizeClasses[size];
   const displayName = name || email || 'Unknown User';
@@ -59,7 +61,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <p className={`font-medium ${sizes.text} truncate`}>{displayName}</p>
+        <p className={`${nameClassName} ${sizes.text} truncate`}>{displayName}</p>
         {email && (
           <div className="flex items-center gap-1 text-muted-foreground">
             <Mail className={sizes.icon} />

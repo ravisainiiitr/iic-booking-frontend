@@ -425,7 +425,7 @@ export default function SampleTraceTimeline({
 
   return (
     <div className="space-y-4">
-      <p className="text-base font-medium text-foreground">Sample Lifecycle</p>
+      <p className="text-base sm:text-lg font-semibold text-foreground">Sample Lifecycle</p>
       <div className="overflow-x-auto -mx-1 px-1">
         <div className="flex flex-col gap-3 md:min-w-[880px] md:flex-row md:items-stretch md:gap-0">
         {steps.map((step, index) => {
@@ -538,7 +538,7 @@ export default function SampleTraceTimeline({
                 onKeyDown={event ? (e) => e.key === "Enter" && setDetailEvent(event) : undefined}
                 style={{ clipPath }}
                 className={[
-                  "relative flex flex-col justify-center px-5 py-3 min-w-[170px] max-w-[220px] border border-white/20 shadow-sm",
+                  "relative flex flex-col justify-center px-5 py-3 min-w-[180px] max-w-[250px] border border-white/20 shadow-sm",
                   classes,
                   ring,
                   event ? "cursor-pointer hover:brightness-[1.03] transition" : "",
@@ -549,7 +549,7 @@ export default function SampleTraceTimeline({
                   {icon}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm font-semibold leading-tight truncate">
+                      <span className="text-sm sm:text-base font-semibold leading-tight truncate">
                         {displayLabel}
                       </span>
                       {event && (
@@ -557,12 +557,12 @@ export default function SampleTraceTimeline({
                       )}
                     </div>
                     {event && (
-                      <div className="text-xs opacity-90 mt-0.5">
+                      <div className="text-sm opacity-90 mt-0.5">
                         {formatTraceTime(event.created_at)}
                       </div>
                     )}
                     {!event && (
-                      <div className="text-xs opacity-80 mt-0.5">
+                      <div className="text-sm opacity-80 mt-0.5">
                         {done ? "Done" : isActive ? "In progress" : "Pending"}
                       </div>
                     )}

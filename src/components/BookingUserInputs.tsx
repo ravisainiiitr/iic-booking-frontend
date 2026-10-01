@@ -487,7 +487,7 @@ export function BookingUserInputs({
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 dark:bg-primary/20 text-primary">
               <FileText className="h-5 w-5" />
             </div>
-            <p className="text-base font-semibold text-foreground tracking-tight">User Inputs</p>
+            <p className="text-lg font-semibold text-foreground tracking-tight">User Inputs</p>
           </div>
           {hasEditableFields && (
             <Button
@@ -504,7 +504,7 @@ export function BookingUserInputs({
         </div>
       <ul className="divide-y divide-border/50">
         {storedSampleSets.length > 0 && (
-          <li className="px-5 py-2 text-sm font-semibold text-primary">Sample set 1</li>
+          <li className="px-5 py-2.5 text-base font-semibold text-primary">Sample set 1</li>
         )}
         {fields.map((f, idx) => {
           const val = iv[f.field_key];
@@ -589,7 +589,7 @@ export function BookingUserInputs({
                 idx % 2 === 0 ? "bg-background/50 dark:bg-background/30" : "bg-background/30 dark:bg-background/10"
               )}
             >
-              <span className="text-sm font-semibold text-muted-foreground shrink-0 min-w-0">
+              <span className="text-sm sm:text-base font-semibold text-muted-foreground shrink-0 min-w-0">
                 {f.field_label}
               </span>
               <span
@@ -654,7 +654,7 @@ export function BookingUserInputs({
                 : "bg-background/30 dark:bg-background/10"
             )}
           >
-            <span className="text-sm font-semibold text-muted-foreground shrink-0 min-w-0">
+            <span className="text-sm sm:text-base font-semibold text-muted-foreground shrink-0 min-w-0">
               Atmosphere-sensitive sample
             </span>
             <span className="text-base font-medium text-foreground sm:text-right">
@@ -664,8 +664,8 @@ export function BookingUserInputs({
         )}
         {storedSampleSets.map((set, setIndex) => (
           <li key={`sample-set-${setIndex}`} className="px-5 py-4 bg-primary/[0.03]">
-            <p className="mb-2 text-sm font-semibold text-primary">Sample set {setIndex + 2}</p>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+            <p className="mb-2 text-base font-semibold text-primary">Sample set {setIndex + 2}</p>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
               {fields
                 .filter((f) => set[f.field_key] !== undefined && !isCommentsInputFieldKey(f.field_key))
                 .map((f) => {
@@ -677,7 +677,7 @@ export function BookingUserInputs({
                       ? f.options.map((o, i) => normalizeChoiceOption(o, i).label).filter(Boolean)
                       : [];
                     return (
-                      <div key={f.field_key} className="space-y-1 text-sm sm:col-span-2">
+                      <div key={f.field_key} className="space-y-1 text-sm sm:text-base sm:col-span-2">
                         <dt className="text-muted-foreground">{f.field_label}</dt>
                         <dd>
                           {rows.length === 0 ? (
@@ -718,7 +718,7 @@ export function BookingUserInputs({
                       ? ` (${formatVal(elements)})`
                       : "";
                   return (
-                    <div key={f.field_key} className="flex justify-between gap-3 text-sm">
+                    <div key={f.field_key} className="flex justify-between gap-3 text-sm sm:text-base">
                       <dt className="text-muted-foreground">{f.field_label}</dt>
                       <dd className="font-medium text-foreground text-right">
                         {["RADIO", "COMBO"].includes(fieldType)
