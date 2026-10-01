@@ -101,7 +101,6 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { MySpendingLimitNotice } from "@/components/wallet/MySpendingLimitNotice";
-import { EquipmentSlotLimitNotice } from "@/components/EquipmentSlotLimitNotice";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import RescheduleSlotPicker, { type RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { PortalFeedbackForm } from "@/components/PortalFeedbackDialog";
@@ -6969,13 +6968,6 @@ const BookEquipment = () => {
                   </div>
                 )}
                 {isEndUserBookingType(userType) && !canAccessManageEquipmentModes() && <MySpendingLimitNotice />}
-                {isEndUserBookingType(userType) && !canAccessManageEquipmentModes() && (
-                  <EquipmentSlotLimitNotice
-                    equipmentId={selectedEquipment?.id}
-                    referenceDate={format(currentWeekStart, "yyyy-MM-dd")}
-                    refreshKey={bookingResultDialog.open}
-                  />
-                )}
               </div>
             </div>
           </div>
