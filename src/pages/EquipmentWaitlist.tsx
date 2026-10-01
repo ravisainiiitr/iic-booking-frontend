@@ -101,15 +101,16 @@ export default function EquipmentWaitlist() {
         ?? (res as { equipments?: Array<{ equipment_id?: number; id?: number; name?: string; code?: string }> });
       const arr = data?.equipments ?? [];
       if (Array.isArray(arr)) {
-        setEquipmentList(
-          arr
-            .map((e) => ({
-              equipment_id: e.equipment_id ?? e.id ?? 0,
-              name: e.name ?? e.code ?? "",
-              code: e.code ?? "",
-            }))
-            .filter((e) => e.equipment_id > 0)
-        );
+        const list = arr
+          .map((e) => ({
+            equipment_id: e.equipment_id ?? e.id ?? 0,
+            name: e.name ?? e.code ?? "",
+            code: e.code ?? "",
+          }))
+          .filter((e) => e.equipment_id > 0);
+        setEquipmentList(list);
+        // Functional update so a choice made while the list was loading is kept.
+        setSelectedEquipmentId((prev) => prev ?? list[0]?.equipment_id ?? null);
       } else {
         setEquipmentList([]);
       }
