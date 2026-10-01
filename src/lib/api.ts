@@ -458,9 +458,21 @@ export interface BookingTemplate {
   equipment: number;
   equipment_code: string | null;
   equipment_name: string | null;
+  equipment_status?: string | null;
+  equipment_parent?: number | null;
+  department_id?: number | null;
+  department_name?: string | null;
+  department_code?: string | null;
   name: string;
   input_values: Record<string, unknown>;
   options: BookingTemplateOptions;
+  /** Sample set 1 plus any additional sample sets. */
+  sample_set_count?: number;
+  /** First few filled inputs with this equipment's field labels. */
+  input_summary?: Array<{ key: string; label: string; value: string }>;
+  /** False when the user cannot book this equipment right now (see booking_block_reason). */
+  bookable?: boolean;
+  booking_block_reason?: string | null;
   preferred_slot?: TemplatePreferredSlot | null;
   if_slot_taken?: TemplateIfSlotTaken;
   if_slot_taken_consented_at?: string | null;

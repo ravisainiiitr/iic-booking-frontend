@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, parseISO } from "date-fns";
 import { BookmarkCheck, CalendarCheck, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient, type BookingTemplate, type BookingTemplateOptions } from "@/lib/api";
+import { apiClient, type BookingTemplate } from "@/lib/api";
+import {
+  TEMPLATE_OPTION_LABELS,
+  bookWithTemplateUrl,
+  createTemplateUrl,
+  editTemplateUrl,
+  filledInputCount,
+  formatTemplateUpdated,
+} from "@/lib/bookingTemplates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,32 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const OPTION_LABELS: Array<[keyof BookingTemplateOptions, string]> = [
-  ["auto_slot_selection", "Auto-select slots"],
-  ["book_any_available_slots", "Book any available slots"],
-  ["book_even_if_single_slot_available", "Single slot is fine"],
-  ["waitlist_on_failure", "Waitlist if unsuccessful"],
-  ["auto_allocate_alternative", "Auto-allocate alternate equipment"],
-  ["sample_return_after_analysis", "Return sample"],
-  ["atmosphere_sensitive_sample", "Atmosphere-sensitive sample"],
-];
-
-const filledInputCount = (values: Record<string, unknown>) =>
-  Object.entries(values || {}).filter(([key, v]) => {
-    if (key === "comments") return false;
-    if (Array.isArray(v)) return v.length > 0;
-    return v !== null && v !== undefined && String(v).trim() !== "";
-  }).length;
-
-const formatUpdated = (iso: string | null) => {
-  if (!iso) return null;
-  try {
-    return format(parseISO(iso), "d MMM yyyy, HH:mm");
-  } catch {
-    return null;
-  }
-};
 
 /** The signed-in user's booking templates for one equipment (equipment profile menu). */
 export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: number; canBook: boolean }) {
@@ -63,7 +44,7 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
     void load();
   }, [load]);
 
-  const createUrl = `/book-equipment?equipment_id=${equipmentId}&mode=template`;
+  const createUrl = createTemplateUrl(equipmentId);
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -108,9 +89,9 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
       ) : (
         <ul className="space-y-3">
           {templates.map((t) => {
-            const updated = formatUpdated(t.updated_at);
+            const updated = formatTemplateUpdated(t.updated_at);
             const inputs = filledInputCount(t.input_values);
-            const optionBadges = OPTION_LABELS.filter(([key]) => t.options?.[key] === true);
+            const optionBadges = TEMPLATE_OPTION_LABELS.filter(([key]) => t.options?.[key] === true);
             return (
               <li key={t.id} className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -136,7 +117,7 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
                       size="sm"
                       disabled={!canBook}
                       title={canBook ? undefined : "Booking is disabled for this equipment right now."}
-                      onClick={() => navigate(`/book-equipment?equipment_id=${equipmentId}&template=${t.id}`)}
+                      onClick={() => navigate(bookWithTemplateUrl(t))}
                     >
                       <CalendarCheck className="mr-1.5 h-4 w-4" />
                       Book with this template
@@ -145,9 +126,7 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() =>
-                        navigate(`/book-equipment?equipment_id=${equipmentId}&mode=template&template_id=${t.id}`)
-                      }
+                      onClick={() => navigate(editTemplateUrl(t))}
                     >
                       <Pencil className="mr-1.5 h-4 w-4" />
                       Edit

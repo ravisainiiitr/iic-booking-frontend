@@ -1069,6 +1069,10 @@ const BookEquipment = () => {
   const isTemplateFlow = searchParams.get("mode") === "template";
   const editTemplateId = isTemplateFlow ? Number(searchParams.get("template_id")) || null : null;
   const templateParam = isTemplateFlow ? searchParams.get("template_id") : searchParams.get("template");
+  const templateReturnTo = (() => {
+    const raw = isTemplateFlow ? searchParams.get("return_to") || "" : "";
+    return raw === "/booking-templates" || raw.startsWith("/booking-templates?") ? raw : null;
+  })();
   useShowServerClockInHeader(!isCalculateChargesFlow && !isProformaFlow && !isTemplateFlow);
   const proformaEditLineIndex = useMemo((): number | null => {
     const raw = searchParams.get("proformaLineIndex");
@@ -1455,9 +1459,13 @@ const BookEquipment = () => {
 
   useEffect(() => {
     if (!isEmbedFlow || !workspaceEquipmentTitle) return;
-    publishWorkspaceTitle(workspaceEquipmentTitle);
+    publishWorkspaceTitle(
+      isTemplateFlow
+        ? `${editTemplateId ? "Edit" : "Create"} booking template — ${workspaceEquipmentTitle}`
+        : workspaceEquipmentTitle
+    );
     return () => publishWorkspaceTitle(null);
-  }, [isEmbedFlow, workspaceEquipmentTitle]);
+  }, [isEmbedFlow, workspaceEquipmentTitle, isTemplateFlow, editTemplateId]);
 
   useEffect(() => {
     if (!bookingAsExternalTarget) return;
@@ -3568,7 +3576,7 @@ const BookEquipment = () => {
         return;
       }
       toast.success(`Template "${res.data.name}" saved. Choose it on the booking page to fill these details.`);
-      navigate(`/equipment/${eqId}?panel=booking_templates`);
+      navigate(templateReturnTo ?? `/equipment/${eqId}?panel=booking_templates`);
     } finally {
       setSavingTemplate(false);
     }
@@ -10799,7 +10807,9 @@ const BookEquipment = () => {
                           type="button"
                           variant="outline"
                           className="flex-1 min-w-[140px]"
-                          onClick={() => navigate(`/equipment/${equipmentDetail.equipment_id}?panel=booking_templates`)}
+                          onClick={() =>
+                            navigate(templateReturnTo ?? `/equipment/${equipmentDetail.equipment_id}?panel=booking_templates`)
+                          }
                         >
                           Cancel
                         </Button>

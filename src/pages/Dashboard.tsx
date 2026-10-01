@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
@@ -101,6 +101,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     description: "Important instruction, slot visibility, usage quotas, and booking and sample timings for your equipment.",
   },
   "/booking-attempt-logs": { title: "Booking Attempt Log" },
+  "/booking-templates": {
+    title: "Booking Templates",
+    description: "Saved sample details, booking options and preferred slots for quick booking.",
+  },
   "/reports": { title: "Reports & Statistics" },
   "/oic/accessories": { title: "Accessories" },
   "/oic/print-materials": { title: "Print Materials" },
@@ -297,7 +301,7 @@ function labDashPanelTitle(panel: NonNullable<LabDashPanel>): string {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated, refreshUser, logout } = useAuth();
-  const { guide: userGuide } = useUserGuide();
+  const { hasGuide: userGuide } = useUserGuide();
 
   const handleProfileAvatarUploaded = useCallback(async () => {
     await refreshUser();
@@ -1681,6 +1685,38 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "booking_templates",
+      label: "Booking Templates",
+      visible: Boolean(!isOperatorOrManager),
+      render: () => (
+          <Card
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-cyan-200 dark:hover:border-cyan-800"
+              onClick={() => openWorkspace("/booking-templates")}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/booking-templates"); } }}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-sky-700 text-white shadow-lg">
+                    <BookmarkCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Booking Templates</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Saved sample details and preferred slots for one-click booking
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-cyan-500 to-sky-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-700 hover:bg-sky-800 text-white">Open templates</Button>
               </CardContent>
             </Card>
       ),

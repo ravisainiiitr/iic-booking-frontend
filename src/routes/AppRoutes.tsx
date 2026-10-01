@@ -21,6 +21,7 @@ const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
 const BookingPayment = lazyPage(() => import("@/pages/BookingPayment"));
 const BookingNextSteps = lazyPage(() => import("@/pages/BookingNextSteps"));
 const MyBookings = lazyPage(() => import("@/pages/MyBookings"));
+const BookingTemplates = lazyPage(() => import("@/pages/BookingTemplates"));
 const BookingManagement = lazyPage(() => import("@/pages/BookingManagement"));
 const UrgentRequests = lazyPage(() => import("@/pages/UrgentRequests"));
 const RepeatSampleRequests = lazyPage(() => import("@/pages/RepeatSampleRequests"));
@@ -170,6 +171,7 @@ export default function AppRoutes() {
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
           <Route path="/equipment/:id" element={<EquipmentProfile />} />
           <Route path="/my-bookings" element={<MyBookings />} />
+          <Route path="/booking-templates" element={<BookingTemplates />} />
           <Route path="/my-results" element={<ViewResults />} />
           <Route path="/shared-data" element={<SharedWithMe />} />
           <Route path="/my-research" element={<MyResearch />} />
