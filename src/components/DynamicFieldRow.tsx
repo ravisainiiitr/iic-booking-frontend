@@ -14,7 +14,10 @@ type DynamicFieldRowProps = {
   required?: boolean;
   /** "compact" is used inside nested cards such as extra sample sets. */
   density?: "comfortable" | "compact";
+  /** Overrides the label's vertical alignment, e.g. "start" when a hint sits under a single-line control. */
+  align?: "center" | "start";
   className?: string;
+  labelClassName?: string;
   children: ReactNode;
 };
 
@@ -28,13 +31,15 @@ export function DynamicFieldRow({
   htmlFor,
   required,
   density = "comfortable",
+  align,
   className,
+  labelClassName,
   children,
 }: DynamicFieldRowProps) {
   const type = normalizeDynamicFieldType(fieldType);
   const compact = density === "compact";
   const inline = INLINE_DYNAMIC_FIELD_TYPES.has(type);
-  const topAligned = TOP_ALIGNED_DYNAMIC_FIELD_TYPES.has(type);
+  const topAligned = align ? align === "start" : TOP_ALIGNED_DYNAMIC_FIELD_TYPES.has(type);
 
   const labelNode = (
     <Label
@@ -42,7 +47,8 @@ export function DynamicFieldRow({
       className={cn(
         compact ? "text-xs" : "text-base",
         "leading-snug",
-        inline && type === "PERIODIC_TABLE" && (compact ? "sm:pt-2.5" : "sm:pt-2")
+        inline && type === "PERIODIC_TABLE" && (compact ? "sm:pt-2.5" : "sm:pt-2"),
+        labelClassName
       )}
     >
       {label}

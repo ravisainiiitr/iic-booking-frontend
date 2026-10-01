@@ -20,11 +20,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, FileText, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveFieldAFormulaMax, resolveNumericFieldBounds, roundToStepPrecision, type NumericFieldBounds } from "@/lib/numericFieldLimits";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
+import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
+import { DynamicFieldRow } from "@/components/DynamicFieldRow";
 import {
   resolveTableColumns,
   resolveTableRowCountSourceKey,
@@ -759,7 +761,7 @@ export function BookingUserInputs({
               </p>
             </div>
           ) : null}
-          <div className="space-y-5 py-4">
+          <div className="space-y-4 py-4 sm:space-y-3">
             <p className="text-sm font-semibold text-primary">Sample set 1</p>
             {editableFields.map((f) => {
               const val = editFormValues[f.field_key];
@@ -770,19 +772,27 @@ export function BookingUserInputs({
                   key={f.field_key}
                   id={`edit-field-wrap-${f.field_key}`}
                   className={cn(
-                    "space-y-2.5 rounded-lg transition-colors",
+                    "rounded-lg transition-colors",
                     isIncompleteOptional &&
                       "border border-amber-300/90 bg-amber-50/80 p-3 ring-1 ring-amber-200/80 dark:border-amber-700/60 dark:bg-amber-950/30 dark:ring-amber-800/40"
                   )}
                 >
-                  <Label htmlFor={`edit-${f.field_key}`} className="text-sm font-semibold text-foreground">
-                    {f.field_label}
-                    {isIncompleteOptional ? (
-                      <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                        Incomplete
-                      </span>
-                    ) : null}
-                  </Label>
+                  <DynamicFieldRow
+                    fieldType={type}
+                    htmlFor={`edit-${f.field_key}`}
+                    align={type === "NUMERIC" ? "start" : undefined}
+                    labelClassName={cn("text-sm font-semibold text-foreground", type === "NUMERIC" && "sm:pt-2.5")}
+                    label={
+                      <>
+                        {f.field_label}
+                        {isIncompleteOptional ? (
+                          <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            Incomplete
+                          </span>
+                        ) : null}
+                      </>
+                    }
+                  >
                   {type === "NUMERIC" && (() => {
                     const bounds = numericBoundsFor(f, editFormValues);
                     const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
@@ -797,12 +807,12 @@ export function BookingUserInputs({
                     };
                     return (
                       <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="inline-flex items-stretch">
                           <Input
                             id={`edit-${f.field_key}`}
                             type="number"
                             inputMode={allowsNegative ? "text" : "decimal"}
-                            className="text-base h-10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="text-base h-10 w-28 rounded-r-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             min={effectiveMin}
                             max={effectiveMax}
                             step={stepAttr}
@@ -848,21 +858,21 @@ export function BookingUserInputs({
                               type="button"
                               variant="outline"
                               size="icon"
-                              className="h-5 w-8 rounded-b-none border-b-0"
+                              className="h-5 w-7 rounded-none rounded-tr-md border-input border-l-0 border-b-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                               aria-label={`Increase by ${stepAttr}`}
                               onClick={() => nudge(1)}
                             >
-                              <Plus className="h-3.5 w-3.5" />
+                              <ChevronUp className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               type="button"
                               variant="outline"
                               size="icon"
-                              className="h-5 w-8 rounded-t-none"
+                              className="h-5 w-7 rounded-none rounded-br-md border-input border-l-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                               aria-label={`Decrease by ${stepAttr}`}
                               onClick={() => nudge(-1)}
                             >
-                              <span className="text-sm leading-none font-medium">−</span>
+                              <ChevronDown className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </div>
@@ -881,7 +891,7 @@ export function BookingUserInputs({
                   {type === "TEXT" && (
                     <Input
                       id={`edit-${f.field_key}`}
-                      className="text-base h-10"
+                      className={cn("text-base h-10", dynamicFieldControlWidth(type, f.field_label))}
                       value={typeof val === "string" ? val : ""}
                       onChange={(e) => updateFormValue(f.field_key, e.target.value)}
                     />
@@ -890,7 +900,8 @@ export function BookingUserInputs({
                     <RadioGroup
                       value={String(val ?? "")}
                       onValueChange={(v) => updateFormValue(f.field_key, v)}
-                      className="flex flex-wrap gap-3 pt-1"
+                      aria-label={f.field_label || f.field_key}
+                      className="flex flex-wrap items-center gap-x-5 gap-y-2"
                     >
                       {f.options.map((opt, i) => {
                         const { value: optionValue, label: optionLabel } = normalizeChoiceOption(opt, i);
@@ -910,7 +921,7 @@ export function BookingUserInputs({
                       value={String(val ?? "")}
                       onValueChange={(v) => updateFormValue(f.field_key, v)}
                     >
-                      <SelectTrigger id={`edit-${f.field_key}`}>
+                      <SelectTrigger id={`edit-${f.field_key}`} className={dynamicFieldControlWidth(type)}>
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -926,7 +937,7 @@ export function BookingUserInputs({
                     </Select>
                   )}
                   {type === "TOGGLE" && (
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center gap-2">
                       <Checkbox
                         id={`edit-${f.field_key}`}
                         checked={val === true || val === "true"}
@@ -966,7 +977,11 @@ export function BookingUserInputs({
                   {type === "MULTI_SELECT" && f.options && f.options.length > 0 && (() => {
                     const current = Array.isArray(val) ? (val as string[]) : [];
                     return (
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                      <div
+                        role="group"
+                        aria-label={f.field_label || f.field_key}
+                        className="flex flex-wrap gap-x-4 gap-y-1"
+                      >
                         {f.options.map((opt, i) => {
                           const { value: optionValue, label: optionLabel } = normalizeChoiceOption(opt, i);
                           return (
@@ -1093,6 +1108,7 @@ export function BookingUserInputs({
                       </div>
                     );
                   })()}
+                  </DynamicFieldRow>
                 </div>
               );
             })}
