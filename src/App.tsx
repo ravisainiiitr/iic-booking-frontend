@@ -11,6 +11,7 @@ import { ThemeProvider } from "next-themes";
 import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
 import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
+import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 
 function EmbedChrome() {
   const { search } = useLocation();
@@ -33,6 +34,7 @@ const App = () => (
           <NotificationProvider>
             <Toaster />
             <Sonner />
+            <BuildUpdateNotifier />
             <EmbedChrome />
             <GlobalBackButton />
             <ResearchCopilotLauncher />

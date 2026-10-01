@@ -66,6 +66,51 @@ describe("facultyDashboardMenuOrder", () => {
     ]);
   });
 
+  it("reorders the reported IITR Faculty menu into the requested order", () => {
+    const reported = [
+      "browse_equipment",
+      "view_bookings",
+      "booking_templates",
+      "view_results",
+      "my_research",
+      "urgent_booking_requests",
+      "proforma_invoice",
+      "wallet_management",
+      "reports_statistics",
+      "user_guide",
+      "student_management",
+      "rate_your_experience",
+      "support_tickets",
+    ];
+    expect(orderMenuIds(reported, facultyDashboardMenuOrder(reported))).toEqual([
+      "browse_equipment",
+      "view_bookings",
+      "booking_templates",
+      "wallet_management",
+      "my_research",
+      "student_management",
+      "urgent_booking_requests",
+      "view_results",
+      "proforma_invoice",
+      "reports_statistics",
+      "user_guide",
+      "support_tickets",
+      "rate_your_experience",
+    ]);
+  });
+
+  it("puts other visible faculty items just before User guide", () => {
+    const ids = [...facultyMenu, "nomination_requests", "ta_duty_assignments"];
+    expect(orderMenuIds(ids, facultyDashboardMenuOrder(ids)).slice(-6)).toEqual([
+      "my_publications",
+      "nomination_requests",
+      "ta_duty_assignments",
+      "user_guide",
+      "support_tickets",
+      "rate_your_experience",
+    ]);
+  });
+
   it("shows Shared with me in My Research's place when My Research is off", () => {
     const ids = facultyMenu.map((id) => (id === "my_research" ? "shared_with_me" : id));
     const ordered = orderMenuIds(ids, facultyDashboardMenuOrder(ids));
