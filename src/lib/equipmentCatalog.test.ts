@@ -29,16 +29,16 @@ describe("isCatalogFamilyParent", () => {
     expect(isCatalogFamilyParent([nmr, xps, ups], 4)).toBe(true);
   });
 
-  it("still opens the family view during a search, where children may be filtered out", () => {
-    expect(isCatalogFamilyParent([xps], 4, { searchActive: true })).toBe(true);
+  it("opens the family view from the API has_child_modes flag when browsing", () => {
+    expect(isCatalogFamilyParent([{ ...xps, has_child_modes: true }], 4)).toBe(true);
+    expect(isCatalogFamilyParent([{ ...nmr, has_child_modes: false }], 7)).toBe(false);
   });
 
-  it("uses the API has_child_modes flag during a search", () => {
-    expect(
-      isCatalogFamilyParent([{ ...nmr, has_child_modes: false }], 7, { searchActive: true }),
-    ).toBe(false);
+  it("opens a searched equipment directly, even when it has child modes", () => {
+    expect(isCatalogFamilyParent([xps], 4, { searchActive: true })).toBe(false);
+    expect(isCatalogFamilyParent([nmr, xps, ups], 4, { searchActive: true })).toBe(false);
     expect(
       isCatalogFamilyParent([{ ...xps, has_child_modes: true }], 4, { searchActive: true }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
