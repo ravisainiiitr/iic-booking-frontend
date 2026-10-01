@@ -479,7 +479,7 @@ const MyUrgentRequests = () => {
                   <SelectItem value="__none__">— Select equipment —</SelectItem>
                   {urgentEquipmentList.map((eq) => (
                     <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                      {eq.name} ({eq.code})
+                      {eq.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -735,9 +735,6 @@ const MyUrgentRequests = () => {
                     <TableRow key={row.id}>
                       <TableCell>
                         <span className="font-medium">{row.equipment_name}</span>
-                        {row.equipment_code && (
-                          <span className="text-muted-foreground text-sm ml-1">({row.equipment_code})</span>
-                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {REQUEST_TYPE_LABELS[row.request_type] || row.request_type}

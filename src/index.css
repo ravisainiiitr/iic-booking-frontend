@@ -6,23 +6,6 @@
    All colors MUST be HSL. White surfaces + navy headers/actions.
 */
 
-@keyframes note-attention-blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0.35;
-  }
-}
-
-@layer utilities {
-  .animate-note-blink {
-    animation: note-attention-blink 1.1s step-end infinite;
-  }
-}
-
 @layer base {
   :root {
     /* Navy Ocean — bright white surfaces, rich navy primary */

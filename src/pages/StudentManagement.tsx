@@ -472,7 +472,7 @@ const StudentManagement = () => {
             <DialogDescription>
               {nominateDialogCall && (
                 <>
-                  {nominateDialogCall.equipment_name} ({nominateDialogCall.equipment_code}) – {nominateDialogCall.semester_name}.
+                  {nominateDialogCall.equipment_name} – {nominateDialogCall.semester_name}.
                   Deadline: {nominateDialogCall.nomination_deadline ? format(new Date(nominateDialogCall.nomination_deadline), "dd MMM yyyy") : "—"}
                 </>
               )}

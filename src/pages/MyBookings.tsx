@@ -41,7 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { X, FolderDown, Download, Star, Filter, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
+import { X, FolderDown, Download, Star, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
+import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -237,6 +238,20 @@ function getReductionFieldMeta(booking: Booking): { key: string; label: string }
 }
 
 const PAGE_SIZE = 50;
+
+const MY_BOOKING_STATUS_OPTIONS = [
+  { value: "all", label: "All status" },
+  { value: "PENDING", label: "Pending" },
+  { value: "BOOKED", label: "Booked" },
+  { value: "DISRUPTION_PENDING", label: "Awaiting choice (disruption)" },
+  { value: "UNDER_MAINTENANCE", label: "Under maintenance" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "ABSENT", label: "Operator Unavailable" },
+  { value: "REFUNDED", label: "Refunded" },
+  { value: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
+  { value: "WAITLISTED", label: "Waitlisted" },
+];
 
 const CALENDAR_ELIGIBLE_STATUSES = new Set(["PENDING", "PENDING_PAYMENT", "BOOKED", "HOLD", "DISRUPTION_PENDING"]);
 
@@ -637,6 +652,26 @@ const MyBookings = () => {
       );
     }
   }, [editInputsParam, setSearchParams]);
+
+  const [clearFiltersNonce, setClearFiltersNonce] = useState(0);
+  useEffect(() => {
+    if (clearFiltersNonce === 0) return;
+    void fetchBookings(undefined, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearFiltersNonce]);
+
+  const clearBookingFilters = () => {
+    setStatusFilter("all");
+    setStartDate("");
+    setEndDate("");
+    setSearchQuery("");
+    setEquipmentFilter("all");
+    setOrdering("-created_at");
+    setPage(1);
+    setSelectedBookingId(null);
+    setOverrideBooking(null);
+    setClearFiltersNonce((n) => n + 1);
+  };
 
   const checkAuthAndFetchBookings = async (onlyShowPendingRating?: boolean) => {
     const token = apiClient.getToken();
@@ -1306,165 +1341,84 @@ const MyBookings = () => {
         </div>
         {canSyncCalendar && <CalendarSyncDialog open={calendarSyncOpen} onOpenChange={setCalendarSyncOpen} />}
 
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-            <CardDescription>Filter your bookings by status, date range, equipment, or search.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="PENDING">PENDING</SelectItem>
-                    <SelectItem value="BOOKED">BOOKED</SelectItem>
-                    <SelectItem value="DISRUPTION_PENDING">Awaiting choice (disruption)</SelectItem>
-                  <SelectItem value="UNDER_MAINTENANCE">Under maintenance</SelectItem>
-                    <SelectItem value="COMPLETED">COMPLETED</SelectItem>
-                    <SelectItem value="CANCELLED">CANCELLED</SelectItem>
-                    <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
-                    <SelectItem value="REFUNDED">REFUNDED</SelectItem>
-                    <SelectItem value="BOOKING_NOT_UTILIZED">Booking Not Utilized</SelectItem>
-                    <SelectItem value="WAITLISTED">WAITLISTED</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Start date</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End date</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Search</Label>
-                <Input
-                  placeholder="Booking ID or equipment name"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Equipment</Label>
-                <Select value={equipmentFilter} onValueChange={setEquipmentFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All equipment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All equipment</SelectItem>
-                    {equipmentList.map((eq) => (
-                      <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                        {eq.name || eq.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Sort</Label>
-                <Select value={ordering} onValueChange={setOrdering}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="-created_at">Newest first</SelectItem>
-                    <SelectItem value="created_at">Oldest first</SelectItem>
-                    <SelectItem value="-start_time">Start time (newest)</SelectItem>
-                    <SelectItem value="start_time">Start time (oldest)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                onClick={() => {
-                  setPage(1);
-                  setSelectedBookingId(null);
-                  setOverrideBooking(null);
-                  fetchBookings(undefined, 1);
-                }}
-              >
-                Apply filters
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setStatusFilter("all");
-                  setStartDate("");
-                  setEndDate("");
-                  setSearchQuery("");
-                  setEquipmentFilter("all");
-                  setOrdering("-created_at");
-                  setPage(1);
-                  setSelectedBookingId(null);
-                  setOverrideBooking(null);
-                  setTimeout(() => fetchBookings(undefined, 1), 0);
-                }}
-              >
-                Clear
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {!loading && bookings.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              {statusFilter !== "all" || startDate || endDate || searchQuery.trim() || (equipmentFilter && equipmentFilter !== "all") ? (
-                <>
-                  <p className="text-muted-foreground mb-4">No bookings match your filters</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setStatusFilter("all");
-                      setStartDate("");
-                      setEndDate("");
-                      setSearchQuery("");
-                      setEquipmentFilter("all");
-                      setOrdering("-created_at");
-                      setPage(1);
-                      setSelectedBookingId(null);
-                      setOverrideBooking(null);
-                      setTimeout(() => fetchBookings(undefined, 1), 0);
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="text-muted-foreground mb-4">No bookings yet</p>
-                  <Button onClick={() => navigate("/equipments")}>
-                    Book Equipment
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <>
+        <>
             <Card className="overflow-hidden border shadow-sm">
-              <CardHeader className="bg-muted/30 border-b py-4">
-                <CardTitle className="text-lg">My Bookings</CardTitle>
-                <CardDescription>Click a booking ID to view full details. Use filters above and Apply to search.</CardDescription>
+              <CardHeader className="flex flex-col gap-3 space-y-0 border-b bg-muted/30 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <CardTitle className="shrink-0 text-lg">Bookings</CardTitle>
+                <BookingListFilterBar
+                  search={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  searchPlaceholder="Booking ID or equipment name"
+                  status={statusFilter}
+                  onStatusChange={setStatusFilter}
+                  statusOptions={MY_BOOKING_STATUS_OPTIONS}
+                  startDate={startDate}
+                  onStartDateChange={setStartDate}
+                  endDate={endDate}
+                  onEndDateChange={setEndDate}
+                  equipment={equipmentFilter}
+                  onEquipmentChange={setEquipmentFilter}
+                  equipmentOptions={equipmentList.map((eq) => ({ value: String(eq.equipment_id), label: eq.name || eq.code }))}
+                  onApply={() => {
+                    setPage(1);
+                    setSelectedBookingId(null);
+                    setOverrideBooking(null);
+                    fetchBookings(undefined, 1);
+                  }}
+                  onClear={clearBookingFilters}
+                  moreFiltersActiveCount={ordering !== "-created_at" ? 1 : 0}
+                  moreFilters={
+                    <div className="space-y-1.5">
+                      <Label>Sort</Label>
+                      <Select value={ordering} onValueChange={setOrdering}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="-created_at">Newest first</SelectItem>
+                          <SelectItem value="created_at">Oldest first</SelectItem>
+                          <SelectItem value="-start_time">Start time (newest)</SelectItem>
+                          <SelectItem value="start_time">Start time (oldest)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  }
+                />
               </CardHeader>
+              {!loading && bookings.length === 0 ? (
+              <CardContent className="py-12 text-center">
+                {statusFilter !== "all" || startDate || endDate || searchQuery.trim() || (equipmentFilter && equipmentFilter !== "all") ? (
+                  <>
+                    <p className="text-muted-foreground mb-4">No bookings match your filters</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setStatusFilter("all");
+                        setStartDate("");
+                        setEndDate("");
+                        setSearchQuery("");
+                        setEquipmentFilter("all");
+                        setOrdering("-created_at");
+                        setPage(1);
+                        setSelectedBookingId(null);
+                        setOverrideBooking(null);
+                        setTimeout(() => fetchBookings(undefined, 1), 0);
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground mb-4">No bookings yet</p>
+                    <Button onClick={() => navigate("/equipments")}>
+                      Book Equipment
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+              ) : (
+              <>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
@@ -1696,6 +1650,8 @@ const MyBookings = () => {
                   </div>
                 </div>
               )}
+              </>
+              )}
             </Card>
 
             {selectedBookingId != null && (() => {
@@ -1750,8 +1706,7 @@ const MyBookings = () => {
                 />
               );
             })()}
-          </>
-        )}
+        </>
 
         <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
           <DialogContent className="sm:max-w-md">

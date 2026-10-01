@@ -2,6 +2,8 @@ import { Suspense, lazy, useEffect, useState, useCallback, useRef } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
+import { RichTextContent } from "@/components/RichTextContent";
+import { richTextToPlain } from "@/lib/richText";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
   classifyEquipmentAccessFailure,
@@ -771,9 +773,10 @@ const EquipmentProfile = () => {
                       <Info className="h-5 w-5 shrink-0" />
                       Important instruction
                     </p>
-                    <p className="text-base sm:text-lg text-amber-950/90 dark:text-amber-100/90 whitespace-pre-line leading-relaxed">
-                      {equipment.important_instruction}
-                    </p>
+                    <RichTextContent
+                      value={equipment.important_instruction}
+                      className="text-base sm:text-lg text-amber-950/90 dark:text-amber-100/90 leading-relaxed"
+                    />
                   </div>
                 ) : null}
                 {equipment.description ? (
@@ -941,7 +944,9 @@ const EquipmentProfile = () => {
                     name: equipment.name,
                     code: equipment.code,
                     description: equipment.description,
-                    importantInstruction: equipment.important_instruction,
+                    importantInstruction: equipment.important_instruction
+                      ? richTextToPlain(equipment.important_instruction)
+                      : equipment.important_instruction,
                     location: equipment.location,
                     departmentName:
                       equipment.internal_department_name || DEFAULT_DEPARTMENT_NAME,
@@ -973,14 +978,7 @@ const EquipmentProfile = () => {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between rounded-xl border bg-primary/5 px-5 py-4 sm:px-7">
                     <p className="text-base sm:text-lg text-foreground leading-relaxed">
                       Consolidated brochure for{" "}
-                      <span className="font-semibold">{equipment.name}</span>
-                      {equipment.code ? (
-                        <>
-                          {" "}
-                          (<span className="font-mono text-sm">({equipment.code})</span>)
-                        </>
-                      ) : null}
-                      .
+                      <span className="font-semibold">{equipment.name}</span>.
                     </p>
                     {!isLabInchargeUser() && (
                       <Button
@@ -1017,9 +1015,10 @@ const EquipmentProfile = () => {
                           <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
                             Important instruction
                           </p>
-                          <p className="whitespace-pre-line text-sm sm:text-base leading-relaxed">
-                            {equipment.important_instruction}
-                          </p>
+                          <RichTextContent
+                            value={equipment.important_instruction}
+                            className="text-sm sm:text-base leading-relaxed"
+                          />
                         </div>
                       ) : null}
                       {equipment.description ? (

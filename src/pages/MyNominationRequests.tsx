@@ -139,7 +139,7 @@ export default function MyNominationRequests() {
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <p className="font-semibold text-foreground">{n.equipment_name}</p>
-                          <p className="text-sm text-muted-foreground">{n.equipment_code} · {n.semester_name}</p>
+                          <p className="text-sm text-muted-foreground">{n.semester_name}</p>
                           <p className="text-sm text-muted-foreground mt-1">Nominated by {n.supervisor_name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             Nominated at {n.nominated_at ? format(new Date(n.nominated_at), "dd MMM yyyy, HH:mm") : "—"}

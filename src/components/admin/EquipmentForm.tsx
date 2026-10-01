@@ -1448,7 +1448,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 .filter((e) => equipmentId == null || e.equipment_id !== equipmentId)
                 .map((e) => (
                   <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                    {e.code} — {e.name}
+                    {e.name || e.code}
                   </SelectItem>
                 ))}
             </SelectContent>

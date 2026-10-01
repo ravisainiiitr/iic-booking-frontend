@@ -452,7 +452,7 @@ const BookingAttemptLogs = () => {
                   <option value="">All equipments</option>
                   {equipmentOptions.map((eq) => (
                     <option key={eq.equipment_id} value={String(eq.equipment_id)}>
-                      {eq.name} ({eq.code})
+                      {eq.name}
                     </option>
                   ))}
                 </select>

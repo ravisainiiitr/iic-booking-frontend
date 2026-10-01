@@ -20,10 +20,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarCheck, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
+import WaitlistManualConfirmDialog from "@/components/WaitlistManualConfirmDialog";
 
 type EquipmentOption = { equipment_id: number; name: string; code: string };
 type WaitlistEntry = {
@@ -68,6 +69,7 @@ export default function EquipmentWaitlist() {
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const canView = userType === "admin" || userType === "manager" || userType === "operator"; // admin, OIC, Lab Operator
+  const canConfirmManually = userType === "admin" || userType === "manager";
 
   const [equipmentList, setEquipmentList] = useState<EquipmentOption[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -75,6 +77,15 @@ export default function EquipmentWaitlist() {
   const [waitlist, setWaitlist] = useState<WaitlistData | null>(null);
   const [loadingWaitlist, setLoadingWaitlist] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [confirmEntry, setConfirmEntry] = useState<WaitlistEntry | null>(null);
+
+  const handleManuallyConfirmed = (entryId: number) => {
+    setWaitlist((prev) => {
+      if (!prev) return prev;
+      const entries = prev.entries.filter((x) => x.id !== entryId);
+      return { ...prev, entries, count: entries.length };
+    });
+  };
 
   useEffect(() => {
     if (!canView) {
@@ -164,7 +175,7 @@ export default function EquipmentWaitlist() {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-5 max-w-4xl">
+      <main className="container mx-auto px-4 py-5 max-w-6xl">
         <StandaloneOnly>
           <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
             <Button
@@ -202,7 +213,7 @@ export default function EquipmentWaitlist() {
                 <SelectContent>
                   {equipmentList.map((e) => (
                     <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                      {e.code} – {e.name}
+                      {e.name || e.code}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -253,6 +264,7 @@ export default function EquipmentWaitlist() {
                         <TableHead>Status</TableHead>
                         <TableHead>Sample</TableHead>
                         <TableHead>Last Attempt</TableHead>
+                        {canConfirmManually && <TableHead className="text-right">Action</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -348,6 +360,16 @@ export default function EquipmentWaitlist() {
                               })()}
                             </div>
                           </TableCell>
+                          {canConfirmManually && (
+                            <TableCell className="text-right">
+                              {st !== "OPT_OUT" ? (
+                                <Button size="sm" variant="outline" onClick={() => setConfirmEntry(e)}>
+                                  <CalendarCheck className="mr-1.5 h-4 w-4" />
+                                  Confirm manually
+                                </Button>
+                              ) : null}
+                            </TableCell>
+                          )}
                         </TableRow>
                         );
                       })}
@@ -362,6 +384,17 @@ export default function EquipmentWaitlist() {
             )}
           </CardContent>
         </Card>
+        {selectedEquipmentId != null && (
+          <WaitlistManualConfirmDialog
+            open={confirmEntry != null}
+            onOpenChange={(o) => {
+              if (!o) setConfirmEntry(null);
+            }}
+            equipmentId={selectedEquipmentId}
+            entry={confirmEntry}
+            onConfirmed={handleManuallyConfirmed}
+          />
+        )}
       </main>
     </div>
   );

@@ -22,7 +22,6 @@ import { formatUserDisplayName } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { ServerClock } from "@/components/ServerClock";
-import { useHeaderServerClockRequested } from "@/lib/serverClockHeader";
 import { cn } from "@/lib/utils";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
@@ -54,7 +53,7 @@ const DashboardHeader = () => {
   const { available: myResearchAvailable } = useMyResearchAvailability(mayUseMyResearch);
   const isOnDashboard =
     location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
-  const showServerClock = useHeaderServerClockRequested();
+  const showServerClock = true;
   
   // Refs to prevent multiple simultaneous API calls
   const balanceFetchingRef = useRef(false);
@@ -381,10 +380,10 @@ const DashboardHeader = () => {
                 <ClipboardList className="mr-2 h-4 w-4" />
                 <span>
                   {canManageBookings
-                    ? "Manage booking"
+                    ? "View Booking"
                     : isAccountsInCharge
                       ? "External bookings"
-                      : "My Booking"}
+                      : "View Booking"}
                 </span>
               </DropdownMenuItem>
               {myResearchAvailable && (

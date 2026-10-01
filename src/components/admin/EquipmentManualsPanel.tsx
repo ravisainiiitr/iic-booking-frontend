@@ -252,7 +252,6 @@ export default function EquipmentManualsPanel() {
                   }`}
                 >
                   {o.name}
-                  {o.code ? <span className="text-muted-foreground"> ({o.code})</span> : null}
                 </button>
               ))}
             </div>

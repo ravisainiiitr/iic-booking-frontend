@@ -279,7 +279,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
               {equipment ? (
                 <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
                   <span className="min-w-0 truncate">
-                    {equipment.name} <span className="text-muted-foreground">({equipment.code})</span>
+                    {equipment.name}
                   </span>
                   <Button type="button" size="sm" variant="ghost" onClick={() => setEquipment(null)}>
                     Remove
@@ -303,7 +303,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
                               setEquipmentQuery("");
                             }}
                           >
-                            {eq.name} <span className="text-muted-foreground">({eq.code})</span>
+                            {eq.name}
                           </button>
                         </li>
                       ))}

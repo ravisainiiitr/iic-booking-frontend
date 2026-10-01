@@ -586,7 +586,7 @@ export default function TAAssignments() {
                     <SelectItem value="__none__">Select equipment…</SelectItem>
                     {allocationEquipmentList.map((e) => (
                       <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                        {e.code} — {e.name}
+                        {e.name || e.code}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -926,9 +926,6 @@ export default function TAAssignments() {
                         <div className="space-y-1 max-w-[min(100vw-4rem,22rem)]">
                           <div className="font-medium leading-snug">
                             {a.equipment_name || a.equipment_code || a.equipment}
-                            {a.equipment_code && a.equipment_name ? (
-                              <span className="text-muted-foreground font-normal"> ({a.equipment_code})</span>
-                            ) : null}
                           </div>
                           {a.booking_slot_summary ? (
                             <div className="text-xs text-muted-foreground leading-snug">{a.booking_slot_summary}</div>
@@ -1115,7 +1112,6 @@ export default function TAAssignments() {
                   <div>
                     <span className="text-muted-foreground">Equipment: </span>
                     {dutyLogReview.equipment_name || dutyLogReview.equipment_code || dutyLogReview.equipment}
-                    {dutyLogReview.equipment_code && dutyLogReview.equipment_name ? ` (${dutyLogReview.equipment_code})` : null}
                   </div>
                   {dutyLogReview.booking != null && (
                     <div>

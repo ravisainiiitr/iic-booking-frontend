@@ -78,6 +78,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, CalendarPlus, FlaskConical, MousePointerClick } from "lucide-react";
+import { RichTextContent } from "@/components/RichTextContent";
+import { looksLikeRichHtml } from "@/lib/richText";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock, BookmarkCheck, Save } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
@@ -130,6 +132,8 @@ import {
   applyTableRowSyncToValues,
 } from "@/lib/dynamicTableField";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
+import SampleSetsEditor, { type SampleSetField } from "@/components/SampleSetsEditor";
+import { readSampleSets, withSampleSets, withoutSampleSets, type SampleSetValues } from "@/lib/sampleSets";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { hasIncompleteOptionalEditableParams } from "@/lib/bookingInputValues";
@@ -784,11 +788,13 @@ type ChargeCalcHashInput = {
   sampleReturnAfterAnalysis: boolean;
   chargeEstimateUserType: string | null;
   urgent?: boolean;
+  sampleSets?: SampleSetValues[];
 };
 
 function buildChargeCalculationHash(input: ChargeCalcHashInput): string {
   return JSON.stringify({
     inputFieldValues: input.inputFieldValues,
+    sampleSets: input.sampleSets ?? [],
     printAnalysisId: input.printAnalysisId,
     printAnalysisBatchId: input.printAnalysisBatchId,
     sample_return_after_analysis: input.sampleReturnAfterAnalysis,
@@ -1012,6 +1018,8 @@ const BookEquipment = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [inputFieldValues, setInputFieldValues] = useState<Record<string, string | boolean | string[] | number>>({});
+  /** Additional samples with their own parameters in the same booking (sample set 1 = inputFieldValues). */
+  const [sampleSets, setSampleSets] = useState<SampleSetValues[]>([]);
   const [printAnalysisId, setPrintAnalysisId] = useState<string | null>(null);
   const [printAnalysisBatchId, setPrintAnalysisBatchId] = useState<string | null>(null);
   const [print3dAnalyzing, setPrint3dAnalyzing] = useState(false);
@@ -1357,12 +1365,9 @@ const BookEquipment = () => {
     [bookingAsExternalTarget, waitlistIntentMode]
   );
 
-  const workspaceEquipmentTitle = (() => {
-    const name = String(equipmentDetail?.name || selectedEquipment?.name || "").trim();
-    const code = String(equipmentDetail?.code || "").trim();
-    if (!name) return code;
-    return code && code.toLowerCase() !== name.toLowerCase() ? `${name} (${code})` : name;
-  })();
+  const workspaceEquipmentTitle =
+    String(equipmentDetail?.name || selectedEquipment?.name || "").trim() ||
+    String(equipmentDetail?.code || "").trim();
 
   useEffect(() => {
     if (!isEmbedFlow || !workspaceEquipmentTitle) return;
@@ -2729,6 +2734,7 @@ const BookEquipment = () => {
         });
         applyTableRowSyncToValues(initialValues as Record<string, unknown>, eq.input_fields);
         setInputFieldValues(initialValues);
+        setSampleSets([]);
         setIcpmsCoverageByFieldKey({});
       }
       
@@ -2963,6 +2969,7 @@ const BookEquipment = () => {
   useEffect(() => {
     if (!equipmentDetail) {
       setInputFieldValues({});
+      setSampleSets([]);
       setChargeCalculated(false);
       setCalculatedCharge(null);
       setShowSlots(false);
@@ -3067,9 +3074,10 @@ const BookEquipment = () => {
         return;
       }
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
+      const rebookFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
       const { carried, dropped } = sanitizeRebookInputValues(
-        source.input_values,
-        equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>,
+        withoutSampleSets(source.input_values),
+        rebookFields,
         // 3D print weight/material/time come from a fresh STL analysis, never from the old booking.
         isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
       );
@@ -3078,6 +3086,13 @@ const BookEquipment = () => {
         applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
         return next as Record<string, string | boolean | string[] | number>;
       });
+      setSampleSets(
+        isPrint3d
+          ? []
+          : readSampleSets(source.input_values)
+              .map((s) => sanitizeRebookInputValues(s, rebookFields).carried as SampleSetValues)
+              .filter((s) => Object.keys(s).length > 0)
+      );
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
@@ -3158,9 +3173,10 @@ const BookEquipment = () => {
   const applyBookingTemplate = useCallback(
     (template: BookingTemplate) => {
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
+      const templateFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
       const { carried, dropped } = sanitizeRebookInputValues(
-        template.input_values || {},
-        equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>,
+        withoutSampleSets(template.input_values || {}),
+        templateFields,
         isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
       );
       setInputFieldValues((prev) => {
@@ -3168,6 +3184,13 @@ const BookEquipment = () => {
         applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
         return next as Record<string, string | boolean | string[] | number>;
       });
+      setSampleSets(
+        isPrint3d
+          ? []
+          : readSampleSets(template.input_values || {})
+              .map((s) => sanitizeRebookInputValues(s, templateFields).carried as SampleSetValues)
+              .filter((s) => Object.keys(s).length > 0)
+      );
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
@@ -3290,7 +3313,7 @@ const BookEquipment = () => {
       atmosphere_sensitive_sample: atmosphereSensitiveSample,
       research_workspace: researchWorkspaceId,
     };
-    const body = { name, input_values: { ...inputFieldValues }, options };
+    const body = { name, input_values: withSampleSets({ ...inputFieldValues }, sampleSets), options };
     setSavingTemplate(true);
     try {
       const res = editTemplateId
@@ -3363,6 +3386,7 @@ const BookEquipment = () => {
       sampleReturnAfterAnalysis: sampleReturnFlag,
       chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
       urgent: isUrgentTypeBHoldMode,
+      sampleSets,
     });
     if (lastCalculatedValuesRef.current === currentValuesHash) {
       return; // Already calculated for these values
@@ -3446,6 +3470,7 @@ const BookEquipment = () => {
               ? { print_analysis_id: printAnalysisId }
               : {}),
           ...(isUrgentTypeBHoldMode ? { urgent: true } : {}),
+          ...(sampleSets.length > 0 && equipmentDetail.profile_type !== "PRINT_3D" ? { sample_sets: sampleSets } : {}),
         }
       );
 
@@ -3527,7 +3552,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -3785,6 +3810,7 @@ const BookEquipment = () => {
         sampleReturnAfterAnalysis: sampleReturnFlag,
         chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
         urgent: isUrgentTypeBHoldMode,
+        sampleSets,
       });
       
       // Skip if we already calculated (or failed) for these exact values
@@ -3820,7 +3846,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
+  }, [inputFieldValues, sampleSets, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
@@ -5837,7 +5863,7 @@ const BookEquipment = () => {
       // No-slots visible flow: waitlist booking and/or a search for alternate equipment in the group.
       if (canSubmitWithoutSlots && !canUseSlotIds) {
         const noSlotBody: Parameters<typeof apiClient.bookEquipment>[1] = {
-          input_values: inputFieldValues,
+          input_values: withSampleSets(inputFieldValues, sampleSets),
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           status: "pending",
@@ -5949,7 +5975,7 @@ const BookEquipment = () => {
               total_hours: totalHours,
               total_cost: totalCost,
               status: "pending",
-              input_values: inputFieldValues,
+              input_values: withSampleSets(inputFieldValues, sampleSets),
               ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
               ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
@@ -5987,7 +6013,7 @@ const BookEquipment = () => {
           // Legacy: store selection and open urgent dialog (when not coming from dashboard)
           setPendingHoldSelection({
             slotIds: finalSlotIds,
-            inputValues: { ...inputFieldValues },
+            inputValues: withSampleSets({ ...inputFieldValues }, sampleSets),
             totalCharge: totalCost,
             totalTimeMinutes: Math.round(totalHours * 60),
           });
@@ -6012,7 +6038,7 @@ const BookEquipment = () => {
           total_hours: totalHours,
           total_cost: totalCost,
           status: "pending",
-          input_values: inputFieldValues,
+          input_values: withSampleSets(inputFieldValues, sampleSets),
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
@@ -6232,7 +6258,7 @@ const BookEquipment = () => {
           total_hours: hours,
           total_cost: totalCost,
           status: "pending",
-          input_values: inputFieldValues,
+          input_values: withSampleSets(inputFieldValues, sampleSets),
           ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
           atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
@@ -6526,7 +6552,7 @@ const BookEquipment = () => {
                   isEndUserBookingType(userType) &&
                   !canAccessManageEquipmentModes() && (
                   <div className="inline-flex flex-wrap items-center gap-3">
-                    <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500 animate-pulse">
+                    <span className="text-base md:text-lg font-bold text-red-600 dark:text-red-500">
                       Wallet balance for this department is ₹0 — please recharge before booking.
                     </span>
                     <Button
@@ -8275,9 +8301,14 @@ const BookEquipment = () => {
                     className="mb-6 rounded-lg border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 dark:border-red-500/50 px-4 py-3"
                     role="note"
                   >
-                    <p className="text-base md:text-lg font-bold text-red-700 dark:text-red-400 whitespace-pre-wrap">
-                      {(equipmentDetail?.important_instruction || "").trim()}
-                    </p>
+                    <RichTextContent
+                      value={equipmentDetail?.important_instruction}
+                      className={
+                        looksLikeRichHtml(equipmentDetail?.important_instruction)
+                          ? "text-base md:text-lg text-red-700 dark:text-red-400"
+                          : "text-base md:text-lg font-bold text-red-700 dark:text-red-400"
+                      }
+                    />
                   </div>
                 )}
 
@@ -9066,6 +9097,29 @@ const BookEquipment = () => {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground mb-4">No additional information required for this equipment.</p>
+                  )}
+
+                  {!repeatSourceBooking &&
+                    !isProformaFlow &&
+                    equipmentDetail?.profile_type !== "PRINT_3D" &&
+                    (equipmentDetail?.input_fields?.length ?? 0) > 0 && (
+                    <div className="mt-2 space-y-2 p-2">
+                      <div>
+                        <p className="text-sm font-medium">Samples with different parameters</p>
+                        <p className="text-xs text-muted-foreground">
+                          The details above are sample set 1. Add a sample set for each extra sample that needs different
+                          parameters; each set is charged and timed separately and added to this booking.
+                        </p>
+                      </div>
+                      <SampleSetsEditor
+                        fields={((equipmentDetail?.input_fields ?? []) as SampleSetField[]).filter(
+                          (field) => !calculateHiddenFieldKeys.has(String(field.field_key || "").trim())
+                        )}
+                        sets={sampleSets}
+                        onChange={setSampleSets}
+                        primaryValues={inputFieldValues}
+                      />
+                    </div>
                   )}
 
                   {!repeatSourceBooking &&

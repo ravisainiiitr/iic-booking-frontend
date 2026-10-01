@@ -331,7 +331,7 @@ const UrgentRequestsWallet = () => {
                     <SelectItem value="__none__">— Select equipment —</SelectItem>
                     {facultyEquipList.map((eq) => (
                       <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                        {eq.name} ({eq.code})
+                        {eq.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -511,7 +511,7 @@ const UrgentRequestsWallet = () => {
                             <div className="text-xs text-muted-foreground">{row.user_email}</div>
                           </TableCell>
                           <TableCell>
-                            {row.equipment_name} ({row.equipment_code})
+                            {row.equipment_name}
                           </TableCell>
                           <TableCell>
                             {row.requested_at ? format(new Date(row.requested_at), "dd MMM yyyy, HH:mm") : "—"}
@@ -607,7 +607,7 @@ const UrgentRequestsWallet = () => {
                     <span className="text-muted-foreground">User:</span> {detailRow.user_name} ({detailRow.user_email})
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Equipment:</span> {detailRow.equipment_name} ({detailRow.equipment_code})
+                    <span className="text-muted-foreground">Equipment:</span> {detailRow.equipment_name}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Requested at:</span>{" "}

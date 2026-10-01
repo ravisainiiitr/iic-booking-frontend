@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { isCatalogFamilyParent } from "./equipmentCatalog";
+import { catalogDepartmentFromParam, isCatalogFamilyParent } from "./equipmentCatalog";
+
+describe("catalogDepartmentFromParam", () => {
+  it("reads a department id or 'all' from the URL", () => {
+    expect(catalogDepartmentFromParam("12")).toBe(12);
+    expect(catalogDepartmentFromParam("all")).toBe("all");
+  });
+
+  it("ignores a missing or malformed value", () => {
+    expect(catalogDepartmentFromParam(null)).toBeNull();
+    expect(catalogDepartmentFromParam("")).toBeNull();
+    expect(catalogDepartmentFromParam("abc")).toBeNull();
+    expect(catalogDepartmentFromParam("-3")).toBeNull();
+    expect(catalogDepartmentFromParam("1.5")).toBeNull();
+  });
+});
 
 describe("isCatalogFamilyParent", () => {
   const nmr = { equipment_id: 7, enable_multi_mode: true, parent_equipment: null };

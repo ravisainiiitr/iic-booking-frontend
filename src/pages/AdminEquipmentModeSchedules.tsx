@@ -152,7 +152,7 @@ export default function AdminEquipmentModeSchedules() {
 
   const equipmentLabel = (id: number, fallbackCode?: string, fallbackName?: string) => {
     const opt = equipmentOptions.find((e) => e.equipment_id === id);
-    if (opt) return `${opt.code} — ${opt.name}`;
+    if (opt) return (opt.name || opt.code);
     if (fallbackCode || fallbackName) return `${fallbackCode ?? ""} ${fallbackName ?? ""}`.trim();
     return `#${id}`;
   };
@@ -338,7 +338,7 @@ export default function AdminEquipmentModeSchedules() {
                   <SelectContent>
                     {equipmentOptions.map((e) => (
                       <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                        {e.code} — {e.name}
+                        {e.name || e.code}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -353,7 +353,7 @@ export default function AdminEquipmentModeSchedules() {
                   <SelectContent>
                     {equipmentOptions.map((e) => (
                       <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                        {e.code} — {e.name}
+                        {e.name || e.code}
                       </SelectItem>
                     ))}
                   </SelectContent>

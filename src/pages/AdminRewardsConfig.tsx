@@ -155,7 +155,7 @@ export default function AdminRewardsConfig() {
                 <SelectContent>
                   {equipments.map((e) => (
                     <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                      {e.equipment_code} - {e.equipment_name}
+                      {e.equipment_name || e.equipment_code}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -168,7 +168,7 @@ export default function AdminRewardsConfig() {
           <CardHeader>
             <CardTitle>Configuration</CardTitle>
             <CardDescription>
-              {selectedEquipment ? `${selectedEquipment.equipment_code} - ${selectedEquipment.equipment_name}` : "Select equipment"}
+              {selectedEquipment ? (selectedEquipment.equipment_name || selectedEquipment.equipment_code) : "Select equipment"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">

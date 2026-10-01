@@ -481,7 +481,7 @@ const Reports = () => {
                       <SelectItem value="all">All equipment</SelectItem>
                       {facultyEquipmentOptions.map((eq) => (
                         <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                          {eq.code} – {eq.name}
+                          {eq.name || eq.code}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1041,7 +1041,7 @@ const Reports = () => {
                       {!isLabInchargeUser && <SelectItem value="all">All equipment</SelectItem>}
                       {equipmentList.map((eq) => (
                         <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                          {eq.code} – {eq.name}
+                          {eq.name || eq.code}
                         </SelectItem>
                       ))}
                     </SelectContent>

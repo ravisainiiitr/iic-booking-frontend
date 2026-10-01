@@ -131,7 +131,6 @@ export default function Publications() {
                               className="text-primary hover:underline"
                             >
                               {pub.equipment_name}
-                              {pub.equipment_code ? ` (${pub.equipment_code})` : ""}
                             </Link>
                           ) : (
                             <span>{pub.equipment_name}</span>

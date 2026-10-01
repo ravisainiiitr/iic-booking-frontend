@@ -2377,7 +2377,7 @@ export default function AdminSection() {
                             )
                             .map((e) => (
                               <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                                {e.code} – {e.name || "—"}
+                                {e.name || e.code}
                                 {e.internal_department_name ? ` · ${e.internal_department_name}` : ""}
                               </SelectItem>
                             ))}

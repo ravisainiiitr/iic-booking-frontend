@@ -321,7 +321,7 @@ export default function TANominationCall() {
                     <SelectContent>
                       {equipments.map((eq) => (
                         <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                          {eq.name} ({eq.code})
+                          {eq.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

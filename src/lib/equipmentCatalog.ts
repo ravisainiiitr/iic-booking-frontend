@@ -8,6 +8,13 @@ export type CatalogEquipmentLike = {
   has_child_modes?: boolean;
 };
 
+/** Parse a catalog `dept` URL parameter ("all" or a department id); null when absent or invalid. */
+export function catalogDepartmentFromParam(raw: string | null): "all" | number | null {
+  if (raw === "all") return "all";
+  const n = raw ? Number(raw) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 /** Normalize API parent FK (id, numeric string, or nested object) to a number. */
 export function catalogParentId(
   eq: Pick<CatalogEquipmentLike, "parent_equipment">,

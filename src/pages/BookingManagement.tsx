@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight, Star, Loader2 } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
+import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -145,7 +146,6 @@ const BookingManagement = () => {
   const [userNameFilter, setUserNameFilter] = useState("");
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
-  const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
@@ -279,7 +279,6 @@ const BookingManagement = () => {
       if (!isLabInchargeUser && userNameFilter.trim()) params.user_name = userNameFilter.trim();
       if (!isLabInchargeUser && supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
       if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
-      if (!isLabInchargeUser && ratingFilter && ratingFilter !== "all") params.rating = ratingFilter;
       if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
       const response = await apiClient.getBookings(params);
       if (seq !== fetchSeqRef.current) return;
@@ -319,6 +318,105 @@ const BookingManagement = () => {
     closeDetail();
     fetchBookings(1);
   };
+
+  const [clearNonce, setClearNonce] = useState(0);
+  useEffect(() => {
+    if (clearNonce === 0) return;
+    void fetchBookings(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearNonce]);
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setStartDate("");
+    setEndDate("");
+    setEquipmentFilter("all");
+    setUserNameFilter("");
+    setSupervisorNameFilter("");
+    setUserTypeFilter("all");
+    setIstemFbrFilter("all");
+    setPage(1);
+    closeDetail();
+    setClearNonce((n) => n + 1);
+  };
+
+  const statusOptions = [
+    { value: "all", label: "All status" },
+    { value: "BOOKED", label: "Booked" },
+    ...(!isLabInchargeUser ? [{ value: "DISRUPTION_PENDING", label: "Awaiting your choice (disruption)" }] : []),
+    { value: "COMPLETED", label: "Completed" },
+    { value: "CANCELLED", label: "Cancelled" },
+    { value: "ABSENT", label: "Operator Unavailable" },
+    { value: "REFUNDED", label: "Refunded" },
+    { value: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
+  ];
+
+  const moreFiltersActiveCount =
+    (!isLabInchargeUser && userNameFilter.trim() ? 1 : 0) +
+    (!isLabInchargeUser && supervisorNameFilter.trim() ? 1 : 0) +
+    (!isLabInchargeUser && userTypeFilter !== "all" ? 1 : 0) +
+    (isManagerOrAdmin && istemFbrFilter !== "all" ? 1 : 0);
+
+  const moreFilters =
+    isLabInchargeUser && !isManagerOrAdmin ? null : (
+      <>
+        {!isLabInchargeUser && (
+          <div className="space-y-1.5">
+            <Label htmlFor="user_name">User name</Label>
+            <Input
+              id="user_name"
+              type="text"
+              placeholder="Filter by user name"
+              value={userNameFilter}
+              onChange={(e) => setUserNameFilter(e.target.value)}
+            />
+          </div>
+        )}
+        {!isLabInchargeUser && (
+          <div className="space-y-1.5">
+            <Label htmlFor="supervisor_name">Supervisor name</Label>
+            <Input
+              id="supervisor_name"
+              type="text"
+              placeholder="Filter by supervisor name"
+              value={supervisorNameFilter}
+              onChange={(e) => setSupervisorNameFilter(e.target.value)}
+            />
+          </div>
+        )}
+        {!isLabInchargeUser && (
+          <div className="space-y-1.5">
+            <Label>User type</Label>
+            <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All users" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All users</SelectItem>
+                <SelectItem value="internal">Internal (students / faculty)</SelectItem>
+                <SelectItem value="external">External</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {isManagerOrAdmin && (
+          <div className="space-y-1.5">
+            <Label>I-STEM FBR</Label>
+            <Select value={istemFbrFilter} onValueChange={setIstemFbrFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All I-STEM" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All I-STEM</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
+                <SelectItem value="unverified">Unverified</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </>
+    );
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasNextPage = page < totalPages;
@@ -378,219 +476,62 @@ const BookingManagement = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
-        <div className="mb-6">
-          <StandaloneOnly>
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-              <div>
-                <h1 className="text-3xl font-bold">Booking Management</h1>
-                <p className="text-muted-foreground mt-1">Manage all bookings as operator or manager</p>
-              </div>
-            </div>
-          </StandaloneOnly>
+        <StandaloneOnly>
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold">View Booking</h1>
+          </div>
+        </StandaloneOnly>
 
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">Search &amp; filters</CardTitle>
-              <CardDescription>
-                {isLabInchargeUser
-                  ? "Search by Booking ID, Equipment Name, User Mobile, or Email. Set filters and click Apply."
-                  : "Search by Booking ID, Equipment Name, User Name, Supervisor Name, User Mobile, or Email. Set filters and click Apply."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                <div className="lg:col-span-2 space-y-2">
-                  <Label htmlFor="search">Search</Label>
-                  <Input
-                    id="search"
-                    type="text"
-                    placeholder="Booking ID, equipment, user, email, mobile..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-baseline justify-between gap-2">
-                    <span>Status</span>
-                    <span className="text-xs font-bold uppercase tracking-wide text-foreground">
-                      {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
-                    </span>
-                  </Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="font-bold uppercase">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="BOOKED">Booked</SelectItem>
-                      {!isLabInchargeUser && (
-                        <SelectItem value="DISRUPTION_PENDING">Awaiting your choice (disruption)</SelectItem>
-                      )}
-                      <SelectItem value="COMPLETED">Completed</SelectItem>
-                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                      <SelectItem value="ABSENT">Operator Unavailable</SelectItem>
-                      <SelectItem value="REFUNDED">Refunded</SelectItem>
-                      <SelectItem value="BOOKING_NOT_UTILIZED">Booking Not Utilized</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="start_date">Start date</Label>
-                  <Input
-                    id="start_date"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end_date">End date</Label>
-                  <Input
-                    id="end_date"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div
-                className={
-                  isLabInchargeUser
-                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end"
-                    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end"
-                }
-              >
-                {!isLabInchargeUser && (<div className="space-y-2">
-                  <Label htmlFor="user_name">User name</Label>
-                  <Input
-                    id="user_name"
-                    type="text"
-                    placeholder="Filter by user name"
-                    value={userNameFilter}
-                    onChange={(e) => setUserNameFilter(e.target.value)}
-                  />
-                </div>)}
-                {!isLabInchargeUser && (<div className="space-y-2">
-                  <Label htmlFor="supervisor_name">Supervisor name</Label>
-                  <Input
-                    id="supervisor_name"
-                    type="text"
-                    placeholder="Filter by supervisor name"
-                    value={supervisorNameFilter}
-                    onChange={(e) => setSupervisorNameFilter(e.target.value)}
-                  />
-                </div>)}
-                {!isLabInchargeUser && (<div className="space-y-2">
-                  <Label>User type</Label>
-                  <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All users" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All users</SelectItem>
-                      <SelectItem value="internal">Internal (students / faculty)</SelectItem>
-                      <SelectItem value="external">External</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>)}
-                {!isLabInchargeUser && (
-                <div className="space-y-2">
-                  <Label>Rating</Label>
-                  <Select value={ratingFilter} onValueChange={setRatingFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All ratings" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All ratings</SelectItem>
-                      <SelectItem value="unrated">Unrated</SelectItem>
-                      <SelectItem value="2_and_below">2 stars and below</SelectItem>
-                      <SelectItem value="3_and_below">3 stars and below</SelectItem>
-                      <SelectItem value="4_and_below">4 stars and below</SelectItem>
-                      <SelectItem value="5">5 stars</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                )}
-                {isManagerOrAdmin && (
-                  <div className="space-y-2">
-                    <Label>I-STEM FBR</Label>
-                    <Select value={istemFbrFilter} onValueChange={setIstemFbrFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All I-STEM" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All I-STEM</SelectItem>
-                        <SelectItem value="verified">Verified</SelectItem>
-                        <SelectItem value="unverified">Unverified</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>Equipment</Label>
-                  <Select value={equipmentFilter || "all"} onValueChange={setEquipmentFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All equipment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All equipment</SelectItem>
-                      {(equipmentList || []).map((eq) => (
-                        <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                          {eq.name} ({eq.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end">
-                  <Button onClick={handleApplyFilters} className="w-full md:w-auto">
-                    Apply
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {loadingBookings ? (
-          <Card>
+        <Card className="overflow-hidden border shadow-sm">
+          <CardHeader className="flex flex-col gap-3 space-y-0 border-b bg-muted/30 py-3 xl:flex-row xl:items-center xl:justify-between">
+            <CardTitle className="flex shrink-0 flex-wrap items-center gap-2 text-lg">
+              <span>Bookings</span>
+              <span className="font-bold uppercase tracking-wide text-primary">
+                {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
+              </span>
+            </CardTitle>
+            <BookingListFilterBar
+              search={searchQuery}
+              onSearchChange={setSearchQuery}
+              searchPlaceholder={
+                isLabInchargeUser
+                  ? "Booking ID, equipment, email, mobile…"
+                  : "Booking ID, equipment, user, email, mobile…"
+              }
+              status={statusFilter}
+              onStatusChange={setStatusFilter}
+              statusOptions={statusOptions}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
+              endDate={endDate}
+              onEndDateChange={setEndDate}
+              equipment={equipmentFilter}
+              onEquipmentChange={setEquipmentFilter}
+              equipmentOptions={(equipmentList || []).map((eq) => ({ value: String(eq.equipment_id), label: eq.name }))}
+              onApply={handleApplyFilters}
+              onClear={handleClearFilters}
+              moreFilters={moreFilters}
+              moreFiltersActiveCount={moreFiltersActiveCount}
+            />
+          </CardHeader>
+          {loadingBookings ? (
             <CardContent className="py-12">
               <div className="flex items-center justify-center gap-3 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <span>Loading bookings…</span>
               </div>
             </CardContent>
-          </Card>
-        ) : bookings.length === 0 ? (
-          <Card>
+          ) : bookings.length === 0 ? (
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">No bookings found</p>
             </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* Concise table view */}
-            <Card className="overflow-hidden border shadow-sm">
-              <CardHeader className="bg-muted/30 border-b py-4">
-                <CardTitle className="text-lg flex flex-wrap items-center gap-2">
-                  <span>Bookings</span>
-                  <span className="font-bold uppercase tracking-wide text-primary">
-                    {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
-                  </span>
-                </CardTitle>
-                <CardDescription>
-                  Currently showing{" "}
-                  <span className="font-bold uppercase text-foreground">
-                    {STATUS_FILTER_LABELS[statusFilter] || statusFilter.toUpperCase()}
-                  </span>{" "}
-                  bookings. Click a booking ID to view full details.
-                </CardDescription>
-              </CardHeader>
+          ) : (
+            <>
               <CardContent className="p-0 overflow-x-auto">
                 <Table className="min-w-[720px]">
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="w-14 font-semibold">S.No.</TableHead>
                       <TableHead className="font-semibold">Booking ID</TableHead>
                       <TableHead className="font-semibold">Equipment Name</TableHead>
                       <TableHead className="font-semibold">User Name</TableHead>
@@ -603,8 +544,9 @@ const BookingManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bookings.map((booking) => (
+                    {bookings.map((booking, index) => (
                       <TableRow key={booking.booking_id} className="group">
+                        <TableCell className="text-muted-foreground tabular-nums">{rangeStart + index}</TableCell>
                         <TableCell className="font-medium">
                           <button
                             type="button"
@@ -693,9 +635,9 @@ const BookingManagement = () => {
                   </div>
                 </div>
               )}
-            </Card>
-          </>
-        )}
+            </>
+          )}
+        </Card>
 
         {/* Detailed view – shown when a booking ID is clicked or opened via ?expand= (even if the list is empty) */}
         {!loadingBookings && selectedBookingId != null && (() => {

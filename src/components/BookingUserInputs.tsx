@@ -38,6 +38,8 @@ import {
   isBookingInputValueEmpty,
   isCommentsInputFieldKey,
 } from "@/lib/bookingInputValues";
+import SampleSetsEditor from "@/components/SampleSetsEditor";
+import { readSampleSets, SAMPLE_SETS_KEY, type SampleSetValues } from "@/lib/sampleSets";
 
 export interface InputFieldDef {
   field_key: string;
@@ -160,11 +162,13 @@ export function BookingUserInputs({
       } | null
     >
   >({});
+  const [editSampleSets, setEditSampleSets] = useState<SampleSetValues[]>([]);
   const autoOpenHandledRef = useRef(false);
   const incompleteScrollDoneRef = useRef(false);
 
   const iv = inputValues || {};
-  const keysToShow = Object.keys(iv).filter((k) => !k.endsWith("_elements"));
+  const storedSampleSets = readSampleSets(iv as Record<string, unknown>);
+  const keysToShow = Object.keys(iv).filter((k) => !k.endsWith("_elements") && !k.startsWith("_"));
   if (keysToShow.length === 0) return null;
 
   const statusUpper = String(status || "").toUpperCase();
@@ -175,18 +179,13 @@ export function BookingUserInputs({
     statusUpper === "REFUNDED" ||
     statusUpper === "ABSENT" ||
     statusUpper === "BOOKING_NOT_UTILIZED";
-  const latestSampleStatus = sampleTrace?.length
-    ? String(sampleTrace[sampleTrace.length - 1]?.status ?? "").toUpperCase()
-    : "";
-  const sampleSlotBlocksEdit = latestSampleStatus === "COMPLETED";
-  // Internal/external: only when BOOKED and not analyzed. Staff: still blocked after booking completion/analyzed.
+  void sampleTrace;
+  // Users: until the booking is completed. OIC / admin: at any stage, including after completion.
   const canEdit =
     !!onUpdate &&
     !disabled &&
     !noUserInputEdits &&
-    !isCompleted &&
-    !sampleSlotBlocksEdit &&
-    (isAdminUser || isBooked);
+    (isAdminUser || (isBooked && !isCompleted));
   void enableChargeRecalculation; // kept for backward compatibility, but does not override editable field restrictions.
 
   const fields =
@@ -378,6 +377,7 @@ export function BookingUserInputs({
       }
     });
     setEditFormValues(initial);
+    setEditSampleSets(storedSampleSets.map((s) => ({ ...s })));
     setEditDialogOpen(true);
   };
 
@@ -522,11 +522,12 @@ export function BookingUserInputs({
         allowedKeys.add(f.field_key);
         allowedKeys.add(`${f.field_key}_elements`);
       });
-      const payload = Object.fromEntries(
+      const payload: Record<string, unknown> = Object.fromEntries(
         Object.entries(nextValues).filter(([k]) => allowedKeys.has(k))
       );
+      payload[SAMPLE_SETS_KEY] = editSampleSets;
 
-      await onUpdate(payload);
+      await onUpdate(payload as Parameters<typeof onUpdate>[0]);
       toast.success("Booking information has been updated.");
       setEditDialogOpen(false);
     } catch (e) {
@@ -585,6 +586,9 @@ export function BookingUserInputs({
           )}
         </div>
       <ul className="divide-y divide-border/50">
+        {storedSampleSets.length > 0 && (
+          <li className="px-5 py-2 text-sm font-semibold text-primary">Sample set 1</li>
+        )}
         {fields.map((f, idx) => {
           const val = iv[f.field_key];
           const elementsVal = iv[`${f.field_key}_elements`];
@@ -741,6 +745,25 @@ export function BookingUserInputs({
             </span>
           </li>
         )}
+        {storedSampleSets.map((set, setIndex) => (
+          <li key={`sample-set-${setIndex}`} className="px-5 py-4 bg-primary/[0.03]">
+            <p className="mb-2 text-sm font-semibold text-primary">Sample set {setIndex + 2}</p>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+              {fields
+                .filter((f) => set[f.field_key] !== undefined && !isCommentsInputFieldKey(f.field_key))
+                .map((f) => (
+                  <div key={f.field_key} className="flex justify-between gap-3 text-sm">
+                    <dt className="text-muted-foreground">{f.field_label}</dt>
+                    <dd className="font-medium text-foreground text-right">
+                      {["RADIO", "COMBO"].includes(String(f.field_type || "").toUpperCase())
+                        ? resolveRadioComboDisplay(set[f.field_key], f.options, f.field_type)
+                        : formatVal(set[f.field_key])}
+                    </dd>
+                  </div>
+                ))}
+            </dl>
+          </li>
+        ))}
       </ul>
       </div>
 
@@ -749,13 +772,15 @@ export function BookingUserInputs({
         <DialogContent
           className={cn(
             "max-h-[90vh] overflow-y-auto text-base",
-            hasPeriodicTableField || hasTableField ? "sm:max-w-4xl" : "sm:max-w-md"
+            hasPeriodicTableField || hasTableField ? "sm:max-w-4xl" : "sm:max-w-2xl"
           )}
         >
           <DialogHeader>
             <DialogTitle className="text-lg">Edit User Inputs</DialogTitle>
             <DialogDescription className="text-sm">
-              Update the values below. Only fields marked as editable can be changed and only until the booking is completed or sample slot status is Processing or Completed.
+              Update the values below. Only fields marked as editable can be changed, until the booking is completed
+              (the Officer In Charge can also edit after completion). If the charge changes, you can pay the difference;
+              a lower charge is refunded after the Officer In Charge confirms it.
             </DialogDescription>
           </DialogHeader>
           {incompleteOptionalEditableKeys.length > 0 ? (
@@ -1170,6 +1195,19 @@ export function BookingUserInputs({
                 </div>
               );
             })}
+          </div>
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">Samples with different parameters</p>
+            <p className="text-xs text-muted-foreground">
+              The values above are sample set 1. Each extra sample set is charged and timed separately.
+            </p>
+            <SampleSetsEditor
+              fields={fields.filter((f) => !isCommentsInputFieldKey(f.field_key))}
+              sets={editSampleSets}
+              onChange={setEditSampleSets}
+              primaryValues={editFormValues as SampleSetValues}
+              disabled={saving}
+            />
           </div>
           {editLimitErrorOnReadOnlyField ? (
             <p className="text-sm font-medium text-destructive" role="alert">

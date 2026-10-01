@@ -583,6 +583,7 @@ export interface OicEquipmentSettings {
   sample_submission_lead_hours: number;
   sample_collect_deadline_hours: number;
   important_instruction: string;
+  important_instruction_by_user_type?: Record<string, string>;
 }
 
 export interface OicEquipmentSettingsRow {
@@ -2855,11 +2856,17 @@ class ApiClient {
       user_type?: string;
       /** Urgent hold flow: apply 50% surcharge on category normal charge. */
       urgent?: boolean;
+      /** Additional sample parameter sets (each billed and timed on its own). */
+      sample_sets?: Array<Record<string, string | boolean | string[] | number>>;
     }
   ) {
     // Convert field values to query parameters
     const params = new URLSearchParams();
+    if (options?.sample_sets && options.sample_sets.length > 0) {
+      params.append('sample_sets', JSON.stringify(options.sample_sets));
+    }
     Object.entries(fieldValues).forEach(([key, value]) => {
+      if (key.startsWith('_')) return;
       // Handle arrays (for MULTI_SELECT fields) - convert to comma-separated string
       if (Array.isArray(value)) {
         params.append(key, value.join(","));
@@ -6865,7 +6872,7 @@ class ApiClient {
     total_hours?: number;
     total_cost?: number;
     status?: string;
-    input_values?: Record<string, string | boolean | string[]>;
+    input_values?: Record<string, unknown>;
     /** Admin only: book on behalf of this user id */
     user_id?: number | string;
     /** When provided, create one booking for exactly these slot IDs (faster, single entry in My Bookings) */
@@ -6900,6 +6907,8 @@ class ApiClient {
     skip_group_alternatives?: boolean;
     /** Booking an alternative offered for this equipment (audit only; backend re-validates). */
     alternative_of_equipment_id?: number;
+    atmosphere_sensitive_sample?: boolean;
+    sample_return_after_analysis?: boolean;
   }) {
     return this.request<{
       id: number;
@@ -8134,7 +8143,11 @@ class ApiClient {
 
   /** OIC/Admin: booking window and deadline settings for each managed equipment. */
   async getOicEquipmentSettings() {
-    return this.request<{ equipments: OicEquipmentSettingsRow[]; has_print_3d_equipment: boolean }>(
+    return this.request<{
+      equipments: OicEquipmentSettingsRow[];
+      has_print_3d_equipment: boolean;
+      instruction_user_types?: Array<{ value: string; label: string }>;
+    }>(
       "/oic/equipment-settings/",
     );
   }
@@ -8508,12 +8521,16 @@ class ApiClient {
     priority?: string;
     user_id?: string | number;
     assigned_to?: string | number;
+    scope?: "mine" | "assigned";
     search?: string;
     ordering?: string;
     limit?: number;
     offset?: number;
   }) {
     const queryParams = new URLSearchParams();
+    if (params?.scope) {
+      queryParams.append('scope', params.scope);
+    }
     
     if (params?.status) {
       queryParams.append('status', params.status);
@@ -11316,6 +11333,37 @@ class ApiClient {
     return this.request<{ message: string; deleted: number }>(
       `${endpoint}${equipmentId}/waitlist-clear/`,
       { method: 'POST' }
+    );
+  }
+
+  /** OIC: all slots of a date (any status, incl. weekends / holidays / maintenance) for manual waitlist confirmation. */
+  async getWaitlistConfirmSlots(equipmentId: number, date: string, entryId?: number) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    const params = new URLSearchParams({ date });
+    if (entryId != null) params.set('entry_id', String(entryId));
+    return this.request<{
+      date: string;
+      slot_duration_minutes: number;
+      slots: Array<{
+        id: number;
+        start_datetime: string | null;
+        end_datetime: string | null;
+        status: string;
+        status_display: string;
+        selectable: boolean;
+        booking_id: number | null;
+        booked_by: string | null;
+      }>;
+      requirement: { slots_requested?: number | null; duration_minutes?: number | null };
+    }>(`${endpoint}${equipmentId}/waitlist-slots/?${params.toString()}`, { method: 'GET' });
+  }
+
+  /** OIC: manually confirm one waitlist entry into chosen slots. */
+  async confirmWaitlistEntryManually(equipmentId: number, entryId: number, slotIds: number[]) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{ message: string; booking_id: number; total_charge: string; total_time_minutes: number }>(
+      `${endpoint}${equipmentId}/waitlist-confirm/`,
+      { method: 'POST', body: JSON.stringify({ entry_id: entryId, slot_ids: slotIds }) }
     );
   }
 

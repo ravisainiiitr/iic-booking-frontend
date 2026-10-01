@@ -87,7 +87,6 @@ export function GroupAlternativesDialog({
                     <div className="flex items-center gap-2 font-semibold">
                       <Microscope className="h-4 w-4 shrink-0 text-primary" />
                       <span className="break-words">{alt.name}</span>
-                      <span className="text-xs font-normal text-muted-foreground">({alt.code})</span>
                     </div>
                     {(alt.make || alt.model_information) && (
                       <p className="text-xs text-muted-foreground">

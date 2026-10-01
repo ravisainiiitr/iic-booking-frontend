@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { BackButton } from "@/components/BackButton";
+import { ServerClock } from "@/components/ServerClock";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatUserDisplayName } from "@/lib/displayName";
 
@@ -127,6 +128,10 @@ const Header = () => {
             <IITRBanner size="lg" className="max-w-full" />
           </div>
 
+          <div className="server-clock-slot hidden w-[22rem] shrink justify-center lg:flex">
+            <ServerClock />
+          </div>
+
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {isAuthenticated ? (
               <>
@@ -163,10 +168,10 @@ const Header = () => {
                       <ClipboardList className="mr-2 h-4 w-4" />
                       <span>
                         {canManageBookings
-                          ? "Manage booking"
+                          ? "View Booking"
                           : isAccountsInCharge
                             ? "External bookings"
-                            : "My Booking"}
+                            : "View Booking"}
                       </span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => safeNavigate("/profile")}>

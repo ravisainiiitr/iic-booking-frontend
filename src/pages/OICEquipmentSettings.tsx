@@ -8,11 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { richTextToPlain } from "@/lib/richText";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ArrowLeft, Loader2, RotateCcw, Save } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type IntField =
@@ -28,6 +29,7 @@ type TimeField = "slot_window_reference_time" | "weekly_view_time_from" | "weekl
 type Draft = Record<IntField | TimeField, string> & {
   slot_window_reference_weekday: string;
   important_instruction: string;
+  important_instruction_by_user_type: Record<string, string>;
 };
 
 type QuotaMinutesField =
@@ -117,6 +119,7 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     sample_submission_lead_hours: String(settings.sample_submission_lead_hours ?? 0),
     sample_collect_deadline_hours: String(settings.sample_collect_deadline_hours ?? 0),
     important_instruction: settings.important_instruction ?? "",
+    important_instruction_by_user_type: { ...(settings.important_instruction_by_user_type ?? {}) },
   };
 }
 
@@ -143,12 +146,23 @@ function toPayload(draft: Draft): { payload: Partial<OicEquipmentSettings>; erro
   if (draft.weekly_view_time_from && draft.weekly_view_time_to && draft.weekly_view_time_from >= draft.weekly_view_time_to) {
     errors.weekly_view_time_to = "'Time to' must be later than 'Time from'.";
   }
-  const instruction = draft.important_instruction.trim();
+  const cleanInstruction = (html: string) => (richTextToPlain(html) ? html.trim() : "");
+  const instruction = cleanInstruction(draft.important_instruction);
   if (instruction.length > IMPORTANT_INSTRUCTION_MAX_LENGTH) {
-    errors.important_instruction = `Keep the important instruction under ${IMPORTANT_INSTRUCTION_MAX_LENGTH} characters.`;
+    errors.important_instruction = `Keep the important instruction under ${IMPORTANT_INSTRUCTION_MAX_LENGTH} characters (including formatting).`;
   } else {
     payload.important_instruction = instruction;
   }
+  const perType: Record<string, string> = {};
+  for (const [code, html] of Object.entries(draft.important_instruction_by_user_type)) {
+    const clean = cleanInstruction(html);
+    if (clean.length > IMPORTANT_INSTRUCTION_MAX_LENGTH) {
+      errors.important_instruction_by_user_type = `Keep each instruction under ${IMPORTANT_INSTRUCTION_MAX_LENGTH} characters (including formatting).`;
+    } else if (clean) {
+      perType[code] = clean;
+    }
+  }
+  payload.important_instruction_by_user_type = perType;
   return { payload, errors };
 }
 
@@ -183,6 +197,8 @@ export default function OICEquipmentSettings() {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [groupsError, setGroupsError] = useState("");
   const [quotaDraft, setQuotaDraft] = useState<QuotaRow[]>([]);
+  const [instructionUserTypes, setInstructionUserTypes] = useState<Array<{ value: string; label: string }>>([]);
+  const [addInstructionType, setAddInstructionType] = useState("");
 
   const selected = useMemo(
     () => rows.find((r) => String(r.equipment_id) === selectedId) ?? null,
@@ -218,6 +234,7 @@ export default function OICEquipmentSettings() {
       }
       const list = res.data?.equipments ?? [];
       setRows(list);
+      setInstructionUserTypes(res.data?.instruction_user_types ?? []);
       if (list.length > 0) setSelectedId(String(list[0].equipment_id));
     });
     void apiClient.getOicEquipmentGroupQuotas().then((res) => {
@@ -248,6 +265,22 @@ export default function OICEquipmentSettings() {
       if (!e[key]) return e;
       const next = { ...e };
       delete next[key];
+      return next;
+    });
+  };
+
+  const setTypeInstruction = (code: string, html: string | null) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const next = { ...d.important_instruction_by_user_type };
+      if (html === null) delete next[code];
+      else next[code] = html;
+      return { ...d, important_instruction_by_user_type: next };
+    });
+    setErrors((e) => {
+      if (!e.important_instruction_by_user_type) return e;
+      const next = { ...e };
+      delete next.important_instruction_by_user_type;
       return next;
     });
   };
@@ -378,7 +411,7 @@ export default function OICEquipmentSettings() {
                     <SelectContent>
                       {rows.map((r) => (
                         <SelectItem key={r.equipment_id} value={String(r.equipment_id)}>
-                          {r.equipment_name} ({r.equipment_code})
+                          {r.equipment_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -406,25 +439,86 @@ export default function OICEquipmentSettings() {
                       Important instruction
                     </CardTitle>
                     <CardDescription>
-                      Shown prominently as a note on the equipment page and when booking. Leave empty to show nothing.
+                      Shown as a note on the equipment page and when booking. Use the toolbar to choose the font, size,
+                      style and colour. The default applies to every user type that has no instruction of its own.
+                      Leave empty to show nothing.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-1.5">
-                    <Label htmlFor="oic-setting-important-instruction" className="sr-only">
-                      Important instruction
-                    </Label>
-                    <Textarea
-                      id="oic-setting-important-instruction"
-                      rows={3}
-                      value={draft.important_instruction}
-                      onChange={(e) => setField("important_instruction", e.target.value)}
-                      placeholder="e.g. Samples must be completely dry. Bring your own sample holders."
-                      aria-invalid={Boolean(errors.important_instruction)}
-                    />
-                    <p className="text-right text-xs text-muted-foreground">
-                      {draft.important_instruction.trim().length}/{IMPORTANT_INSTRUCTION_MAX_LENGTH}
-                    </p>
-                    {fieldError("important_instruction")}
+                  <CardContent className="space-y-5">
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold">Default (all user types)</Label>
+                      <RichTextEditor
+                        value={draft.important_instruction}
+                        onChange={(html) => setField("important_instruction", html)}
+                        placeholder="e.g. Samples must be completely dry. Bring your own sample holders."
+                        ariaLabel="Default important instruction"
+                        invalid={Boolean(errors.important_instruction)}
+                      />
+                      {fieldError("important_instruction")}
+                    </div>
+
+                    {Object.keys(draft.important_instruction_by_user_type).map((code) => {
+                      const label = instructionUserTypes.find((o) => o.value === code)?.label ?? code;
+                      return (
+                        <div key={code} className="space-y-1.5 rounded-xl border border-dashed p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="font-semibold">Instruction for {label}</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-destructive hover:text-destructive"
+                              onClick={() => setTypeInstruction(code, null)}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                              Remove
+                            </Button>
+                          </div>
+                          <RichTextEditor
+                            value={draft.important_instruction_by_user_type[code] ?? ""}
+                            onChange={(html) => setTypeInstruction(code, html)}
+                            placeholder={`Instruction shown only to ${label} users`}
+                            ariaLabel={`Important instruction for ${label}`}
+                          />
+                        </div>
+                      );
+                    })}
+                    {fieldError("important_instruction_by_user_type")}
+
+                    {instructionUserTypes.some((o) => !(o.value in draft.important_instruction_by_user_type)) && (
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="min-w-[14rem] space-y-1.5">
+                          <Label htmlFor="oic-add-instruction-type">Add an instruction for a user type</Label>
+                          <Select value={addInstructionType} onValueChange={setAddInstructionType}>
+                            <SelectTrigger id="oic-add-instruction-type">
+                              <SelectValue placeholder="Choose user type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {instructionUserTypes
+                                .filter((o) => !(o.value in draft.important_instruction_by_user_type))
+                                .map((o) => (
+                                  <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="gap-1.5"
+                          disabled={!addInstructionType}
+                          onClick={() => {
+                            setTypeInstruction(addInstructionType, "");
+                            setAddInstructionType("");
+                          }}
+                        >
+                          <Plus className="h-4 w-4" aria-hidden />
+                          Add
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

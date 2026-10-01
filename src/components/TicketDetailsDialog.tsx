@@ -389,9 +389,7 @@ export default function TicketDetailsDialog({
                   <div className="sm:col-span-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Equipment</p>
                     <p className="font-medium">
-                      {[detail.related_equipment_code, detail.related_equipment_name]
-                        .filter(Boolean)
-                        .join(" — ")}
+                      {detail.related_equipment_name || detail.related_equipment_code}
                     </p>
                   </div>
                 )}

@@ -378,7 +378,7 @@ export default function OICPrintMaterials() {
                   <SelectContent>
                     {equipments.map((eq) => (
                       <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                        {eq.equipment_code} — {eq.equipment_name}
+                        {eq.equipment_name || eq.equipment_code}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -535,7 +535,7 @@ export default function OICPrintMaterials() {
                   <Printer className="h-5 w-5" /> Materials
                 </CardTitle>
                 <CardDescription>
-                  Catalog for {selected.equipment_code} — {selected.equipment_name}
+                  Catalog for {selected.equipment_name || selected.equipment_code}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

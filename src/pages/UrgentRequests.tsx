@@ -248,9 +248,9 @@ const UrgentRequests = () => {
           <div className="mb-5">
             <Button variant="ghost" size="sm" onClick={() => navigate("/booking-management")} className="-ml-2 mb-2">
               <ArrowLeft className="h-4 w-4 mr-1.5" />
-              Booking Management
+              View Booking
             </Button>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Urgent Requests</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Urgent Booking</h1>
             <p className="text-muted-foreground mt-1 text-sm">
               Type B urgent requests (50% surcharge) from users of your equipment, waiting for your decision.
             </p>
@@ -482,7 +482,7 @@ const UrgentRequests = () => {
                   </div>
                   <div className="min-w-0">
                     <dt className="text-xs text-muted-foreground">Equipment</dt>
-                    <dd>{detailRow.equipment_name} ({detailRow.equipment_code})</dd>
+                    <dd>{detailRow.equipment_name}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Requested</dt>

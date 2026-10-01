@@ -90,8 +90,8 @@ const OIC_DASHBOARD_MENU_ORDER = [
 
 /** Workspace header copy; pages hide their own hero when embedded, so this is the only title shown. */
 const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string }> = {
-  "/booking-management": { title: "Booking Management", description: "Review and manage bookings for your equipment." },
-  "/urgent-requests": { title: "Urgent Requests", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
+  "/booking-management": { title: "View Booking", description: "Review and manage bookings for your equipment." },
+  "/urgent-requests": { title: "Urgent Booking", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
   "/oic/multi-mode": { title: "Multi-mode Equipment" },
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
   "/oic/equipment-settings": {
@@ -985,7 +985,7 @@ const Dashboard = () => {
       labEquipmentSummariesForScope.find((e) => e.equipment_id === labColorConfigEquipmentId) ||
       (labOperatorDash?.equipment_summaries ?? []).find((e) => e.equipment_id === labColorConfigEquipmentId);
     if (!eq) return undefined;
-    return eq.equipment_code ? `${eq.equipment_code} · ${eq.equipment_name}` : eq.equipment_name;
+    return eq.equipment_name || eq.equipment_code;
   }, [labColorConfigEquipmentId, labEquipmentSummariesForScope, labOperatorDash?.equipment_summaries]);
 
   useEffect(() => {
@@ -1654,7 +1654,7 @@ const Dashboard = () => {
     },
     {
       id: "view_bookings",
-      label: "View bookings",
+      label: "View Booking",
       visible: Boolean(!isOperatorOrManager),
       render: () => (
           <Card
@@ -1667,7 +1667,7 @@ const Dashboard = () => {
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View bookings</CardTitle>
+                    <CardTitle className="text-lg">View Booking</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Check your current and past bookings
                     </CardDescription>
@@ -2173,7 +2173,7 @@ const Dashboard = () => {
     },
     {
       id: "booking_management",
-      label: "Booking management",
+      label: "View Booking",
       visible: Boolean((isOperatorOrManager || isDeptAdmin)),
       render: () => (
           <Card
@@ -2186,7 +2186,7 @@ const Dashboard = () => {
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Booking management</CardTitle>
+                    <CardTitle className="text-lg">View Booking</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Manage bookings as Lab Operator, Officer In-charge, Department Administrator, or Admin
                     </CardDescription>
@@ -2195,14 +2195,14 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage Bookings</Button>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View Booking</Button>
               </CardContent>
             </Card>
       ),
     },
     {
       id: "urgent_requests",
-      label: "Urgent requests",
+      label: "Urgent booking",
       visible: Boolean(isOperatorOrManager && !isLabInchargeUser),
       render: () => (
           <Card
@@ -2215,7 +2215,7 @@ const Dashboard = () => {
                     <AlertCircle className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent requests</CardTitle>
+                    <CardTitle className="text-lg">Urgent booking</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Review and approve or reject urgent booking requests
                     </CardDescription>
@@ -3523,37 +3523,21 @@ const Dashboard = () => {
                   <>
                     <div className="h-1 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
                     <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b border-border/50 px-4 py-2.5">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        {workspaceBackButton}
-                        <div className="min-w-0">
-                          <CardTitle className="truncate text-base font-semibold tracking-tight sm:text-lg">
-                            {workspaceTitleOverride || workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
-                          </CardTitle>
-                          {workspaceMeta?.description && !workspaceTitleOverride ? (
-                            <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
-                          ) : null}
-                        </div>
+                      <div className="min-w-0">
+                        <CardTitle className="truncate text-base font-semibold tracking-tight sm:text-lg">
+                          {workspaceTitleOverride || workspaceMeta?.title || formatWorkspaceTitle(workspaceTitle) || "Workspace"}
+                        </CardTitle>
+                        {workspaceMeta?.description && !workspaceTitleOverride ? (
+                          <CardDescription className="truncate text-xs">{workspaceMeta.description}</CardDescription>
+                        ) : null}
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 gap-1.5"
-                        onClick={closeWorkspace}
-                      >
-                        <LayoutDashboard className="h-4 w-4" aria-hidden />
-                        Dashboard
-                      </Button>
+                      {workspaceBackButton}
                     </CardHeader>
                   </>
                 )}
                 {hideWorkspaceHeader && (
-                  <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-1.5">
+                  <div className="flex items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5">
                     {workspaceBackButton}
-                    <Button type="button" variant="ghost" size="sm" className="shrink-0 gap-1.5" onClick={closeWorkspace}>
-                      <LayoutDashboard className="h-4 w-4" aria-hidden />
-                      Dashboard
-                    </Button>
                   </div>
                 )}
                 <CardContent className="p-0 sm:p-0">
@@ -3621,7 +3605,7 @@ const Dashboard = () => {
                           <SelectItem value="all">All assigned instruments</SelectItem>
                           {(labOperatorDash.equipment_summaries ?? []).map((eq) => (
                             <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                              {eq.equipment_code ? `${eq.equipment_code} · ${eq.equipment_name}` : eq.equipment_name}
+                              {eq.equipment_name || eq.equipment_code}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -3633,7 +3617,7 @@ const Dashboard = () => {
                     size="sm"
                     onClick={() => navigate("/booking-management")}
                   >
-                    Booking management
+                    View Booking
                     <ChevronRight className="ml-1 h-4 w-4 opacity-80" />
                   </Button>
                 </div>
@@ -3826,7 +3810,7 @@ const Dashboard = () => {
                                 <LabOperatorWeekCalendarGrid
                                   key={eq.equipment_id}
                                   weekStartIso={labOperatorDash.week_start}
-                                  equipmentTitle={`${eq.equipment_code} · ${eq.equipment_name}`}
+                                  equipmentTitle={eq.equipment_name || eq.equipment_code}
                                   slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
                                   onBookedSlotClick={selectLabBookingForDetail}
                                   bookedSlotsOnly={labCalendarBookedOnly}

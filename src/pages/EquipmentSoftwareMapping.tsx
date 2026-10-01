@@ -313,7 +313,7 @@ export default function EquipmentSoftwareMapping() {
                 <SelectContent>
                   {equipmentOptions.map((eq) => (
                     <SelectItem key={eq.id} value={String(eq.id)}>
-                      {eq.name} {eq.code ? `(${eq.code})` : ""}
+                      {eq.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -380,7 +380,6 @@ export default function EquipmentSoftwareMapping() {
                 <CardTitle className="text-base">Required Analysis Software</CardTitle>
                 <CardDescription>
                   Mapping for <strong>{selectedEquipment.name}</strong>
-                  {selectedEquipment.code ? ` (${selectedEquipment.code})` : ""}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

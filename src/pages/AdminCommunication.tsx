@@ -1157,7 +1157,7 @@ const AdminCommunication = () => {
                         <SelectItem value="none">Select equipment</SelectItem>
                         {equipments.map((e) => (
                           <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                            {e.code} — {e.name}
+                            {e.name || e.code}
                           </SelectItem>
                         ))}
                       </SelectContent>

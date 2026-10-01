@@ -1214,7 +1214,7 @@ export default function OICLeaveManagement() {
                       <SelectContent>
                         {tempOicEquipments.map((e) => (
                           <SelectItem key={e.id} value={String(e.id)}>
-                            {e.code} – {e.name}
+                            {e.name || e.code}
                           </SelectItem>
                         ))}
                       </SelectContent>

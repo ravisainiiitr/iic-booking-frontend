@@ -571,7 +571,7 @@ export default function RescheduleSlotPicker({
             <SelectContent>
               {equipmentOptions.map((o) => (
                 <SelectItem key={o.equipment_id} value={String(o.equipment_id)}>
-                  {o.name} ({o.code}){o.is_original ? " — current" : ""}
+                  {o.name}{o.is_original ? " — current" : ""}
                 </SelectItem>
               ))}
             </SelectContent>

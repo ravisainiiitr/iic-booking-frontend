@@ -192,7 +192,7 @@ export default function AdminStudentNominations() {
                         </TableCell>
                         <TableCell>{row.supervisor_name}</TableCell>
                         <TableCell>
-                          {row.equipment_code} — {row.equipment_name}
+                          {row.equipment_name || row.equipment_code}
                         </TableCell>
                         <TableCell>{row.semester_name}</TableCell>
                         <TableCell>

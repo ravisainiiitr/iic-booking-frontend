@@ -344,7 +344,7 @@ const EquipmentAdditionRequests = () => {
           <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-background text-foreground">
             <DialogHeader>
               <DialogTitle className="text-foreground pr-6">
-                {selected?.code} — {selected?.name}
+                {selected?.name || selected?.code}
               </DialogTitle>
               {selected && (
                 <Badge variant="outline" className={cn("w-fit border font-medium mt-1", statusBadgeClass(selected.status))}>

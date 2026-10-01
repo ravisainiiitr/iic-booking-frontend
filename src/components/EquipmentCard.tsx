@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { TruncatableText } from "@/components/TruncatableText";
+import { RichTextContent } from "@/components/RichTextContent";
+import { looksLikeRichHtml } from "@/lib/richText";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 
 interface EquipmentCardProps {
@@ -532,10 +534,17 @@ const EquipmentCard = ({
                       <Info className="h-4 w-4" />
                       Important Instruction
                     </h4>
-                    <TruncatableText
-                      text={equipmentDetail.important_instruction}
-                      className="text-sm text-amber-900/90 dark:text-amber-100/90"
-                    />
+                    {looksLikeRichHtml(equipmentDetail.important_instruction) ? (
+                      <RichTextContent
+                        value={equipmentDetail.important_instruction}
+                        className="max-h-48 overflow-y-auto text-sm text-amber-900/90 dark:text-amber-100/90"
+                      />
+                    ) : (
+                      <TruncatableText
+                        text={equipmentDetail.important_instruction}
+                        className="text-sm text-amber-900/90 dark:text-amber-100/90"
+                      />
+                    )}
                   </div>
                 )}
 

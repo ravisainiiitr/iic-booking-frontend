@@ -306,8 +306,7 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
                               )}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {ds.equipment_name || "—"}
-                              {ds.equipment_code ? ` (${ds.equipment_code})` : ""} ·{" "}
+                              {ds.equipment_name || "—"} ·{" "}
                               {ds.booking_date || "—"}
                               {ds.booking_time ? ` ${ds.booking_time}` : ""} · Ref{" "}
                               {ds.virtual_booking_id || ds.booking_id}

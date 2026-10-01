@@ -1748,7 +1748,8 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {/* Invoice + technical contacts: all booking statuses and viewer roles (internal/external/student/faculty/operator/OIC). */}
+          {/* Invoice + technical contacts: every viewer except the Lab in-charge, who is one of these contacts. */}
+          {!(isLabInchargeUser || normalizedCurrentUserType === "operator") && (
           <div className="mt-4 pt-4 border-t">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {!isWaitlistedEntry && (
@@ -1813,6 +1814,7 @@ export function BookingDetailCard({
               </div>
             </div>
           </div>
+          )}
 
           {(booking.rating != null || booking.rating_feedback != null) && (
             <div className="mt-4 pt-4 border-t">
@@ -3345,13 +3347,15 @@ export function BookingDetailCard({
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">
                       {isManagerOrAdmin
-                        ? "Click Refund Money to credit this amount to the user's wallet."
-                        : "Click Refund to credit this amount to the associated wallet."}
+                        ? "Confirm the refund to credit this amount to the user's wallet."
+                        : "The refund will be credited to the associated wallet once the Officer In Charge confirms it."}
                     </p>
-                    <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      {chargeRecalcActionLoading ? "Processing…" : (isManagerOrAdmin ? "Refund Money" : "Refund")}
-                    </Button>
+                    {isManagerOrAdmin && (
+                      <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        {chargeRecalcActionLoading ? "Processing…" : "Confirm refund"}
+                      </Button>
+                    )}
                   </>
                 ) : (
                   <>

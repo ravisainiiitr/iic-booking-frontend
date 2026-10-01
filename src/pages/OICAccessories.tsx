@@ -175,7 +175,7 @@ export default function OICAccessories() {
                   <SelectContent>
                     {equipments.map((eq) => (
                       <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                        {eq.equipment_code} — {eq.equipment_name}
+                        {eq.equipment_name || eq.equipment_code}
                       </SelectItem>
                     ))}
                   </SelectContent>

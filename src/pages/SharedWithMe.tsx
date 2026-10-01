@@ -109,7 +109,6 @@ export default function SharedWithMe() {
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold">{item.equipment_name}</span>
-                            <span className="text-xs text-muted-foreground">({item.equipment_code})</span>
                             {item.is_new ? (
                               <Badge className="bg-sky-600 hover:bg-sky-600">New</Badge>
                             ) : (

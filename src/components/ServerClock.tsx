@@ -84,13 +84,6 @@ export function ServerClock({ className }: { className?: string }) {
     >
       <Clock className="h-4 w-4 shrink-0 text-primary/80" aria-hidden />
       <span className="flex min-w-0 flex-col leading-tight">
-        <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          <span className="relative flex h-1.5 w-1.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          </span>
-          Server time · {sync.zoneLabel}
-        </span>
         <span className="server-clock-time font-mono font-semibold tabular-nums tracking-tight text-foreground">
           {hhmm}
           <span className="text-muted-foreground">:{ss}</span>

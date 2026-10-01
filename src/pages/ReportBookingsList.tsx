@@ -153,9 +153,6 @@ const ReportBookingsList = () => {
                             <TableCell className="font-medium">{b.booking_id}</TableCell>
                             <TableCell>
                               <span className="font-medium">{b.equipment_name || b.equipment_code}</span>
-                              {b.equipment_code && b.equipment_name !== b.equipment_code && (
-                                <span className="text-muted-foreground text-sm ml-1">({b.equipment_code})</span>
-                              )}
                             </TableCell>
                             <TableCell className="whitespace-nowrap text-sm">
                               {b.start_time ? new Date(b.start_time).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "—"}

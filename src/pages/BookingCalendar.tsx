@@ -122,7 +122,6 @@ export default function BookingCalendar() {
                   <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)} className="py-2">
                     <span className="whitespace-normal break-words leading-snug">
                       {eq.name}
-                      {eq.code ? ` (${eq.code})` : ""}
                     </span>
                   </SelectItem>
                 ))}

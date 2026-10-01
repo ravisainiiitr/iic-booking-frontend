@@ -105,7 +105,6 @@ export function LinkBookingsDialog({ workspaceId, open, onOpenChange, onLinked }
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{b.equipment_name}</span>
-                        <span className="text-xs text-muted-foreground">({b.equipment_code})</span>
                         <Badge variant="outline" className="text-[10px]">
                           {b.status_display}
                         </Badge>

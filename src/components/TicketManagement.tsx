@@ -50,12 +50,16 @@ const TicketManagement = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const userTypeLower = String(user?.user_type ?? "").toLowerCase();
   const isTicketStaff = userTypeLower === "admin" || userTypeLower === "dept_admin";
+  const isTicketHandler = userTypeLower === "manager" || userTypeLower === "operator";
+  const [scope, setScope] = useState<"assigned" | "mine">(isTicketHandler ? "assigned" : "mine");
+  const showAssignedColumns = isTicketHandler && scope === "assigned";
 
   const loadTickets = async () => {
     setLoading(true);
     try {
-      const params: { status?: string; ticket_type?: string } = {};
+      const params: { status?: string; ticket_type?: string; scope?: "mine" | "assigned" } = {};
       if (statusFilter && statusFilter !== "all") params.status = statusFilter;
+      if (isTicketHandler) params.scope = scope;
       if (typeFilter && typeFilter !== "all") params.ticket_type = typeFilter;
 
       const response = await apiClient.getTickets(params);
@@ -82,7 +86,8 @@ const TicketManagement = () => {
 
   useEffect(() => {
     if (isAuthenticated) void loadTickets();
-  }, [isAuthenticated, statusFilter, typeFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, statusFilter, typeFilter, scope]);
 
   const deepLinkTicketId = searchParams.get("ticket");
   useEffect(() => {
@@ -123,10 +128,38 @@ const TicketManagement = () => {
     <div className="space-y-4">
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>My Tickets</CardTitle>
-          <CardDescription>Track support requests and conversation history</CardDescription>
+          <CardTitle>{showAssignedColumns ? "Tickets marked to me" : "My Tickets"}</CardTitle>
+          <CardDescription>
+            {showAssignedColumns
+              ? "Tickets assigned to you or raised for equipment you look after. Open a ticket to read it and reply."
+              : "Track support requests and conversation history"}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isTicketHandler && (
+            <div className="inline-flex rounded-xl border bg-muted/30 p-1.5" role="tablist" aria-label="Ticket scope">
+              {[
+                { value: "assigned" as const, label: "Marked to me" },
+                { value: "mine" as const, label: "Raised by me" },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === tab.value}
+                  onClick={() => setScope(tab.value)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    scope === tab.value
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap gap-1.5 rounded-xl border bg-muted/30 p-1.5">
             {[
               { value: "open", label: "Open" },
@@ -178,6 +211,8 @@ const TicketManagement = () => {
                   <TableRow className="bg-muted/40">
                     <TableHead>ID</TableHead>
                     <TableHead>Subject</TableHead>
+                    {showAssignedColumns && <TableHead>Raised by</TableHead>}
+                    {showAssignedColumns && <TableHead>Equipment</TableHead>}
                     <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
@@ -200,6 +235,16 @@ const TicketManagement = () => {
                       <TableCell className="max-w-[220px] font-medium truncate" title={ticket.subject}>
                         {ticket.subject || "—"}
                       </TableCell>
+                      {showAssignedColumns && (
+                        <TableCell className="max-w-[180px] truncate text-sm">
+                          {ticket.user_name || ticket.public_name || ticket.user_email || "—"}
+                        </TableCell>
+                      )}
+                      {showAssignedColumns && (
+                        <TableCell className="max-w-[200px] truncate text-sm">
+                          {ticket.related_equipment_name || ticket.related_equipment_code || "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="text-sm">
                         {ticket.ticket_type_display || ticket.ticket_type}
                       </TableCell>

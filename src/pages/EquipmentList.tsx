@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import {
+  catalogDepartmentFromParam,
   filterCatalogEquipmentForDisplay,
   isCatalogFamilyParent,
   isExpandableParent,
@@ -116,17 +117,47 @@ const EquipmentList = () => {
   const navigate = useNavigate();
   const embedded = useEmbeddedMode();
   const { user } = useAuth();
+  // The open family and department live in the URL so Back from an equipment page returns to them.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const familyParam = Number(searchParams.get("family"));
+  const expandedParentId = Number.isInteger(familyParam) && familyParam > 0 ? familyParam : null;
+  const setExpandedParentId = useCallback(
+    (parentId: number | null, replace = false) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (parentId == null) next.delete("family");
+          else next.set("family", String(parentId));
+          return next;
+        },
+        { replace },
+      );
+    },
+    [setSearchParams],
+  );
   const userTypeAtMount = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const [initialDepartment] = useState<DepartmentFilterValue | null>(() =>
-    userTypeAtMount === "dept_admin" ? null : cachedDefaultDepartment(),
+    userTypeAtMount === "dept_admin"
+      ? null
+      : catalogDepartmentFromParam(searchParams.get("dept")) ?? cachedDefaultDepartment(),
   );
+  const oicCatalogScope: "managed" | "all" = searchParams.get("scope") === "all" ? "all" : "managed";
+  const setOicCatalogScope = (scope: "managed" | "all") => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (scope === "all") next.set("scope", "all");
+        else next.delete("scope");
+        return next;
+      },
+      { replace: true },
+    );
+  };
   const [rawEquipment, setRawEquipment] = useState<ApiEquipment[]>(() => {
     if (initialDepartment == null) return [];
-    const scope: CatalogScope = userTypeAtMount === "manager" ? "managed" : null;
+    const scope: CatalogScope = userTypeAtMount === "manager" ? oicCatalogScope : null;
     return (peekCatalogEquipment(initialDepartment, scope)?.data ?? []) as ApiEquipment[];
   });
-  const [expandedParentId, setExpandedParentId] = useState<number | null>(null);
-  const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
   const [loading, setLoading] = useState(() => rawEquipment.length === 0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>(
@@ -257,9 +288,6 @@ const EquipmentList = () => {
 
     const applyList = (list: ApiEquipment[]) => {
       setRawEquipment(list);
-      setExpandedParentId((prev) =>
-        prev != null && isExpandableParent(list, prev) ? prev : null,
-      );
     };
 
     // Show the cached catalog at once; refetch in the background only when it is getting old.
@@ -306,6 +334,24 @@ const EquipmentList = () => {
     catalogScope,
   ]);
 
+  useEffect(() => {
+    if (expandedParentId == null || loading || !departmentReady) return;
+    if (!isExpandableParent(rawEquipment, expandedParentId)) setExpandedParentId(null, true);
+  }, [expandedParentId, loading, departmentReady, rawEquipment, setExpandedParentId]);
+
+  const changeDepartment = (value: DepartmentFilterValue) => {
+    setSelectedDepartmentId(value);
+    setDepartmentReady(true);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("dept", String(value));
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const handleStatusToggle = async (
     equipmentId: number,
     newStatus: "ACTIVE" | "REPAIR",
@@ -335,9 +381,6 @@ const EquipmentList = () => {
       }
       const list = await fetchEquipment(searchQuery.trim() || undefined, selectedDepartmentId, true);
       setRawEquipment(list);
-      setExpandedParentId((prev) =>
-        prev != null && isExpandableParent(list, prev) ? prev : null,
-      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update status");
     } finally {
@@ -406,10 +449,7 @@ const EquipmentList = () => {
           ) : (
             <DepartmentFilter
               value={selectedDepartmentId}
-              onChange={(v) => {
-                setSelectedDepartmentId(v);
-                setDepartmentReady(true);
-              }}
+              onChange={changeDepartment}
               onResolved={(v) => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);

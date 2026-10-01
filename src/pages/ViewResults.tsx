@@ -105,7 +105,6 @@ export default function ViewResults() {
                         <div className="min-w-0 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold">{item.equipment_name}</span>
-                            <span className="text-xs text-muted-foreground">({item.equipment_code})</span>
                             {item.is_new ? (
                               <Badge className="bg-green-600 hover:bg-green-600">New</Badge>
                             ) : (

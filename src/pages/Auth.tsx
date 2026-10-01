@@ -974,24 +974,12 @@ const Auth = () => {
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-2xl" aria-hidden />
         <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-sky-300/10 blur-3xl" aria-hidden />
         <div className="relative flex h-full flex-col justify-between gap-10 p-10 xl:p-14">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {brandLogo}
-              <div>
-                <p className="text-lg font-semibold leading-tight">Indian Institute of Technology Roorkee</p>
-                <p className="text-sm text-white/75">Institute Equipment Booking Portal</p>
-              </div>
+          <div className="flex items-center gap-4">
+            {brandLogo}
+            <div>
+              <p className="text-lg font-semibold leading-tight">Indian Institute of Technology Roorkee</p>
+              <p className="text-sm text-white/75">Institute Equipment Booking Portal</p>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-11 w-11 shrink-0 rounded-xl text-white hover:bg-white/15 hover:text-white"
-              onClick={() => navigate("/")}
-              title="Go to Home"
-              aria-label="Go to Home"
-            >
-              <Home className="h-5 w-5" />
-            </Button>
           </div>
 
           <div className="space-y-8">
@@ -1037,7 +1025,17 @@ const Auth = () => {
       </aside>
 
       {/* Form panel */}
-      <main className="flex min-w-0 flex-col items-center bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,hsl(215_50%_40%/0.10),transparent)] px-4 py-6 sm:px-8 sm:py-10 lg:justify-center dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,hsl(215_40%_30%/0.18),transparent)]">
+      <main className="relative flex min-w-0 flex-col items-center bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,hsl(215_50%_40%/0.10),transparent)] px-4 py-6 sm:px-8 sm:py-10 lg:justify-center dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,hsl(215_40%_30%/0.18),transparent)]">
+        <Button
+          variant="outline"
+          size="icon"
+          className="absolute right-6 top-6 hidden h-14 w-14 rounded-2xl border-primary/30 text-primary shadow-sm hover:bg-primary/10 hover:text-primary lg:inline-flex"
+          onClick={() => navigate("/")}
+          title="Go to Home"
+          aria-label="Go to Home"
+        >
+          <Home className="!h-8 !w-8" />
+        </Button>
         {/* Mobile header */}
         <div className="mb-6 flex w-full max-w-lg items-center justify-between gap-3 lg:hidden">
           <div className="flex items-center gap-3">
@@ -1047,8 +1045,8 @@ const Auth = () => {
               <p className="text-xs text-muted-foreground">Institute Equipment Booking Portal</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => navigate("/")} aria-label="Go to Home">
-            <Home className="h-5 w-5" />
+          <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl text-primary" onClick={() => navigate("/")} aria-label="Go to Home">
+            <Home className="!h-7 !w-7" />
           </Button>
         </div>
 

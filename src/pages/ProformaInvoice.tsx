@@ -285,7 +285,7 @@ export default function ProformaInvoice() {
                   <SelectContent>
                     {visibleEquipmentList.map((e) => (
                       <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                        {e.code} – {e.name}
+                        {e.name || e.code}
                       </SelectItem>
                     ))}
                   </SelectContent>

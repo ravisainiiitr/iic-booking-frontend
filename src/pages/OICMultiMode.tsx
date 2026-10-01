@@ -248,7 +248,7 @@ export default function OICMultiMode() {
             <SelectContent>
               {modeOptions.map((m) => (
                 <SelectItem key={m.equipment_id} value={String(m.equipment_id)}>
-                  {m.code} — {m.name}
+                  {m.name || m.code}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -428,7 +428,7 @@ export default function OICMultiMode() {
                     <SelectContent>
                       {parentOptions.map((p) => (
                         <SelectItem key={p.equipment_id} value={String(p.equipment_id)}>
-                          {p.code} — {p.name}
+                          {p.name || p.code}
                         </SelectItem>
                       ))}
                     </SelectContent>

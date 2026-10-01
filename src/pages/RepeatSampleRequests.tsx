@@ -96,7 +96,7 @@ export default function RepeatSampleRequests() {
           <div className="mb-6">
             <Button variant="ghost" size="sm" onClick={() => navigate("/booking-management")} className="-ml-2 mb-3">
               <ArrowLeft className="h-4 w-4 mr-1.5" />
-              Booking Management
+              View Booking
             </Button>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
               <RotateCcw className="h-6 w-6 text-violet-600" />
@@ -104,7 +104,7 @@ export default function RepeatSampleRequests() {
             </h1>
             <p className="text-muted-foreground mt-1 text-sm max-w-2xl">
               Users cannot request a repeat sample online; they visit the lab instead. If the request is genuine, open
-              the user&apos;s completed booking in Booking Management and choose &ldquo;Mark as repeat &amp; book&rdquo;.
+              the user&apos;s completed booking in View Booking and choose &ldquo;Mark as repeat &amp; book&rdquo;.
               The repeat is booked for the user free of charge with the original parameters, and the user receives a
               confirmation email. Every repeat is kept here as a record.
             </p>

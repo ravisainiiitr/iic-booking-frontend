@@ -2,6 +2,7 @@ import EquipmentCatalogCard from "@/components/EquipmentCatalogCard";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import {
+  catalogDepartmentFromParam,
   filterCatalogEquipmentForDisplay,
   isCatalogFamilyParent,
 } from "@/lib/equipmentCatalog";
@@ -61,9 +62,13 @@ const EquipmentGrid = () => {
   const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>("all");
+  // Department and OIC scope live in the URL with `family` so Back from an equipment page restores the view.
+  const [urlDepartment] = useState(() => catalogDepartmentFromParam(searchParams.get("dept")));
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>(
+    () => urlDepartment ?? "all",
+  );
   /** Block first catalog fetch until IIC default (or DA dept) is resolved — avoids flash of all departments. */
-  const [departmentReady, setDepartmentReady] = useState(false);
+  const [departmentReady, setDepartmentReady] = useState(() => urlDepartment != null);
   const [equipment, setEquipment] = useState<ApiEquipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
@@ -77,7 +82,18 @@ const EquipmentGrid = () => {
     equipmentName: string;
   } | null>(null);
   /** OIC: default managed instruments; toggle to browse full catalog. */
-  const [oicCatalogScope, setOicCatalogScope] = useState<"managed" | "all">("managed");
+  const oicCatalogScope: "managed" | "all" = searchParams.get("scope") === "all" ? "all" : "managed";
+  const setOicCatalogScope = (scope: "managed" | "all") => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (scope === "all") next.set("scope", "all");
+        else next.delete("scope");
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   const familyRaw = searchParams.get("family");
   const expandedParentId = (() => {
@@ -310,6 +326,14 @@ const EquipmentGrid = () => {
               onChange={(v) => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);
+                setSearchParams(
+                  (prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set("dept", String(v));
+                    return next;
+                  },
+                  { replace: true },
+                );
               }}
               onResolved={(v) => {
                 setSelectedDepartmentId(v);
