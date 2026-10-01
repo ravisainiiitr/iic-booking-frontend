@@ -175,6 +175,7 @@ const STATUS_OPTIONS = [
 const PROJECT_GRANT_REJECT_REASONS = [
   { value: "wrong_project_grant", label: "Wrong Project Code" },
   { value: "insufficient_balance", label: "Insufficient Funds in the Project" },
+  { value: "project_closed", label: "Project Already Closed" },
   { value: "other", label: "Other" },
 ];
 

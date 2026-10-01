@@ -251,6 +251,7 @@ export function sricDeclineOutcome(r: {
 export const DECLINE_REASON_LABELS: Record<string, string> = {
   wrong_project_grant: "Wrong Project Code",
   insufficient_balance: "Insufficient Funds in the Project",
+  project_closed: "Project Already Closed",
   mismatch_user_info: "Mismatch in User Information",
   other: "Other",
 };

@@ -215,6 +215,7 @@ const WalletRechargeEmailAction = () => {
   const choices = payload?.rejection_reason_choices || [
     { value: "wrong_project_grant", label: "Wrong Project Code" },
     { value: "insufficient_balance", label: "Insufficient Funds in the Project" },
+    { value: "project_closed", label: "Project Already Closed" },
     { value: "other", label: "Other" },
   ];
 
