@@ -25,6 +25,18 @@ export interface WeeklySlotTemplateSource {
   weekly_view_display?: "TIME" | "SLOT_ID" | null;
 }
 
+/** The booking page's default "Available" slot colour (overridable per portal via calendar colours). */
+export const DEFAULT_AVAILABLE_SLOT_COLOR = "#22c55e";
+
+/** Dark or white text for a "#rrggbb" background, matching the booking page grid. */
+export function readableTextOn(hex: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex ?? "").trim());
+  if (!m) return "#1f2937";
+  const n = parseInt(m[1], 16);
+  const luminance = (0.299 * ((n >> 16) & 0xff) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff)) / 255;
+  return luminance > 0.5 ? "#1f2937" : "#ffffff";
+}
+
 /** Bookable weekdays (0 = Monday). Saturdays and Sundays are always holidays in the backend. */
 export const PREFERRED_SLOT_WEEKDAYS = [0, 1, 2, 3, 4] as const;
 
@@ -119,22 +131,31 @@ export function buildWeeklySlotRows(
 
 export type RunCheck =
   | { ok: true; rows: WeeklySlotRow[]; minutes: number }
-  | { ok: false; reason: "past_end"; available: number }
-  | { ok: false; reason: "break"; breakAfter: WeeklySlotRow; breakBefore: WeeklySlotRow };
+  | { ok: false; reason: "past_end"; available: number };
 
-/** The `count` back-to-back slots starting at row `startIndex`, or why they cannot be booked as one run. */
+/**
+ * The `count` slots starting at row `startIndex`, or why they cannot be booked as one run.
+ * Consecutive means "the next rows of the same day", as on the booking page and in the backend: a break
+ * between two slots (e.g. 11:00–11:30) does not split a run; only running past the day's last slot does.
+ */
 export function consecutiveRun(rows: readonly WeeklySlotRow[], startIndex: number, count: number): RunCheck {
   const n = Math.max(1, Math.floor(count));
   if (startIndex < 0 || startIndex >= rows.length || startIndex + n > rows.length) {
     return { ok: false, reason: "past_end", available: Math.max(0, rows.length - Math.max(0, startIndex)) };
   }
   const run = rows.slice(startIndex, startIndex + n);
-  for (let i = 0; i < run.length - 1; i += 1) {
-    if (run[i].end !== run[i + 1].start) {
-      return { ok: false, reason: "break", breakAfter: run[i], breakBefore: run[i + 1] };
-    }
-  }
   return { ok: true, rows: run, minutes: run.reduce((sum, r) => sum + (r.end - r.start), 0) };
+}
+
+/** True when the sample details need more slots than one day has, so no start can work. */
+export const slotsExceedDay = (rows: readonly WeeklySlotRow[], count: number | null | undefined): boolean =>
+  rows.length > 0 && count != null && count > rows.length;
+
+export function slotsExceedDayMessage(rows: readonly WeeklySlotRow[], count: number): string {
+  return (
+    `Your sample details need ${count} slots but only ${rows.length} slot${rows.length === 1 ? "" : "s"} ` +
+    `exist in a day — reduce the samples, or leave the preferred slot off and pick slots when booking.`
+  );
 }
 
 /** Start rows from which `count` consecutive slots fit. */
@@ -146,15 +167,11 @@ export function validRunStarts(rows: readonly WeeklySlotRow[], count: number): S
   return ok;
 }
 
-export function runProblemMessage(check: RunCheck, count: number, hideTimes = false): string | null {
+/** Short reason a cell cannot start the run (tooltip / inline hint), or null when it can. */
+export function runProblemMessage(check: RunCheck, count: number): string | null {
   if (check.ok === true) return null;
-  const problem = check as Exclude<RunCheck, { ok: true }>;
-  const slots = `${count} slot${count === 1 ? "" : "s"}`;
-  if (problem.reason === "past_end") {
-    return `${slots} starting here would run past the last slot of the day. Choose an earlier start.`;
-  }
-  const where = hideTimes ? "" : ` at ${minutesToKey(problem.breakAfter.end)}`;
-  return `${slots} starting here would cross a break${where}; booked slots must be back to back. Choose another start.`;
+  const left = (check as Exclude<RunCheck, { ok: true }>).available;
+  return `Needs ${count} slots — only ${left} left in the day from here. Pick an earlier start.`;
 }
 
 /** Same count the booking page requires for these inputs: analysis time vs. slot duration and tolerance. */

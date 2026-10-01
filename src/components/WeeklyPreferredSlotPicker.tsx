@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { AlertTriangle, CalendarClock, Loader2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { CalendarClock, Check, Info, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MAX_PREFERRED_SLOT_COUNT, WEEKDAY_NAMES } from "@/lib/templatePreferredSlot";
 import {
+  DEFAULT_AVAILABLE_SLOT_COLOR,
   PREFERRED_SLOT_WEEKDAYS,
   consecutiveRun,
   describeWeeklySelection,
   formatDurationMinutes,
   minutesToKey,
+  readableTextOn,
   rowIndexForStart,
   runProblemMessage,
+  slotsExceedDay,
+  slotsExceedDayMessage,
   type WeeklySlotRow,
 } from "@/lib/weeklySlotTemplate";
 
@@ -27,10 +32,13 @@ const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const clampCount = (n: number) => Math.min(MAX_PREFERRED_SLOT_COUNT, Math.max(1, Math.round(n) || 1));
 
+const compactRange = (row: WeeklySlotRow) => `${minutesToKey(row.start)}–${minutesToKey(row.end)}`;
+
 /**
- * Weekly (Mon–Fri, no dates) slot calendar for a template's preferred slot. Rows are the equipment's
- * slot timings; clicking a cell selects `slotsRequired` back-to-back slots from there on that weekday.
- * Shows no availability: it is a weekly preference that is matched to real slots when the template is loaded.
+ * Weekly (Mon–Fri, no dates) slot calendar for a template's preferred slot, styled like the booking page's
+ * weekly grid. Rows are the equipment's slot timings; clicking a cell selects `slotsRequired` consecutive
+ * slots from there on that weekday (the next rows of the day, as on the booking page). It shows no live
+ * availability: the weekly preference is matched to real slots when the template is loaded.
  */
 export function WeeklyPreferredSlotPicker({
   rows,
@@ -39,6 +47,7 @@ export function WeeklyPreferredSlotPicker({
   slotsRequiredPending = false,
   slotDurationMinutes,
   requiredBasis = "based on your sample details",
+  availableColor,
   value,
   onChange,
 }: {
@@ -49,11 +58,14 @@ export function WeeklyPreferredSlotPicker({
   slotsRequiredPending?: boolean;
   slotDurationMinutes?: number | null;
   requiredBasis?: string;
+  /** The equipment's "Available" calendar colour (booking page grid); green by default. */
+  availableColor?: string | null;
   value: WeeklySlotSelection | null;
   onChange: (next: WeeklySlotSelection | null, reason: WeeklySlotChangeReason) => void;
 }) {
   const count = clampCount(slotsRequired ?? value?.slotCount ?? 1);
-  const [message, setMessage] = useState<{ tone: "info" | "warn"; text: string } | null>(null);
+  const tooManySlots = slotsExceedDay(rows, slotsRequired);
+  const [hint, setHint] = useState<string | null>(null);
   const [hover, setHover] = useState<{ day: number; row: number } | null>(null);
   const [focusCell, setFocusCell] = useState<{ day: number; row: number } | null>(null);
   const cellRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -82,32 +94,44 @@ export function WeeklyPreferredSlotPicker({
     if (idx < 0 || !(PREFERRED_SLOT_WEEKDAYS as readonly number[]).includes(current.weekday)) return;
     const n = clampCount(slotsRequired);
     if (current.slotCount === n) return;
-    const check = consecutiveRun(rows, idx, n);
-    const where = `${WEEKDAY_NAMES[current.weekday]} ${hideTimes ? rows[idx].label : rows[idx].key}`;
-    if (check.ok) {
+    if (consecutiveRun(rows, idx, n).ok) {
       onChangeRef.current({ ...current, slotCount: n }, "resize");
-      setMessage({ tone: "info", text: `Your sample details need ${n} slot${n === 1 ? "" : "s"}, so the selection from ${where} was updated.` });
-    } else {
-      onChangeRef.current(null, "clear");
-      setMessage({
-        tone: "warn",
-        text: `Your sample details now need ${n} slot${n === 1 ? "" : "s"}, which do not fit from ${where}. Choose a new start.`,
-      });
+      setHint(null);
+      return;
     }
+    onChangeRef.current(null, "clear");
+    setHint(
+      slotsExceedDay(rows, n)
+        ? null
+        : `Your sample details now need ${n} slots, which don't fit from ${WEEKDAY_NAMES[current.weekday]} ${
+            hideTimes ? rows[idx].label : rows[idx].key
+          }. Pick a new start.`
+    );
   }, [slotsRequired, rows, hideTimes]);
 
   const days = PREFERRED_SLOT_WEEKDAYS;
   const activeCell =
     focusCell ?? (aligned ? { day: days.indexOf(value!.weekday as (typeof days)[number]), row: startIndex } : { day: 0, row: 0 });
 
+  const greenBg = availableColor || DEFAULT_AVAILABLE_SLOT_COLOR;
+  const availableStyle: CSSProperties = { backgroundColor: greenBg, color: readableTextOn(greenBg) };
+
+  const isInSelectedRun = (weekday: number, rowIdx: number) =>
+    selectedRun != null && value!.weekday === weekday && rowIdx >= startIndex && rowIdx < startIndex + count;
+
   const pick = (dayIdx: number, rowIdx: number) => {
     const weekday = days[dayIdx];
-    const check = consecutiveRun(rows, rowIdx, count);
-    if (!check.ok) {
-      setMessage({ tone: "warn", text: runProblemMessage(check, count, hideTimes) ?? "Choose another start." });
+    if (isInSelectedRun(weekday, rowIdx)) {
+      setHint(null);
+      onChange(null, "clear");
       return;
     }
-    setMessage(null);
+    const check = consecutiveRun(rows, rowIdx, count);
+    if (!check.ok) {
+      setHint(runProblemMessage(check, count));
+      return;
+    }
+    setHint(null);
     onChange({ weekday, startTime: rows[rowIdx].key, slotCount: count }, "pick");
   };
 
@@ -135,37 +159,33 @@ export function WeeklyPreferredSlotPicker({
   };
 
   const preview = useMemo(() => {
-    if (!hover) return null;
-    const check = consecutiveRun(rows, hover.row, count);
-    return { ...hover, ok: check.ok, end: check.ok ? hover.row + count - 1 : hover.row };
+    if (!hover || !consecutiveRun(rows, hover.row, count).ok) return null;
+    return { day: hover.day, from: hover.row, to: hover.row + count - 1 };
   }, [hover, rows, count]);
 
   const durationMinutes = selectedRun?.minutes ?? count * (Number(slotDurationMinutes) || 60);
-  const gridColumns = { gridTemplateColumns: `minmax(104px, auto) repeat(${days.length}, minmax(84px, 1fr))` };
+  const gridColumns = { gridTemplateColumns: `minmax(92px, auto) repeat(${days.length}, minmax(76px, 1fr))` };
 
   return (
-    <div className="space-y-3">
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-sm",
-          slotsRequired != null
-            ? "border-primary/30 bg-primary/5 text-foreground dark:bg-primary/10"
-            : "border-border bg-background/60 text-muted-foreground"
-        )}
-        aria-live="polite"
-      >
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" aria-live="polite">
         <CalendarClock className="h-4 w-4 shrink-0 text-primary" aria-hidden />
         {slotsRequiredPending && slotsRequired == null ? (
-          <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Calculating slots required…
           </span>
         ) : slotsRequired != null ? (
           <span>
-            <strong>Slots required: {count}</strong> ({formatDurationMinutes(durationMinutes)}) — {requiredBasis}
+            <strong>
+              {count} slot{count === 1 ? "" : "s"} required
+            </strong>{" "}
+            <span className="text-muted-foreground">
+              ({formatDurationMinutes(durationMinutes)}, {requiredBasis})
+            </span>
           </span>
         ) : (
-          <span>
-            Complete the sample details to calculate the slots required. Using{" "}
+          <span className="text-muted-foreground">
+            Complete the sample details to calculate the slots required; using{" "}
             <strong className="text-foreground">
               {count} slot{count === 1 ? "" : "s"}
             </strong>{" "}
@@ -175,45 +195,45 @@ export function WeeklyPreferredSlotPicker({
       </div>
 
       {misaligned && (
-        <div className="flex gap-2 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-50">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <p>
-            Your saved preferred slot ({WEEKDAY_NAMES[value!.weekday] ?? "?"} {value!.startTime}, {value!.slotCount} slot
-            {value!.slotCount === 1 ? "" : "s"}){" "}
-            {weekdayOk ? "does not match this equipment's current slot timings" : "is not on a bookable weekday"}. Choose a
-            new start in the calendar.
-          </p>
-        </div>
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          Your saved slot ({WEEKDAY_NAMES[value!.weekday] ?? "?"} {value!.startTime}, {value!.slotCount} slot
+          {value!.slotCount === 1 ? "" : "s"}){" "}
+          {weekdayOk ? "no longer matches this equipment's slot timings" : "is not on a bookable weekday"} — pick a new start.
+        </p>
       )}
 
       {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
           This equipment has no slot timings set up yet, so a preferred slot cannot be chosen.
         </p>
+      ) : tooManySlots ? (
+        <p className="flex gap-2 rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm text-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+          {slotsExceedDayMessage(rows, count)}
+        </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border/70 bg-card p-2 sm:p-3">
-          <div
-            role="grid"
-            aria-label={`Preferred weekly slot. Choose a start; ${count} back-to-back slot${count === 1 ? "" : "s"} are selected.`}
-            className="min-w-[540px]"
-            onKeyDown={onGridKeyDown}
-            onMouseLeave={() => setHover(null)}
-          >
-            <div role="row" className="grid gap-2 mb-2" style={gridColumns}>
-              <div role="columnheader" className="sticky left-0 z-10 bg-card p-2 text-sm font-semibold">
-                {hideTimes ? "Slot position" : "Time"}
-              </div>
-              {days.map((d) => (
-                <div key={d} role="columnheader" aria-label={WEEKDAY_NAMES[d]} className="p-2 text-center text-sm font-semibold">
-                  <span className="lg:hidden">{WEEKDAY_SHORT[d]}</span>
-                  <span className="hidden lg:inline">{WEEKDAY_NAMES[d]}</span>
+        <TooltipProvider delayDuration={200}>
+          <div className="overflow-x-auto rounded-lg border border-border/70 bg-card p-2 sm:p-3">
+            <div
+              role="grid"
+              aria-label={`Preferred weekly slot. Click a start; ${count} consecutive slot${count === 1 ? " is" : "s are"} selected.`}
+              className="min-w-[480px]"
+              onKeyDown={onGridKeyDown}
+              onMouseLeave={() => setHover(null)}
+            >
+              <div role="row" className="mb-2 grid gap-2" style={gridColumns}>
+                <div role="columnheader" className="sticky left-0 z-10 bg-card p-2 text-sm font-semibold">
+                  {hideTimes ? "Slot position" : "Time"}
                 </div>
-              ))}
-            </div>
-            {rows.map((row, rowIdx) => {
-              const breakBefore = rowIdx > 0 && rows[rowIdx - 1].end !== row.start;
-              return (
-                <div key={row.key} role="row" className={cn("grid gap-2 mb-2", breakBefore && "mt-4")} style={gridColumns}>
+                {days.map((d) => (
+                  <div key={d} role="columnheader" aria-label={WEEKDAY_NAMES[d]} className="p-2 text-center text-sm font-semibold">
+                    <span className="lg:hidden">{WEEKDAY_SHORT[d]}</span>
+                    <span className="hidden lg:inline">{WEEKDAY_NAMES[d]}</span>
+                  </div>
+                ))}
+              </div>
+              {rows.map((row, rowIdx) => (
+                <div key={row.key} role="row" className="mb-2 grid gap-2" style={gridColumns}>
                   <div
                     role="rowheader"
                     className="sticky left-0 z-10 flex items-center bg-card p-2 text-sm font-medium tabular-nums"
@@ -222,85 +242,99 @@ export function WeeklyPreferredSlotPicker({
                     {row.label}
                   </div>
                   {days.map((weekday, dayIdx) => {
-                    const inRun =
-                      selectedRun != null && value!.weekday === weekday && rowIdx >= startIndex && rowIdx < startIndex + count;
+                    const inRun = isInSelectedRun(weekday, rowIdx);
                     const isStart = inRun && rowIdx === startIndex;
                     const check = consecutiveRun(rows, rowIdx, count);
                     const startable = check.ok;
                     const inPreview =
-                      !inRun &&
-                      preview != null &&
-                      preview.ok &&
-                      preview.day === dayIdx &&
-                      rowIdx >= preview.row &&
-                      rowIdx <= preview.end;
+                      !inRun && preview != null && preview.day === dayIdx && rowIdx >= preview.from && rowIdx <= preview.to;
+                    const reason = !inRun && !startable ? runProblemMessage(check, count) : null;
                     const isActive = activeCell.day === dayIdx && activeCell.row === rowIdx;
                     const runEnd = check.ok ? check.rows[check.rows.length - 1] : null;
-                    const label = `${WEEKDAY_NAMES[weekday]} ${hideTimes ? row.label : row.timeRange}. ${
-                      inRun
-                        ? isStart
-                          ? "Selected start."
-                          : "Selected."
-                        : startable
-                          ? count > 1
-                            ? `Start ${count} slots here${hideTimes || !runEnd ? "" : `, until ${minutesToKey(runEnd.end)}`}.`
-                            : "Choose this slot."
-                          : runProblemMessage(check, count, hideTimes)
-                    }`;
+                    const when = `${WEEKDAY_NAMES[weekday]} ${hideTimes ? row.label : row.timeRange}`;
+                    const label = inRun
+                      ? `${when}. Selected${isStart ? " start" : ""}. Click to clear the selection.`
+                      : startable
+                        ? `${when}. Available. ${
+                            count > 1
+                              ? `Select ${count} slots from here${hideTimes || !runEnd ? "" : `, until ${minutesToKey(runEnd.end)}`}.`
+                              : "Select this slot."
+                          }`
+                        : `${when}. ${reason}`;
+
+                    const button = (
+                      <button
+                        ref={(el) => {
+                          const k = `${dayIdx}:${rowIdx}`;
+                          if (el) cellRefs.current.set(k, el);
+                          else cellRefs.current.delete(k);
+                        }}
+                        type="button"
+                        tabIndex={isActive ? 0 : -1}
+                        aria-label={label}
+                        aria-disabled={!startable && !inRun}
+                        onFocus={() => setFocusCell({ day: dayIdx, row: rowIdx })}
+                        onMouseEnter={() => setHover({ day: dayIdx, row: rowIdx })}
+                        onClick={() => pick(dayIdx, rowIdx)}
+                        style={inRun || inPreview ? undefined : availableStyle}
+                        className={cn(
+                          "flex w-full min-h-[52px] flex-col items-center justify-center rounded-md border-2 px-1.5 py-2 text-sm font-medium leading-tight shadow-sm transition-all",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                          inRun && "border-white/50 bg-primary text-primary-foreground dark:border-primary/50",
+                          inPreview && "border-primary bg-primary/70 text-primary-foreground",
+                          !inRun && !inPreview && startable && "cursor-pointer border-white/50 hover:opacity-90",
+                          !inRun && !inPreview && !startable && "cursor-not-allowed border-white/40 opacity-40"
+                        )}
+                      >
+                        {inRun ? (
+                          <>
+                            <span className="inline-flex items-center gap-1">
+                              <Check className="h-3.5 w-3.5" aria-hidden /> Selected
+                            </span>
+                            <span className="mt-0.5 text-[11px] font-normal tabular-nums opacity-90">
+                              {hideTimes ? row.label : compactRange(row)}
+                            </span>
+                          </>
+                        ) : inPreview ? (
+                          <>
+                            {rowIdx === preview!.from && <span>Select</span>}
+                            <span className="mt-0.5 text-[11px] font-normal tabular-nums opacity-90">
+                              {hideTimes ? row.label : compactRange(row)}
+                            </span>
+                          </>
+                        ) : (
+                          "Available"
+                        )}
+                      </button>
+                    );
+
                     return (
                       <div key={weekday} role="gridcell" aria-selected={inRun}>
-                        <button
-                          ref={(el) => {
-                            const k = `${dayIdx}:${rowIdx}`;
-                            if (el) cellRefs.current.set(k, el);
-                            else cellRefs.current.delete(k);
-                          }}
-                          type="button"
-                          tabIndex={isActive ? 0 : -1}
-                          aria-label={label}
-                          aria-disabled={!startable && !inRun}
-                          onFocus={() => setFocusCell({ day: dayIdx, row: rowIdx })}
-                          onMouseEnter={() => setHover({ day: dayIdx, row: rowIdx })}
-                          onClick={() => pick(dayIdx, rowIdx)}
-                          className={cn(
-                            "w-full min-h-[44px] rounded-md border-2 p-2 text-sm font-medium shadow-sm transition-all",
-                            "flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                            inRun && "border-white/50 bg-primary text-primary-foreground dark:border-primary/40",
-                            !inRun && inPreview && "border-primary/60 bg-primary/15 text-primary dark:bg-primary/25",
-                            !inRun && !inPreview && startable &&
-                              "border-border/70 bg-background text-muted-foreground hover:border-primary/60 hover:bg-primary/10",
-                            !inRun && !startable && "cursor-not-allowed border-dashed border-border/60 bg-muted/60 text-muted-foreground/60"
-                          )}
-                        >
-                          {inRun ? (
-                            isStart ? "Selected" : "✓"
-                          ) : inPreview && preview?.row === rowIdx ? (
-                            <span className="text-xs">Start here</span>
-                          ) : !startable ? (
-                            <span aria-hidden>—</span>
-                          ) : null}
-                        </button>
+                        {reason ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="h-full w-full">{button}</div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="z-[120] max-w-xs px-3 py-2 text-left">
+                              {reason}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          button
+                        )}
                       </div>
                     );
                   })}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
+        </TooltipProvider>
       )}
 
-      {message && (
-        <p
-          role="status"
-          className={cn(
-            "rounded-md px-3 py-2 text-sm",
-            message.tone === "warn"
-              ? "bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-50"
-              : "bg-muted text-foreground"
-          )}
-        >
-          {message.text}
+      {hint && (
+        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+          {hint}
         </p>
       )}
 
@@ -308,10 +342,9 @@ export function WeeklyPreferredSlotPicker({
         <p className="text-sm text-foreground" aria-live="polite">
           {selectedRun ? (
             <strong>{describeWeeklySelection(value!.weekday, selectedRun.rows, hideTimes)}</strong>
-          ) : (
+          ) : tooManySlots ? null : (
             <span className="text-muted-foreground">
-              No slot chosen yet. Click a start in the calendar; {count} back-to-back slot{count === 1 ? " is" : "s are"}{" "}
-              selected.
+              Click a green slot to select {count === 1 ? "it" : `${count} consecutive slots from there`}.
             </span>
           )}
         </p>
@@ -322,7 +355,7 @@ export function WeeklyPreferredSlotPicker({
             size="sm"
             className="h-8 gap-1.5"
             onClick={() => {
-              setMessage(null);
+              setHint(null);
               onChange(null, "clear");
             }}
           >

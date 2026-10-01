@@ -3614,10 +3614,10 @@ const BookEquipment = () => {
   // Collapse Charge Calculation once charges are ready (and when slots appear); Sample Information stays expanded.
   useEffect(() => {
     if (!chargeCalculated) return;
-    if (showSlots || isCalculateChargesFlow || isProformaFlow) {
+    if (showSlots || isCalculateChargesFlow || isProformaFlow || isTemplateFlow) {
       setChargeCalcExpanded(false);
     }
-  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow]);
+  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow, isTemplateFlow]);
 
   // Calculate charge based on input fields
   const calculateCharge = useCallback(async () => {
@@ -3791,7 +3791,7 @@ const BookEquipment = () => {
           reward: response.data.reward,
         });
         setChargeCalculated(true);
-        setShowSlots(!isProformaFlow && !isCalculateChargesFlow);
+        setShowSlots(!isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow);
         setChargeCalculationFailed(false); // Reset failed state on success
         // When charge is (re)calculated, deselect all slots and turn off auto-select
         const wasAutoSelectOn = autoSlotSelectionRef.current;
@@ -3819,7 +3819,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -4461,7 +4461,7 @@ const BookEquipment = () => {
     // 4. No slots are currently selected
     // 5. Equipment detail and daily slots are loaded (and not empty)
     // 6. Not currently loading slots
-    if (!chargeCalculated || !showSlots || !autoSlotSelection || selectedSlots.length > 0 || 
+    if (isTemplateFlow || !chargeCalculated || !showSlots || !autoSlotSelection || selectedSlots.length > 0 || 
         !equipmentDetail || !equipmentDetail.daily_slots || equipmentDetail.daily_slots.length === 0 || 
         loadingSlots || !calculatedCharge || pendingPreselect) {
       return;
@@ -4657,7 +4657,7 @@ const BookEquipment = () => {
         `Please reduce the number of samples/inputs to reduce the required time.`
       );
     }
-  }, [chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots, bookingAsExternalTarget, adminManageMode, adminBookForUserId, pendingPreselect]);
+  }, [isTemplateFlow, chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots, bookingAsExternalTarget, adminManageMode, adminBookForUserId, pendingPreselect]);
 
   // Keep ref in sync so async charge recalculation can read current value
   useEffect(() => {
@@ -6105,6 +6105,7 @@ const BookEquipment = () => {
       slotRowsHideTimes: weeklyRowsHideTimes,
       slotsRequired: slotsRequiredForMinutes(calculatedCharge?.total_time_minutes, equipmentDetail),
       slotDurationMinutes: equipmentDetail?.slot_duration_minutes ?? null,
+      slotAvailableColor: equipmentDetail?.calendar_colors?.slot_colors?.AVAILABLE ?? null,
     };
   };
 
@@ -10902,6 +10903,7 @@ const BookEquipment = () => {
                       slotsRequired={templateSlotsRequired}
                       slotsRequiredPending={loadingCharge || templateStaffAnalysis.loading}
                       slotDurationMinutes={equipmentDetail.slot_duration_minutes}
+                      availableColor={equipmentDetail.calendar_colors?.slot_colors?.AVAILABLE}
                     />
 
                     <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">

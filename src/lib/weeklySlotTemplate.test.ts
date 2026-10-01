@@ -5,8 +5,11 @@ import {
   describeWeeklySelection,
   formatDurationMinutes,
   preferredSlotDraftProblem,
+  readableTextOn,
   rowIndexForStart,
   runProblemMessage,
+  slotsExceedDay,
+  slotsExceedDayMessage,
   slotsRequiredForMinutes,
   validRunStarts,
 } from "./weeklySlotTemplate";
@@ -81,6 +84,15 @@ describe("consecutive selection", () => {
       ["14:30", "16:00"],
     ]),
   });
+  // Every slot followed by a 30-minute break, as on equipment with tea and lunch breaks.
+  const gapped = buildWeeklySlotRows({
+    slot_masters: masters([
+      ["09:30", "11:00"],
+      ["11:30", "13:00"],
+      ["14:00", "15:30"],
+      ["16:00", "17:30"],
+    ]),
+  });
 
   it("selects N back-to-back slots from the start row", () => {
     const run = consecutiveRun(rows, 0, 2);
@@ -91,23 +103,41 @@ describe("consecutive selection", () => {
     }
   });
 
-  it("blocks a run that crosses a break", () => {
+  it("treats the next row of the day as consecutive across a break, like the booking page", () => {
     const run = consecutiveRun(rows, 1, 2);
-    expect(run).toMatchObject({ ok: false, reason: "break" });
-    expect(runProblemMessage(run, 2)).toContain("cross a break at 12:00");
+    expect(run.ok).toBe(true);
+    if (run.ok) expect(run.rows.map((r) => r.key)).toEqual(["10:30", "13:00"]);
+
+    const gappedRun = consecutiveRun(gapped, 0, 3);
+    expect(gappedRun.ok).toBe(true);
+    if (gappedRun.ok) {
+      expect(gappedRun.rows.map((r) => r.key)).toEqual(["09:30", "11:30", "14:00"]);
+      expect(gappedRun.minutes).toBe(270);
+    }
+    expect([...validRunStarts(gapped, 2)]).toEqual([0, 1, 2]);
   });
 
-  it("blocks a run past the day's last slot", () => {
-    const run = consecutiveRun(rows, 3, 2);
-    expect(run).toMatchObject({ ok: false, reason: "past_end" });
-    expect(runProblemMessage(run, 2)).toContain("past the last slot");
+  it("blocks only a run past the day's last slot", () => {
+    const run = consecutiveRun(gapped, 3, 2);
+    expect(run).toMatchObject({ ok: false, reason: "past_end", available: 1 });
+    expect(runProblemMessage(run, 2)).toBe("Needs 2 slots — only 1 left in the day from here. Pick an earlier start.");
+    expect(runProblemMessage(consecutiveRun(gapped, 0, 2), 2)).toBeNull();
     expect(consecutiveRun(rows, 0, 5)).toMatchObject({ ok: false, reason: "past_end" });
   });
 
   it("lists the valid start rows for a slot count", () => {
     expect([...validRunStarts(rows, 1)]).toEqual([0, 1, 2, 3]);
-    expect([...validRunStarts(rows, 2)]).toEqual([0, 2]);
-    expect([...validRunStarts(rows, 3)]).toEqual([]);
+    expect([...validRunStarts(rows, 2)]).toEqual([0, 1, 2]);
+    expect([...validRunStarts(rows, 4)]).toEqual([0]);
+    expect([...validRunStarts(rows, 5)]).toEqual([]);
+  });
+
+  it("explains when the sample details need more slots than a day has", () => {
+    expect(slotsExceedDay(gapped, 4)).toBe(false);
+    expect(slotsExceedDay(gapped, 5)).toBe(true);
+    expect(slotsExceedDay([], 5)).toBe(false);
+    expect(slotsExceedDay(gapped, null)).toBe(false);
+    expect(slotsExceedDayMessage(gapped, 5)).toContain("need 5 slots but only 4 slots exist in a day");
   });
 
   it("finds the row of a saved start time", () => {
@@ -142,6 +172,11 @@ describe("preferredSlotDraftProblem", () => {
     expect(preferredSlotDraftProblem({ ...draft, weekday: 5 }, rows)).toContain("no longer matches");
     expect(preferredSlotDraftProblem({ ...draft, startTime: "10:00" }, rows)).toContain("no longer matches");
   });
+
+  it("accepts a run across a break between slots", () => {
+    const gapped = buildWeeklySlotRows({ slot_masters: masters([["09:30", "11:00"], ["11:30", "13:00"]]) });
+    expect(preferredSlotDraftProblem({ ...draft, startTime: "09:30" }, gapped)).toBeNull();
+  });
 });
 
 describe("slotsRequiredForMinutes", () => {
@@ -155,6 +190,14 @@ describe("slotsRequiredForMinutes", () => {
   it("is unknown without an analysis time", () => {
     expect(slotsRequiredForMinutes(null, { slot_duration_minutes: 60 })).toBeNull();
     expect(slotsRequiredForMinutes(0, { slot_duration_minutes: 60 })).toBeNull();
+  });
+});
+
+describe("readableTextOn", () => {
+  it("uses the booking grid's dark text on the default green and white on dark colours", () => {
+    expect(readableTextOn("#22c55e")).toBe("#1f2937");
+    expect(readableTextOn("#14532d")).toBe("#ffffff");
+    expect(readableTextOn("green")).toBe("#1f2937");
   });
 });
 

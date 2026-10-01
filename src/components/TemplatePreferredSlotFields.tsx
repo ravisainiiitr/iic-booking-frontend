@@ -22,6 +22,7 @@ export function TemplatePreferredSlotFields({
   slotsRequired,
   slotsRequiredPending = false,
   slotDurationMinutes,
+  availableColor,
 }: {
   draft: PreferredSlotDraft;
   onChange: (next: PreferredSlotDraft) => void;
@@ -32,6 +33,8 @@ export function TemplatePreferredSlotFields({
   slotsRequired: number | null;
   slotsRequiredPending?: boolean;
   slotDurationMinutes?: number | null;
+  /** The equipment's "Available" calendar colour, so cells look like the booking grid. */
+  availableColor?: string | null;
 }) {
   const id = useId();
   const set = (patch: Partial<PreferredSlotDraft>) => onChange({ ...draft, ...patch });
@@ -62,6 +65,7 @@ export function TemplatePreferredSlotFields({
             slotsRequired={slotsRequired}
             slotsRequiredPending={slotsRequiredPending}
             slotDurationMinutes={slotDurationMinutes}
+            availableColor={availableColor}
             value={draft.startTime ? { weekday: draft.weekday, startTime: draft.startTime, slotCount: draft.slotCount } : null}
             onChange={(next, reason) =>
               onChange(

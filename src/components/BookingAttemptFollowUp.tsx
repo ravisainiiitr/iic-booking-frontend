@@ -40,6 +40,8 @@ export interface BookingAttemptSnapshot {
   /** Slots the attempt's sample details need; null when unknown. */
   slotsRequired?: number | null;
   slotDurationMinutes?: number | null;
+  /** The equipment's "Available" calendar colour. */
+  slotAvailableColor?: string | null;
 }
 
 const MAX_NAME = 80;
@@ -192,6 +194,7 @@ export function SaveAsTemplateDialog({
                   hideTimes={snapshot.slotRowsHideTimes}
                   slotsRequired={snapshot.slotsRequired ?? null}
                   slotDurationMinutes={snapshot.slotDurationMinutes}
+                  availableColor={snapshot.slotAvailableColor}
                   requiredBasis="based on the sample details you just used"
                   value={selection}
                   onChange={(next, reason) => {
