@@ -111,6 +111,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/repeat-sample-requests": { title: "Repeat Sample Requests" },
   "/tickets": { title: "Support Tickets" },
   "/admin-settings": { title: "Admin Settings" },
+  "/admin-settings/feedback": {
+    title: "Experience Ratings",
+    description: "Ratings and suggestions users shared through “Rate your experience”.",
+  },
   "/admin-settings/wallet-payment-modes": {
     title: "Wallet Payment Modes",
     description: "Turn wallet recharge, transfer and credit options on or off for all users.",
@@ -3064,6 +3068,35 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open tickets</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "experience_ratings",
+      label: "Experience ratings",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/admin-settings/feedback")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Star className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Experience ratings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      View “Rate your experience” ratings and comments shared by users
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View ratings</Button>
               </CardContent>
             </Card>
       ),

@@ -163,15 +163,15 @@ const AdminSettings = () => {
             <SettingsTile
               icon={<LifeBuoy className="h-5 w-5" />}
               title="Support Tickets"
-              description="Helpdesk queue, reassign, resolve & notify"
+              description="Helpdesk queue, reassign, resolve & notify; new ticket email recipients"
               onClick={() => navigate("/admin-settings/support")}
             />
           )}
           {can("admin_settings.feedback") && (
             <SettingsTile
               icon={<Star className="h-5 w-5" />}
-              title="Portal Feedback"
-              description="UX ratings, suggestions, and summary statistics"
+              title="Experience Ratings"
+              description="“Rate your experience” ratings, comments, statistics and CSV export"
               onClick={() => navigate("/admin-settings/feedback")}
             />
           )}

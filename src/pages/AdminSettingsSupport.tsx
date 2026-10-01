@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { ArrowLeft, Plus, Loader2, Eye, Paperclip, Search } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import TicketForm from "@/components/TicketForm";
 import TicketDetailsDialog, { type TicketDetailsData } from "@/components/TicketDetailsDialog";
+import TicketAlertRecipientsCard from "@/components/support/TicketAlertRecipientsCard";
 import {
   DEFAULT_TICKET_TYPE_OPTIONS,
   TicketPriorityBadge,
@@ -42,10 +43,12 @@ const PAGE_SIZE = 25;
 
 const AdminSettingsSupport = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
+  const linkedTicketId = searchParams.get("ticket");
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -107,6 +110,23 @@ const AdminSettingsSupport = () => {
     if (isAdmin && isAuthenticated) void loadTickets();
   }, [isAdmin, isAuthenticated, loadTickets]);
 
+  useEffect(() => {
+    if (!isAdmin || !isAuthenticated || !linkedTicketId || !/^\d+$/.test(linkedTicketId)) return;
+    let cancelled = false;
+    void apiClient.getTicket(linkedTicketId).then((res) => {
+      if (cancelled) return;
+      if (res.error || !res.data) {
+        toast({ title: "Ticket not found", description: res.error || `#${linkedTicketId}`, variant: "destructive" });
+        return;
+      }
+      setSelectedTicket(res.data as TicketRow);
+      setDetailOpen(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, isAuthenticated, linkedTicketId, toast]);
+
   const getUserDisplay = (row: TicketRow) => {
     if (row.requester_name || row.requester_email) {
       return row.requester_name || row.requester_email || "—";
@@ -141,6 +161,10 @@ const AdminSettingsSupport = () => {
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
             Dashboard
           </Button>
+        </div>
+
+        <div className="mb-4">
+          <TicketAlertRecipientsCard />
         </div>
 
         <Card className="shadow-[var(--shadow-card)] border-primary/20 dark:border-primary/40 rounded-2xl overflow-hidden">
@@ -403,7 +427,14 @@ const AdminSettingsSupport = () => {
           open={detailOpen}
           onOpenChange={(open) => {
             setDetailOpen(open);
-            if (!open) setSelectedTicket(null);
+            if (!open) {
+              setSelectedTicket(null);
+              if (linkedTicketId) {
+                const next = new URLSearchParams(searchParams);
+                next.delete("ticket");
+                setSearchParams(next, { replace: true });
+              }
+            }
           }}
           isStaff
           onUpdated={() => void loadTickets()}

@@ -618,6 +618,29 @@ export interface CalendarSyncSettings {
   last_accessed_at: string | null;
 }
 
+export interface PortalFeedbackAdminParams {
+  user_type?: string;
+  department_id?: number;
+  rating?: number;
+  min_rating?: number;
+  max_rating?: number;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+  ordering?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SupportNotificationSettings {
+  ticket_alert_enabled: boolean;
+  ticket_alert_emails: string[];
+  default_ticket_alert_emails: string[];
+  max_recipients: number;
+  updated_at: string | null;
+  updated_by_name: string | null;
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -8923,28 +8946,51 @@ class ApiClient {
     });
   }
 
-  async getPortalFeedbackAdmin(params?: {
-    user_type?: string;
-    department_id?: number;
-    min_rating?: number;
-    max_rating?: number;
-    date_from?: string;
-    date_to?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }) {
+  private portalFeedbackAdminQuery(params?: PortalFeedbackAdminParams): string {
     const q = new URLSearchParams();
     if (params?.user_type) q.append("user_type", params.user_type);
     if (params?.department_id != null) q.append("department_id", String(params.department_id));
+    if (params?.rating != null) q.append("rating", String(params.rating));
     if (params?.min_rating != null) q.append("min_rating", String(params.min_rating));
     if (params?.max_rating != null) q.append("max_rating", String(params.max_rating));
     if (params?.date_from) q.append("date_from", params.date_from);
     if (params?.date_to) q.append("date_to", params.date_to);
     if (params?.search) q.append("search", params.search);
+    if (params?.ordering) q.append("ordering", params.ordering);
     if (params?.limit != null) q.append("limit", String(params.limit));
     if (params?.offset != null) q.append("offset", String(params.offset));
-    const qs = q.toString();
+    return q.toString();
+  }
+
+  async downloadPortalFeedbackCsv(params?: PortalFeedbackAdminParams): Promise<{ blob?: Blob; filename?: string; error?: string }> {
+    const { limit: _limit, offset: _offset, ...filters } = params || {};
+    const q = new URLSearchParams(this.portalFeedbackAdminQuery(filters));
+    q.append("export", "csv");
+    const token = this.getToken();
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(`${this.baseURL}/portal-feedback/?${q.toString()}`, { method: "GET", headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = /filename="?([^";]+)"?/i.exec(disposition);
+    return { blob: await res.blob(), filename: match?.[1] || "portal-feedback.csv" };
+  }
+
+  async getSupportNotificationSettings() {
+    return this.request<SupportNotificationSettings>("/support/notification-settings/");
+  }
+
+  async updateSupportNotificationSettings(data: { ticket_alert_enabled?: boolean; ticket_alert_emails?: string[] }) {
+    return this.request<SupportNotificationSettings>("/support/notification-settings/", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPortalFeedbackAdmin(params?: PortalFeedbackAdminParams) {
+    const qs = this.portalFeedbackAdminQuery(params);
     return this.request<{
       count: number;
       feedback: Array<{
