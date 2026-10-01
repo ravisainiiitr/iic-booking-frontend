@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
+import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import DashboardWorkspace from "@/components/DashboardWorkspace";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
@@ -3301,6 +3302,7 @@ const Dashboard = () => {
           </Card>
         )}
         <PendingActionsSummary className="mb-4" />
+        {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
           className={cn(

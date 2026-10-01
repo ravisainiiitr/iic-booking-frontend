@@ -586,6 +586,20 @@ export interface OicEquipmentSettings {
   important_instruction_by_user_type?: Record<string, string>;
 }
 
+export interface BookingAwaitingCompletion {
+  booking_id: number;
+  booking_ref: string;
+  equipment_id: number;
+  equipment_name: string;
+  equipment_code: string;
+  user_name: string;
+  status: string;
+  ended_at: string;
+  ended_display: string;
+  overdue: string;
+  link: string;
+}
+
 export interface OicEquipmentSettingsRow {
   equipment_id: number;
   equipment_code: string;
@@ -4045,6 +4059,14 @@ class ApiClient {
       }>;
       total: number;
     }>('/notifications/pending-actions/');
+  }
+
+  /** OIC / Lab in-charge: bookings whose slot time is over but which are not marked Completed yet. */
+  async getBookingsAwaitingCompletion() {
+    return this.sharedGet<{
+      count: number;
+      bookings: BookingAwaitingCompletion[];
+    }>('/bookings/awaiting-completion/');
   }
 
   /** List IMAP folders with message counts (staff only). */
