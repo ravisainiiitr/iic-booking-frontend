@@ -55,8 +55,8 @@ export function CreateResearchGroupDialog({ open, onOpenChange, onSaved, group }
           <DialogHeader>
             <DialogTitle>{editing ? "Edit research group" : "New research group"}</DialogTitle>
             <DialogDescription>
-              A group organises your students, their activities and progress updates. Membership does not give access to
-              research workspaces; workspaces are still shared individually.
+              A group organises your students, their tasks and progress updates. Membership does not give access to
+              anyone's projects; projects are still shared one by one.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-[1fr,140px]">

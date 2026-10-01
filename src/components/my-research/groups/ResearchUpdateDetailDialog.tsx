@@ -106,7 +106,7 @@ export function ResearchUpdateDetailDialog({ request, onOpenChange, onChanged, o
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {request.status === "CANCELLED" ? "This request was cancelled." : "No update submitted yet."}
+                {request.status === "CANCELLED" ? "This request was cancelled." : "No update sent yet."}
               </p>
             )}
             {request.status === "REVIEWED" ? (
@@ -134,7 +134,7 @@ export function ResearchUpdateDetailDialog({ request, onOpenChange, onChanged, o
             </Button>
           ) : null}
           {request?.permissions.can_submit && onSubmit ? (
-            <Button onClick={() => onSubmit(request)}>Submit update</Button>
+            <Button onClick={() => onSubmit(request)}>Send update</Button>
           ) : null}
           {request?.permissions.can_review ? (
             <Button className="gap-1.5" disabled={busy != null} onClick={() => void act("review")}>

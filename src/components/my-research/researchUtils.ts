@@ -36,6 +36,22 @@ export function timeAgo(value: string | null | undefined): string {
   return formatDistanceToNow(d, { addSuffix: true });
 }
 
+const HISTORY_LABEL: Record<string, string> = {
+  WORKSPACE_CREATED: "Project created",
+  WORKSPACE_UPDATED: "Project updated",
+  WORKSPACE_ARCHIVED: "Project archived",
+  WORKSPACE_RESTORED: "Project restored",
+  BOOKING_LINKED: "Booking added",
+  PUBLICATION_LINKED: "Publication added",
+  MEMBER_ADDED: "Shared with",
+  MEMBER_REMOVED: "Access removed for",
+};
+
+/** Plain-language label for a project history entry; the API label is kept as the fallback. */
+export function historyLabel(entry: { action: string; action_label: string }): string {
+  return HISTORY_LABEL[entry.action] ?? entry.action_label;
+}
+
 export function fileIcon(file: Pick<ResearchFile, "detected_type" | "name">): LucideIcon {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (["png", "jpeg", "gif", "webp", "tiff"].includes(file.detected_type)) return FileImage;

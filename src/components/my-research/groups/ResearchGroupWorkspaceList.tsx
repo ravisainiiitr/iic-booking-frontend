@@ -81,7 +81,7 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
       toast.error(res.error);
       return;
     }
-    toast.success("Linked to the group");
+    toast.success("Added to the group");
     setPicker(null);
     void load();
   };
@@ -110,23 +110,23 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
     <div className="space-y-5">
       <p className="flex items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
         <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        Linking a workspace to the group does not share it. Members can open a workspace only if its owner has shared it with
-        them from the workspace itself.
+        Adding a project to the group does not share it. Members can open a project only if its owner has shared it with
+        them from the project itself.
       </p>
 
       <section className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <FlaskConical className="h-4 w-4 text-primary" aria-hidden /> Linked workspaces ({workspaces.length})
+            <FlaskConical className="h-4 w-4 text-primary" aria-hidden /> Projects ({workspaces.length})
           </h3>
           {canManage ? (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void openPicker("workspaces")}>
-              <Link2 className="h-4 w-4" aria-hidden /> Link workspace
+              <Link2 className="h-4 w-4" aria-hidden /> Add project
             </Button>
           ) : null}
         </div>
         {workspaces.length === 0 ? (
-          <EmptyHint>No workspaces linked to this group.</EmptyHint>
+          <EmptyHint>No projects added to this group.</EmptyHint>
         ) : (
           <ul className="divide-y rounded-lg border">
             {workspaces.map((w) => (
@@ -165,12 +165,12 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
           </h3>
           {canManage ? (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void openPicker("publications")}>
-              <Link2 className="h-4 w-4" aria-hidden /> Link publication
+              <Link2 className="h-4 w-4" aria-hidden /> Add publication
             </Button>
           ) : null}
         </div>
         {publications.length === 0 ? (
-          <EmptyHint>No publications linked. Publications come from existing My Publications entries; nothing is duplicated.</EmptyHint>
+          <EmptyHint>No publications added. Publications come from existing My Publications entries; nothing is duplicated.</EmptyHint>
         ) : (
           <ul className="divide-y rounded-lg border">
             {publications.map((p) => (
@@ -195,15 +195,15 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
       <Dialog open={picker != null} onOpenChange={(open) => !open && setPicker(null)}>
         <DialogContent className="sm:max-w-lg [&>*]:min-w-0">
           <DialogHeader>
-            <DialogTitle>{picker === "workspaces" ? "Link workspaces" : "Link publications"}</DialogTitle>
+            <DialogTitle>{picker === "workspaces" ? "Add projects to the group" : "Add publications to the group"}</DialogTitle>
             <DialogDescription>
               {picker === "workspaces"
-                ? "Workspaces you can open that are owned by you or a group member. Linking does not share access."
+                ? "Projects you can open that are owned by you or a group member. Adding a project does not share it."
                 : "Your publication entries and approved entries submitted by group members."}
             </DialogDescription>
           </DialogHeader>
           {options.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Nothing available to link.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">Nothing available to add.</p>
           ) : (
             <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-md border">
               {options.map((o) => {
@@ -220,7 +220,7 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
                       <span className="min-w-0">
                         <span className="block truncate text-sm">{o.label}</span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          {o.disabled ? "Already linked" : o.sub}
+                          {o.disabled ? "Already added" : o.sub}
                         </span>
                       </span>
                     </label>
@@ -235,7 +235,7 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
             </Button>
             <Button onClick={() => void link()} disabled={busy || chosen.length === 0} className="gap-2">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              Link {chosen.length > 0 ? `(${chosen.length})` : ""}
+              Add {chosen.length > 0 ? `(${chosen.length})` : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

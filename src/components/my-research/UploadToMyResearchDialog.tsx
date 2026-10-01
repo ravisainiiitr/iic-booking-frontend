@@ -39,7 +39,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
       if (!alive) return;
       setLoading(false);
       if (res.error || !res.data) {
-        toast.error(res.error || "Could not load your workspaces.");
+        toast.error(res.error || "Could not load your projects.");
         return;
       }
       setOptions(res.data.results);
@@ -62,7 +62,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
     const res = await apiClient.createResearchWorkspace({ name: newName.trim() });
     setCreating(false);
     if (res.error || !res.data) {
-      toast.error(res.error || "Could not create the workspace.");
+      toast.error(res.error || "Could not create the project.");
       return;
     }
     const created = { id: res.data.id, name: res.data.name, booking_linked: false };
@@ -89,11 +89,11 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FlaskConical className="h-5 w-5 text-primary" /> Upload to My Research
+            <FlaskConical className="h-5 w-5 text-primary" /> Save to project
           </DialogTitle>
           <DialogDescription>
-            Save your own files for booking {bookingLabel} in a private research workspace. The booking is added to the
-            workspace automatically.
+            Save your own files for booking {bookingLabel} in a private project. The booking is added to the
+            project automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -104,10 +104,10 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
         ) : (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Workspace</Label>
+              <Label>Project</Label>
               <Select value={choice} onValueChange={setChoice} disabled={uploads.busy}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a workspace" />
+                  <SelectValue placeholder="Choose a project" />
                 </SelectTrigger>
                 <SelectContent>
                   {options.map((o) => (
@@ -116,7 +116,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
                       {o.booking_linked ? " (booking already added)" : ""}
                     </SelectItem>
                   ))}
-                  <SelectItem value={NEW}>+ New workspace…</SelectItem>
+                  <SelectItem value={NEW}>+ New project…</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -165,7 +165,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
           {workspaceId && !uploads.busy ? (
             <Button asChild variant="link" className="gap-1 px-0 text-primary dark:text-sky-300">
               <Link to={`/my-research/${workspaceId}?tab=files`}>
-                Open workspace <ExternalLink className="h-3.5 w-3.5" />
+                Open project <ExternalLink className="h-3.5 w-3.5" />
               </Link>
             </Button>
           ) : (

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MoreOptions } from "../researchUi";
 import { MEMBER_TYPE_OPTIONS } from "./groupLabels";
 
 interface Props {
@@ -39,6 +40,7 @@ export function AddGroupMemberDialog({
   const [memberType, setMemberType] = useState<GroupMemberType>("PHD");
   const [categoryId, setCategoryId] = useState<string>("none");
   const [role, setRole] = useState<GroupRole>("MEMBER");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export function AddGroupMemberDialog({
       setMemberType("PHD");
       setCategoryId("none");
       setRole("MEMBER");
+      setMoreOpen(false);
     }
   }, [open]);
 
@@ -108,6 +111,7 @@ export function AddGroupMemberDialog({
   };
 
   const activeCategories = categories.filter((c) => c.active);
+  const showRole = Boolean(canAddManagers && selected?.user_type === "faculty");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,8 +119,8 @@ export function AddGroupMemberDialog({
         <DialogHeader>
           <DialogTitle>Add member to “{groupName}”</DialogTitle>
           <DialogDescription>
-            Only IIT Roorkee students and faculty can be added. Being a member lets them see their own activities and update
-            requests; it does not give access to any research workspace.
+            Only IIT Roorkee students and faculty can be added. Members see their own tasks and progress update requests; it
+            does not give access to anyone's projects.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,53 +145,57 @@ export function AddGroupMemberDialog({
                 ) : null}
               </dl>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="rg-member-type">Member type</Label>
-                <Select value={memberType} onValueChange={(v) => setMemberType(v as GroupMemberType)}>
-                  <SelectTrigger id="rg-member-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MEMBER_TYPE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="rg-member-category">Category</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger id="rg-member-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No category</SelectItem>
-                    {activeCategories.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {canAddManagers && selected.user_type === "faculty" ? (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="rg-member-role">Group role</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as GroupRole)}>
-                    <SelectTrigger id="rg-member-role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MEMBER">Member</SelectItem>
-                      <SelectItem value="MANAGER">Co-manager (can manage members, activities and updates)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
+            <div className="space-y-1.5">
+              <Label htmlFor="rg-member-type">Member type</Label>
+              <Select value={memberType} onValueChange={(v) => setMemberType(v as GroupMemberType)}>
+                <SelectTrigger id="rg-member-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MEMBER_TYPE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            {activeCategories.length > 0 || showRole ? (
+              <MoreOptions open={moreOpen} onOpenChange={setMoreOpen}>
+                {activeCategories.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rg-member-category">Category</Label>
+                    <Select value={categoryId} onValueChange={setCategoryId}>
+                      <SelectTrigger id="rg-member-category">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No category</SelectItem>
+                        {activeCategories.map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                {showRole ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rg-member-role">Group role</Label>
+                    <Select value={role} onValueChange={(v) => setRole(v as GroupRole)}>
+                      <SelectTrigger id="rg-member-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MEMBER">Member</SelectItem>
+                        <SelectItem value="MANAGER">Co-manager (can manage members, tasks and updates)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+              </MoreOptions>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-2">

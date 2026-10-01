@@ -5,9 +5,11 @@ import {
   Activity,
   ArrowRight,
   BookOpen,
+  ChevronDown,
   FlaskConical,
   HardDrive,
   Lock,
+  MessageSquarePlus,
   Plus,
   RefreshCw,
   Search,
@@ -21,10 +23,11 @@ import type { GroupEvent, ResearchGroupCardData, ResearchGroupsHome } from "@/li
 import { PageHero, PageShell, heroButtonClass } from "@/components/PageShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { CreateWorkspaceDialog } from "@/components/my-research/CreateWorkspaceDialog";
 import { WorkspaceCard } from "@/components/my-research/WorkspaceCard";
-import { formatBytes, timeAgo } from "@/components/my-research/researchUtils";
+import { formatBytes, historyLabel, timeAgo } from "@/components/my-research/researchUtils";
 import {
   ActivityFeed,
   CardGridSkeleton,
@@ -44,6 +47,7 @@ import { eventSentence, groupPath } from "@/components/my-research/groups/groupL
 
 const WORKSPACES_VISIBLE = 3;
 const FEED_LIMIT = 6;
+const SMALL_BUTTON = "h-10 sm:h-8";
 
 type PublicationRow = { id: number; title: string; journal: string; year: number | null; status: string };
 type GroupsState = { status: "loading" } | { status: "disabled" } | { status: "error" } | { status: "ready"; data: ResearchGroupsHome };
@@ -111,7 +115,7 @@ export default function MyResearch() {
             ? "My Research is not available yet."
             : res.error || "My Research is available only to IIT Roorkee students and faculty.",
         );
-      } else setHomeError("Unable to load your research workspaces.");
+      } else setHomeError("Unable to load your projects.");
       return;
     }
     setBlocked(null);
@@ -170,20 +174,21 @@ export default function MyResearch() {
   const showWorkspaces = ["all", "my_workspaces", "archived"].includes(filter);
   const showShared = ["all", "shared", "archived"].includes(filter);
   const showSummaries = filter === "all" && !q;
+  const filtering = Boolean(q) || filter !== "all";
 
   const filterOptions = useMemo(() => {
     const active = (list: Array<{ status: string }>) => list.filter((x) => x.status === "ACTIVE").length;
     const opts: { value: Filter; label: string; count?: number }[] = [{ value: "all", label: "All" }];
     if (groupsState.status === "ready") {
       if (isFaculty) {
-        opts.push({ value: "my_groups", label: "My Groups", count: active(managedGroups) });
-        if (memberGroups.length) opts.push({ value: "member_groups", label: "Shared Groups", count: active(memberGroups) });
+        opts.push({ value: "my_groups", label: "My groups", count: active(managedGroups) });
+        if (memberGroups.length) opts.push({ value: "member_groups", label: "Groups I'm a member of", count: active(memberGroups) });
       } else {
-        opts.push({ value: "my_groups", label: "My Groups", count: active(memberGroups) });
+        opts.push({ value: "my_groups", label: "My groups", count: active(memberGroups) });
       }
     }
-    opts.push({ value: "my_workspaces", label: "My Workspaces", count: active(myWorkspaces) });
-    opts.push({ value: "shared", label: "Shared With Me", count: active(sharedWorkspaces) });
+    opts.push({ value: "my_workspaces", label: "My projects", count: active(myWorkspaces) });
+    opts.push({ value: "shared", label: "Projects shared with me", count: active(sharedWorkspaces) });
     if (archivedCount) opts.push({ value: "archived", label: "Archived", count: archivedCount });
     return opts;
   }, [groupsState.status, isFaculty, managedGroups, memberGroups, myWorkspaces, sharedWorkspaces, archivedCount]);
@@ -203,7 +208,7 @@ export default function MyResearch() {
           <>
             <span className="font-medium">{a.actor?.name ?? "Someone"}</span>{" "}
             <span className="text-muted-foreground">
-              {a.action_label.toLowerCase()}
+              {historyLabel(a).toLowerCase()}
               {a.target_label ? ` “${a.target_label}”` : ""}
             </span>
           </>
@@ -237,6 +242,10 @@ export default function MyResearch() {
   const attention = groups?.needs_attention;
   const canCreateGroup = Boolean(isFaculty && groups?.can_create);
   const canCreateWorkspace = Boolean(home?.can_create);
+  const hasProjects = myWorkspaces.length + sharedWorkspaces.length > 0;
+  /** Brand-new student: one "Get started" card instead of a stack of empty sections. */
+  const isNewStudent = !isFaculty && Boolean(home) && !hasProjects && !filtering;
+  const askGroups = managedGroups.filter((g) => g.status === "ACTIVE");
   const pubCounts = publications
     ? {
         total: publications.length,
@@ -245,11 +254,24 @@ export default function MyResearch() {
       }
     : null;
 
+  const primaryAction =
+    isFaculty && canCreateGroup ? (
+      <Button className={`order-1 gap-2 md:order-3 ${heroButtonClass.primary}`} onClick={() => setGroupCreateOpen(true)}>
+        <UsersRound className="h-4 w-4" aria-hidden /> New group
+      </Button>
+    ) : canCreateWorkspace ? (
+      <Button className={`order-1 gap-2 md:order-3 ${heroButtonClass.primary}`} onClick={() => setCreateOpen(true)}>
+        <Plus className="h-4 w-4" aria-hidden /> New project
+      </Button>
+    ) : null;
+  /** Faculty see "New project" next to My projects, since the header action is "New group". */
+  const projectActionInSection = canCreateWorkspace && isFaculty && canCreateGroup;
+
   const header = (
     <PageHero
       compact
       title="My Research"
-      description="Research groups, workspaces, activities and research data."
+      description="Your projects, research groups, tasks and results."
       icon={<FlaskConical className="h-5 w-5" />}
       meta={
         home ? (
@@ -277,249 +299,312 @@ export default function MyResearch() {
               disabled={loading}
               aria-label="Refresh My Research"
               title="Refresh"
-              className={`order-3 h-9 w-9 md:order-1 ${heroButtonClass.icon}`}
+              className={`order-3 h-10 w-10 md:order-1 md:h-9 md:w-9 ${heroButtonClass.icon}`}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
             </Button>
-            {canCreateGroup ? (
-              <Button variant="outline" className={`order-2 gap-2 ${heroButtonClass.secondary}`} onClick={() => setGroupCreateOpen(true)}>
-                <UsersRound className="h-4 w-4" aria-hidden /> New Research Group
-              </Button>
-            ) : null}
-            {canCreateWorkspace ? (
-              <Button className={`order-1 gap-2 md:order-3 ${heroButtonClass.primary}`} onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4" aria-hidden /> New Workspace
-              </Button>
-            ) : null}
+            {primaryAction}
           </>
         ) : null
       }
     />
   );
 
+  const askAction =
+    askGroups.length === 1 ? (
+      <Button
+        size="sm"
+        variant="outline"
+        className={`gap-1.5 ${SMALL_BUTTON}`}
+        onClick={() => navigate(groupPath(askGroups[0].id, "updates", { ask: "1" }))}
+      >
+        <MessageSquarePlus className="h-4 w-4" aria-hidden /> Ask for an update
+      </Button>
+    ) : askGroups.length > 1 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className={`gap-1.5 ${SMALL_BUTTON}`}>
+            <MessageSquarePlus className="h-4 w-4" aria-hidden /> Ask for an update <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {askGroups.map((g) => (
+            <DropdownMenuItem key={g.id} onClick={() => navigate(groupPath(g.id, "updates", { ask: "1" }))}>
+              {g.name}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+
+  const reviewBox =
+    isFaculty && attention && showSummaries ? (
+      <ResearchNeedsAttention
+        data={attention}
+        showGroup
+        limit={3}
+        action={askAction}
+        onOpenRequest={(r) => navigate(groupPath(r.group_id, "updates", { request: r.id }))}
+        onOpenActivity={(a) => navigate(groupPath(a.group_id, "activities", { activity: a.id }))}
+      />
+    ) : null;
+
   const groupsSection = showGroups ? (
     groupsState.status === "loading" ? (
-      <section className="space-y-3" aria-label="Research Groups" aria-busy="true">
-        <SectionHeader icon={UsersRound} title="Research Groups" />
+      <section className="space-y-3" aria-label="Research groups" aria-busy="true">
+        <SectionHeader icon={UsersRound} title={isFaculty ? "Research groups" : "My research group"} />
         <CardGridSkeleton />
       </section>
     ) : groupsState.status === "error" ? (
-      <section className="space-y-3" aria-label="Research Groups">
-        <SectionHeader icon={UsersRound} title="Research Groups" />
+      <section className="space-y-3" aria-label="Research groups">
+        <SectionHeader icon={UsersRound} title={isFaculty ? "Research groups" : "My research group"} />
         <InlineError message="Unable to load research groups." onRetry={() => void loadGroups()} />
       </section>
     ) : groups ? (
       <ResearchGroupList
-        title={isFaculty ? "Research Groups" : "My Research Groups"}
+        title={isFaculty ? (filter === "member_groups" ? "Groups I'm a member of" : "Research groups") : "My research group"}
         description={
-          isFaculty
-            ? "Faculty-led teams for organising students, activities and research progress."
-            : "Research groups your supervisor has added you to."
+          isFaculty ? "Your students, their tasks and progress updates." : "Your supervisor's group. Tasks and update requests appear under To do."
         }
         groups={visibleGroups}
-        emptyTitle={
-          q || filter !== "all"
-            ? archivedMode
-              ? "No archived research groups."
-              : "No research groups match."
-            : isFaculty
-              ? "No research groups yet."
-              : "You are not in a research group yet."
-        }
         emptyText={
-          q || filter !== "all"
-            ? "Try a different search or filter."
+          filtering
+            ? archivedMode
+              ? "No archived groups."
+              : "No groups match."
             : isFaculty
-              ? "Create a group to organise students, assignments and research progress."
-              : "When your supervisor adds you to a research group, it will appear here."
+              ? "No research groups yet. Create one to give your students tasks and ask for progress updates."
+              : "You're not in a research group yet. Your supervisor can add you."
         }
-        canCreate={canCreateGroup && !q && filter === "all"}
+        canCreate={canCreateGroup && !filtering}
         onCreate={() => setGroupCreateOpen(true)}
-      >
-        {isFaculty && attention && showSummaries ? (
-          <ResearchNeedsAttention
-            data={attention}
-            showGroup
-            limit={3}
-            onOpenRequest={(r) => navigate(groupPath(r.group_id, "updates", { request: r.id }))}
-            onOpenActivity={(a) => navigate(groupPath(a.group_id, "activities", { activity: a.id }))}
-          />
-        ) : null}
-      </ResearchGroupList>
+      />
     ) : null
   ) : null;
 
-  const workspacesSection = showWorkspaces ? (
-    <section className="space-y-3" aria-labelledby="my-workspaces-heading">
-      <SectionHeader
-        id="my-workspaces-heading"
-        icon={FlaskConical}
-        title="My Workspaces"
-        description="Research data, bookings, results and documents for each project."
-        count={visibleMine.length || undefined}
-        action={
-          visibleMine.length > WORKSPACES_VISIBLE ? (
-            <Button variant="ghost" size="sm" className="h-8 text-primary dark:text-sky-300" onClick={() => setShowAllWorkspaces((v) => !v)}>
-              {showAllWorkspaces ? "Show fewer" : `View all (${visibleMine.length})`}
-            </Button>
-          ) : null
-        }
-      />
-      {loading && !home ? (
-        <CardGridSkeleton />
+  const newProjectButton = (
+    <Button size="sm" variant="outline" className={`gap-1.5 ${SMALL_BUTTON}`} onClick={() => setCreateOpen(true)}>
+      <Plus className="h-4 w-4" aria-hidden /> New project
+    </Button>
+  );
+
+  const workspacesSection =
+    showWorkspaces && !isNewStudent ? (
+      loading && !home ? (
+        <section className="space-y-3" aria-label="My projects" aria-busy="true">
+          <SectionHeader icon={FlaskConical} title="My projects" />
+          <CardGridSkeleton />
+        </section>
       ) : visibleMine.length === 0 ? (
-        <EmptyState
-          icon={FlaskConical}
-          title={
-            q || filter !== "all"
-              ? archivedMode
-                ? "No archived workspaces."
-                : "No workspaces match."
-              : "No research workspaces yet."
-          }
-          description={
-            q || filter !== "all"
-              ? "Try a different search or filter."
-              : canCreateWorkspace
-                ? "Create a workspace to organise research data, bookings, results and documents."
-                : "Workspaces you create will appear here."
-          }
-          action={
-            canCreateWorkspace && !q && filter === "all" ? (
-              <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4" aria-hidden /> New Workspace
-              </Button>
-            ) : null
-          }
-        />
+        filtering ? (
+          <p className="rounded-lg border bg-card px-4 py-2 text-sm text-muted-foreground">
+            {archivedMode ? "No archived projects." : "No projects match."}
+          </p>
+        ) : canCreateWorkspace ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-sm">
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <FlaskConical className="h-4 w-4 shrink-0 text-primary dark:text-sky-300" aria-hidden />
+              No projects of your own yet. A project keeps the files, bookings and results of one piece of research together.
+            </span>
+            {newProjectButton}
+          </div>
+        ) : null
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {shownMine.map((ws) => (
-            <WorkspaceCard key={ws.id} ws={ws} onOpen={() => navigate(`/my-research/${ws.id}`)} />
-          ))}
-        </div>
-      )}
-    </section>
-  ) : null;
+        <section className="space-y-3" aria-labelledby="my-projects-heading">
+          <SectionHeader
+            id="my-projects-heading"
+            icon={FlaskConical}
+            title="My projects"
+            description="Files, bookings and results for each piece of research."
+            count={visibleMine.length || undefined}
+            action={
+              <>
+                {visibleMine.length > WORKSPACES_VISIBLE ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`text-primary dark:text-sky-300 ${SMALL_BUTTON}`}
+                    onClick={() => setShowAllWorkspaces((v) => !v)}
+                  >
+                    {showAllWorkspaces ? "Show fewer" : `View all (${visibleMine.length})`}
+                  </Button>
+                ) : null}
+                {projectActionInSection && !filtering ? newProjectButton : null}
+              </>
+            }
+          />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {shownMine.map((ws) => (
+              <WorkspaceCard key={ws.id} ws={ws} onOpen={() => navigate(`/my-research/${ws.id}`)} />
+            ))}
+          </div>
+        </section>
+      )
+    ) : null;
+
+  const resultsSummary =
+    showSummaries && sharedData && sharedData.eligible && sharedData.total > 0 ? (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2 text-sm">
+        <span className="text-muted-foreground">Results shared with me</span>
+        <span className="flex items-center gap-2">
+          <span className="font-semibold tabular-nums">{sharedData.total}</span>
+          {sharedData.fresh > 0 ? (
+            <Badge variant="outline" className="border-sky-200 px-1.5 py-0 text-[11px] text-sky-800 dark:border-sky-900 dark:text-sky-300">
+              {sharedData.fresh} new
+            </Badge>
+          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            className={`gap-1 px-2 text-primary dark:text-sky-300 ${SMALL_BUTTON}`}
+            onClick={() => navigate("/shared-data")}
+            aria-label="Open results shared with me"
+          >
+            Open <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        </span>
+      </div>
+    ) : null;
 
   const sharedSection = showShared ? (
-    <section className="space-y-3" aria-labelledby="shared-with-me-heading">
-      <SectionHeader
-        id="shared-with-me-heading"
-        icon={Share2}
-        title="Shared With Me"
-        description="Research workspaces shared with you by IIT Roorkee colleagues."
-      />
-      {showSummaries && sharedData && sharedData.eligible && sharedData.total > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2 text-sm">
-          <span className="text-muted-foreground">Booking results shared with you</span>
-          <span className="flex items-center gap-2">
-            <span className="font-semibold tabular-nums">{sharedData.total}</span>
-            {sharedData.fresh > 0 ? (
-              <Badge variant="outline" className="border-sky-200 px-1.5 py-0 text-[11px] text-sky-800 dark:border-sky-900 dark:text-sky-300">
-                {sharedData.fresh} new
-              </Badge>
-            ) : null}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 gap-1 px-2 text-primary dark:text-sky-300"
-              onClick={() => navigate("/shared-data")}
-              aria-label="Open booking results shared with you"
-            >
-              Open <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </Button>
-          </span>
-        </div>
-      ) : null}
-      {loading && !home ? (
-        <CardGridSkeleton count={2} />
-      ) : visibleShared.length === 0 ? (
-        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-          {q || filter !== "all"
-            ? archivedMode
-              ? "No archived shared workspaces."
-              : "No shared workspaces match."
-            : "No workspaces have been shared with you yet."}
-        </p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleShared.map((ws) => (
-            <WorkspaceCard key={ws.id} ws={ws} onOpen={() => navigate(`/my-research/${ws.id}`)} />
-          ))}
-        </div>
-      )}
-    </section>
+    isNewStudent ? (
+      resultsSummary
+    ) : (
+      <section className="space-y-3" aria-labelledby="shared-with-me-heading">
+        <SectionHeader
+          id="shared-with-me-heading"
+          icon={Share2}
+          title="Projects shared with me"
+          description={visibleShared.length ? "Projects other IIT Roorkee students and faculty have shared with you." : undefined}
+          count={visibleShared.length || undefined}
+        />
+        {resultsSummary}
+        {loading && !home ? (
+          <CardGridSkeleton count={2} />
+        ) : visibleShared.length === 0 ? (
+          <p className="rounded-lg border bg-card px-4 py-2 text-sm text-muted-foreground">
+            {filtering
+              ? archivedMode
+                ? "No archived shared projects."
+                : "No shared projects match."
+              : isFaculty
+                ? "When a student shares a project with you, it appears here."
+                : "No projects have been shared with you yet."}
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleShared.map((ws) => (
+              <WorkspaceCard key={ws.id} ws={ws} onOpen={() => navigate(`/my-research/${ws.id}`)} />
+            ))}
+          </div>
+        )}
+      </section>
+    )
   ) : null;
 
-  const publicationsSection = (
-    <section className="space-y-3" aria-labelledby="my-publications-heading">
-      <SectionHeader
-        id="my-publications-heading"
-        icon={BookOpen}
-        title="My Publications"
-        action={
-          <Button variant="ghost" size="sm" className="h-8 text-primary dark:text-sky-300" onClick={() => navigate("/my-publications")}>
-            View all
-          </Button>
-        }
+  const getStarted = isNewStudent ? (
+    canCreateWorkspace ? (
+      <section className="rounded-lg border bg-card p-4" aria-labelledby="get-started-heading">
+        <h2 id="get-started-heading" className="flex items-center gap-2 text-base font-semibold">
+          <FlaskConical className="h-4 w-4 text-primary dark:text-sky-300" aria-hidden /> Get started
+        </h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">Keep the files, bookings and results of your research in one place.</p>
+        <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+          {[
+            { n: 1, title: "Create a project", text: "One project per piece of research, e.g. your thesis chapter." },
+            { n: 2, title: "Add a booking", text: "Pick the project when you book, or add bookings you already have." },
+            { n: 3, title: "Share with your supervisor", text: "They can view and download, but not change anything." },
+          ].map((step) => (
+            <li key={step.n} className="flex gap-3 rounded-md border bg-muted/30 p-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                {step.n}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{step.title}</span>
+                <span className="block text-xs text-muted-foreground">{step.text}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <Button className="mt-3 h-10 gap-1.5" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4" aria-hidden /> Create your first project
+        </Button>
+      </section>
+    ) : (
+      <EmptyState
+        icon={Share2}
+        title="Projects shared with you appear here."
+        description="When your supervisor or a colleague shares a research project with you, you can open its files and results from this page."
       />
-      {pubCounts == null ? (
-        <ListSkeleton rows={2} />
-      ) : pubCounts.total === 0 ? (
-        <EmptyState
+    )
+  ) : null;
+
+  const publicationsSection =
+    isNewStudent && !pubCounts?.total ? null : (
+      <section className="space-y-3" aria-labelledby="my-publications-heading">
+        <SectionHeader
+          id="my-publications-heading"
           icon={BookOpen}
-          title="No publications submitted yet."
-          description="Submit journal references that used the facility."
+          title="My publications"
           action={
-            <Button size="sm" variant="outline" onClick={() => navigate("/my-publications")}>
-              Submit publication
+            <Button variant="ghost" size="sm" className={`text-primary dark:text-sky-300 ${SMALL_BUTTON}`} onClick={() => navigate("/my-publications")}>
+              View all
             </Button>
           }
         />
-      ) : (
-        <div className="rounded-lg border bg-card">
-          <dl className="grid grid-cols-3 divide-x border-b text-center">
-            <div className="px-2 py-2">
-              <dt className="text-xs text-muted-foreground">Submitted</dt>
-              <dd className="text-lg font-semibold tabular-nums">{pubCounts.total}</dd>
-            </div>
-            <div className="px-2 py-2">
-              <dt className="text-xs text-muted-foreground">Pending review</dt>
-              <dd className={`text-lg font-semibold tabular-nums ${pubCounts.pending ? "text-amber-700 dark:text-amber-300" : ""}`}>{pubCounts.pending}</dd>
-            </div>
-            <div className="px-2 py-2">
-              <dt className="text-xs text-muted-foreground">Approved</dt>
-              <dd className="text-lg font-semibold tabular-nums">{pubCounts.approved}</dd>
-            </div>
-          </dl>
-          <ul className="divide-y">
-            {(publications ?? []).slice(0, 3).map((p) => {
-              const status = String(p.status).toLowerCase();
-              return (
-                <li key={p.id} className="flex items-center gap-2 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-1 text-sm font-medium">{p.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">{[p.journal, p.year].filter(Boolean).join(" · ")}</p>
-                  </div>
-                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[11px] capitalize">
-                    {status === "pending" ? "Pending review" : status}
-                  </Badge>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </section>
-  );
+        {pubCounts == null ? (
+          <ListSkeleton rows={2} />
+        ) : pubCounts.total === 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-sm text-muted-foreground">
+            <span>No publications submitted yet.</span>
+            <Button size="sm" variant="outline" className={SMALL_BUTTON} onClick={() => navigate("/my-publications")}>
+              Submit publication
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card">
+            <dl className="grid grid-cols-3 divide-x border-b text-center">
+              <div className="px-2 py-2">
+                <dt className="text-xs text-muted-foreground">Submitted</dt>
+                <dd className="text-lg font-semibold tabular-nums">{pubCounts.total}</dd>
+              </div>
+              <div className="px-2 py-2">
+                <dt className="text-xs text-muted-foreground">Pending review</dt>
+                <dd className={`text-lg font-semibold tabular-nums ${pubCounts.pending ? "text-amber-700 dark:text-amber-300" : ""}`}>{pubCounts.pending}</dd>
+              </div>
+              <div className="px-2 py-2">
+                <dt className="text-xs text-muted-foreground">Approved</dt>
+                <dd className="text-lg font-semibold tabular-nums">{pubCounts.approved}</dd>
+              </div>
+            </dl>
+            <ul className="divide-y">
+              {(publications ?? []).slice(0, 3).map((p) => {
+                const status = String(p.status).toLowerCase();
+                return (
+                  <li key={p.id} className="flex items-center gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-1 text-sm font-medium">{p.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">{[p.journal, p.year].filter(Boolean).join(" · ")}</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[11px] capitalize">
+                      {status === "pending" ? "Pending review" : status}
+                    </Badge>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </section>
+    );
 
-  const activitySection = (
-    <section className="space-y-3" aria-labelledby="recent-activity-heading">
-      <SectionHeader id="recent-activity-heading" icon={Activity} title="Recent Activity" />
-      {loading && !home ? <ListSkeleton rows={4} /> : <ActivityFeed items={feed} />}
-    </section>
-  );
+  const historySection =
+    isNewStudent && feed.length === 0 ? null : (
+      <section className="space-y-3" aria-labelledby="recent-changes-heading">
+        <SectionHeader id="recent-changes-heading" icon={Activity} title="Recent changes" />
+        {loading && !home ? <ListSkeleton rows={4} /> : <ActivityFeed items={feed} />}
+      </section>
+    );
 
   return (
     <PageShell>
@@ -542,22 +627,34 @@ export default function MyResearch() {
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search research groups and workspaces…"
-                    aria-label="Search research groups and workspaces"
-                    className="h-9 pl-9"
+                    placeholder="Search groups and projects…"
+                    aria-label="Search groups and projects"
+                    className="h-10 pl-9 sm:h-9"
                   />
                 </div>
                 <FilterChips<Filter> label="Filter My Research" value={filter} onChange={setFilter} options={filterOptions} />
               </div>
             ) : null}
-            {groupsSection}
-            {!isFaculty && groups && showSummaries ? <MyActivitiesUpdates work={groups.my_work} /> : null}
-            {workspacesSection}
-            {sharedSection}
-            {showSummaries ? (
-              <div className="grid gap-6 lg:grid-cols-2">
+            {isFaculty ? (
+              <>
+                {reviewBox}
+                {groupsSection}
+                {workspacesSection}
+                {sharedSection}
+              </>
+            ) : (
+              <>
+                {groups && showSummaries ? <MyActivitiesUpdates work={groups.my_work} /> : null}
+                {getStarted}
+                {groupsSection}
+                {workspacesSection}
+                {sharedSection}
+              </>
+            )}
+            {showSummaries && (publicationsSection || historySection) ? (
+              <div className={`grid gap-6 ${publicationsSection && historySection ? "lg:grid-cols-2" : ""}`}>
                 {publicationsSection}
-                {activitySection}
+                {historySection}
               </div>
             ) : null}
           </>

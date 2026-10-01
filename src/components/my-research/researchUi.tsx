@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, Archive, CheckCircle2, Crown, Eye, RefreshCw, Share2, type LucideIcon } from "lucide-react";
+import { AlertCircle, Archive, CheckCircle2, ChevronDown, Crown, Eye, RefreshCw, Share2, type LucideIcon } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -142,8 +142,8 @@ const STATUS_BADGE: Record<ResearchStatus, { label: string; icon: LucideIcon | n
   archived: { label: "Archived", icon: Archive, className: "border-slate-300 text-slate-600 dark:text-slate-300" },
   shared: { label: "Shared", icon: Share2, className: "border-sky-200 text-sky-800 dark:border-sky-900 dark:text-sky-300" },
   owner: { label: "Owner", icon: Crown, className: "border-primary/25 text-primary dark:text-sky-300" },
-  viewer: { label: "Viewer", icon: Eye, className: "border-slate-300 text-slate-700 dark:text-slate-300" },
-  readonly: { label: "Read only", icon: Eye, className: "border-slate-300 text-slate-700 dark:text-slate-300" },
+  viewer: { label: "Can view", icon: Eye, className: "border-slate-300 text-slate-700 dark:text-slate-300" },
+  readonly: { label: "Can view", icon: Eye, className: "border-slate-300 text-slate-700 dark:text-slate-300" },
 };
 
 /** Subtle outline badge; status is carried by icon and text, never by colour alone. */
@@ -239,7 +239,7 @@ export function InlineError({ message, onRetry }: { message: string; onRetry?: (
       <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1">{message}</span>
       {onRetry ? (
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 bg-background" onClick={onRetry}>
+        <Button size="sm" variant="outline" className={cn("h-7 gap-1.5 bg-background", TOUCH_TARGET)} onClick={onRetry}>
           <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Retry
         </Button>
       ) : null}
@@ -258,8 +258,8 @@ export type FeedItem = {
   onAction?: () => void;
 };
 
-/** Date-led activity feed built from existing activity records. */
-export function ActivityFeed({ items, emptyText = "No recent activity." }: { items: FeedItem[]; emptyText?: string }) {
+/** Date-led history feed built from existing activity records. */
+export function ActivityFeed({ items, emptyText = "No recent changes." }: { items: FeedItem[]; emptyText?: string }) {
   if (items.length === 0) {
     return <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{emptyText}</p>;
   }
@@ -278,7 +278,7 @@ export function ActivityFeed({ items, emptyText = "No recent activity." }: { ite
             </p>
           </div>
           {t.onAction ? (
-            <Button size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-xs text-primary dark:text-sky-300" onClick={t.onAction}>
+            <Button size="sm" variant="ghost" className={cn("h-7 shrink-0 px-2 text-xs text-primary dark:text-sky-300", TOUCH_TARGET)} onClick={t.onAction}>
               {t.actionLabel ?? "Open"}
             </Button>
           ) : null}
@@ -312,6 +312,7 @@ export function FilterChips<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+              TOUCH_TARGET,
               active
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -326,8 +327,45 @@ export function FilterChips<T extends string>({
   );
 }
 
-/** Horizontally scrollable tab list classes shared by workspace and group pages. */
+/** Collapsible "More options" block for optional form fields. */
+export function MoreOptions({
+  open,
+  onOpenChange,
+  children,
+  label = "More options",
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+  label?: string;
+}) {
+  return (
+    <div className="rounded-md border">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => onOpenChange(!open)}
+        className="flex min-h-10 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {label}
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {open ? <div className="space-y-3 border-t p-3">{children}</div> : null}
+    </div>
+  );
+}
+
+/** At least 40px tall on phones; desktop keeps the compact size. */
+export const TOUCH_TARGET = "min-h-10 sm:min-h-0";
+
+/** Horizontally scrollable tab list classes shared by project and group pages. */
 export const RESEARCH_TABS_LIST_CLASS =
   "h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-card p-1 [scrollbar-width:thin]";
 export const RESEARCH_TAB_TRIGGER_CLASS =
-  "shrink-0 rounded-md px-3 py-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none";
+  "min-h-10 shrink-0 rounded-md px-3 py-1.5 sm:min-h-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none";
+
+/** Tab-label count, hidden on small screens. */
+export function TabCount({ value }: { value: number | null | undefined }) {
+  if (value == null) return null;
+  return <span className="hidden sm:inline">&nbsp;({value})</span>;
+}

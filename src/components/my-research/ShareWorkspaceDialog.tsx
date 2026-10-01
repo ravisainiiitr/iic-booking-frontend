@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { formatDate } from "./researchUtils";
 
+export type ShareSuggestion = { userId: number; label: string; hint?: string };
+
 interface Props {
   workspaceId: string;
   workspaceName: string;
@@ -27,6 +29,8 @@ interface Props {
   members: ResearchMember[];
   onChanged: () => void;
   canAdd?: boolean;
+  /** One-click people to share with, e.g. the student's supervisors. */
+  suggestions?: ShareSuggestion[];
 }
 
 export function ShareWorkspaceDialog({
@@ -37,11 +41,13 @@ export function ShareWorkspaceDialog({
   members,
   onChanged,
   canAdd = true,
+  suggestions = [],
 }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<DataShareUserSummary[]>([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<DataShareUserDetails | null>(null);
+  const [choosing, setChoosing] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ResearchMember | null>(null);
@@ -81,8 +87,10 @@ export function ShareWorkspaceDialog({
     };
   }, [query, selected, members]);
 
-  const choose = async (user: DataShareUserSummary) => {
-    const res = await apiClient.getDataSharingUser(user.id);
+  const choose = async (userId: number) => {
+    setChoosing(userId);
+    const res = await apiClient.getDataSharingUser(userId);
+    setChoosing(null);
     if (res.error || !res.data) {
       toast.error(res.error || "Could not load this person's details.");
       return;
@@ -99,7 +107,7 @@ export function ShareWorkspaceDialog({
       toast.error(res.error);
       return;
     }
-    toast.success(`${selected.name} can now view this workspace`);
+    toast.success(`${selected.name} can now view this project`);
     setSelected(null);
     setQuery("");
     onChanged();
@@ -120,6 +128,8 @@ export function ShareWorkspaceDialog({
   };
 
   const viewers = members.filter((m) => m.role === "VIEWER");
+  const memberIds = new Set(members.map((m) => m.user.id));
+  const quickPicks = suggestions.filter((s, i, all) => !memberIds.has(s.userId) && all.findIndex((x) => x.userId === s.userId) === i);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -127,14 +137,14 @@ export function ShareWorkspaceDialog({
         <DialogHeader>
           <DialogTitle>Share “{workspaceName}”</DialogTitle>
           <DialogDescription>
-            Viewers are IIT Roorkee students or faculty. They can open and download files but cannot upload, edit, delete,
-            or share.
+            Share with IIT Roorkee students or faculty. They can view and download files but cannot upload, edit, delete, or
+            share.
           </DialogDescription>
         </DialogHeader>
 
         {!canAdd ? (
           <p className="rounded-md border bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-            This workspace is archived. Restore it to add viewers. You can still remove access below.
+            This project is archived. Restore it to share it with more people. You can still remove access below.
           </p>
         ) : selected ? (
           <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
@@ -156,13 +166,13 @@ export function ShareWorkspaceDialog({
               ) : null}
             </dl>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Eye className="h-3.5 w-3.5" /> Access: Read-only viewer of every file in this workspace
+              <Eye className="h-3.5 w-3.5" /> Access: Can view and download every file in this project
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSelected(null)} disabled={busy}>
+              <Button variant="outline" size="sm" className="h-10 sm:h-9" onClick={() => setSelected(null)} disabled={busy}>
                 Back
               </Button>
-              <Button size="sm" onClick={confirmShare} disabled={busy} className="gap-1.5">
+              <Button size="sm" onClick={confirmShare} disabled={busy} className="h-10 gap-1.5 sm:h-9">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                 Confirm and share
               </Button>
@@ -170,6 +180,25 @@ export function ShareWorkspaceDialog({
           </div>
         ) : (
           <div className="space-y-2">
+            {quickPicks.length > 0 ? (
+              <div className="flex flex-wrap gap-2" aria-label="Suggested people">
+                {quickPicks.map((s) => (
+                  <Button
+                    key={s.userId}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-10 max-w-full gap-1.5 rounded-full sm:h-8"
+                    disabled={choosing != null}
+                    title={s.hint}
+                    onClick={() => void choose(s.userId)}
+                  >
+                    {choosing === s.userId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                    <span className="truncate">Share with {s.label}</span>
+                  </Button>
+                ))}
+              </div>
+            ) : null}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -190,8 +219,8 @@ export function ShareWorkspaceDialog({
                   <li key={u.id}>
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted/60"
-                      onClick={() => void choose(u)}
+                      className="flex min-h-[44px] w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted/60"
+                      onClick={() => void choose(u.id)}
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">{u.name}</span>
@@ -218,7 +247,7 @@ export function ShareWorkspaceDialog({
                   <span className="block truncate text-sm font-medium">{m.user.name}</span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {m.user.email}
-                    {m.role === "VIEWER" ? ` · added ${formatDate(m.added_at)}` : ""}
+                    {m.role === "VIEWER" ? ` · can view · added ${formatDate(m.added_at)}` : ""}
                   </span>
                 </span>
                 {m.role === "OWNER" ? (
@@ -229,7 +258,7 @@ export function ShareWorkspaceDialog({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="shrink-0 gap-1 text-destructive hover:text-destructive"
+                    className="h-10 shrink-0 gap-1 text-destructive hover:text-destructive sm:h-9"
                     disabled={removing === m.id}
                     onClick={() => {
                       setRemoveTarget(m);
@@ -243,7 +272,7 @@ export function ShareWorkspaceDialog({
               </li>
             ))}
           </ul>
-          {viewers.length === 0 ? <p className="text-xs text-muted-foreground">Only you can see this workspace.</p> : null}
+          {viewers.length === 0 ? <p className="text-xs text-muted-foreground">Only you can see this project.</p> : null}
         </div>
 
         <DialogFooter>

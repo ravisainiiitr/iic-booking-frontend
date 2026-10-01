@@ -56,7 +56,7 @@ export function LinkPublicationsDialog({ workspaceId, open, onOpenChange, onLink
       toast.error(res.error);
       return;
     }
-    toast.success("Publications linked");
+    toast.success("Publications added to project");
     onLinked();
     onOpenChange(false);
   };
@@ -65,7 +65,7 @@ export function LinkPublicationsDialog({ workspaceId, open, onOpenChange, onLink
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Link publications</DialogTitle>
+          <DialogTitle>Add publications to project</DialogTitle>
           <DialogDescription>
             Pick from the publications you have submitted to IIC.{" "}
             <Link to="/my-publications" className="text-primary underline underline-offset-2 dark:text-sky-300">
@@ -80,7 +80,7 @@ export function LinkPublicationsDialog({ workspaceId, open, onOpenChange, onLink
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : items.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No other publications to link.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">No other publications to add.</p>
           ) : (
             <ul className="divide-y">
               {items.map((p) => (
@@ -109,7 +109,7 @@ export function LinkPublicationsDialog({ workspaceId, open, onOpenChange, onLink
           </Button>
           <Button onClick={save} disabled={saving || picked.size === 0} className="gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Link {picked.size || ""}
+            Add to project{picked.size ? ` (${picked.size})` : ""}
           </Button>
         </DialogFooter>
       </DialogContent>

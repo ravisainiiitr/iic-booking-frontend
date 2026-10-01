@@ -175,9 +175,9 @@ export function GroupMemberDetailDialog({ groupId, memberId, onOpenChange, categ
             ) : null}
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Activities ({detail.activities.length})</h3>
+              <h3 className="text-sm font-semibold">Tasks ({detail.activities.length})</h3>
               {detail.activities.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No activities assigned.</p>
+                <p className="text-sm text-muted-foreground">No tasks assigned.</p>
               ) : (
                 <ul className="divide-y rounded-md border">
                   {detail.activities.map((a) => {
@@ -198,9 +198,9 @@ export function GroupMemberDetailDialog({ groupId, memberId, onOpenChange, categ
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Recent update requests</h3>
+              <h3 className="text-sm font-semibold">Recent progress update requests</h3>
               {detail.update_requests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No update requests yet.</p>
+                <p className="text-sm text-muted-foreground">No progress update requests yet.</p>
               ) : (
                 <ul className="divide-y rounded-md border">
                   {detail.update_requests.map((r) => (
@@ -217,9 +217,9 @@ export function GroupMemberDetailDialog({ groupId, memberId, onOpenChange, categ
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Group-related workspaces</h3>
+              <h3 className="text-sm font-semibold">Group-related projects</h3>
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Lock className="h-3 w-3" aria-hidden /> Only workspaces linked to this group or its activities are listed.
+                <Lock className="h-3 w-3" aria-hidden /> Only projects added to this group or its tasks are listed.
               </p>
               {detail.workspaces.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None.</p>
@@ -245,7 +245,7 @@ export function GroupMemberDetailDialog({ groupId, memberId, onOpenChange, categ
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Recent activity</h3>
+              <h3 className="text-sm font-semibold">Recent changes</h3>
               <GroupEventList events={detail.recent_events} />
             </section>
 
@@ -265,8 +265,8 @@ export function GroupMemberDetailDialog({ groupId, memberId, onOpenChange, categ
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {detail?.user.name} from the group?</AlertDialogTitle>
             <AlertDialogDescription>
-              Their open update requests are cancelled and they are unassigned from open activities. Past activities, updates
-              and history are kept. Workspace sharing is not changed.
+              Their open update requests are cancelled and they are unassigned from open tasks. Past tasks, updates
+              and history are kept. Project sharing is not changed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -114,10 +114,10 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
     });
     setSaving(false);
     if (res.error || !res.data) {
-      toast.error(res.error || "Could not submit your update.");
+      toast.error(res.error || "Could not send your update.");
       return;
     }
-    toast.success("Update submitted");
+    toast.success("Update sent");
     onSubmitted(res.data);
     onOpenChange(false);
   };
@@ -214,7 +214,7 @@ export function ResearchUpdateForm({ request, onOpenChange, onSubmitted, maxAtta
             </Button>
             <Button type="submit" disabled={busy || (!workCompleted.trim() && !currentStatus.trim())} className="gap-2">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              Submit update
+              Send update
             </Button>
           </DialogFooter>
         </form>

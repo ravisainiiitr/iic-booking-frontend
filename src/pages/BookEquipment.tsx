@@ -10609,6 +10609,7 @@ const BookEquipment = () => {
                         value={researchWorkspaceId}
                         onChange={setResearchWorkspaceId}
                         folderLabel={researchFolderLabel}
+                        rememberLast
                       />
                     )}
 

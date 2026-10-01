@@ -70,7 +70,7 @@ export function BookFromWorkspaceDialog({ workspaceId, folderId, folderLabel, op
             <CalendarPlus className="h-5 w-5 text-primary" /> Book equipment
           </DialogTitle>
           <DialogDescription>
-            The new booking is added to this workspace automatically
+            The new booking is added to this project automatically
             {folderLabel ? " and filed in the folder below" : ""} once it is confirmed.
           </DialogDescription>
         </DialogHeader>

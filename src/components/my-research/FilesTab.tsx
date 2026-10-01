@@ -280,7 +280,7 @@ export function FilesTab({
                 <Link2 className="h-3 w-3" />
                 {bookingFilter.equipment_name} · {bookingFilter.display_id}
               </Badge>
-              <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={onClearBookingFilter}>
+              <Button variant="ghost" size="sm" className="h-10 gap-1 text-xs sm:h-7" onClick={onClearBookingFilter}>
                 <X className="h-3.5 w-3.5" /> Show all folders
               </Button>
             </div>
@@ -305,7 +305,7 @@ export function FilesTab({
           )}
           <div className="flex flex-wrap items-center gap-2">
             <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectTrigger className="h-10 w-[140px] text-xs sm:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -317,7 +317,7 @@ export function FilesTab({
               </SelectContent>
             </Select>
             {canEdit && !bookingFilter ? (
-              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => openName({ kind: "new-folder" })}>
+              <Button variant="outline" size="sm" className="h-10 gap-1.5 sm:h-8" onClick={() => openName({ kind: "new-folder" })}>
                 <FolderPlus className="h-4 w-4" /> New folder
               </Button>
             ) : null}
@@ -325,7 +325,7 @@ export function FilesTab({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5"
+                className="h-10 gap-1.5 sm:h-8"
                 title={currentFolderLabel ? `Book equipment and file it in ${currentFolderLabel}` : "Book equipment for this project"}
                 onClick={() => onBookEquipment(folderId, currentFolderLabel)}
               >
@@ -334,7 +334,7 @@ export function FilesTab({
             ) : null}
             {canEdit ? (
               <>
-                <Button size="sm" className="h-8 gap-1.5" onClick={() => inputRef.current?.click()}>
+                <Button size="sm" className="h-10 gap-1.5 sm:h-8" onClick={() => inputRef.current?.click()}>
                   <Upload className="h-4 w-4" /> Upload files
                 </Button>
                 <input
@@ -382,7 +382,9 @@ export function FilesTab({
             <div className="px-6 py-8 text-center text-sm text-muted-foreground">
               <Folder className="mx-auto mb-2 h-7 w-7 opacity-40" aria-hidden />
               {bookingFilter
-                ? "No files are associated with this booking yet."
+                ? canEdit
+                  ? "No results for this booking yet. Drag files here or use Upload files."
+                  : "No files for this booking yet."
                 : canEdit
                   ? "This folder is empty. Drag files here or use Upload files."
                   : "This folder is empty."}
@@ -403,7 +405,7 @@ export function FilesTab({
                   {canEdit ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Folder actions">
+                        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" aria-label="Folder actions">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -449,13 +451,13 @@ export function FilesTab({
                           <Eye className="h-4 w-4" />
                         </Button>
                       ) : null}
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Download" onClick={() => void downloadResearchFile(file)}>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" title="Download" onClick={() => void downloadResearchFile(file)}>
                         <Download className="h-4 w-4" />
                       </Button>
                       {canEdit ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="File actions">
+                            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" aria-label="File actions">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -543,7 +545,7 @@ export function FilesTab({
                 workspaceId={workspaceId}
                 selectedId={moveDest}
                 disabledIds={moveTarget.kind === "folder" ? new Set([moveTarget.folder.id]) : undefined}
-                rootLabel="Workspace root"
+                rootLabel="Project root"
                 onSelect={(folder) => setMoveDest(folder?.id ?? null)}
               />
             ) : null}
@@ -564,7 +566,7 @@ export function FilesTab({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Booking for “{bookingTarget?.name}”</DialogTitle>
-            <DialogDescription>Associate this file with one of the bookings added to this workspace.</DialogDescription>
+            <DialogDescription>Add this file to one of the bookings in this project.</DialogDescription>
           </DialogHeader>
           <Select value={bookingChoice} onValueChange={setBookingChoice}>
             <SelectTrigger>
@@ -601,9 +603,9 @@ export function FilesTab({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.kind === "folder"
-                ? "The folder, its subfolders and all files inside will be removed from this workspace."
-                : "The file will be removed from this workspace."}{" "}
-              Viewers will no longer see it. Contact the IIC team if you need something recovered.
+                ? "The folder, its subfolders and all files inside will be removed from this project."
+                : "The file will be removed from this project."}{" "}
+              People you shared with will no longer see it. Contact the IIC team if you need something recovered.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

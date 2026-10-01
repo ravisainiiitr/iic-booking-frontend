@@ -20,11 +20,11 @@ export function UploadToMyResearchButton({ bookingId, bookingLabel }: Props) {
         size="sm"
         variant="outline"
         className="border-primary/30 text-primary hover:bg-primary/5 dark:border-primary/50 dark:text-sky-300 dark:hover:bg-primary/10"
-        title="Save your own files for this booking in a private My Research workspace"
+        title="Save your own files for this booking in a private My Research project"
         onClick={() => setOpen(true)}
       >
         <FlaskConical className="mr-2 h-4 w-4" />
-        Upload to My Research
+        Save to project
       </Button>
       <UploadToMyResearchDialog bookingId={bookingId} bookingLabel={bookingLabel} open={open} onOpenChange={setOpen} />
     </>

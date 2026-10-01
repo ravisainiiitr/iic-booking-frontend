@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { MoreOptions } from "../researchUi";
 import { ACTIVITY_STATUS_OPTIONS, PRIORITY_OPTIONS } from "./groupLabels";
 
 interface Props {
@@ -34,6 +35,12 @@ interface Props {
 
 const NONE = "none";
 
+function hasAdvancedValues(a: GroupActivity | null | undefined): boolean {
+  if (!a) return false;
+  return Boolean(a.description || a.category || a.priority !== "NORMAL" || a.start_date || a.workspace || a.booking || a.equipment);
+}
+
+/** Create or edit a group task. Only title, assignees and due date are shown up front. */
 export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, members, categories, onSaved }: Props) {
   const editing = Boolean(activity);
   const [title, setTitle] = useState("");
@@ -51,6 +58,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
   const [equipmentResults, setEquipmentResults] = useState<GroupEquipmentRef[]>([]);
   const [workspaces, setWorkspaces] = useState<GroupLinkedWorkspace[]>([]);
   const [bookings, setBookings] = useState<GroupBookingRef[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -68,9 +76,14 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
     setEquipment(activity?.equipment ?? null);
     setEquipmentQuery("");
     setEquipmentResults([]);
+    setMoreOpen(hasAdvancedValues(activity));
+  }, [open, activity]);
+
+  useEffect(() => {
+    if (!open || !moreOpen) return;
     void apiClient.listLinkableGroupWorkspaces(groupId).then((res) => setWorkspaces(res.data?.results ?? []));
     void apiClient.listLinkableGroupBookings(groupId).then((res) => setBookings(res.data?.results ?? []));
-  }, [open, activity, groupId]);
+  }, [open, moreOpen, groupId]);
 
   useEffect(() => {
     const q = equipmentQuery.trim();
@@ -96,6 +109,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
     e.preventDefault();
     if (!title.trim()) return;
     if (startDate && dueDate && dueDate < startDate) {
+      setMoreOpen(true);
       toast.error("The due date cannot be before the start date.");
       return;
     }
@@ -118,10 +132,10 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
       : await apiClient.createResearchGroupActivity(groupId, payload);
     setSaving(false);
     if (res.error || !res.data) {
-      toast.error(res.error || "Could not save the activity.");
+      toast.error(res.error || "Could not save the task.");
       return;
     }
-    toast.success(editing ? "Activity updated" : "Activity created");
+    toast.success(editing ? "Task updated" : "Task created");
     onSaved(res.data);
     onOpenChange(false);
   };
@@ -137,76 +151,12 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit activity" : "New activity"}</DialogTitle>
-            <DialogDescription>
-              Each assigned member tracks their own status and progress. Linking a workspace does not share it with anyone.
-            </DialogDescription>
+            <DialogTitle>{editing ? "Edit task" : "New task"}</DialogTitle>
+            <DialogDescription>Each person assigned tracks their own status and progress.</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="rg-act-title">Title</Label>
             <Input id="rg-act-title" value={title} maxLength={250} autoFocus onChange={(e) => setTitle(e.target.value)} placeholder="e.g. XRD analysis of annealed samples" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="rg-act-desc">Description (optional)</Label>
-            <Textarea id="rg-act-desc" rows={3} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-act-cat">Category</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger id="rg-act-cat">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>No category</SelectItem>
-                  {activeCategories.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-act-priority">Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as GroupActivityPriority)}>
-                <SelectTrigger id="rg-act-priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-act-start">Start date</Label>
-              <Input id="rg-act-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-act-due">Due date</Label>
-              <Input id="rg-act-due" type="date" value={dueDate} min={startDate || undefined} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-            {editing ? (
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="rg-act-status">Overall status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as GroupActivityStatus)}>
-                  <SelectTrigger id="rg-act-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACTIVITY_STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
           </div>
 
           <fieldset className="space-y-2">
@@ -234,85 +184,153 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
             )}
           </fieldset>
 
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Links (optional)</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rg-act-due">Due date (optional)</Label>
+              <Input id="rg-act-due" type="date" value={dueDate} min={startDate || undefined} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            {editing ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="rg-act-status">Overall status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as GroupActivityStatus)}>
+                  <SelectTrigger id="rg-act-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_STATUS_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
+
+          <MoreOptions open={moreOpen} onOpenChange={setMoreOpen}>
+            <div className="space-y-1.5">
+              <Label htmlFor="rg-act-desc">Description</Label>
+              <Textarea id="rg-act-desc" rows={3} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="rg-act-ws">Workspace</Label>
-                <Select value={workspaceId} onValueChange={setWorkspaceId}>
-                  <SelectTrigger id="rg-act-ws">
+                <Label htmlFor="rg-act-cat">Category</Label>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger id="rg-act-cat">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NONE}>None</SelectItem>
-                    {workspaceOptions.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name}
-                        {w.owner ? ` · ${w.owner.name}` : ""}
+                    <SelectItem value={NONE}>No category</SelectItem>
+                    {activeCategories.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">Only workspaces you can open, owned by you or a group member.</p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rg-act-booking">Booking</Label>
-                <Select value={bookingId} onValueChange={setBookingId}>
-                  <SelectTrigger id="rg-act-booking">
+                <Label htmlFor="rg-act-priority">Priority</Label>
+                <Select value={priority} onValueChange={(v) => setPriority(v as GroupActivityPriority)}>
+                  <SelectTrigger id="rg-act-priority">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NONE}>None</SelectItem>
-                    {bookingOptions.map((b) => (
-                      <SelectItem key={b.booking_id} value={String(b.booking_id)}>
-                        {b.display_id}
-                        {b.equipment_name ? ` · ${b.equipment_name}` : ""}
-                        {b.user ? ` · ${b.user.name}` : ""}
+                    {PRIORITY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rg-act-start">Start date</Label>
+                <Input id="rg-act-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-act-eq">Equipment</Label>
-              {equipment ? (
-                <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate">
-                    {equipment.name}
-                  </span>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setEquipment(null)}>
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                    <Input id="rg-act-eq" className="pl-9" value={equipmentQuery} onChange={(e) => setEquipmentQuery(e.target.value)} placeholder="Search equipment by name or code" />
-                  </div>
-                  {equipmentResults.length > 0 ? (
-                    <ul className="max-h-40 divide-y overflow-y-auto rounded-md border">
-                      {equipmentResults.map((eq) => (
-                        <li key={eq.equipment_id}>
-                          <button
-                            type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
-                            onClick={() => {
-                              setEquipment(eq);
-                              setEquipmentQuery("");
-                            }}
-                          >
-                            {eq.name}
-                          </button>
-                        </li>
+
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium">Add to this task</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="rg-act-ws">Project</Label>
+                  <Select value={workspaceId} onValueChange={setWorkspaceId}>
+                    <SelectTrigger id="rg-act-ws">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>None</SelectItem>
+                      {workspaceOptions.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                          {w.owner ? ` · ${w.owner.name}` : ""}
+                        </SelectItem>
                       ))}
-                    </ul>
-                  ) : null}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Only projects you can open, owned by you or a group member. This does not share the project with anyone.
+                  </p>
                 </div>
-              )}
-            </div>
-          </fieldset>
+                <div className="space-y-1.5">
+                  <Label htmlFor="rg-act-booking">Booking</Label>
+                  <Select value={bookingId} onValueChange={setBookingId}>
+                    <SelectTrigger id="rg-act-booking">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>None</SelectItem>
+                      {bookingOptions.map((b) => (
+                        <SelectItem key={b.booking_id} value={String(b.booking_id)}>
+                          {b.display_id}
+                          {b.equipment_name ? ` · ${b.equipment_name}` : ""}
+                          {b.user ? ` · ${b.user.name}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rg-act-eq">Equipment</Label>
+                {equipment ? (
+                  <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate">{equipment.name}</span>
+                    <Button type="button" size="sm" variant="ghost" className="h-10 sm:h-9" onClick={() => setEquipment(null)}>
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                      <Input id="rg-act-eq" className="pl-9" value={equipmentQuery} onChange={(e) => setEquipmentQuery(e.target.value)} placeholder="Search equipment by name or code" />
+                    </div>
+                    {equipmentResults.length > 0 ? (
+                      <ul className="max-h-40 divide-y overflow-y-auto rounded-md border">
+                        {equipmentResults.map((eq) => (
+                          <li key={eq.equipment_id}>
+                            <button
+                              type="button"
+                              className="min-h-10 w-full px-3 py-2 text-left text-sm hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
+                              onClick={() => {
+                                setEquipment(eq);
+                                setEquipmentQuery("");
+                              }}
+                            >
+                              {eq.name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </fieldset>
+          </MoreOptions>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
@@ -320,7 +338,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
             </Button>
             <Button type="submit" disabled={saving || !title.trim()} className="gap-2">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              {editing ? "Save changes" : "Create activity"}
+              {editing ? "Save changes" : "Create task"}
             </Button>
           </DialogFooter>
         </form>

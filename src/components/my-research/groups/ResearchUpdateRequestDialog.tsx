@@ -21,38 +21,42 @@ interface Props {
 }
 
 const NONE = "none";
+const DEFAULT_TITLE = "Weekly progress update";
+const SMALL = "h-10 px-2 text-xs sm:h-7";
 
-/** One-time update request; one request is created per selected member. */
+/** One-time progress update request; one request is created per selected member. */
 export function ResearchUpdateRequestDialog({ groupId, open, onOpenChange, members, onCreated }: Props) {
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(DEFAULT_TITLE);
   const [instructions, setInstructions] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [selected, setSelected] = useState<number[]>([]);
+  /** null until the user changes the recipients; until then every regular member is selected. */
+  const [picked, setPicked] = useState<number[] | null>(null);
   const [activityId, setActivityId] = useState(NONE);
   const [activities, setActivities] = useState<GroupActivity[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setTitle("");
+    setTitle(DEFAULT_TITLE);
     setInstructions("");
     setDueDate("");
-    setSelected([]);
+    setPicked(null);
     setActivityId(NONE);
     void apiClient.listResearchGroupActivities(groupId, { state: "open" }).then((res) => setActivities(res.data?.results ?? []));
   }, [open, groupId]);
 
+  const selected = picked ?? members.filter((m) => m.role === "MEMBER").map((m) => m.user.id);
   const activity = activities.find((a) => a.id === activityId);
 
   const chooseActivity = (id: string) => {
     setActivityId(id);
-    const picked = activities.find((a) => a.id === id);
-    if (picked && selected.length === 0) setSelected(picked.assignees.map((x) => x.user.id));
-    if (picked && !title.trim()) setTitle(`Progress on ${picked.title}`.slice(0, 250));
+    const chosen = activities.find((a) => a.id === id);
+    if (chosen && picked === null && chosen.assignees.length) setPicked(chosen.assignees.map((x) => x.user.id));
+    if (chosen && (!title.trim() || title === DEFAULT_TITLE)) setTitle(`Progress on ${chosen.title}`.slice(0, 250));
   };
 
   const toggle = (userId: number, checked: boolean) =>
-    setSelected((prev) => (checked ? [...new Set([...prev, userId])] : prev.filter((id) => id !== userId)));
+    setPicked(checked ? [...new Set([...selected, userId])] : selected.filter((id) => id !== userId));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,70 +84,31 @@ export function ResearchUpdateRequestDialog({ groupId, open, onOpenChange, membe
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl [&>*]:min-w-0">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>Request update</DialogTitle>
-            <DialogDescription>Members are notified and can submit their update from My Research.</DialogDescription>
+            <DialogTitle>Ask for an update</DialogTitle>
+            <DialogDescription>Each person gets a notification and sends their update from My Research.</DialogDescription>
           </DialogHeader>
-          {activities.length > 0 ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-req-activity">Related activity (optional)</Label>
-              <Select value={activityId} onValueChange={chooseActivity}>
-                <SelectTrigger id="rg-req-activity">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>General update</SelectItem>
-                  {activities.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="rg-req-title">Title</Label>
             <Input id="rg-req-title" value={title} maxLength={250} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly progress update" />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="rg-req-instr">Instructions (optional)</Label>
-            <Textarea
-              id="rg-req-instr"
-              rows={3}
-              maxLength={5000}
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="What should the update cover?"
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="rg-req-due">Due date</Label>
-              <Input id="rg-req-due" type="date" min={todayIso()} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <span className="text-sm font-medium">Repeat</span>
-              <p className="flex h-10 items-center text-sm text-muted-foreground">One-time request</p>
-            </div>
-          </div>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">
-              Request from {selected.length > 0 ? `(${selected.length} selected)` : ""}
+              Ask {selected.length > 0 ? `(${selected.length} selected)` : ""}
             </legend>
             {members.length === 0 ? (
               <p className="text-sm text-muted-foreground">Add members to the group first.</p>
             ) : (
               <>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setSelected(members.map((m) => m.user.id))}>
+                  <Button type="button" size="sm" variant="ghost" className={SMALL} onClick={() => setPicked(members.map((m) => m.user.id))}>
                     Select all
                   </Button>
                   {activity ? (
-                    <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setSelected(activity.assignees.map((x) => x.user.id))}>
-                      Activity assignees
+                    <Button type="button" size="sm" variant="ghost" className={SMALL} onClick={() => setPicked(activity.assignees.map((x) => x.user.id))}>
+                      Task assignees
                     </Button>
                   ) : null}
-                  <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setSelected([])}>
+                  <Button type="button" size="sm" variant="ghost" className={SMALL} onClick={() => setPicked([])}>
                     Clear
                   </Button>
                 </div>
@@ -161,6 +126,42 @@ export function ResearchUpdateRequestDialog({ groupId, open, onOpenChange, membe
               </>
             )}
           </fieldset>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rg-req-due">Due date (optional)</Label>
+              <Input id="rg-req-due" type="date" min={todayIso()} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            {activities.length > 0 ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="rg-req-activity">Related task (optional)</Label>
+                <Select value={activityId} onValueChange={chooseActivity}>
+                  <SelectTrigger id="rg-req-activity">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>General update</SelectItem>
+                    {activities.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rg-req-instr">Instructions (optional)</Label>
+            <Textarea
+              id="rg-req-instr"
+              rows={3}
+              maxLength={5000}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="What should the update cover?"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">This is a one-time request.</p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel

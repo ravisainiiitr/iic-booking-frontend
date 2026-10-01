@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, Clock, Send } from "lucide-react";
 import type { GroupActivity, GroupNeedsAttention, GroupUpdateRequest } from "@/lib/researchGroupTypes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { TOUCH_TARGET } from "../researchUi";
 import { DueLabel, RequestStatusBadge } from "./groupUi";
 
 interface Props {
@@ -11,31 +13,36 @@ interface Props {
   onViewAll?: () => void;
   showGroup?: boolean;
   limit?: number;
+  /** Extra header action, e.g. "Ask for an update". */
+  action?: ReactNode;
 }
 
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** Compact task area: only non-zero counts, the top items, and a way to see the rest. */
-export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, onViewAll, showGroup, limit = 4 }: Props) {
+/** Faculty review box: only non-zero counts, the top items, and a way to see the rest. */
+export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, onViewAll, showGroup, limit = 4, action }: Props) {
   const total = data.overdue_updates + data.awaiting_review + data.pending_updates + data.activities_due_this_week;
 
   if (total === 0) {
     return (
-      <p className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm text-muted-foreground" aria-label="Needs attention">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden /> Nothing needs your attention.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2" aria-label="Needs your review">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden /> Nothing needs your review.
+        </p>
+        {action}
+      </div>
     );
   }
 
   const summary = [
     { n: data.overdue_updates, text: plural(data.overdue_updates, "overdue update", "overdue updates"), icon: AlertTriangle, tone: "danger" },
     { n: data.awaiting_review, text: plural(data.awaiting_review, "update to review", "updates to review"), icon: Send, tone: "attention" },
-    { n: data.pending_updates, text: plural(data.pending_updates, "pending update", "pending updates"), icon: Clock, tone: "neutral" },
+    { n: data.pending_updates, text: plural(data.pending_updates, "update not sent yet", "updates not sent yet"), icon: Clock, tone: "neutral" },
     {
       n: data.activities_due_this_week,
-      text: plural(data.activities_due_this_week, "activity due this week", "activities due this week"),
+      text: plural(data.activities_due_this_week, "task due this week", "tasks due this week"),
       icon: CalendarClock,
       tone: "neutral",
     },
@@ -50,11 +57,11 @@ export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, on
   const hidden = requests.length + data.activities_due.length - items.length - activities.length;
 
   return (
-    <section className="rounded-lg border bg-card" aria-labelledby="needs-attention-heading">
+    <section className="rounded-lg border bg-card" aria-labelledby="needs-review-heading">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
         <div className="min-w-0">
-          <h3 id="needs-attention-heading" className="text-sm font-semibold">
-            Needs attention
+          <h3 id="needs-review-heading" className="text-sm font-semibold">
+            Needs your review
           </h3>
           <ul className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
             {summary.map((s) => (
@@ -72,11 +79,14 @@ export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, on
             ))}
           </ul>
         </div>
-        {onViewAll ? (
-          <Button size="sm" variant="ghost" className="h-8 text-primary dark:text-sky-300" onClick={onViewAll}>
-            View all
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {action}
+          {onViewAll ? (
+            <Button size="sm" variant="ghost" className={cn("h-8 text-primary dark:text-sky-300", TOUCH_TARGET)} onClick={onViewAll}>
+              View all
+            </Button>
+          ) : null}
+        </div>
       </div>
       <ul className="divide-y">
         {items.map((r) => (
@@ -93,7 +103,7 @@ export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, on
             <div className="flex items-center gap-2">
               <RequestStatusBadge status={r.status} />
               {onOpenRequest ? (
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-primary dark:text-sky-300" onClick={() => onOpenRequest(r)}>
+                <Button size="sm" variant="ghost" className={cn("h-7 px-2 text-primary dark:text-sky-300", TOUCH_TARGET)} onClick={() => onOpenRequest(r)}>
                   {r.status === "SUBMITTED" ? "Review" : "View"}
                 </Button>
               ) : null}
@@ -111,7 +121,7 @@ export function ResearchNeedsAttention({ data, onOpenRequest, onOpenActivity, on
               </div>
             </div>
             {onOpenActivity ? (
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-primary dark:text-sky-300" onClick={() => onOpenActivity(a)}>
+              <Button size="sm" variant="ghost" className={cn("h-7 px-2 text-primary dark:text-sky-300", TOUCH_TARGET)} onClick={() => onOpenActivity(a)}>
                 View
               </Button>
             ) : null}

@@ -1,3 +1,4 @@
+import { applyFacultyNamePrefix } from "@/lib/displayName";
 import type {
   GroupActivityPriority,
   GroupActivityStatus,
@@ -65,8 +66,33 @@ export function todayIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** Group leads are always faculty. */
+export function leadName(name: string): string {
+  return applyFacultyNamePrefix(name, "faculty");
+}
+
+/** "Supervisor: Prof. X (Group name)" as shown to students. */
+export function supervisorLine(group: { name: string; owner: { name: string } }): string {
+  return `Supervisor: ${leadName(group.owner.name)} (${group.name})`;
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  ACTIVITY_CREATED: "Task created",
+  ACTIVITY_ASSIGNED: "Task assigned",
+  ACTIVITY_UNASSIGNED: "Task unassigned",
+  ACTIVITY_UPDATED: "Task updated",
+  ACTIVITY_COMPLETED: "Task completed",
+  UPDATE_REQUESTED: "Asked for an update",
+  UPDATE_SUBMITTED: "Sent an update",
+  UPDATE_REVIEWED: "Reviewed an update",
+  UPDATE_CANCELLED: "Cancelled an update request",
+  WORKSPACE_LINKED: "Project added",
+  WORKSPACE_UNLINKED: "Project removed",
+  PUBLICATION_LINKED: "Publication added",
+};
+
 export function eventSentence(e: GroupEvent): string {
-  const verb = e.action_label.toLowerCase();
+  const verb = (EVENT_LABEL[e.action] ?? e.action_label).toLowerCase();
   const subject = e.subject && e.subject.id !== e.actor?.id ? ` · ${e.subject.name}` : "";
   return `${verb}${e.target_label ? ` “${e.target_label}”` : ""}${subject}`;
 }

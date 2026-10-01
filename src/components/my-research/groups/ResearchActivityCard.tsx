@@ -49,7 +49,7 @@ export function ResearchActivityCard({ activity: a, highlighted, onEdit, onUpdat
                 <FlaskConical className="h-3.5 w-3.5" aria-hidden /> {a.workspace.name}
               </button>
             ) : (
-              <span className="inline-flex items-center gap-1" title="Workspace access is shared separately">
+              <span className="inline-flex items-center gap-1" title="The project owner shares access separately">
                 <FlaskConical className="h-3.5 w-3.5" aria-hidden /> {a.workspace.name} (not shared with you)
               </span>
             )

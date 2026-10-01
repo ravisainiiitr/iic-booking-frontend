@@ -1805,7 +1805,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">My Research</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Project workspaces, data shared with you, and your publications
+                      Your projects, research groups, tasks and results shared with you
                     </CardDescription>
                   </div>
                 </div>

@@ -62,7 +62,7 @@ export function LinkBookingsDialog({ workspaceId, open, onOpenChange, onLinked }
       return;
     }
     const count = res.data?.linked.length ?? 0;
-    toast.success(count === 1 ? "Booking added to workspace" : `${count} bookings added to workspace`);
+    toast.success(count === 1 ? "Booking added to project" : `${count} bookings added to project`);
     onLinked();
     onOpenChange(false);
   };
@@ -73,7 +73,7 @@ export function LinkBookingsDialog({ workspaceId, open, onOpenChange, onLinked }
         <DialogHeader>
           <DialogTitle>Add bookings</DialogTitle>
           <DialogDescription>
-            Choose your own bookings to associate with this project. Bookings are not changed; only a link is saved.
+            Choose your own bookings to add to this project. The bookings themselves are not changed.
           </DialogDescription>
         </DialogHeader>
         <div className="relative">

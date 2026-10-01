@@ -40,10 +40,10 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated, initial, 
       : await apiClient.createResearchWorkspace(payload);
     setSaving(false);
     if (res.error || !res.data) {
-      toast.error(res.error || "Could not save the workspace.");
+      toast.error(res.error || "Could not save the project.");
       return;
     }
-    toast.success(editing ? "Workspace updated" : "Workspace created");
+    toast.success(editing ? "Project updated" : "Project created");
     onCreated(res.data);
     onOpenChange(false);
   };
@@ -53,11 +53,11 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated, initial, 
       <DialogContent className="sm:max-w-lg">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit workspace" : "New research workspace"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit project" : "New project"}</DialogTitle>
             <DialogDescription>
               {editing
-                ? "Update the name or description of this workspace."
-                : "A private place for one research project: files, bookings, equipment, and publications."}
+                ? "Update the name or description of this project."
+                : "A private place for one research project: files, bookings, results and publications."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
@@ -88,7 +88,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated, initial, 
             </Button>
             <Button type="submit" disabled={saving || !name.trim()} className="gap-2">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {editing ? "Save" : "Create workspace"}
+              {editing ? "Save" : "Create project"}
             </Button>
           </DialogFooter>
         </form>

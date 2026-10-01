@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { formatBytes, formatDate } from "./researchUtils";
 import { MetaList, ResearchCard, StatusBadge } from "./researchUi";
 
-/** Workspace summary used by My Workspaces and Shared With Me. */
+/** Project summary used by My Projects and Projects shared with me. */
 export function WorkspaceCard({ ws, onOpen }: { ws: ResearchWorkspaceCard; onOpen: () => void }) {
   const archived = ws.status === "ARCHIVED";
   const isOwner = ws.role === "OWNER";
@@ -38,16 +38,16 @@ export function WorkspaceCard({ ws, onOpen }: { ws: ResearchWorkspaceCard; onOpe
           { label: "Files", value: ws.stats.files },
           { label: "Bookings", value: ws.stats.bookings },
           { label: "Publications", value: ws.stats.publications },
-          { label: "Members", value: people },
+          { label: "People", value: people },
         ]}
       />
       <p className="mt-2 text-xs text-muted-foreground">
-        Last activity {formatDate(ws.last_activity_at)}
+        Last changed {formatDate(ws.last_activity_at)}
         {ws.stats.storage_bytes > 0 ? ` · ${formatBytes(ws.stats.storage_bytes)} used` : ""}
       </p>
       <div className="mt-auto pt-3">
-        <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={onOpen} aria-label={`Open workspace ${ws.name}`}>
-          Open Workspace <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        <Button variant="outline" size="sm" className="h-10 w-full gap-1.5 sm:h-9" onClick={onOpen} aria-label={`Open project ${ws.name}`}>
+          Open project <ArrowRight className="h-3.5 w-3.5" aria-hidden />
         </Button>
       </div>
     </ResearchCard>

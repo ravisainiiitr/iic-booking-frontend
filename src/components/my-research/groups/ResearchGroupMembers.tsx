@@ -163,7 +163,7 @@ export function ResearchGroupMembers({
                   {isManager ? (
                     <>
                       <span className="text-xs text-muted-foreground md:text-right md:text-sm md:text-foreground">
-                        <span className="md:hidden">Active activities: </span>
+                        <span className="md:hidden">Open tasks: </span>
                         {m.active_activities ?? 0}
                       </span>
                       <span

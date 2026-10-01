@@ -132,7 +132,7 @@ export function EmptyHint({ children }: { children: ReactNode }) {
 }
 
 export function GroupEventList({ events, showGroup, onOpen }: { events: GroupEvent[]; showGroup?: boolean; onOpen?: (e: GroupEvent) => void }) {
-  if (events.length === 0) return <EmptyHint>No recent activity.</EmptyHint>;
+  if (events.length === 0) return <EmptyHint>No recent changes.</EmptyHint>;
   return (
     <ol className="relative space-y-3 border-l pl-4">
       {events.map((e) => (

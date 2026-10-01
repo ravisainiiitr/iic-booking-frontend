@@ -64,9 +64,9 @@ export function ResearchActivities({ groupId, canManage, isManager, members, cat
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Activity state">
+        <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Task state">
           {(["open", "closed"] as const).map((s) => (
-            <Button key={s} size="sm" variant={state === s ? "secondary" : "ghost"} className="h-8" aria-pressed={state === s} onClick={() => setState(s)}>
+            <Button key={s} size="sm" variant={state === s ? "secondary" : "ghost"} className="h-10 sm:h-8" aria-pressed={state === s} onClick={() => setState(s)}>
               {s === "open" ? "Active" : "Completed / cancelled"}
             </Button>
           ))}
@@ -103,7 +103,7 @@ export function ResearchActivities({ groupId, canManage, isManager, members, cat
         ) : null}
         {canManage ? (
           <Button className="gap-1.5 sm:ml-auto" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" aria-hidden /> New Activity
+            <Plus className="h-4 w-4" aria-hidden /> New task
           </Button>
         ) : null}
       </div>
@@ -116,8 +116,8 @@ export function ResearchActivities({ groupId, canManage, isManager, members, cat
         <EmptyHint>
           {state === "open"
             ? isManager
-              ? "No active activities. Create one and assign it to members."
-              : "No activities assigned to you right now."
+              ? "No open tasks. Create one and assign it to members."
+              : "No tasks assigned to you right now."
             : "Nothing completed or cancelled yet."}
         </EmptyHint>
       ) : (

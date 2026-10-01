@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDate } from "../researchUtils";
 import { ResearchUpdateDetailDialog } from "./ResearchUpdateDetailDialog";
 import { ResearchUpdateForm } from "./ResearchUpdateForm";
-import { ResearchUpdateRequestDialog } from "./ResearchUpdateRequestDialog";
 import { DueLabel, EmptyHint, RequestStatusBadge } from "./groupUi";
 
 const STATES: Array<{ value: UpdatesState; label: string }> = [
@@ -26,14 +25,27 @@ interface Props {
   focusRequestId?: string | null;
   onFocusHandled?: () => void;
   onChanged: () => void;
+  /** Opens the page-level "Ask for an update" dialog. */
+  onAskUpdate?: () => void;
+  /** Bumped by the page after new requests are sent. */
+  reloadKey?: number;
 }
 
-export function ResearchUpdates({ groupId, canManage, isManager, members, focusRequestId, onFocusHandled, onChanged }: Props) {
+export function ResearchUpdates({
+  groupId,
+  canManage,
+  isManager,
+  members,
+  focusRequestId,
+  onFocusHandled,
+  onChanged,
+  onAskUpdate,
+  reloadKey = 0,
+}: Props) {
   const [state, setState] = useState<UpdatesState>("pending");
   const [assignee, setAssignee] = useState("all");
   const [items, setItems] = useState<GroupUpdateRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [requestOpen, setRequestOpen] = useState(false);
   const [viewing, setViewing] = useState<GroupUpdateRequest | null>(null);
   const [submitting, setSubmitting] = useState<GroupUpdateRequest | null>(null);
 
@@ -46,7 +58,9 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
       return;
     }
     setItems(res.data?.results ?? []);
-  }, [groupId, state, assignee]);
+    // reloadKey only forces a refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, state, assignee, reloadKey]);
 
   useEffect(() => {
     void load();
@@ -82,7 +96,7 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
               role="tab"
               aria-selected={state === s.value}
               variant={state === s.value ? "secondary" : "ghost"}
-              className="h-8"
+              className="h-10 sm:h-8"
               onClick={() => setState(s.value)}
             >
               {s.label}
@@ -104,9 +118,9 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
             </SelectContent>
           </Select>
         ) : null}
-        {canManage ? (
-          <Button className="gap-1.5 sm:ml-auto" onClick={() => setRequestOpen(true)}>
-            <MessageSquarePlus className="h-4 w-4" aria-hidden /> Request Update
+        {canManage && onAskUpdate ? (
+          <Button className="gap-1.5 sm:ml-auto" onClick={onAskUpdate}>
+            <MessageSquarePlus className="h-4 w-4" aria-hidden /> Ask for an update
           </Button>
         ) : null}
       </div>
@@ -119,8 +133,8 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
         <EmptyHint>
           {state === "pending"
             ? isManager
-              ? "No pending update requests."
-              : "No updates requested from you right now."
+              ? "No progress update requests waiting."
+              : "Nobody has asked you for an update right now."
             : state === "overdue"
               ? "Nothing overdue."
               : state === "submitted"
@@ -130,7 +144,7 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
                 : "No reviewed or cancelled updates yet."}
         </EmptyHint>
       ) : (
-        <ul className="divide-y rounded-lg border" aria-label="Update requests">
+        <ul className="divide-y rounded-lg border" aria-label="Progress update requests">
           {items.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
               <div className="min-w-0 flex-1 basis-52">
@@ -150,11 +164,11 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
               <div className="flex items-center gap-2">
                 <RequestStatusBadge status={r.status} />
                 {r.permissions.can_submit ? (
-                  <Button size="sm" className="h-8" onClick={() => setSubmitting(r)}>
-                    Submit update
+                  <Button size="sm" className="h-10 sm:h-8" onClick={() => setSubmitting(r)}>
+                    Send update
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" className="h-8" onClick={() => setViewing(r)}>
+                  <Button size="sm" variant="outline" className="h-10 sm:h-8" onClick={() => setViewing(r)}>
                     {r.permissions.can_review ? "Review" : "View"}
                   </Button>
                 )}
@@ -164,9 +178,6 @@ export function ResearchUpdates({ groupId, canManage, isManager, members, focusR
         </ul>
       )}
 
-      {canManage ? (
-        <ResearchUpdateRequestDialog groupId={groupId} open={requestOpen} onOpenChange={setRequestOpen} members={members} onCreated={() => refresh()} />
-      ) : null}
       <ResearchUpdateDetailDialog
         request={viewing}
         onOpenChange={(open) => !open && setViewing(null)}
