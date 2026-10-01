@@ -10,8 +10,22 @@ import {
   type GroupAlternative,
   type GroupAlternativesPayload,
   type PrintMaterial,
+  type TemplatePreferredSlotResolution,
+  type TemplateSlotAlternative,
+  type TemplateSlotFallback,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
+import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
+import { TemplatePreferredSlotFields } from "@/components/TemplatePreferredSlotFields";
+import { BookingAttemptFollowUp, type BookingAttemptSnapshot } from "@/components/BookingAttemptFollowUp";
+import {
+  draftFromTemplate,
+  draftNeedsConsent,
+  draftToBody,
+  emptyPreferredSlotDraft,
+  preferredSlotFromSlots,
+  type PreferredSlotDraft,
+} from "@/lib/templatePreferredSlot";
 import { useShowServerClockInHeader } from "@/lib/serverClockHeader";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -3276,6 +3290,16 @@ const BookEquipment = () => {
   const templatePickerAvailable =
     !isCalculateChargesFlow && !isProformaFlow && !isTemplateFlow && !repeatSourceBooking && userId != null;
   const appliedTemplateOptionsRef = useRef<BookingTemplateOptions | null>(null);
+  // Template preferred slot: edited in the template flow; resolved and pre-selected when a template is loaded.
+  const [preferredSlotDraft, setPreferredSlotDraft] = useState<PreferredSlotDraft>(emptyPreferredSlotDraft);
+  const [preferredSlotResolution, setPreferredSlotResolution] = useState<TemplatePreferredSlotResolution | null>(null);
+  const [resolvingPreferredSlot, setResolvingPreferredSlot] = useState(false);
+  const [preferredResolveRequest, setPreferredResolveRequest] = useState<{ templateId: number; nonce: number } | null>(null);
+  const [pendingPreselect, setPendingPreselect] = useState<{ date: string; slotIds: number[] } | null>(null);
+  // Booking-form parameters of the last book attempt, for "save as template" in the result dialog.
+  const [attemptSnapshot, setAttemptSnapshot] = useState<BookingAttemptSnapshot | null>(null);
+  const [attemptSlotFallback, setAttemptSlotFallback] = useState<TemplateSlotFallback | null>(null);
+  const [attemptSlotAlternatives, setAttemptSlotAlternatives] = useState<TemplateSlotAlternative[] | null>(null);
 
   // The availability effects above reset slot fallbacks / waitlist as the week's free slots change
   // (e.g. none until the booking window opens); re-apply the template's choice once it can apply.
@@ -3311,7 +3335,7 @@ const BookEquipment = () => {
   }, [templatePickerAvailable, equipmentDetail?.equipment_id]);
 
   const applyBookingTemplate = useCallback(
-    (template: BookingTemplate) => {
+    (template: BookingTemplate, opts?: { resolvePreferredSlot?: boolean }) => {
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
       const templateFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
       const { carried, dropped } = sanitizeRebookInputValues(
@@ -3354,6 +3378,15 @@ const BookEquipment = () => {
       }
       appliedTemplateOptionsRef.current = o;
       setAppliedTemplate({ id: template.id, name: template.name });
+      setPreferredSlotResolution(null);
+      setPendingPreselect(null);
+      if (isTemplateFlow) {
+        setPreferredSlotDraft(draftFromTemplate(template));
+      } else if (template.preferred_slot && opts?.resolvePreferredSlot !== false) {
+        setPreferredResolveRequest({ templateId: template.id, nonce: Date.now() });
+      } else {
+        setPreferredResolveRequest(null);
+      }
       if (dropped.length > 0) {
         toast.info(
           `Some inputs in "${template.name}" no longer match this equipment's current options and were reset: ${dropped.join(", ")}.`
@@ -3361,8 +3394,83 @@ const BookEquipment = () => {
       }
       return dropped;
     },
-    [equipmentDetail, researchWorkspaceFromUrl]
+    [equipmentDetail, researchWorkspaceFromUrl, isTemplateFlow]
   );
+
+  // Once the template's charge is known, ask the server for the next occurrence of its preferred slot.
+  useEffect(() => {
+    if (!preferredResolveRequest || !chargeCalculated || !calculatedCharge || !equipmentDetail) return;
+    if (appliedTemplate?.id !== preferredResolveRequest.templateId) {
+      setPreferredResolveRequest(null);
+      return;
+    }
+    const oneSlot = equipmentDetail.slot_duration_minutes || 60;
+    const tolerance = Math.max(0, Number(equipmentDetail.slot_tolerance_minutes ?? 0) || 0);
+    const needed = slotsNeededForAnalysisTime(calculatedCharge.total_time_minutes, oneSlot, tolerance);
+    const slotCount = needed >= 1 && needed <= 24 ? needed : undefined;
+    const { templateId } = preferredResolveRequest;
+    setPreferredResolveRequest(null);
+    setResolvingPreferredSlot(true);
+    apiClient
+      .getBookingTemplatePreferredSlot(templateId, slotCount)
+      .then((res) => {
+        if (res.error || !res.data) {
+          setPreferredSlotResolution(null);
+          return;
+        }
+        const r = res.data;
+        setPreferredSlotResolution(r);
+        const target = r.status === "available" ? r : r.auto_next;
+        if (target?.slot_ids?.length && target.date) {
+          setPendingPreselect({ date: target.date, slotIds: target.slot_ids });
+        }
+      })
+      .finally(() => setResolvingPreferredSlot(false));
+  }, [preferredResolveRequest, chargeCalculated, calculatedCharge, equipmentDetail, appliedTemplate?.id]);
+
+  // Move to the week of a pre-selected slot run and select it once that week's slots are loaded.
+  useEffect(() => {
+    if (!pendingPreselect || !equipmentDetail) return;
+    const targetWeek = startOfWeek(parseISO(pendingPreselect.date), { weekStartsOn: 1 });
+    if (!isSameDay(targetWeek, currentWeekStart)) {
+      setCurrentWeekStart(targetWeek);
+      return;
+    }
+    // Charge (re)calculation clears the selection, so select only once it has settled.
+    if (isSlotsWeekViewLoading || !chargeCalculated) return;
+    const byId = new Map((equipmentDetail.daily_slots || []).map((s) => [s.id, s]));
+    const run = pendingPreselect.slotIds.map((id) => byId.get(id));
+    setPendingPreselect(null);
+    const free = run.every((s) => s && s.status !== "BOOKED" && !s.booking_id);
+    if (!free) {
+      toast.warning("That slot was taken while the page loaded. Choose another slot or reload the template.");
+      return;
+    }
+    setSelectedSlots(
+      run.map((s) => ({
+        date: startOfDay(parseISO(s!.date)),
+        time: timeKeyFromDailySlot(s!),
+        isBooked: false,
+        slotId: s!.id,
+        slotData: s!,
+      }))
+    );
+  }, [pendingPreselect, equipmentDetail, currentWeekStart, isSlotsWeekViewLoading, chargeCalculated]);
+
+  useEffect(() => {
+    if (bookingResultDialog.open) return;
+    setAttemptSnapshot(null);
+    setAttemptSlotFallback(null);
+    setAttemptSlotAlternatives(null);
+  }, [bookingResultDialog.open]);
+
+  const pickPreferredAlternative = (alternative: TemplateSlotAlternative) => {
+    setPendingPreselect({ date: alternative.date, slotIds: alternative.slot_ids });
+  };
+
+  const refreshPreferredSlot = () => {
+    if (appliedTemplate) setPreferredResolveRequest({ templateId: appliedTemplate.id, nonce: Date.now() });
+  };
 
   const handleApplyTemplate = (templateId: string) => {
     if (templateId === NO_TEMPLATE_VALUE) {
@@ -3454,7 +3562,16 @@ const BookEquipment = () => {
       atmosphere_sensitive_sample: atmosphereSensitiveSample,
       research_workspace: researchWorkspaceId,
     };
-    const body = { name, input_values: withSampleSets({ ...inputFieldValues }, sampleSets), options };
+    if (draftNeedsConsent(preferredSlotDraft)) {
+      toast.error("Tick the consent box to let the portal book the next free slot, or choose \"Ask me\".");
+      return;
+    }
+    const body = {
+      name,
+      input_values: withSampleSets({ ...inputFieldValues }, sampleSets),
+      options,
+      ...draftToBody(preferredSlotDraft),
+    };
     setSavingTemplate(true);
     try {
       const res = editTemplateId
@@ -4337,7 +4454,7 @@ const BookEquipment = () => {
     // 6. Not currently loading slots
     if (!chargeCalculated || !showSlots || !autoSlotSelection || selectedSlots.length > 0 || 
         !equipmentDetail || !equipmentDetail.daily_slots || equipmentDetail.daily_slots.length === 0 || 
-        loadingSlots || !calculatedCharge) {
+        loadingSlots || !calculatedCharge || pendingPreselect) {
       return;
     }
     
@@ -4531,7 +4648,7 @@ const BookEquipment = () => {
         `Please reduce the number of samples/inputs to reduce the required time.`
       );
     }
-  }, [chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots, bookingAsExternalTarget, adminManageMode, adminBookForUserId]);
+  }, [chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots, bookingAsExternalTarget, adminManageMode, adminBookForUserId, pendingPreselect]);
 
   // Keep ref in sync so async charge recalculation can read current value
   useEffect(() => {
@@ -5867,6 +5984,46 @@ const BookEquipment = () => {
     }
   }, [equipmentDetail?.input_fields]);
 
+  const buildAttemptSnapshot = (): BookingAttemptSnapshot | null => {
+    const eqId = equipmentDetail?.equipment_id;
+    if (eqId == null || userId == null || adminBookForUserId || isTemplateFlow) return null;
+    const template = appliedTemplate ? bookingTemplates.find((t) => t.id === appliedTemplate.id) : undefined;
+    return {
+      equipmentId: Number(eqId),
+      equipmentName: String(equipmentDetail?.name || selectedEquipment?.name || "Equipment"),
+      inputValues: withSampleSets({ ...inputFieldValues }, sampleSets),
+      options: {
+        auto_slot_selection: autoSlotSelection,
+        book_any_available_slots: bookAnyAvailableSlots,
+        book_even_if_single_slot_available: bookAnyAvailableSlots && bookEvenIfSingleSlotAvailable,
+        waitlist_on_failure: waitlistIntentMode,
+        auto_allocate_alternative: autoAllocateAlternative,
+        sample_return_after_analysis: sampleReturnAfterAnalysis,
+        atmosphere_sensitive_sample: atmosphereSensitiveSample,
+        research_workspace: researchWorkspaceId,
+      },
+      preferredSlot: preferredSlotFromSlots(selectedSlots.map((s) => s.slotData)),
+      templateId: template?.id ?? null,
+      templateName: template?.name ?? null,
+    };
+  };
+
+  /** "Book" again from a nearby free slot offered after a template booking lost its slot. */
+  const pickAttemptAlternative = async (alternative: TemplateSlotAlternative) => {
+    const templateId = attemptSnapshot?.templateId;
+    setBookingResultDialog((d) => ({ ...d, open: false }));
+    if (!templateId) return;
+    const template =
+      bookingTemplates.find((t) => t.id === templateId) ?? (await apiClient.getBookingTemplate(templateId)).data;
+    if (!template) {
+      toast.error("The booking template was not found.");
+      return;
+    }
+    applyBookingTemplate(template, { resolvePreferredSlot: false });
+    setPendingPreselect({ date: alternative.date, slotIds: alternative.slot_ids });
+    toast.info(`Template "${template.name}" reloaded with ${alternative.label}. Check the details and click Book.`);
+  };
+
   const handleBooking = async () => {
     if (!userId || !selectedEquipment || (selectedSlots.length === 0 && !canSubmitWithoutSlots)) {
       toast.error("Please select at least one time slot");
@@ -5998,6 +6155,9 @@ const BookEquipment = () => {
             : {}
         : {};
 
+    const attemptForFollowUp = buildAttemptSnapshot();
+    setAttemptSlotFallback(null);
+    setAttemptSlotAlternatives(null);
     setIsSubmittingBooking(true);
 
     try {
@@ -6043,6 +6203,7 @@ const BookEquipment = () => {
             : (errRes.error || "Booking unsuccessful.");
           toast.error(msg);
           resetBookingPageToDefaults();
+          setAttemptSnapshot(attemptForFollowUp);
           setBookingResultDialog({
             open: true,
             success: false,
@@ -6083,6 +6244,7 @@ const BookEquipment = () => {
           (typeof allocatedData?.virtual_booking_id === "string" && allocatedData.virtual_booking_id.trim()) ||
           (typeof allocatedData?.booking_id === "string" && allocatedData.booking_id.trim()) ||
           (allocatedRealId != null ? String(allocatedRealId) : undefined);
+        setAttemptSnapshot(attemptForFollowUp);
         setBookingResultDialog({
           open: true,
           success: true,
@@ -6192,6 +6354,7 @@ const BookEquipment = () => {
           ...(alternativeOf && alternativeOf.forEquipmentId === Number(selectedEquipment.id)
             ? { alternative_of_equipment_id: alternativeOf.equipmentId }
             : {}),
+          ...(attemptForFollowUp?.templateId ? { booking_template_id: attemptForFollowUp.templateId } : {}),
           ...print3dBookExtras,
         };
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
@@ -6224,6 +6387,9 @@ const BookEquipment = () => {
             : errRes.error;
           toast.error(msg);
           resetBookingPageToDefaults();
+          const failedBody = res.data as unknown as { slot_alternatives?: TemplateSlotAlternative[] } | undefined;
+          setAttemptSnapshot(attemptForFollowUp);
+          setAttemptSlotAlternatives(Array.isArray(failedBody?.slot_alternatives) ? failedBody.slot_alternatives : null);
           setBookingResultDialog({
             open: true,
             success: false,
@@ -6253,10 +6419,13 @@ const BookEquipment = () => {
               discount_amount?: string;
             };
             allocated_alternative?: GroupAllocatedAlternative;
+            slot_fallback?: TemplateSlotFallback;
           };
         }).data;
         const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
         if (realId != null) linkBookingToResearchWorkspace(realId);
+        setAttemptSnapshot(attemptForFollowUp);
+        setAttemptSlotFallback(resData?.slot_fallback ?? null);
         const bookingViewQuery =
           (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
           (typeof resData?.booking_id === "string" && resData.booking_id.trim()) ||
@@ -8577,6 +8746,15 @@ const BookEquipment = () => {
                     )}
                   </div>
                 )}
+                {templatePickerAvailable && !bookingForAnotherUser && appliedTemplate && (
+                  <PreferredSlotBanner
+                    resolution={preferredSlotResolution}
+                    loading={resolvingPreferredSlot}
+                    onPick={pickPreferredAlternative}
+                    onRefresh={refreshPreferredSlot}
+                    onDismiss={() => setPreferredSlotResolution(null)}
+                  />
+                )}
 
                 {/* Step 1: Input Fields Section */}
                 <Collapsible open={sampleInfoExpanded} onOpenChange={setSampleInfoExpanded} className="mb-3">
@@ -10605,6 +10783,14 @@ const BookEquipment = () => {
 
                     <ResearchWorkspacePicker value={researchWorkspaceId} onChange={setResearchWorkspaceId} />
 
+                    <TemplatePreferredSlotFields
+                      draft={preferredSlotDraft}
+                      onChange={setPreferredSlotDraft}
+                      startTimeSuggestions={[
+                        ...new Set((equipmentDetail.slot_master_times ?? []).map((t) => String(t).slice(0, 5))),
+                      ].sort()}
+                    />
+
                     <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
                       <Label htmlFor="booking-template-name" className="text-sm font-medium">
                         Template name
@@ -11103,6 +11289,13 @@ const BookEquipment = () => {
                 </div>
               </DialogDescription>
             </DialogHeader>
+            <BookingAttemptFollowUp
+              snapshot={attemptSnapshot}
+              slotFallback={bookingResultDialog.success ? attemptSlotFallback : null}
+              slotAlternatives={bookingResultDialog.success ? null : attemptSlotAlternatives}
+              onPickAlternative={attemptSnapshot?.templateId ? (a) => void pickAttemptAlternative(a) : undefined}
+              onTemplateSaved={(t) => setBookingTemplates((prev) => [...prev.filter((x) => x.id !== t.id), t])}
+            />
             <DialogFooter className="flex !flex-col gap-2 pt-4 sm:!flex-col sm:space-x-0 sm:justify-stretch">
               {bookingResultDialog.success &&
                 bookingResultDialog.variant === "success" &&

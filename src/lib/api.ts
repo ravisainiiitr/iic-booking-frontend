@@ -441,6 +441,18 @@ export interface BookingTemplateOptions {
   research_workspace?: string | null;
 }
 
+/** What the server does at submit time when the template's preferred slot was just taken. */
+export type TemplateIfSlotTaken = "ask" | "next_available_same_day" | "next_available_any";
+
+/** Recurring preferred slot saved on a template (weekday 0 = Monday … 6 = Sunday, local start time). */
+export interface TemplatePreferredSlot {
+  weekday: number;
+  weekday_name?: string;
+  start_time: string;
+  slot_count: number;
+  slot_master?: number | null;
+}
+
 export interface BookingTemplate {
   id: number;
   equipment: number;
@@ -449,8 +461,57 @@ export interface BookingTemplate {
   name: string;
   input_values: Record<string, unknown>;
   options: BookingTemplateOptions;
+  preferred_slot?: TemplatePreferredSlot | null;
+  if_slot_taken?: TemplateIfSlotTaken;
+  if_slot_taken_consented_at?: string | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+export interface BookingTemplateWriteBody {
+  name: string;
+  input_values: Record<string, unknown>;
+  options: BookingTemplateOptions;
+  preferred_slot?: Omit<TemplatePreferredSlot, "weekday_name"> | null;
+  if_slot_taken?: TemplateIfSlotTaken;
+  /** Required (true) when turning on automatic booking of the next available slot. */
+  auto_book_consent?: boolean;
+}
+
+/** A free run of slots equivalent to the requested one (same count and duration). */
+export interface TemplateSlotAlternative {
+  date: string;
+  start_datetime: string;
+  end_datetime: string;
+  slot_ids: number[];
+  label: string;
+}
+
+export interface TemplatePreferredSlotResolution {
+  has_preference: boolean;
+  if_slot_taken: TemplateIfSlotTaken;
+  preferred_slot?: TemplatePreferredSlot;
+  slot_count?: number;
+  window?: { min_date: string; max_date: string; opens_at: string | null };
+  status?: "available" | "occupied" | "not_open" | "no_matching_slot";
+  date?: string;
+  start_datetime?: string;
+  end_datetime?: string;
+  slot_ids?: number[];
+  message?: string;
+  alternatives?: TemplateSlotAlternative[];
+  auto_next?: TemplateSlotAlternative | null;
+}
+
+/** Returned with a successful booking when the template's opt-in fallback booked a later slot. */
+export interface TemplateSlotFallback {
+  mode: TemplateIfSlotTaken;
+  requested_start: string;
+  requested_end: string;
+  booked_start: string;
+  booked_end: string;
+  slot_ids: number[];
+  message: string;
 }
 
 export interface GroupAlternativesPayload {
@@ -1573,6 +1634,8 @@ class ApiClient {
               field === 'detail' ||
               field === 'code' ||
               field === 'error' ||
+              field === 'slot_taken' ||
+              field === 'slot_alternatives' ||
               (field === 'message' && !data.email_verified)
             ) {
               continue;
@@ -1628,8 +1691,10 @@ class ApiClient {
             status: response.status,
             errorCode: typeof errorData.code === "string" ? errorData.code : undefined,
             fieldErrors: fieldErrors,
-            // Callers test `data` before `error`; expose the body only for the alternatives offer.
-            ...(errorData.code === "GROUP_ALTERNATIVES_AVAILABLE" ? { data: data as T } : {}),
+            // Callers test `data` before `error`; expose the body only for the alternatives offers.
+            ...(errorData.code === "GROUP_ALTERNATIVES_AVAILABLE" || Array.isArray(errorData.slot_alternatives)
+              ? { data: data as T }
+              : {}),
           };
         }
         
@@ -5985,19 +6050,19 @@ class ApiClient {
     return this.request<BookingTemplate>(`/booking-templates/${templateId}/`, { cache: "no-store" });
   }
 
-  async createBookingTemplate(body: {
-    equipment: number;
-    name: string;
-    input_values: Record<string, unknown>;
-    options: BookingTemplateOptions;
-  }) {
+  async createBookingTemplate(body: BookingTemplateWriteBody & { equipment: number }) {
     return this.request<BookingTemplate>(`/booking-templates/`, { method: "POST", body: JSON.stringify(body) });
   }
 
-  async updateBookingTemplate(
-    templateId: number,
-    body: Partial<{ name: string; input_values: Record<string, unknown>; options: BookingTemplateOptions }>
-  ) {
+  /** Resolve the template's preferred weekday/time to slots in the open booking window (read-only). */
+  async getBookingTemplatePreferredSlot(templateId: number, slotCount?: number) {
+    const q = slotCount != null && slotCount > 0 ? `?slot_count=${encodeURIComponent(String(slotCount))}` : "";
+    return this.request<TemplatePreferredSlotResolution>(`/booking-templates/${templateId}/preferred-slot/${q}`, {
+      cache: "no-store",
+    });
+  }
+
+  async updateBookingTemplate(templateId: number, body: Partial<BookingTemplateWriteBody>) {
     return this.request<BookingTemplate>(`/booking-templates/${templateId}/`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -7004,6 +7069,8 @@ class ApiClient {
     alternative_of_equipment_id?: number;
     atmosphere_sensitive_sample?: boolean;
     sample_return_after_analysis?: boolean;
+    /** The user's template loaded for this booking: enables its consented "if my slot is taken" choice. */
+    booking_template_id?: number;
   }) {
     return this.request<{
       id: number;
