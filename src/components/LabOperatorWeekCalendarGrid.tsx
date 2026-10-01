@@ -525,18 +525,22 @@ export function LabOperatorWeekCalendarGrid({
                           equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
                         ].filter(Boolean)
                       : [];
+                  const showsStyledTooltip = canOpenBooking && tooltipLines.length > 0;
 
                   return (
                     <button
                       key={dayOffset}
                       type="button"
                       title={
-                        tooltipLines.length
-                          ? tooltipLines.join("\n")
-                          : showsClosedDay
-                            ? closedDayHover
-                            : undefined
+                        showsStyledTooltip
+                          ? undefined
+                          : tooltipLines.length
+                            ? tooltipLines.join("\n")
+                            : showsClosedDay
+                              ? closedDayHover
+                              : undefined
                       }
+                      aria-label={showsStyledTooltip ? tooltipLines.join(". ") : undefined}
                       onClick={() => {
                         if (canOpenBooking) onBookedSlotClick(bookingPk);
                       }}
@@ -550,7 +554,7 @@ export function LabOperatorWeekCalendarGrid({
                       style={cellStyle}
                     >
                       {displayStatus}
-                      {canOpenBooking && tooltipLines.length > 0 ? (
+                      {showsStyledTooltip ? (
                         <span
                           className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-border/80 bg-card px-3 py-2 text-left text-[11px] font-normal leading-snug text-foreground shadow-lg group-hover:block group-focus-visible:block"
                           role="tooltip"
