@@ -1765,11 +1765,42 @@ const Wallet = () => {
                 : "Manage your wallet balance, recharge requests, transfers and credit."}
             </p>
           </div>
-          {canShowWalletRecharge && (
-            <Button onClick={() => openRechargeDialog()} className="w-full sm:w-auto shrink-0" data-testid="wallet-recharge-button">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Recharge Wallet
-            </Button>
+          {(canShowWalletRecharge || !isShared) && (
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end shrink-0">
+              {!isShared && isFacultyEffective && (
+                <Button
+                  size="lg"
+                  className="h-12 px-6 text-base"
+                  onClick={() => navigate("/wallet/transfer")}
+                  title={walletModeFlags.peerTransfer ? undefined : AWAITING_APPROVAL_TEXT}
+                >
+                  <ArrowUp className="h-5 w-5 mr-2 rotate-45" />
+                  Transfer
+                </Button>
+              )}
+              {!isShared && (
+                <Button
+                  size="lg"
+                  className="h-12 px-6 text-base"
+                  onClick={() => navigate("/wallet/credit-facility")}
+                  title={walletModeFlags.creditFacility ? undefined : AWAITING_APPROVAL_TEXT}
+                >
+                  <CreditCard className="h-5 w-5 mr-2" />
+                  Credit Facility
+                </Button>
+              )}
+              {canShowWalletRecharge && (
+                <Button
+                  size="lg"
+                  className="h-12 px-6 text-base"
+                  onClick={() => openRechargeDialog()}
+                  data-testid="wallet-recharge-button"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Recharge Wallet
+                </Button>
+              )}
+            </div>
           )}
         </div>
 
@@ -1777,7 +1808,7 @@ const Wallet = () => {
           <div className="min-w-0 space-y-5">
             <Card className="rounded-lg border-border shadow-sm">
               <CardContent className="p-5 sm:p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-muted-foreground">Current Balance</p>
                     <p
@@ -1794,30 +1825,6 @@ const Wallet = () => {
                         : "Consolidated balance across your department sub-wallets."}
                     </p>
                   </div>
-                  {!isShared && (
-                    <div className="flex flex-wrap gap-2 shrink-0">
-                      {isFacultyEffective && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate("/wallet/transfer")}
-                          title={walletModeFlags.peerTransfer ? undefined : AWAITING_APPROVAL_TEXT}
-                        >
-                          <ArrowUp className="h-4 w-4 mr-1.5 rotate-45" />
-                          Transfer
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate("/wallet/credit-facility")}
-                        title={walletModeFlags.creditFacility ? undefined : AWAITING_APPROVAL_TEXT}
-                      >
-                        <CreditCard className="h-4 w-4 mr-1.5" />
-                        Credit Facility
-                      </Button>
-                    </div>
-                  )}
                 </div>
                 {canShowWalletRecharge && isStudent && isShared && (
                   <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

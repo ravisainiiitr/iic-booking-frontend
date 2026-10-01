@@ -10379,22 +10379,17 @@ const BookEquipment = () => {
                           </>
                         ) : null}
                         {!bookingAsExternalTarget && Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek ? (
-                          <>
-                            <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
-                              <Checkbox
-                                id="waitlisted-booking"
-                                checked={waitlistIntentMode}
-                                onCheckedChange={(c) => setWaitlistIntentMode(c === true)}
-                                className="mt-0.5 h-4 w-4"
-                              />
-                              <span className="text-sm text-foreground group-hover:text-foreground">
-                                Waitlisted Booking
-                              </span>
-                            </label>
-                            <p className="text-xs text-muted-foreground pl-7">
-                              Shown only when no bookable slots exist in the selected week for your user type. If your booking cannot be completed, your request can be added to the waitlist queue (if space is available). Turn off to see booking failure without waitlisting.
-                            </p>
-                          </>
+                          <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
+                            <Checkbox
+                              id="waitlisted-booking"
+                              checked={waitlistIntentMode}
+                              onCheckedChange={(c) => setWaitlistIntentMode(c === true)}
+                              className="mt-0.5 h-4 w-4"
+                            />
+                            <span className="text-sm text-foreground group-hover:text-foreground">
+                              Waitlisted Booking
+                            </span>
+                          </label>
                         ) : null}
                         {!bookingAsExternalTarget && hasBookableSlotInSelectedWeek ? (
                           <>
