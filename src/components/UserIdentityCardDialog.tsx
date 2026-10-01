@@ -30,6 +30,7 @@ type UserIdentityCardDialogProps = {
   fallbackName?: string;
   fallbackEmail?: string;
   userNotes?: string | null;
+  title?: string;
 };
 
 export function UserIdentityCardDialog({
@@ -39,6 +40,7 @@ export function UserIdentityCardDialog({
   fallbackName,
   fallbackEmail,
   userNotes,
+  title = "User identity card",
 }: UserIdentityCardDialogProps) {
   const [card, setCard] = useState<UserIdentityCard | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,9 +75,9 @@ export function UserIdentityCardDialog({
         <DialogHeader className="px-6 pt-5 pb-3 border-b bg-muted/40">
           <DialogTitle className="flex items-center gap-2 text-base">
             <IdCard className="h-5 w-5 text-primary" />
-            User identity card
+            {title}
           </DialogTitle>
-          <DialogDescription className="sr-only">Contact and academic details of the requesting user.</DialogDescription>
+          <DialogDescription className="sr-only">Contact and academic details of the user.</DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 pt-4">

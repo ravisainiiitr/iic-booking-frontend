@@ -33,8 +33,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { UserIdentityCardDialog } from "@/components/UserIdentityCardDialog";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Users, Loader2, Wallet, Send, ClipboardList, Calendar } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Wallet, Send, ClipboardList, IdCard } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -88,6 +100,10 @@ const StudentManagement = () => {
   const [spendingLimits, setSpendingLimits] = useState<Record<number, StudentSpendingLimit>>({});
   const [limitFormOpen, setLimitFormOpen] = useState<Record<number, boolean>>({});
   const [togglingLimitId, setTogglingLimitId] = useState<number | null>(null);
+  const [idCardStudent, setIdCardStudent] = useState<WalletStudentRow | null>(null);
+  const [delinkStudent, setDelinkStudent] = useState<WalletStudentRow | null>(null);
+  const [delinkMessage, setDelinkMessage] = useState("");
+  const [delinking, setDelinking] = useState(false);
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isFaculty = userTypeStr === "faculty";
@@ -150,6 +166,32 @@ const StudentManagement = () => {
       toast.error("Could not turn off the spending limit.");
     } finally {
       setTogglingLimitId(null);
+    }
+  };
+
+  const confirmDelink = async () => {
+    if (!delinkStudent) return;
+    const row = delinkStudent;
+    setDelinking(true);
+    try {
+      const res = await apiClient.removeStudentFromWallet(row.id, delinkMessage.trim() || undefined);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`${row.student_name || row.student_email} has been delinked from your wallet.`);
+      setStudents((prev) => prev.filter((s) => s.id !== row.id));
+      setSpendingLimits((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      setLimitFormOpen((prev) => ({ ...prev, [row.id]: false }));
+      setDelinkStudent(null);
+    } catch {
+      toast.error("Could not delink the student.");
+    } finally {
+      setDelinking(false);
     }
   };
 
@@ -469,6 +511,7 @@ const StudentManagement = () => {
                         <TableHead className="min-w-[160px]">Program</TableHead>
                         <TableHead className="hidden sm:table-cell">Phone</TableHead>
                         <TableHead className="text-right whitespace-nowrap">Approved at</TableHead>
+                        <TableHead className="whitespace-nowrap">Linked</TableHead>
                         <TableHead className="min-w-[170px] whitespace-nowrap">Spending limit</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -492,7 +535,15 @@ const StudentManagement = () => {
                             </Avatar>
                           </TableCell>
                           <TableCell>
-                            <p className="font-medium">{row.student_name || "—"}</p>
+                            <button
+                              type="button"
+                              onClick={() => setIdCardStudent(row)}
+                              className="group inline-flex items-center gap-1 rounded-sm text-left font-medium text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              title="View student details"
+                            >
+                              {row.student_name || row.student_email || "—"}
+                              <IdCard className="h-3.5 w-3.5 opacity-60" />
+                            </button>
                           </TableCell>
                           <TableCell>
                             <p className="text-muted-foreground text-sm">{row.student_email || "—"}</p>
@@ -509,6 +560,22 @@ const StudentManagement = () => {
                               : row.updated_at
                                 ? format(new Date(row.updated_at), "dd MMM yyyy")
                                 : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked
+                                disabled={delinking && delinkStudent?.id === row.id}
+                                onCheckedChange={(on) => {
+                                  if (!on) {
+                                    setDelinkMessage("");
+                                    setDelinkStudent(row);
+                                  }
+                                }}
+                                aria-label={`Delink ${row.student_name || row.student_email} from your wallet`}
+                              />
+                              <span className="text-xs text-muted-foreground">Linked</span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -535,7 +602,7 @@ const StudentManagement = () => {
                         </TableRow>
                         {limitOpen && (
                           <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={7} className="pt-0">
+                            <TableCell colSpan={8} className="pt-0">
                               <StudentSpendingLimitForm
                                 joinRequestId={row.id}
                                 limit={limit}
@@ -555,6 +622,66 @@ const StudentManagement = () => {
           </Card>
         </div>
       </main>
+
+      <UserIdentityCardDialog
+        userId={idCardStudent?.student}
+        open={!!idCardStudent}
+        onOpenChange={(open) => !open && setIdCardStudent(null)}
+        fallbackName={idCardStudent?.student_name}
+        fallbackEmail={idCardStudent?.student_email}
+        title="Student identity card"
+      />
+
+      <AlertDialog
+        open={!!delinkStudent}
+        onOpenChange={(open) => {
+          if (!open && !delinking) setDelinkStudent(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delink student from your wallet?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {delinkStudent?.student_name || delinkStudent?.student_email} will no longer be able to
+              charge bookings to your wallet, and their spending limit will no longer apply. Existing
+              bookings are not affected. The student can send a new join request later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="delink-message" className="text-sm font-medium">
+              Message to the student (optional)
+            </label>
+            <Textarea
+              id="delink-message"
+              value={delinkMessage}
+              onChange={(e) => setDelinkMessage(e.target.value)}
+              placeholder="You have been removed from this wallet."
+              rows={3}
+              maxLength={500}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={delinking}>Keep linked</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={delinking}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelink();
+              }}
+            >
+              {delinking ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Delinking…
+                </>
+              ) : (
+                "Delink student"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Nominate student dialog */}
       <Dialog open={!!nominateDialogCall} onOpenChange={(open) => !open && setNominateDialogCall(null)}>
