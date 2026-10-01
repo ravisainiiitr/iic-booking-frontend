@@ -1,4 +1,12 @@
-import type { GuideAudienceId, UserGuideContent } from "./types";
+import { gate, type RoleGuide } from "./gate";
+import {
+  DEFAULT_GUIDE_FLAGS,
+  GUIDE_AUDIENCE_LABELS,
+  type GuideAudienceId,
+  type GuideContext,
+  type GuideFeatureFlags,
+  type UserGuideContent,
+} from "./types";
 import { externalGuide } from "./content/external";
 import { studentGuide } from "./content/student";
 import { facultyGuide } from "./content/faculty";
@@ -10,9 +18,9 @@ import { deptAdminGuide } from "./content/deptAdmin";
 import { adminGuide } from "./content/admin";
 import { financeGuide } from "./content/finance";
 import { externalRelationsGuide } from "./content/externalRelations";
-import { resolveGuideAudience } from "./resolveAudience";
+import { buildWhatsNew } from "./content/whatsNew";
 
-const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, UserGuideContent> = {
+const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, RoleGuide> = {
   external: externalGuide,
   student: studentGuide,
   faculty: facultyGuide,
@@ -26,19 +34,39 @@ const GUIDE_BY_AUDIENCE: Record<GuideAudienceId, UserGuideContent> = {
   external_relations: externalRelationsGuide,
 };
 
-export function getGuideContent(audience: GuideAudienceId): UserGuideContent {
-  return GUIDE_BY_AUDIENCE[audience];
+export const GUIDE_AUDIENCES = Object.keys(GUIDE_BY_AUDIENCE) as GuideAudienceId[];
+
+/** Build the guide for one role, keeping only chapters and items that apply to it. */
+export function buildGuide(ctx: { audience: GuideAudienceId; flags?: Partial<GuideFeatureFlags> }): UserGuideContent {
+  const full: GuideContext = { audience: ctx.audience, flags: { ...DEFAULT_GUIDE_FLAGS, ...ctx.flags } };
+  const g = gate(full);
+  const role = GUIDE_BY_AUDIENCE[full.audience];
+  const sections = role.sections(g);
+  return {
+    audience: full.audience,
+    audienceLabel: GUIDE_AUDIENCE_LABELS[full.audience],
+    title: role.title,
+    welcomeBody: role.welcome,
+    whatsNew: buildWhatsNew(g, sections),
+    sections,
+  };
 }
 
-export function getGuideForUser(
-  userType: string | number | null | undefined,
-  userTypeAlias?: string | null
-): UserGuideContent | null {
-  const audience = resolveGuideAudience(userType, userTypeAlias);
-  if (!audience) return null;
-  return getGuideContent(audience);
-}
-
-export { resolveGuideAudience, shouldAutoShowUserGuide } from "./resolveAudience";
-export type { GuideAudienceId, GuideSection, UserGuideContent } from "./types";
-export { GUIDE_AUDIENCE_LABELS, PRODUCT_NAME, PRODUCT_NAME_SHORT } from "./types";
+export { resolveGuideAudience, resolveGuideAudienceForUser, shouldAutoShowUserGuide } from "./resolveAudience";
+export type { GuideUserLike } from "./resolveAudience";
+export type {
+  GuideAudienceId,
+  GuideFeatureFlags,
+  GuideIconId,
+  GuideSection,
+  UserGuideContent,
+  WhatsNewItem,
+  WhatsNewTheme,
+} from "./types";
+export {
+  DEFAULT_GUIDE_FLAGS,
+  GUIDE_AUDIENCE_LABELS,
+  PRODUCT_NAME,
+  PRODUCT_NAME_SHORT,
+  WHATS_NEW_THEME_LABELS,
+} from "./types";

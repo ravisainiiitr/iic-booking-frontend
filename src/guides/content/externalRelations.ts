@@ -1,69 +1,43 @@
-import {
-  type UserGuideContent,
-  PRODUCT_NAME,
-  loginAccountSection,
-  troubleshootingSection,
-  permissionsSection,
-  faqSection,
-  purposeSection,
-  notificationsSection,
-  supportSection,
-  bestPracticesSection,
-} from "../types";
-import { whatsNewSection } from "./recent";
+import type { RoleGuide } from "../gate";
+import { helpSection } from "./help";
 
-export const externalRelationsGuide: UserGuideContent = {
-  audience: "external_relations",
-  audienceLabel: "External Relations Administrator",
-  title: "External Relations Administrator User Guide",
-  subtitle: `${PRODUCT_NAME} — external user verification and relations`,
-  welcomeHeadline: "Welcome, External Relations Administrator",
-  welcomeBody: `You support external organisations and users on the ${PRODUCT_NAME}. This guide covers sign-in, verification workflows, and coordination with Institute Admin.`,
-  sections: [
-    whatsNewSection("external_relations"),
-    purposeSection({
-      paragraphs: [
-        "External Relations Administrators help onboard and verify external users and related organisation requests.",
-        "Your tools focus on verification and oversight rather than day-of-lab operations.",
+export const externalRelationsGuide: RoleGuide = {
+  title: "External Relations guide",
+  welcome: "Verify external organisations and users so they can book.",
+  sections: (g) => [
+    {
+      id: "getting-started",
+      title: "Getting started",
+      icon: "rocket",
+      group: "Start",
+      intro: ["Sign in with your staff credentials. Click External organization verification on the dashboard to open External user management."],
+    },
+    {
+      id: "verification",
+      title: "Verification",
+      icon: "shield",
+      group: "External users",
+      intro: ["Review KYC and approve or reject external organisations and users."],
+      steps: [
+        {
+          title: "External Departments",
+          body: "Click Open departments to add an external department (State/Union Territory and type) or verify one added during registration.",
+        },
+        {
+          title: "External Users",
+          body: "Click Open verification to review users, their documents (including the signed KYC form) and approval status.",
+        },
       ],
-      bullets: [
-        "Review external user / organisation requests as assigned",
-        "Coordinate with Admin when institute-wide policy applies",
-        "Keep communication clear when verification is pending or rejected",
+      rules: ["Escalate unclear cases to the Institute Admin rather than setting local policy."],
+      tips: ["Record the reason for each decision so the user knows what to fix."],
+    },
+    helpSection(g, {
+      faqs: [
+        {
+          question: "A module I need is missing. Why?",
+          answer: "Ask the Institute Admin to enable it for your role.",
+        },
       ],
     }),
-    loginAccountSection({
-      paragraphs: ["Sign in with the staff path provided for your campus account."],
-      bullets: [
-        "Land on Dashboard after authentication for quick access cards.",
-        "Reopen this guide anytime from User Guide in the menu.",
-      ],
-    }),
-    notificationsSection([
-      "Monitor notifications for pending verification items.",
-    ]),
-    permissionsSection({
-      paragraphs: [
-        "Access is limited to External Relations modules enabled by Institute Admin.",
-      ],
-      bullets: [
-        "Use only the verification and relations tools assigned to your role.",
-        "Escalate ambiguous cases to Institute Admin rather than inventing local policy.",
-      ],
-    }),
-    bestPracticesSection([
-      "Document verification decisions clearly.",
-      "Escalate ambiguous cases to Institute Admin rather than inventing local policy.",
-    ]),
-    troubleshootingSection([
-      "If a module is missing, ask Institute Admin to enable the relevant Admin Panel module for your role.",
-    ]),
-    supportSection(),
-    faqSection([
-      {
-        question: "Can I reopen this guide later?",
-        answer: "Yes — User menu → User Guide, or the footer User Guide link while signed in.",
-      },
-    ]),
   ],
 };

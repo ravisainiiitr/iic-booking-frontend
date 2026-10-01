@@ -10,9 +10,10 @@ import {
 } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { resolveGuideAudience, shouldAutoShowUserGuide } from "@/guides/resolveAudience";
+import { resolveGuideAudienceForUser, shouldAutoShowUserGuide, type GuideUserLike } from "@/guides/resolveAudience";
 import type { GuideAudienceId, UserGuideContent } from "@/guides/types";
 import UserGuideDialog from "@/components/UserGuide/UserGuideDialog";
+import { loadGuideFlags } from "@/components/UserGuide/guideFlags";
 import { formatUserDisplayName } from "@/lib/displayName";
 import {
   hasUserGuideAutoShownThisLogin,
@@ -23,35 +24,45 @@ interface UserGuideContextValue {
   openGuide: (opts?: { force?: boolean }) => void;
   closeGuide: () => void;
   isOpen: boolean;
-  /** Loaded on demand (the guide text is a separate chunk); null while loading or when there is no guide. */
+  /** Built for the signed-in user on demand; null until requested and loaded, or when there is no guide. */
   guide: UserGuideContent | null;
   /** True when the signed-in user's role has a guide, even before its content has loaded. */
   hasGuide: boolean;
+  /** Start loading the guide without opening the dialog (e.g. the full-page view). */
+  requestGuide: () => void;
   markGuideViewed: () => Promise<void>;
 }
 
 const UserGuideContext = createContext<UserGuideContextValue | undefined>(undefined);
 
+type GuideUser = GuideUserLike & {
+  oic_enable_leave_management?: boolean | null;
+  oic_enable_ta_nomination?: boolean | null;
+};
+
 export function UserGuideProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [wanted, setWanted] = useState(false);
   /** In-memory mirror — survives user-object refreshes within this mount. */
   const autoShowHandledUserIdRef = useRef<number | null>(null);
   const autoShowTimeoutRef = useRef<number | null>(null);
 
-  const audience = useMemo<GuideAudienceId | null>(() => {
-    if (!user) return null;
-    return resolveGuideAudience(user.user_type, user.user_type_alias);
-  }, [user?.id, user?.user_type, user?.user_type_alias]);
+  const guideUser = user as unknown as GuideUser | null;
+  const audience = useMemo<GuideAudienceId | null>(
+    () => resolveGuideAudienceForUser(guideUser),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.id, user?.user_type, user?.user_type_alias, guideUser?.user_type_display, guideUser?.is_faculty]
+  );
 
-  const [loaded, setLoaded] = useState<UserGuideContent | null>(null);
+  const [loaded, setLoaded] = useState<{ userId: number | undefined; guide: UserGuideContent } | null>(null);
   useEffect(() => {
-    if (!audience) return;
+    if (!audience || !wanted) return;
     let cancelled = false;
-    void import("@/guides")
-      .then((m) => {
-        if (!cancelled) setLoaded(m.getGuideContent(audience));
+    void Promise.all([import("@/guides"), loadGuideFlags(audience, guideUser)])
+      .then(([m, flags]) => {
+        if (!cancelled) setLoaded({ userId: user?.id, guide: m.buildGuide({ audience, flags }) });
       })
       .catch(() => {
         /* chunk load failure: the guide stays unavailable until the next page load */
@@ -59,9 +70,12 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [audience]);
-  const guide = audience && loaded?.audience === audience ? loaded : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audience, wanted, user?.id]);
+  const guide = audience && loaded?.userId === user?.id && loaded?.guide.audience === audience ? loaded.guide : null;
   const hasGuide = audience != null;
+
+  const requestGuide = useCallback(() => setWanted(true), []);
 
   const markGuideViewed = useCallback(async () => {
     if (user?.id != null) {
@@ -73,6 +87,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   const openGuide = useCallback(
     (opts?: { force?: boolean }) => {
       if (!hasGuide && !opts?.force) return;
+      setWanted(true);
       setOpen(true);
     },
     [hasGuide]
@@ -89,6 +104,8 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
       autoShowTimeoutRef.current = null;
     }
     setOpen(false);
+    setWanted(false);
+    setLoaded(null);
   }, [isAuthenticated]);
 
   // First /dashboard visit after this login only (sessionStorage survives remounts / auth flicker).
@@ -96,27 +113,21 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
 
-    if (
-      autoShowHandledUserIdRef.current === user.id ||
-      hasUserGuideAutoShownThisLogin(user.id)
-    ) {
+    if (autoShowHandledUserIdRef.current === user.id || hasUserGuideAutoShownThisLogin(user.id)) {
       autoShowHandledUserIdRef.current = user.id;
       return;
     }
 
-    if (
-      !shouldAutoShowUserGuide({
-        userType: user.user_type,
-        userTypeAlias: user.user_type_alias,
-        userGuideViewed: user.user_guide_viewed,
-      })
-    ) {
+    if (!shouldAutoShowUserGuide({ user: guideUser, userGuideViewed: user.user_guide_viewed })) {
       autoShowHandledUserIdRef.current = user.id;
       markUserGuideAutoShownThisLogin(user.id);
       return;
     }
 
-    if (!guide) return;
+    if (!guide) {
+      setWanted(true);
+      return;
+    }
 
     autoShowHandledUserIdRef.current = user.id;
     markUserGuideAutoShownThisLogin(user.id);
@@ -128,15 +139,8 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
       autoShowTimeoutRef.current = null;
       setOpen(true);
     }, 900);
-  }, [
-    isAuthenticated,
-    user?.id,
-    user?.user_type,
-    user?.user_type_alias,
-    user?.user_guide_viewed,
-    location.pathname,
-    guide,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id, audience, user?.user_guide_viewed, location.pathname, guide]);
 
   const value = useMemo(
     () => ({
@@ -145,9 +149,10 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
       isOpen: open,
       guide,
       hasGuide,
+      requestGuide,
       markGuideViewed,
     }),
-    [openGuide, closeGuide, open, guide, hasGuide, markGuideViewed]
+    [openGuide, closeGuide, open, guide, hasGuide, requestGuide, markGuideViewed]
   );
 
   return (

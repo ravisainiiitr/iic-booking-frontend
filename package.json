@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "check:guides": "node node_modules/esbuild/bin/esbuild scripts/check-user-guides.ts --bundle --platform=node --format=esm --tsconfig=tsconfig.app.json --log-level=warning --outfile=node_modules/.cache/check-user-guides.mjs && node node_modules/.cache/check-user-guides.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

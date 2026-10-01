@@ -1,156 +1,106 @@
-import {
-  type UserGuideContent,
-  PRODUCT_NAME,
-  loginAccountSection,
-  troubleshootingSection,
-  permissionsSection,
-  faqSection,
-  purposeSection,
-  notificationsSection,
-  supportSection,
-  bestPracticesSection,
-} from "../types";
-import {
-  adminRecentSection,
-  bookingAssistantSection,
-  oicRecentToolsSection,
-  staffViewBookingSection,
-  whatsNewSection,
-} from "./recent";
+import { compact, type RoleGuide } from "../gate";
+import { assistantSection } from "./booking";
+import { helpSection } from "./help";
+import { slotStatusSection, staffViewBookingSection, urgentApprovalSection, waitlistConfirmSection } from "./staff";
 
-export const adminGuide: UserGuideContent = {
-  audience: "admin",
-  audienceLabel: "Institute Administrator",
-  title: "Institute Administrator User Guide",
-  subtitle: `${PRODUCT_NAME} — institute-wide configuration and oversight`,
-  welcomeHeadline: "Welcome, Institute Administrator",
-  welcomeBody: `You have full administrative access to the ${PRODUCT_NAME}. This guide summarises institute-wide responsibilities: users and departments, equipment lifecycle, communication templates, CMS, wallets/finance settings, and Admin Panel Access for other roles.`,
-  sections: [
-    whatsNewSection("admin"),
-    purposeSection({
-      paragraphs: [
-        "Institute Administrators (main Admin) ensure the portal works consistently for every participating department, centre, and laboratory at IIT Roorkee.",
-        "You configure policy, unlock Admin Panel modules for other roles, and resolve cross-department issues that Dept Admins and OICs cannot.",
-      ],
-      bullets: [
-        "Full Admin Panel access and all RBAC permissions",
-        "Oversee users, external verification, and department administration",
-        "Configure equipment settings, booking buffers, charges, and related catalogs",
-        "Manage CMS/home content, communication templates, wallets, inventory, and support queues",
-      ],
-    }),
-    loginAccountSection({
-      paragraphs: [
-        "Protect Admin accounts carefully. Prefer Channel i or strong unique credentials as deployed by your team.",
-      ],
-      bullets: [
-        "Sign in and land on Dashboard — Admin quick-access cards surface most tools.",
-        "Use Admin Settings for deep configuration hubs (users, auth, communication, equipment, wallets, support).",
-        "Open User Guide anytime from the menu; Save as PDF for offline SOPs.",
-      ],
-      callouts: [
-        "Avoid sharing Admin credentials. Create named staff accounts with least privilege via Dept Admin / Admin Panel Access where possible.",
-      ],
-    }),
-    {
-      id: "core-workflows",
-      title: "Core Administrative Workflows",
-      paragraphs: [
-        "These workflows cover the most common institute-level tasks.",
-      ],
-      steps: [
-        {
-          title: "Enable Admin Panel Access for roles",
-          body: "Open Admin Settings → Admin Panel Access to decide which user types/departments may open Admin Settings modules.",
-          screenshotCaption: "Admin Panel Access configuration",
-        },
-        {
-          title: "Department Administration & RBAC",
-          body: "Use Department Administration to oversee staff roles and permission caps across departments.",
-          screenshotCaption: "Department Administration / RBAC",
-        },
-        {
-          title: "Equipment lifecycle",
-          body: "Approve equipment addition requests, maintain equipment settings (semesters, buffers, charge settings, mode schedules), and support OIC tooling when needed.",
-          screenshotCaption: "Equipment addition requests / Equipment settings",
-        },
-        {
-          title: "Communications & CMS",
-          body: "Update email/push templates and home page CMS content so branding and notices stay institute-wide and accurate.",
-          screenshotCaption: "Communication templates / CMS home",
-        },
-        {
-          title: "Wallets & finance controls",
-          body: "Switch wallet funding options in Wallet payment modes, process Wallet recharge requests, approve credit in Wallet Credit Management, and maintain the Wallet Recharge Cash Book settings.",
-          screenshotCaption: "Wallet settings hub",
-        },
-      ],
-    },
-    adminRecentSection(),
-    {
-      id: "booking-oversight",
-      title: "Booking Oversight",
-      paragraphs: [
-        "Admins inherit full View Booking powers (including booking on behalf of users) and can intervene on exceptions across equipment.",
-      ],
-      bullets: [
-        "Open View Booking for institute-wide operational oversight.",
-        "Review urgent bookings, Equipment waitlist and Booking attempt log.",
-        "Use Reports & Statistics for utilisation and performance analytics.",
-        "Coordinate with OICs before overriding local lab decisions except for policy or safety issues.",
-      ],
-    },
-    staffViewBookingSection(),
-    oicRecentToolsSection({ admin: true }),
-    bookingAssistantSection({ staff: true }),
-    notificationsSection([
-      "System and template-driven emails — keep Communication templates free of outdated centre-only branding.",
-      "New support ticket emails go to the list set in New ticket email alerts.",
-    ]),
-    bestPracticesSection([
-      "Prefer department-scoped admins for day-to-day staff mapping; reserve Institute Admin for cross-cutting change.",
-      "Document configuration changes (buffers, charges, templates) for auditability.",
-      "Keep CMS hero and footer messaging aligned with institute-wide identity.",
-      "Grant Admin Panel modules narrowly — least privilege reduces risk.",
-    ]),
-    permissionsSection({
-      paragraphs: [
-        "Admin always has full Admin Panel access and all RBAC permissions. Other roles require explicit Admin Panel Access and/or grants.",
-      ],
-      bullets: [
-        "You can configure who else sees Admin Settings modules.",
-        "Inventory, procurement, CMS, and global finance tools are Admin-gated on those pages.",
-        "Even with full power, operational ownership of an instrument should usually stay with its OIC.",
-        "External Relations / Org Admin / Finance roles (if present) are separate — do not assume they share this guide.",
-      ],
-    }),
-    faqSection([
+const ADMIN = "Administration";
+
+export const adminGuide: RoleGuide = {
+  title: "Institute Administrator guide",
+  welcome: "Configure the portal institute-wide and step in on any booking, wallet or support issue.",
+  sections: (g) =>
+    compact([
       {
-        question: "A Dept Admin cannot open Admin Settings — why?",
-        answer:
-          "Enable Admin Panel Access for dept_admin + their department, then grant the specific modules they need.",
+        id: "getting-started",
+        title: "Getting started",
+        icon: "rocket",
+        group: "Start",
+        intro: ["You have full Admin Panel access and every permission. Most tools are on the dashboard; deeper settings are in Admin Settings."],
+        rules: ["Do not share the Admin account. Give staff named accounts with only the modules they need."],
+        tips: ["To book on someone's behalf, click Book on any equipment and choose Book slots for a user."],
       },
       {
-        question: "Home page still shows old centre branding — where is it?",
-        answer:
-          "Update CMS Home Page content (hero_title_line1 and related keys). Frontend defaults only apply when CMS values are empty or migrated.",
+        id: "administration",
+        title: "Users, departments and content",
+        icon: "settings",
+        group: ADMIN,
+        intro: ["Institute-level configuration in Admin Settings."],
+        steps: [
+          { title: "Admin Panel Access", body: "Choose which user types and departments may open Admin Settings modules." },
+          { title: "Department Administration", body: "Oversee staff roles and permission caps across departments." },
+          { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers, charges and mode schedules." },
+          { title: "Communications and CMS", body: "Keep Communication templates and Home Page content accurate." },
+          { title: "Legacy user sync", body: "Map a user to their old-portal ID, run a test sync, then sync wallet balance and legacy bookings." },
+        ],
       },
       {
-        question: "How do email templates stay on-brand?",
-        answer:
-          "Edit Communication templates in Admin Settings. Data migrations update historical wording, but new edits should use Institute Equipment Booking Portal.",
+        id: "recharge-requests",
+        title: "Wallets",
+        icon: "wallet",
+        group: ADMIN,
+        intro: ["Control how users fund wallets and process their requests."],
+        steps: [
+          {
+            title: "Wallet payment modes",
+            body: "Switch Recharge via Project Grant, Direct Cash Deposit / Bank Transfer, Online payment gateway, Transfer within the same department and Credit Limit on or off.",
+          },
+          {
+            title: "Wallet recharge requests",
+            body: "Approve, Decline or Cancel requests and Verify Fund Receipt.",
+          },
+          {
+            title: "Credit requests",
+            body: "Approve or reject Credit Facility requests in Admin Settings → User Management → Wallet Credit Management.",
+          },
+        ],
+        rules: [
+          "Users see a switched-off mode greyed out with Awaiting Competent Authority Approval.",
+          "A Project Grant request declined by SRIC becomes an auto-approved credit, recovered from the user's next approved recharge.",
+        ],
+        glossary: [
+          { term: "Project Grant declines", meaning: "Wrong Project Code, Insufficient Funds in the Project, Project Already Closed or Other." },
+          { term: "Cash / Bank transfer declines", meaning: "Mismatch in User Information or Other." },
+        ],
+        tips: ["Approval notices to the SRIC offices name the approver."],
       },
+      staffViewBookingSection(g),
+      urgentApprovalSection(g),
+      waitlistConfirmSection(g),
+      slotStatusSection(g),
       {
-        question: "Can I restrict an OIC to read-only?",
-        answer:
-          "Use department RBAC / permission caps rather than sharing the Admin account. Exact caps depend on configured permission codes.",
+        id: "support-admin",
+        title: "Support and feedback",
+        icon: "ticket",
+        group: ADMIN,
+        intro: ["Route support tickets and read user feedback."],
+        steps: [
+          { title: "New ticket email alerts", body: "In Admin Settings → Support Tickets, choose who is emailed about every new ticket." },
+          { title: "Experience ratings", body: "Read Rate your experience responses, sort by any column and use Export CSV." },
+        ],
       },
+      g.when(g.flags.assistant, {
+        id: "assistant-admin",
+        title: "Booking Assistant administration",
+        icon: "bot",
+        group: ADMIN,
+        intro: ["Keep the assistant's answers accurate."],
+        steps: [
+          { title: "Booking Assistant Knowledge", body: "Manage the verified answers and documents the assistant uses (Admin Settings)." },
+          { title: "Copilot Answers & Console", body: "Review answers and user feedback." },
+        ],
+      }),
+      assistantSection(g),
+      helpSection(g, {
+        faqs: [
+          {
+            question: "A Department Administrator cannot open Admin Settings. Why?",
+            answer: "Enable Admin Panel Access for Department Administrator and their department, then grant the modules they need.",
+          },
+          {
+            question: "The home page shows outdated text. Where is it?",
+            answer: "Update Home Page content in the CMS, then hard-refresh the site.",
+          },
+        ],
+      }),
     ]),
-    troubleshootingSection([
-      "Module missing from Admin Settings: confirm you are user_type admin (not a limited panel role).",
-      "CMS changes not visible: hard-refresh the public site and confirm the correct HomePageContent keys were saved.",
-      "Email not sending: use send_test_email / Inbox tools and verify DEFAULT_FROM_EMAIL in deployment settings.",
-    ]),
-    supportSection(),
-  ],
 };

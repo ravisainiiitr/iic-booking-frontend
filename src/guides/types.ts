@@ -1,4 +1,4 @@
-/** Role-specific onboarding user guide types and shared section builders. */
+/** Role-specific user guide types. Content is built per signed-in user from `GuideContext`. */
 
 export const PRODUCT_NAME = "Institute Equipment Booking Portal";
 export const PRODUCT_NAME_SHORT = "Equipment Booking System";
@@ -16,12 +16,89 @@ export type GuideAudienceId =
   | "finance"
   | "external_relations";
 
+export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
+  external: "External User",
+  student: "IIT Roorkee Student",
+  faculty: "IIT Roorkee Faculty",
+  project_staff: "Project Staff",
+  startup: "Startup / MSME",
+  oic: "Officer In Charge",
+  operator: "Lab Operator",
+  dept_admin: "Department Administrator",
+  admin: "Institute Administrator",
+  finance: "Accounts In Charge",
+  external_relations: "External Relations Administrator",
+};
+
+/** Features that are switched on per institute or per account. Unknown values default to off. */
+export interface GuideFeatureFlags {
+  /** Booking Assistant button is shown to this user. */
+  assistant: boolean;
+  /** The assistant can confirm bookings in chat for this user. */
+  inChatBooking: boolean;
+  projectGrant: boolean;
+  directCash: boolean;
+  onlineGateway: boolean;
+  peerTransfer: boolean;
+  creditFacility: boolean;
+  /** This IITR student may submit wallet recharge receipts (department-wise / allowlist on the server). */
+  studentRecharge: boolean;
+  /** External booking user type (external, R&D, industry, other, external startup / MSME). */
+  externalBooking: boolean;
+  oicLeaveManagement: boolean;
+  oicTaNomination: boolean;
+}
+
+export const DEFAULT_GUIDE_FLAGS: GuideFeatureFlags = {
+  assistant: false,
+  inChatBooking: false,
+  projectGrant: false,
+  directCash: true,
+  onlineGateway: false,
+  peerTransfer: true,
+  creditFacility: false,
+  studentRecharge: false,
+  externalBooking: false,
+  oicLeaveManagement: false,
+  oicTaNomination: false,
+};
+
+export interface GuideContext {
+  audience: GuideAudienceId;
+  flags: GuideFeatureFlags;
+}
+
+export type GuideIconId =
+  | "calendar"
+  | "template"
+  | "layers"
+  | "pencil"
+  | "bot"
+  | "list"
+  | "wallet"
+  | "transfer"
+  | "credit"
+  | "users"
+  | "mail"
+  | "alert"
+  | "clock"
+  | "ticket"
+  | "settings"
+  | "star"
+  | "shield"
+  | "receipt"
+  | "flask"
+  | "help"
+  | "building"
+  | "rocket"
+  | "search"
+  | "chart";
+
 export interface GuideStep {
   title: string;
   body: string;
-  /** Caption shown under the step (and used as alt text). */
   screenshotCaption?: string;
-  /** Public path to a real screenshot, e.g. /guides/equipment-catalog-search-filters.jpg */
+  /** Public path to a real screenshot, e.g. /guides/booking-weekly-calendar.png */
   screenshotSrc?: string;
 }
 
@@ -30,181 +107,53 @@ export interface GuideFaq {
   answer: string;
 }
 
+/**
+ * One chapter. Rendered under the fixed headings "What it is" (intro), "How to" (steps),
+ * "Rules / limits" (rules) and "Tips" (tips), followed by FAQs.
+ */
 export interface GuideSection {
   id: string;
   title: string;
-  paragraphs: string[];
-  bullets?: string[];
-  callouts?: string[];
+  icon: GuideIconId;
+  /** Table-of-contents group, e.g. "Booking" or "Help". */
+  group: string;
+  intro: string[];
   steps?: GuideStep[];
+  rules?: string[];
+  tips?: string[];
+  /** Short term → meaning list, e.g. booking statuses. */
+  glossary?: Array<{ term: string; meaning: string }>;
   faqs?: GuideFaq[];
+}
+
+export type WhatsNewTheme = "booking" | "wallet" | "students" | "lab" | "admin" | "assistant";
+
+export const WHATS_NEW_THEME_LABELS: Record<WhatsNewTheme, string> = {
+  booking: "Booking",
+  wallet: "Wallet & payments",
+  students: "Your students",
+  lab: "Lab operations",
+  admin: "Administration",
+  assistant: "Assistant & tools",
+};
+
+export interface WhatsNewItem {
+  id: string;
+  theme: WhatsNewTheme;
+  icon: GuideIconId;
+  title: string;
+  /** One line: what the user gains. */
+  benefit: string;
+  /** Chapter opened by "Learn more". */
+  sectionId: string;
 }
 
 export interface UserGuideContent {
   audience: GuideAudienceId;
   audienceLabel: string;
   title: string;
-  subtitle: string;
-  welcomeHeadline: string;
+  /** One or two sentences shown above What's New. */
   welcomeBody: string;
+  whatsNew: { date: string; items: WhatsNewItem[] };
   sections: GuideSection[];
-}
-
-export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
-  external: "External Users",
-  student: "Internal Students",
-  faculty: "Internal Faculty",
-  project_staff: "Project Staff",
-  startup: "Startup Users",
-  oic: "Equipment Officer-in-Charge",
-  operator: "Lab Operator",
-  dept_admin: "Department Administrator",
-  admin: "Institute Administrator",
-  finance: "Accounts In Charge",
-  external_relations: "External Relations Administrator",
-};
-
-/** Shared booking status explanations used across end-user guides. */
-export function bookingStatusSection(tweaks?: { extraBullets?: string[] }): GuideSection {
-  return {
-    id: "statuses",
-    title: "Booking Status",
-    paragraphs: [
-      "Every booking moves through clearly labelled status stages. Checking My Bookings regularly helps you know what action (if any) is required from you.",
-    ],
-    bullets: [
-      "Pending — Your request is submitted and awaiting confirmation or the next system step.",
-      "Awaiting payment — Payment (or wallet debit confirmation) is required before the slot is fully secured.",
-      "Waitlisted — No slot was free; you are on the FCFS waitlist (WL1, WL2, …). Wallet is not charged until you are promoted to Booked.",
-      "Booked — Your slot is confirmed. Note sample submission deadlines and arrival times.",
-      "Awaiting your choice (disruption) — Maintenance, operator absence, or other disruption needs your decision (cancel/refund or reschedule).",
-      "Under Maintenance / Operator Absent / Analysis Not Possible — Lab-side holds; watch for emails and dashboard updates.",
-      "Booking Not Utilized — Session did not proceed for user-side reasons (often no refund).",
-      "Completed — Analysis/run finished successfully.",
-      "Cancelled — Booking cancelled (by you or the lab, subject to policy).",
-      "Operator Unavailable / Booking Not Utilized / Refunded — Special outcomes; refunds follow institute policy when applicable.",
-      ...(tweaks?.extraBullets ?? []),
-    ],
-  };
-}
-
-export function notificationsSection(audienceNotes?: string[]): GuideSection {
-  return {
-    id: "notifications",
-    title: "Notifications",
-    paragraphs: [
-      `The ${PRODUCT_NAME} keeps you informed by email and in-app notifications so you do not miss critical deadlines.`,
-    ],
-    bullets: [
-      "Email — Booking confirmation, status changes, payment updates, and resolution of support tickets.",
-      "In-app / dashboard — Alerts for pending actions, sample deadlines, and disruptions.",
-      "Booking reminders — Ahead of your scheduled slot so you can prepare samples and documents.",
-      "Sample submission / collection reminders — Including countdown-style notices before deadlines (for example, ahead of the sample submission cut-off).",
-      "Support ticket updates — When staff reply, reassign, or resolve your request.",
-      ...(audienceNotes ?? []),
-    ],
-    callouts: [
-      "Keep your email and phone up to date under Profile so reminders reach you.",
-    ],
-  };
-}
-
-export function supportSection(): GuideSection {
-  return {
-    id: "support",
-    title: "Support",
-    paragraphs: [
-      "Help is available directly from the portal whenever you have a booking, payment, or equipment question.",
-    ],
-    bullets: [
-      "Raise a Support Ticket from the user menu (Support Tickets) or from an equipment page via Raise Support Request.",
-      "Describe the issue clearly, attach a screenshot if useful, and mention your booking ID when relevant.",
-      "For equipment-linked tickets raised from an instrument page, the Officer In Charge may be auto-assigned.",
-      "Use the chat help widget for quick FAQ-style answers; escalate to a ticket for anything that needs follow-up.",
-      "Laboratory contacts and OIC details appear on the equipment profile when published by the lab.",
-    ],
-  };
-}
-
-export function bestPracticesSection(extra?: string[]): GuideSection {
-  return {
-    id: "best-practices",
-    title: "Best Practices",
-    paragraphs: [
-      "Following these habits keeps the labs running smoothly and protects your booking credits and timelines.",
-    ],
-    bullets: [
-      "Book well in advance for popular instruments; check the weekly calendar before locking a slot.",
-      "Review accessories and sample requirements on the equipment page before you book.",
-      "Arrive on time with labelled samples and any required safety information.",
-      "Follow laboratory safety and sample handling rules published by the facility.",
-      "Cancel unused bookings promptly so others can use the slot and to avoid no-show outcomes.",
-      "Track sample submission deadlines; late samples may not be accepted for that run.",
-      ...(extra ?? []),
-    ],
-  };
-}
-
-export function loginAccountSection(opts: {
-  paragraphs: string[];
-  bullets: string[];
-  callouts?: string[];
-}): GuideSection {
-  return {
-    id: "login-account",
-    title: "Login and Account Management",
-    paragraphs: opts.paragraphs,
-    bullets: opts.bullets,
-    callouts: opts.callouts,
-  };
-}
-
-export function troubleshootingSection(bullets: string[]): GuideSection {
-  return {
-    id: "troubleshooting",
-    title: "Troubleshooting",
-    paragraphs: [
-      "Try these steps before raising a support ticket. Many issues resolve with a refresh, a different browser, or an updated profile.",
-    ],
-    bullets,
-  };
-}
-
-export function permissionsSection(opts: {
-  paragraphs: string[];
-  bullets: string[];
-  callouts?: string[];
-}): GuideSection {
-  return {
-    id: "permissions",
-    title: "Permissions and Limitations",
-    paragraphs: opts.paragraphs,
-    bullets: opts.bullets,
-    callouts: opts.callouts,
-  };
-}
-
-export function faqSection(faqs: GuideFaq[]): GuideSection {
-  return {
-    id: "faqs",
-    title: "Frequently Asked Questions",
-    paragraphs: [
-      "Quick answers to questions users in your role ask most often.",
-    ],
-    faqs,
-  };
-}
-
-export function purposeSection(opts: {
-  paragraphs: string[];
-  bullets: string[];
-  callouts?: string[];
-}): GuideSection {
-  return {
-    id: "purpose",
-    title: "Purpose and Responsibilities",
-    paragraphs: opts.paragraphs,
-    bullets: opts.bullets,
-    callouts: opts.callouts,
-  };
 }
