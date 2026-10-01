@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import BookingEventHistory from "@/components/BookingEventHistory";
+import BookingLabMessages from "@/components/BookingLabMessages";
 import BookingUserInputs from "@/components/BookingUserInputs";
 import InputEditPayCountdown from "@/components/InputEditPayCountdown";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
@@ -3073,6 +3074,8 @@ export function BookingDetailCard({
             />
             </div>
           )}
+
+          {!isWaitlistedEntry && bookingPk != null && <BookingLabMessages bookingId={bookingPk} />}
 
           <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
             <DialogContent className="sm:max-w-md">

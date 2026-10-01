@@ -1106,6 +1106,31 @@ interface BookingEvent {
   created_at: string;
 }
 
+export interface BookingLabMessage {
+  id: number;
+  kind: "user" | "staff_reply";
+  reason: string;
+  message: string;
+  sender_name: string;
+  sender_role: string;
+  is_mine: boolean;
+  created_at: string | null;
+}
+
+export interface BookingLabMessageThread {
+  booking_id: number;
+  viewer: "booking_user" | "supervisor" | "staff" | "other";
+  can_post: boolean;
+  can_reply: boolean;
+  closed_reason: string;
+  reasons: Array<{ code: string; label: string }>;
+  max_length: number;
+  daily_limit: number;
+  remaining_today: number;
+  has_lab_staff: boolean;
+  messages: BookingLabMessage[];
+}
+
 export type SampleTraceStatus =
   | 'SAMPLE_SENT'
   | 'HELD_AT_OFFICE'
@@ -6364,6 +6389,24 @@ class ApiClient {
         notify_lab_incharge: !!staff.notifyLabIncharge,
       }),
     });
+  }
+
+  async getBookingLabMessages(bookingId: number) {
+    return this.request<BookingLabMessageThread>(`/bookings/${bookingId}/lab-messages/`);
+  }
+
+  async sendBookingLabMessage(bookingId: number, message: string, reason?: string) {
+    return this.request<{ message: BookingLabMessage; remaining_today: number; warnings?: string[] }>(
+      `/bookings/${bookingId}/lab-messages/`,
+      { method: "POST", body: JSON.stringify({ message, reason: reason ?? "" }) }
+    );
+  }
+
+  async replyToBookingLabMessage(bookingId: number, message: string) {
+    return this.request<{ message: BookingLabMessage; warnings?: string[] }>(
+      `/bookings/${bookingId}/lab-messages/reply/`,
+      { method: "POST", body: JSON.stringify({ message }) }
+    );
   }
 
   /** Get sample/slot tracing timeline for a booking. */
