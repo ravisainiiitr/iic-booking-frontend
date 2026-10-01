@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Download, FileSpreadsheet, FileText, IndianRupee, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, FileText, IndianRupee, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -219,20 +219,32 @@ export default function AnalysisCharges() {
     <div className="min-h-screen bg-background">
       <Header />
       <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-32 sm:px-6 md:pt-36">
-        <div className="mb-6 rounded-2xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 p-6 text-white shadow-xl shadow-primary/25 sm:p-8">
-          <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-            <IndianRupee className="h-5 w-5" />
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-r from-primary via-[hsl(215_62%_22%)] to-slate-950 px-4 py-3 text-white shadow-md shadow-primary/20 sm:items-center sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15">
+              <IndianRupee className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
+                Analysis Charges
+              </h1>
+              <p className="text-sm text-white/75">
+                Published rates by user category — filter, then download PDF or Excel.
+              </p>
+            </div>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Analysis Charges</h1>
-          <p className="mt-2 max-w-2xl text-sm text-white/85 sm:text-base">
-            Published rates by user category for a selected department. Filter equipment and user
-            types, then download a professional PDF or Excel sheet.
-          </p>
-          <p className="mt-3 text-xs text-white/70">
-            <Link to="/" className="underline underline-offset-2 hover:text-white">
-              Back to home
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="h-8 shrink-0 border-white/35 bg-white/10 px-2.5 text-white hover:bg-white/20 hover:text-white sm:px-3"
+          >
+            <Link to="/">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back to home</span>
+              <span className="sm:hidden">Home</span>
             </Link>
-          </p>
+          </Button>
         </div>
 
         <section className="mb-6 rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
