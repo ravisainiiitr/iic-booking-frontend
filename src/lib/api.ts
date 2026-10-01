@@ -875,6 +875,15 @@ export interface StudentSpendingLimit {
   supervisor_name?: string | null;
 }
 
+export interface EquipmentSlotLimit {
+  period: "weekly" | "monthly";
+  limit: number;
+  used: number;
+  remaining: number;
+  period_start: string;
+  period_end: string;
+}
+
 export interface TANominationCall {
   id: number;
   equipment_id: number;
@@ -4444,6 +4453,14 @@ class ApiClient {
   async getMySpendingLimit() {
     return this.request<Partial<StudentSpendingLimit> & { spending_limit_enabled: boolean }>(
       '/wallet/my-spending-limit/',
+    );
+  }
+
+  /** Signed-in user's weekly / monthly slot limits on one equipment (empty when not enforced for them). */
+  async getEquipmentSlotLimits(equipmentId: number | string, date?: string) {
+    const q = date ? `?date=${encodeURIComponent(date)}` : '';
+    return this.request<{ equipment_id: number; limits: EquipmentSlotLimit[] }>(
+      `/equipments/${equipmentId}/slot-limits/${q}`,
     );
   }
 
