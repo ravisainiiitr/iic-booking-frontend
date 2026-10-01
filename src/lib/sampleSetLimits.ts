@@ -3,7 +3,7 @@
  * (sample set 1 plus every "Samples with different parameters" set). Mirrors the backend
  * `sample_set_limits.combined_max_error`.
  */
-import { formatNumericBound, parseNumericHelpText, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import { formatNumericBound, numericConstraints, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
 
 export const COMBINED_LIMIT_FIELD_KEYS = ["A", "B"] as const;
 
@@ -38,28 +38,10 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function hasMaxFormula(options: unknown): boolean {
-  if (typeof options === "string") return options.trim() !== "";
-  if (Array.isArray(options)) return options.length === 1 && typeof options[0] === "string" && options[0].trim() !== "";
-  if (options && typeof options === "object") {
-    const formula = (options as Record<string, unknown>).max_formula;
-    return typeof formula === "string" && formula.trim() !== "";
-  }
-  return false;
-}
-
 /** Maximum set on the equipment (options.max, else help_text line 2); not the UI fallback of 100 or a formula max. */
 export function configuredStaticMax(field: CombinedLimitFieldDef): number | undefined {
-  if (hasMaxFormula(field.options)) return undefined;
-  const options = field.options;
-  if (options && typeof options === "object" && !Array.isArray(options)) {
-    const raw = (options as Record<string, unknown>).max;
-    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
-      const n = Number(String(raw).trim().replace(",", "."));
-      if (Number.isFinite(n)) return n;
-    }
-  }
-  return parseNumericHelpText(field.help_text).max;
+  const configured = numericConstraints(field);
+  return configured.maxFormula ? undefined : configured.max;
 }
 
 export function combinedLimits(fields: CombinedLimitFieldDef[] | null | undefined): CombinedLimit[] {

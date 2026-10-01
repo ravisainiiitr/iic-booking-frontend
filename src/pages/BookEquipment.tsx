@@ -51,6 +51,7 @@ import {
   isNumericValueWithinBounds,
   nudgeNumericValue,
   numericFieldAllowsNegative,
+  resolveFieldAFormulaMax,
   resolveNumericFieldBounds,
   roundToStepPrecision,
 } from "@/lib/numericFieldLimits";
@@ -660,36 +661,11 @@ function resolveDynamicMaxForFieldA(
   skipConfiguredMax = false
 ): number | undefined {
   if (skipConfiguredMax) return undefined;
-  const rawOptions = field?.options;
-  const opts = rawOptions && typeof rawOptions === "object" && !Array.isArray(rawOptions)
-    ? rawOptions as Record<string, unknown>
-    : undefined;
-  const formula = typeof opts?.max_formula === "string"
-    ? opts.max_formula.trim()
-    : (typeof rawOptions === "string"
-      ? rawOptions.trim()
-      : (Array.isArray(rawOptions) && rawOptions.length === 1 && typeof rawOptions[0] === "string"
-        ? rawOptions[0].trim()
-        : ""));
-  if (formula) {
-    let expr = formula;
-    for (const token of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
-      const tokenValue = toFiniteNumber(inputFieldValues[token]) ?? 0;
-      expr = expr.replace(new RegExp(`\\b${token}\\b`, "g"), String(tokenValue));
-    }
-    const slotDuration = toFiniteNumber(equipmentDetail?.slot_duration_minutes) ?? 0;
-    expr = expr.replace(/\bSLOT_DURATION_MINUTES\b/g, String(slotDuration));
-    if (!/^[0-9+\-*/().\s]+$/.test(expr)) return undefined;
-    try {
-      // eslint-disable-next-line no-new-func
-      const result = Function(`"use strict"; return (${expr});`)();
-      const parsed = toFiniteNumber(result);
-      return parsed !== undefined ? parsed : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-  return toFiniteNumber(opts?.max);
+  return resolveFieldAFormulaMax(
+    { field_key: "A", options: field?.options },
+    inputFieldValues,
+    toFiniteNumber(equipmentDetail?.slot_duration_minutes),
+  );
 }
 
 /**

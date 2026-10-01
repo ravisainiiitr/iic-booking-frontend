@@ -22,6 +22,13 @@ import {
 import { Loader2, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { linesToOptions, normalizeOptionsList, optionsToLines } from "@/lib/dynamicFieldOptions";
+import {
+  applyNumericLimitDraft,
+  numericLimitDraftError,
+  numericLimitDraftFromField,
+  type NumericLimitDraft,
+} from "@/lib/numericFieldConfig";
+import { isNumericHelpTextConvention, parseNumericHelpText } from "@/lib/numericFieldLimits";
 import { formatCoordinate } from "@/lib/equipmentGps";
 import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFields";
 import {
@@ -108,6 +115,12 @@ function chargeProfileDisplayLabel(
 
 function chargeProfileRowKey(cp: { user_type: string; pricing_profile?: string | null }, idx: number) {
   return `${isPiChargeRow(cp) ? "pi" : "std"}:${cp.user_type}:${idx}`;
+}
+
+type InputFieldRow = NonNullable<EquipmentFormData["input_fields"]>[number];
+
+function numericLimitsOf(f: InputFieldRow): NumericLimitDraft {
+  return f.numeric_limits ?? numericLimitDraftFromField(f);
 }
 
 export type EquipmentFormData = {
@@ -261,6 +274,8 @@ export type EquipmentFormData = {
     options?: string[] | Record<string, unknown>;
     /** When true (NUMERIC), negative values are allowed within configured limits. */
     allow_negative?: boolean;
+    /** NUMERIC Min / Max / Step / Max formula boxes (form only; saved into options). */
+    numeric_limits?: NumericLimitDraft;
     help_text?: string;
     source_element_field_key?: string | null;
   }>;
@@ -786,6 +801,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 ? optsObj
                 : [],
             allow_negative: allowNeg,
+            numeric_limits:
+              String(i.field_type ?? "").toUpperCase() === "NUMERIC"
+                ? numericLimitDraftFromField({ options: rawOpts, help_text: String(i.help_text ?? "") })
+                : undefined,
             help_text: String(i.help_text ?? ""),
             source_element_field_key: (i.source_element_field_key as string | null) ?? null,
           };
@@ -847,6 +866,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       }
       seen.add(key);
       seenKeysByUserType.set(ut, seen);
+      if (String(inputFields[i].field_type || "").toUpperCase() === "NUMERIC") {
+        const limitError = numericLimitDraftError(numericLimitsOf(inputFields[i]));
+        if (limitError) {
+          toast.error(`Dynamic input field ${key} (${ut}): ${limitError}`);
+          return;
+        }
+      }
     }
     const payload: EquipmentFormData = {
       name: formData.name || undefined,
@@ -996,7 +1022,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           const pt = String(rest.profile_type || "").toUpperCase();
           return pt === "GENERIC" ? { ...rest, breakpoint: null } : rest;
         }),
-      input_fields: (formData.input_fields ?? []).map((f) => {
+      input_fields: (formData.input_fields ?? []).map((row) => {
+        const { numeric_limits: _limits, ...f } = row;
         const fieldType = String(f.field_type || "").toUpperCase();
         const field_key = String(f.field_key || "").trim().toUpperCase().slice(0, 1);
         const field_label = String(f.field_label || "").trim();
@@ -1011,13 +1038,15 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               : ({} as Record<string, unknown>);
           if (f.allow_negative) base.allow_negative = true;
           else delete base.allow_negative;
+          const saved = applyNumericLimitDraft({ options: base, help_text: f.help_text }, numericLimitsOf(row));
           return {
             ...f,
             user_type,
             field_key,
             field_label,
             source_element_field_key,
-            options: Object.keys(base).length > 0 ? base : [],
+            options: saved.options,
+            help_text: saved.help_text,
           };
         }
         return {
@@ -1090,11 +1119,119 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     }));
   };
 
+  const updateNumericLimits = (globalIdx: number, patch: Partial<NumericLimitDraft>) => {
+    setFormData((p) => {
+      const arr = [...(p.input_fields ?? [])];
+      if (!arr[globalIdx]) return p;
+      arr[globalIdx] = { ...arr[globalIdx], numeric_limits: { ...numericLimitsOf(arr[globalIdx]), ...patch } };
+      return { ...p, input_fields: arr };
+    });
+  };
+
+  /** Copy one field's Min / Max / Step / Max formula (and Allow negative) to the same numeric field key of every other user type. */
+  const applyNumericLimitsToAllUserTypes = (globalIdx: number) => {
+    const source = formData.input_fields?.[globalIdx];
+    if (!source) return;
+    const key = String(source.field_key || "").toUpperCase();
+    const limits = numericLimitsOf(source);
+    const targets = (formData.input_fields ?? [])
+      .map((f, i) => ({ f, i }))
+      .filter(
+        ({ f, i }) =>
+          i !== globalIdx &&
+          String(f.field_key || "").toUpperCase() === key &&
+          String(f.field_type || "").toUpperCase() === "NUMERIC",
+      )
+      .map(({ i }) => i);
+    if (targets.length === 0) {
+      toast.info(`No other user type has a numeric field ${key}.`);
+      return;
+    }
+    setFormData((p) => {
+      const arr = [...(p.input_fields ?? [])];
+      for (const i of targets) {
+        if (arr[i]) arr[i] = { ...arr[i], numeric_limits: { ...limits }, allow_negative: Boolean(source.allow_negative) };
+      }
+      return { ...p, input_fields: arr };
+    });
+    toast.success(
+      `Copied the limits of field ${key} to ${targets.length} other user type${targets.length === 1 ? "" : "s"}. Save to apply.`,
+    );
+  };
+
   const removeInputFieldAt = (globalIdx: number) => {
     setFormData((p) => ({
       ...p,
       input_fields: (p.input_fields ?? []).filter((_, i) => i !== globalIdx),
     }));
+  };
+
+  const renderNumericLimits = (f: InputFieldRow, idx: number, idPrefix: string) => {
+    const limits = numericLimitsOf(f);
+    const key = String(f.field_key || "").toUpperCase();
+    const error = numericLimitDraftError(limits);
+    const showFormula = key === "A" || limits.maxFormula.trim() !== "";
+    const boxes = [
+      { name: "min", label: "Min", placeholder: "0" },
+      { name: "max", label: "Max", placeholder: "100" },
+      { name: "step", label: "Step", placeholder: "1" },
+    ] as const;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs">Number limits</Label>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={() => applyNumericLimitsToAllUserTypes(idx)}
+          >
+            Apply to all user types
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {boxes.map((b) => (
+            <div key={b.name} className="space-y-1">
+              <Label htmlFor={`${idPrefix}-${b.name}-${idx}`} className="text-[11px] font-normal text-muted-foreground">
+                {b.label}
+              </Label>
+              <Input
+                id={`${idPrefix}-${b.name}-${idx}`}
+                type="number"
+                step="any"
+                inputMode="decimal"
+                placeholder={b.placeholder}
+                value={limits[b.name]}
+                onChange={(e) => updateNumericLimits(idx, { [b.name]: e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+        {(key === "A" || key === "B") && !limits.maxFormula.trim() && (
+          <p className="text-xs text-muted-foreground">
+            Max is the limit for the total across all sample sets of a booking. If empty, each entry is capped at 100 and no total is enforced.
+          </p>
+        )}
+        {showFormula && (
+          <div className="space-y-1">
+            <Label htmlFor={`${idPrefix}-max-formula-${idx}`} className="text-[11px] font-normal text-muted-foreground">
+              Max formula (optional)
+            </Label>
+            <Input
+              id={`${idPrefix}-max-formula-${idx}`}
+              placeholder="e.g. B*4"
+              value={limits.maxFormula}
+              onChange={(e) => updateNumericLimits(idx, { maxFormula: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              e.g. B*4 — limit relative to another field, checked per sample set. Used instead of Max (external users get Max).
+            </p>
+          </div>
+        )}
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+    );
   };
 
   const renderDynamicFieldsForUserType = (userType: string, idPrefix: string) => {
@@ -1157,7 +1294,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       } else {
                         nextOptions = normalizeOptionsList(f.options);
                       }
-                      updateInputField(idx, { field_type: v, options: nextOptions as typeof f.options });
+                      updateInputField(idx, {
+                        field_type: v,
+                        options: nextOptions as typeof f.options,
+                        numeric_limits:
+                          nextType === "NUMERIC"
+                            ? numericLimitDraftFromField({ options: nextOptions, help_text: f.help_text })
+                            : undefined,
+                      });
                     }}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1227,13 +1371,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Options (one per line)</Label>
-                  <Textarea
-                    rows={2}
-                    value={optionsToLines(f.options)}
-                    onChange={(e) => updateInputField(idx, { options: linesToOptions(e.target.value) })}
-                    disabled={String(f.field_type || "").toUpperCase() === "NUMERIC"}
-                  />
+                  {String(f.field_type || "").toUpperCase() === "NUMERIC" ? (
+                    renderNumericLimits(f, idx, idPrefix)
+                  ) : (
+                    <>
+                      <Label className="text-xs">Options (one per line)</Label>
+                      <Textarea
+                        rows={2}
+                        value={optionsToLines(f.options)}
+                        onChange={(e) => updateInputField(idx, { options: linesToOptions(e.target.value) })}
+                      />
+                    </>
+                  )}
                   {String(f.field_type || "").toUpperCase() === "NUMERIC" && (
                     <div className="flex items-center gap-2 pt-1">
                       <input
@@ -1256,6 +1405,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     value={f.help_text ?? ""}
                     onChange={(e) => updateInputField(idx, { help_text: e.target.value })}
                   />
+                  {String(f.field_type || "").toUpperCase() === "NUMERIC" &&
+                    (isNumericHelpTextConvention(f.help_text) ? (
+                      <p className="text-xs text-muted-foreground">
+                        Old Min / Max / Step lines: on save they fill any empty box and this help text is cleared.
+                      </p>
+                    ) : Object.keys(parseNumericHelpText(f.help_text)).length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Numbers on lines 1–3 are still read as Min / Max / Step when a box is left empty.
+                      </p>
+                    ) : null)}
                 </div>
               </div>
               <div className="flex justify-end">

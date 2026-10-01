@@ -94,6 +94,89 @@ export function parseNumericHelpText(helpText?: string | null): Partial<NumericF
   return out;
 }
 
+function optionsObject(options: unknown): Record<string, unknown> {
+  return options && typeof options === "object" && !Array.isArray(options)
+    ? (options as Record<string, unknown>)
+    : {};
+}
+
+/** options.max_formula (e.g. "B*4"), or a legacy plain-formula options value ("B*4" / ["B*4"]); "" when none. */
+export function numericMaxFormula(options: unknown): string {
+  if (typeof options === "string") return options.trim();
+  if (Array.isArray(options)) {
+    return options.length === 1 && typeof options[0] === "string" ? options[0].trim() : "";
+  }
+  const formula = optionsObject(options).max_formula;
+  return typeof formula === "string" ? formula.trim() : "";
+}
+
+export type NumericConstraintSource = "options" | "help_text" | null;
+
+export type NumericConstraints = {
+  min?: number;
+  max?: number;
+  step?: number;
+  maxFormula: string;
+  source: { min: NumericConstraintSource; max: NumericConstraintSource; step: NumericConstraintSource };
+};
+
+/**
+ * The min / max / step / max formula configured on the equipment for a NUMERIC field. The single place
+ * that decides where a numeric limit comes from: options first, then help-text lines 1–3, else undefined
+ * (no UI default). Mirrors the backend `numeric_field_limits.numeric_constraints`.
+ */
+export function numericConstraints(
+  field: { options?: unknown; help_text?: string | null } | null | undefined,
+): NumericConstraints {
+  const opts = optionsObject(field?.options);
+  const fromHelp = parseNumericHelpText(field?.help_text);
+  const out: NumericConstraints = {
+    maxFormula: numericMaxFormula(field?.options),
+    source: { min: null, max: null, step: null },
+  };
+  for (const key of ["min", "max", "step"] as const) {
+    let value = toFiniteNumber(opts[key]);
+    if (key === "step" && value !== undefined && value <= 0) value = undefined;
+    let source: NumericConstraintSource = value !== undefined ? "options" : null;
+    if (value === undefined && fromHelp[key] !== undefined) {
+      value = fromHelp[key];
+      source = "help_text";
+    }
+    out[key] = value;
+    out.source[key] = source;
+  }
+  return out;
+}
+
+const PLAIN_NUMBER_RE = /^[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)$/;
+
+/** True when the help text is only the min / max / step numbers (nothing a user should read). */
+export function isNumericHelpTextConvention(helpText?: string | null): boolean {
+  if (!helpText || !String(helpText).trim()) return false;
+  const normalized = String(helpText).replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const lines = normalized.split("\n");
+  let tokens: string[];
+  if (lines.length >= 2) {
+    if (lines.length > 3) return false;
+    tokens = lines.map((l) => l.trim()).filter(Boolean);
+  } else {
+    tokens = normalized.split(/[,;\s]+/).filter(Boolean);
+    if (tokens.length !== 1 && tokens.length !== 3) return false;
+  }
+  return (
+    tokens.length > 0 &&
+    tokens.every((t) => PLAIN_NUMBER_RE.test(t)) &&
+    Object.keys(parseNumericHelpText(helpText)).length > 0
+  );
+}
+
+/** Help text to show users: empty for a NUMERIC field whose help text is only the limit numbers. */
+export function numericHelpTextForDisplay(field: { field_type?: string; help_text?: string | null }): string {
+  const text = String(field.help_text ?? "").trim();
+  if (String(field.field_type ?? "").toUpperCase() === "NUMERIC" && isNumericHelpTextConvention(text)) return "";
+  return text;
+}
+
 export function resolveNumericFieldBounds(
   field: {
     options?: unknown;
@@ -101,22 +184,17 @@ export function resolveNumericFieldBounds(
   } | null | undefined,
   formulaMax?: number | null
 ): NumericFieldBounds {
-  const rawOptions = field?.options;
-  const opts =
-    rawOptions && typeof rawOptions === "object" && !Array.isArray(rawOptions)
-      ? (rawOptions as Record<string, unknown>)
-      : {};
-  const fromHelp = parseNumericHelpText(field?.help_text);
+  const opts = optionsObject(field?.options);
+  const configured = numericConstraints(field);
 
-  let min = toFiniteNumber(opts.min) ?? fromHelp.min ?? DEFAULT_NUMERIC_MIN;
+  let min = configured.min ?? DEFAULT_NUMERIC_MIN;
   let max: number;
   if (formulaMax !== undefined && formulaMax !== null && Number.isFinite(formulaMax)) {
     max = Number(formulaMax);
   } else {
-    max = toFiniteNumber(opts.max) ?? fromHelp.max ?? DEFAULT_NUMERIC_MAX;
+    max = configured.max ?? DEFAULT_NUMERIC_MAX;
   }
-  let step = toFiniteNumber(opts.step) ?? fromHelp.step ?? DEFAULT_NUMERIC_STEP;
-  if (step <= 0) step = DEFAULT_NUMERIC_STEP;
+  const step = configured.step ?? DEFAULT_NUMERIC_STEP;
 
   // Explicit allow_negative: if min is still non-negative, open the floor to -max.
   const allowNegative =
@@ -179,19 +257,8 @@ export function resolveFieldAFormulaMax(
   slotDurationMinutes?: number | null,
 ): number | undefined {
   if (String(field?.field_key || "").toUpperCase() !== "A") return undefined;
-  const rawOptions = field?.options;
-  const opts =
-    rawOptions && typeof rawOptions === "object" && !Array.isArray(rawOptions)
-      ? (rawOptions as Record<string, unknown>)
-      : undefined;
-  const formula =
-    typeof opts?.max_formula === "string"
-      ? opts.max_formula.trim()
-      : typeof rawOptions === "string"
-        ? rawOptions.trim()
-        : Array.isArray(rawOptions) && rawOptions.length === 1 && typeof rawOptions[0] === "string"
-          ? rawOptions[0].trim()
-          : "";
+  const opts = optionsObject(field?.options);
+  const formula = numericMaxFormula(field?.options);
   if (formula) {
     let expr = formula;
     for (const token of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
@@ -206,7 +273,7 @@ export function resolveFieldAFormulaMax(
       return undefined;
     }
   }
-  return strictFiniteNumber(opts?.max);
+  return strictFiniteNumber(opts.max);
 }
 
 /** True when a numeric input is present and within resolved [min, max]. */
