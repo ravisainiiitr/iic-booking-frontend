@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { apiClient, type PrintAnalysisResult } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
@@ -42,6 +42,7 @@ import {
 import { toast } from "sonner";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import BookingUserInputs from "@/components/BookingUserInputs";
+import InputEditPayCountdown from "@/components/InputEditPayCountdown";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
 import UserProfile from "@/components/UserProfile";
@@ -51,6 +52,7 @@ import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
+import { formatBookingDateTime } from "@/lib/bookingDates";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -170,6 +172,9 @@ export interface BookingDetailCardBooking extends BookingRef {
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
+  /** Set while the booking user's own edit awaits payment of the extra amount. */
+  charge_recalculation_pay_deadline?: string | null;
+  charge_recalculation_pay_seconds_remaining?: number | null;
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
   repeat_booking_already_created?: boolean;
@@ -635,6 +640,7 @@ export function BookingDetailCard({
   const [zipDownloadProgress, setZipDownloadProgress] = useState(0);
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
+  const chargeRecalcPayingRef = useRef(false);
   const [actionSubmitLoading, setActionSubmitLoading] = useState(false);
   const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
   const [extendHoldReasonCode, setExtendHoldReasonCode] = useState<string>("");
@@ -1174,6 +1180,7 @@ export function BookingDetailCard({
 
   const handleProcessChargeRecalcPayNow = async (b: BookingDetailCardBooking) => {
     setChargeRecalcActionLoading(true);
+    chargeRecalcPayingRef.current = true;
     try {
       const backendId = getRealBookingId(b);
       if (backendId == null) {
@@ -1183,12 +1190,45 @@ export function BookingDetailCard({
       const res = await apiClient.processChargeRecalculationPayNow(backendId);
       if (res.error) {
         toast.error(res.error);
+        // The edit may have been reverted because the payment time was over.
+        await refreshBookingDetail({ silent: true });
+        onUpdated();
         return;
       }
+      const paidBooking = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
+      if (paidBooking) setBooking(paidBooking);
       toast.success((res.data as { message?: string })?.message || "Payment processed. Amount debited from wallet.");
       onUpdated();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to process payment");
+    } finally {
+      chargeRecalcPayingRef.current = false;
+      setChargeRecalcActionLoading(false);
+    }
+  };
+
+  const handleCancelUnpaidInputEdit = async (reason: "expired" | "cancelled") => {
+    if (bookingPk == null) return;
+    // A payment already in flight decides the outcome; the server rejects it if it arrives too late.
+    if (reason === "expired" && chargeRecalcPayingRef.current) return;
+    setChargeRecalcActionLoading(true);
+    try {
+      const res = await apiClient.cancelUnpaidInputEdit(bookingPk);
+      const reverted = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
+      if (reverted) setBooking(reverted);
+      else await refreshBookingDetail({ silent: true });
+      if (!res.error || reason === "expired") {
+        toast.error(
+          reason === "expired"
+            ? "The time to pay the additional amount is over. Your edit was cancelled and the previous values were restored."
+            : "Your edit was cancelled and the previous values were restored."
+        );
+      } else {
+        toast.error(res.error);
+      }
+      onUpdated();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to cancel the edit");
     } finally {
       setChargeRecalcActionLoading(false);
     }
@@ -1470,11 +1510,11 @@ export function BookingDetailCard({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div>
                 <p className="text-base text-muted-foreground">Start Time</p>
-                <p className="font-medium text-base">{new Date(booking.start_time).toLocaleString()}</p>
+                <p className="font-medium text-base">{formatBookingDateTime(booking.start_time)}</p>
               </div>
               <div>
                 <p className="text-base text-muted-foreground">End Time</p>
-                <p className="font-medium text-base">{new Date(booking.end_time).toLocaleString()}</p>
+                <p className="font-medium text-base">{formatBookingDateTime(booking.end_time)}</p>
               </div>
               <div>
                 <p className="text-base text-muted-foreground">Duration</p>
@@ -3256,6 +3296,15 @@ export function BookingDetailCard({
                 if (updatedBooking) {
                   setBooking(updatedBooking);
                 }
+                const summary = res.data?.charge_recalculation_summary;
+                if (summary?.extra_amount && summary.pay_window_seconds) {
+                  toast.warning(
+                    `The new charge is ${formatINR(summary.extra_amount)} higher. Pay it within ${summary.pay_window_seconds} seconds, otherwise your edit is cancelled.`
+                  );
+                  window.setTimeout(() => {
+                    document.getElementById(`charge-recalc-summary-${bookingPk}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 150);
+                }
                 onUpdated();
               }}
             />
@@ -3328,7 +3377,7 @@ export function BookingDetailCard({
           )}
 
           {booking.charge_recalculation_pending_amount != null && Number(booking.charge_recalculation_pending_amount) !== 0 && (
-            <div className="mt-4 p-4 rounded-lg border bg-muted/30 space-y-3">
+            <div id={`charge-recalc-summary-${bookingPk}`} className="mt-4 p-4 rounded-lg border bg-muted/30 space-y-3">
               <p className="text-base font-medium">Charge recalculation summary</p>
               <div className="text-sm space-y-1">
                 <div className="flex justify-between">
@@ -3363,15 +3412,37 @@ export function BookingDetailCard({
                       <span>Extra amount to pay</span>
                       <span>{formatINR(booking.charge_recalculation_pending_amount)}</span>
                     </div>
-                    <p className="text-muted-foreground text-xs mt-2">
-                      {isManagerOrAdmin
-                        ? "Click Deduct Money to debit this amount from the user's wallet."
-                        : "Click Pay Now to debit this amount from the associated wallet."}
-                    </p>
-                    <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_pay", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
-                      <Banknote className="h-4 w-4 mr-2" />
-                      {chargeRecalcActionLoading ? "Processing…" : (isManagerOrAdmin ? "Deduct Money" : "Pay Now")}
-                    </Button>
+                    {booking.charge_recalculation_pay_deadline ? (
+                      <>
+                        <InputEditPayCountdown
+                          deadline={booking.charge_recalculation_pay_deadline}
+                          secondsRemaining={Number(booking.charge_recalculation_pay_seconds_remaining ?? 0)}
+                          onExpire={() => void handleCancelUnpaidInputEdit("expired")}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" className="mt-2" onClick={() => void handleProcessChargeRecalcPayNow(booking)} disabled={chargeRecalcActionLoading}>
+                            <Banknote className="h-4 w-4 mr-2" />
+                            {chargeRecalcActionLoading ? "Processing…" : `Pay ${formatINR(booking.charge_recalculation_pending_amount)} now`}
+                          </Button>
+                          <Button size="sm" variant="outline" className="mt-2" onClick={() => void handleCancelUnpaidInputEdit("cancelled")} disabled={chargeRecalcActionLoading}>
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            Cancel edit
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-muted-foreground text-xs mt-2">
+                          {isManagerOrAdmin
+                            ? "Click Deduct Money to debit this amount from the user's wallet."
+                            : "Click Pay Now to debit this amount from the associated wallet."}
+                        </p>
+                        <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_pay", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
+                          <Banknote className="h-4 w-4 mr-2" />
+                          {chargeRecalcActionLoading ? "Processing…" : (isManagerOrAdmin ? "Deduct Money" : "Pay Now")}
+                        </Button>
+                      </>
+                    )}
                   </>
                 )}
               </div>

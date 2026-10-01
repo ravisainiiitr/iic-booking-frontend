@@ -8,7 +8,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
-import { apiClient } from "@/lib/api";
 import {
   mergePeriodicDisplaySymbols,
   parsePeriodicHelpText,
@@ -22,6 +21,7 @@ import {
   syncTableRowsToCount,
 } from "@/lib/dynamicTableField";
 import { formatStepAttr, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import { computePeriodicElementUpdates, splitElements } from "@/lib/periodicElementSelection";
 import { MAX_SAMPLE_SETS, type SampleSetValues } from "@/lib/sampleSets";
 import { cn } from "@/lib/utils";
 
@@ -58,8 +58,43 @@ const copyOf = (values: SampleSetValues): SampleSetValues => {
   return out;
 };
 
-const splitElements = (raw: unknown): string[] =>
-  typeof raw === "string" && raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+/** "Select elements" button plus the current selection summary, shared by every sample set. */
+export function PeriodicElementsField({
+  field,
+  values,
+  disabled,
+  onOpen,
+}: {
+  field: SampleSetField;
+  values: SampleSetValues;
+  disabled?: boolean;
+  onOpen: (selection: Set<string>) => void;
+}) {
+  const key = field.field_key;
+  const { disabled: disabledSet, preselected } = parsePeriodicHelpText(field.help_text);
+  const { all } = mergePeriodicDisplaySymbols(splitElements(values[`${key}_elements`]), field.help_text);
+  const allowedList = all.filter((s) => !disabledSet.has(s));
+  const count = Number(values[key]) || 0;
+  return (
+    <div className="space-y-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => onOpen(new Set([...allowedList, ...Array.from(preselected)]))}
+      >
+        Select elements
+      </Button>
+      {(count > 0 || allowedList.length > 0) && (
+        <p className="text-sm text-muted-foreground">
+          {periodicSelectionChargeSummaryFromHelpText(allowedList, field.help_text)}
+          {allowedList.length ? ` Selected: ${allowedList.join(", ")}.` : ""}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SampleSetsEditor({ fields, sets, onChange, primaryValues, disabled }: Props) {
   const setsRef = useRef(sets);
@@ -80,62 +115,9 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
 
   const update = (index: number, key: string, value: SampleSetValues[string]) => patchSet(index, { [key]: value }, key);
 
-  /** Same rules as the booking page's periodic "Apply": element counts plus ICPMS standard coverage. */
   const applyElements = async (index: number, field: SampleSetField, symbols: string[]) => {
-    const key = field.field_key;
-    const { disabled: disabledSet, preselected } = parsePeriodicHelpText(field.help_text);
-    const icpmsFields = fields.filter((f) => fieldTypeOf(f) === "ICPMS_STANDARD_COVERAGE");
-    const matching = icpmsFields.filter((f) => String(f.source_element_field_key || "").trim() === key);
-    const coverageFields = matching.length > 0 ? matching : icpmsFields;
-    const updates: SampleSetValues = {};
-
-    const build = (picked: string[]) => {
-      const merged = mergePeriodicDisplaySymbols(picked, field.help_text);
-      const all = merged.all.filter((s) => !disabledSet.has(s));
-      const billable = merged.billable.length;
-      const countFor = (k: string) => (k === "A" || k === "B" ? (billable > 0 ? Math.max(1, billable) : 0) : billable);
-      updates[key] = countFor(key);
-      updates[`${key}_elements`] = all.join(",");
-      for (const f of coverageFields) {
-        const src = String(f.source_element_field_key || "").trim();
-        if (!src) continue;
-        updates[src] = countFor(src);
-        updates[`${src}_elements`] = all.join(",");
-      }
-      return all;
-    };
-
-    let allowed = build([...symbols, ...Array.from(preselected)]);
     setPeriodicTarget(null);
-
-    if (coverageFields.length > 0) {
-      let count = 0;
-      try {
-        while (allowed.length > 0) {
-          const res = await apiClient.getIcpmsMinStandardsCover(allowed);
-          const uncovered = Array.isArray(res?.data?.uncovered) ? res.data.uncovered : [];
-          if (uncovered.length === 0) {
-            count = res?.data?.count ?? 0;
-            break;
-          }
-          const exclude = window.confirm(
-            `Some selected elements cannot be covered by available standards.\n\nUncovered elements:\n${uncovered.join(", ")}\n\nDo you want to exclude these elements and recalculate?`,
-          );
-          if (!exclude) {
-            allowed = build(Array.from(preselected));
-            break;
-          }
-          const uncoveredSet = new Set(uncovered.map((u) => String(u).toUpperCase()));
-          const remaining = allowed.filter((s) => preselected.has(s) || !uncoveredSet.has(s.toUpperCase()));
-          if (remaining.length === allowed.length) break;
-          allowed = build(remaining);
-        }
-      } catch {
-        count = 0;
-      }
-      for (const f of coverageFields) updates[f.field_key] = count;
-    }
-    patchSet(index, updates);
+    patchSet(index, await computePeriodicElementUpdates(fields, field, symbols));
   };
 
   const renderTable = (set: SampleSetValues, index: number, field: SampleSetField) => {
@@ -355,34 +337,18 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
             onCheckedChange={(checked) => update(index, key, checked)}
           />
         );
-      case "PERIODIC_TABLE": {
-        const { disabled: disabledSet, preselected } = parsePeriodicHelpText(field.help_text);
-        const { all } = mergePeriodicDisplaySymbols(splitElements(set[`${key}_elements`]), field.help_text);
-        const allowedList = all.filter((s) => !disabledSet.has(s));
-        const count = Number(raw) || 0;
+      case "PERIODIC_TABLE":
         return (
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={() => {
-                setPeriodicSelection(new Set([...allowedList, ...Array.from(preselected)]));
-                setPeriodicTarget({ index, field });
-              }}
-            >
-              Select elements
-            </Button>
-            {(count > 0 || allowedList.length > 0) && (
-              <p className="text-sm text-muted-foreground">
-                {periodicSelectionChargeSummaryFromHelpText(allowedList, field.help_text)}
-                {allowedList.length ? ` Selected: ${allowedList.join(", ")}.` : ""}
-              </p>
-            )}
-          </div>
+          <PeriodicElementsField
+            field={field}
+            values={set}
+            disabled={disabled}
+            onOpen={(selection) => {
+              setPeriodicSelection(selection);
+              setPeriodicTarget({ index, field });
+            }}
+          />
         );
-      }
       case "ICPMS_STANDARD_COVERAGE":
         return (
           <div className="space-y-1">

@@ -6979,6 +6979,9 @@ class ApiClient {
         new_charge: string;
         refund_amount: string | null;
         extra_amount: string | null;
+        /** Set when the booking user's own edit raised the charge: pay before this time or the edit is reverted. */
+        pay_deadline?: string | null;
+        pay_window_seconds?: number | null;
       };
     }>(
       `/bookings/${bookingId}/input-values/`,
@@ -7033,6 +7036,14 @@ class ApiClient {
   async processChargeRecalculationPayNow(bookingId: number) {
     return this.request<{ message: string; booking: any }>(
       `/bookings/${bookingId}/process-charge-recalculation-pay-now/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Cancel an input edit whose extra charge was not paid: restores the previous inputs and charge. */
+  async cancelUnpaidInputEdit(bookingId: number) {
+    return this.request<{ message: string; booking: unknown }>(
+      `/bookings/${bookingId}/cancel-unpaid-input-edit/`,
       { method: 'POST' }
     );
   }

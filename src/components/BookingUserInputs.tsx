@@ -20,8 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Pencil, Check, Plus, Trash2, FileText, Info } from "lucide-react";
-import { periodicTableElements, getCategoryColor, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText, type Element } from "@/data/periodicTableData";
+import { Pencil, Plus, Trash2, FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveFieldAFormulaMax, resolveNumericFieldBounds, roundToStepPrecision, type NumericFieldBounds } from "@/lib/numericFieldLimits";
@@ -38,7 +37,9 @@ import {
   isBookingInputValueEmpty,
   isCommentsInputFieldKey,
 } from "@/lib/bookingInputValues";
-import SampleSetsEditor from "@/components/SampleSetsEditor";
+import SampleSetsEditor, { PeriodicElementsField } from "@/components/SampleSetsEditor";
+import { computePeriodicElementUpdates } from "@/lib/periodicElementSelection";
+import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import { readSampleSets, SAMPLE_SETS_KEY, type SampleSetValues } from "@/lib/sampleSets";
 
 export interface InputFieldDef {
@@ -163,6 +164,8 @@ export function BookingUserInputs({
     >
   >({});
   const [editSampleSets, setEditSampleSets] = useState<SampleSetValues[]>([]);
+  const [periodicField, setPeriodicField] = useState<InputFieldDef | null>(null);
+  const [periodicSelection, setPeriodicSelection] = useState<Set<string>>(new Set());
   const autoOpenHandledRef = useRef(false);
   const incompleteScrollDoneRef = useRef(false);
 
@@ -196,15 +199,11 @@ export function BookingUserInputs({
             ({ field_key: key, field_label: key, field_type: "", options: undefined, editing_required: false } as InputFieldDef)
         );
 
-  // Admin/OIC: prefer API editable_input_fields (all keys) or fall back to every input field.
-  // End users: only editing_required (or API-provided editable subset).
+  // Sample set 1 offers the same fields as the extra sample sets: every input field.
   const editableFields =
-    isAdminUser
-      ? (editableInputFields && editableInputFields.length > 0 ? editableInputFields : fields)
-      : editableInputFields && editableInputFields.length > 0
-        ? editableInputFields
-        : fields.filter((f) => f.editing_required);
+    editableInputFields && editableInputFields.length > 0 ? editableInputFields : fields;
   const hasEditableFields = canEdit && editableFields.length > 0;
+  const sampleSetFields = fields.filter((f) => !isCommentsInputFieldKey(f.field_key));
 
   const numericBoundsFor = (f: InputFieldDef, values: Record<string, unknown>): NumericFieldBounds =>
     resolveNumericFieldBounds(
@@ -255,6 +254,8 @@ export function BookingUserInputs({
       .filter((f) => {
         const key = String(f.field_key || "").trim();
         if (!key || isCommentsInputFieldKey(key)) return false;
+        // Only fields the lab asks users to complete after booking (editing_required).
+        if (!f.editing_required) return false;
         // Prefer optional (non-essential) empties; if is_required unknown, still flag empty editable fields.
         if (f.is_required === true) return false;
         return isBookingInputValueEmpty(sourceValues[key], f, sourceValues as Record<string, unknown>);
@@ -417,98 +418,8 @@ export function BookingUserInputs({
     if (!onUpdate) return;
     setSaving(true);
     try {
-      // ICPMS Standard Coverage auto-computation for "My Bookings" edit flow:
-      // replicate the same behavior as the booking page PeriodicTable "Apply" flow.
+      // ICPMS standard coverage is recalculated when elements are applied (same as the extra sample sets).
       const nextValues: Record<string, string | boolean | string[] | number | string[][]> = { ...editFormValues };
-
-      const icpmsCoverageFields = (inputFields ?? []).filter(
-        (f) => String(f.field_type || "").toUpperCase() === "ICPMS_STANDARD_COVERAGE"
-      );
-
-      if (icpmsCoverageFields.length > 0) {
-        const getSelectedElements = (sourceKey: string) => {
-          const elementsStr = String(nextValues[`${sourceKey}_elements`] ?? "").trim();
-          if (!elementsStr) return [];
-          return elementsStr.split(",").map((s) => s.trim()).filter((s) => Boolean(s));
-        };
-
-        const setSelectedElements = (sourceKey: string, elements: string[]) => {
-          const cleaned = elements.map((e) => String(e).trim()).filter(Boolean);
-          nextValues[`${sourceKey}_elements`] = cleaned.join(",");
-
-          // For consistency with the booking apply flow:
-          // - A and B are treated as at-least-1 when non-empty
-          // - but can still be reset to 0 when empty.
-          const count =
-            sourceKey === "A" || sourceKey === "B"
-              ? cleaned.length > 0
-                ? Math.max(1, cleaned.length)
-                : 0
-              : cleaned.length;
-          nextValues[sourceKey] = count;
-        };
-
-        for (const icpmsField of icpmsCoverageFields) {
-          let sourceKey = String(icpmsField.source_element_field_key ?? "").trim();
-          if (!sourceKey) {
-            // Booking-details payload can miss source_element_field_key.
-            // Use a periodic field that currently has selected elements as fallback.
-            const periodicWithElements = periodicFields.find((pf) =>
-              String(nextValues[`${pf.field_key}_elements`] ?? "").trim().length > 0
-            );
-            sourceKey = periodicWithElements?.field_key ?? "";
-          }
-          if (!sourceKey) continue;
-
-          let selectedElements = getSelectedElements(sourceKey);
-
-          // Nothing selected => reset ICPMS min standards to 0
-          if (selectedElements.length === 0) {
-            nextValues[icpmsField.field_key] = 0;
-            continue;
-          }
-
-          // Recompute using uncovered-elements confirmation logic.
-          // The backend may return:
-          // - { count, standards, uncovered? } with status 200
-          // - or an "error" string plus "uncovered" list for impossible covers.
-          // For our UI behavior:
-          // - If uncovered exists, ask:
-          //   OK => exclude uncovered and recompute
-          //   Cancel => clear selection + reset ICPMS values
-          while (selectedElements.length > 0) {
-            const res = await apiClient.getIcpmsMinStandardsCover(selectedElements);
-            const data = res.data;
-
-            const uncovered: string[] = Array.isArray(data?.uncovered) ? data.uncovered : [];
-            if (uncovered.length > 0) {
-              const uncoveredStr = uncovered.join(", ");
-              const exclude = window.confirm(
-                `Some selected elements cannot be covered by available standards.\n\nUncovered elements:\n${uncoveredStr}\n\nDo you want to exclude these elements and recalculate?`
-              );
-
-              if (!exclude) {
-                // Reset element requirements and ICPMS values
-                setSelectedElements(sourceKey, []);
-                nextValues[icpmsField.field_key] = 0;
-                selectedElements = [];
-                break;
-              }
-
-              const uncoveredSet = new Set(uncovered.map((u) => String(u).toUpperCase()));
-              selectedElements = selectedElements.filter((e) => !uncoveredSet.has(String(e).toUpperCase()));
-              setSelectedElements(sourceKey, selectedElements);
-              continue; // recompute with reduced set
-            }
-
-            const minCount = data?.count ?? 0;
-            nextValues[icpmsField.field_key] = minCount;
-            break;
-          }
-        }
-      }
-
-      setEditFormValues(nextValues);
 
       const limitError = valuesChangedFrom(nextValues) ? numericLimitError(nextValues) : null;
       if (limitError) {
@@ -535,6 +446,12 @@ export function BookingUserInputs({
     } finally {
       setSaving(false);
     }
+  };
+
+  const applyPeriodicSelection = async (field: InputFieldDef, symbols: string[]) => {
+    setPeriodicField(null);
+    const updates = await computePeriodicElementUpdates(sampleSetFields, field, symbols);
+    setEditFormValues((prev) => ({ ...prev, ...(updates as typeof prev) }));
   };
 
   const updateFormValue = (
@@ -829,9 +746,9 @@ export function BookingUserInputs({
           <DialogHeader>
             <DialogTitle className="text-lg">Edit User Inputs</DialogTitle>
             <DialogDescription className="text-sm">
-              Update the values below. Only fields marked as editable can be changed, until the booking is completed
-              (the Officer In Charge can also edit after completion). If the charge changes, you can pay the difference;
-              a lower charge is refunded after the Officer In Charge confirms it.
+              Update the values below until the booking is completed (the Officer In Charge can also edit after
+              completion). If the charge goes up, pay the difference within 1 minute or the edit is cancelled and the
+              previous values are restored; a lower charge is refunded after the Officer In Charge confirms it.
             </DialogDescription>
           </DialogHeader>
           {incompleteOptionalEditableKeys.length > 0 ? (
@@ -843,6 +760,7 @@ export function BookingUserInputs({
             </div>
           ) : null}
           <div className="space-y-5 py-4">
+            <p className="text-sm font-semibold text-primary">Sample set 1</p>
             {editableFields.map((f) => {
               const val = editFormValues[f.field_key];
               const type = String(f.field_type || "").toUpperCase();
@@ -1034,106 +952,38 @@ export function BookingUserInputs({
                       )}
                     </div>
                   )}
-                  {type === "PERIODIC_TABLE" && (() => {
-                    const elementsStr = String(editFormValues[`${f.field_key}_elements`] ?? "").trim();
-                    const { disabled: disabledSet, preselected: preselectedSet } = parsePeriodicHelpText(f.help_text);
-                    const selectedSymbols = new Set(
-                      elementsStr
-                        ? elementsStr.split(",").map((s) => s.trim()).filter((s) => Boolean(s) && !disabledSet.has(s))
-                        : []
-                    );
-                    preselectedSet.forEach((s) => selectedSymbols.add(s));
-                    const toggleSymbol = (symbol: string) => {
-                      if (disabledSet.has(symbol) || preselectedSet.has(symbol)) return;
-                      const next = new Set(selectedSymbols);
-                      if (next.has(symbol)) next.delete(symbol);
-                      else next.add(symbol);
-                      preselectedSet.forEach((s) => next.add(s));
-                      const { all, billable } = mergePeriodicDisplaySymbols(Array.from(next), f.help_text);
-                      setEditFormValues((prev) => ({
-                        ...prev,
-                        [f.field_key]: billable.length,
-                        [`${f.field_key}_elements`]: all.join(","),
-                      }));
-                    };
-                    const grid: (Element | null)[][] = Array(7)
-                      .fill(null)
-                      .map(() => Array(18).fill(null));
-                    periodicTableElements.forEach((el) => {
-                      if (el.row <= 7 && el.col <= 18) grid[el.row - 1][el.col - 1] = el;
-                    });
-                    const lanthanides = periodicTableElements.filter((el) => el.category === "lanthanide");
-                    const actinides = periodicTableElements.filter((el) => el.category === "actinide");
-                    const elButton = (el: Element) => {
-                      const isDisabled = disabledSet.has(el.symbol);
-                      const isLocked = preselectedSet.has(el.symbol);
-                      const isSelected = selectedSymbols.has(el.symbol) || isLocked;
-                      return (
-                        <button
-                          key={el.atomicNumber}
-                          type="button"
-                          onClick={() => toggleSymbol(el.symbol)}
-                          disabled={isDisabled || isLocked}
-                          title={
-                            isDisabled
-                              ? `${el.name} (disabled)`
-                              : isLocked
-                                ? `${el.name} (locked preselected — not charged)`
-                                : el.name
-                          }
-                          className={cn(
-                            "w-9 h-9 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative",
-                            getCategoryColor(el.category),
-                            isSelected && "ring-2 ring-primary ring-offset-1 scale-105",
-                            isLocked && "ring-2 ring-sky-500 ring-offset-1",
-                            (isDisabled || isLocked) && "opacity-60 cursor-not-allowed pointer-events-none",
-                            isDisabled && "bg-muted border-dashed"
-                          )}
-                        >
-                          {isSelected && (
-                            <Check className="absolute top-0 right-0 w-3 h-3 text-primary" />
-                          )}
-                          <span className="font-bold">{el.symbol}</span>
-                        </button>
-                      );
-                    };
+                  {type === "PERIODIC_TABLE" && (
+                    <PeriodicElementsField
+                      field={f}
+                      values={editFormValues as SampleSetValues}
+                      disabled={saving}
+                      onOpen={(selection) => {
+                        setPeriodicSelection(selection);
+                        setPeriodicField(f);
+                      }}
+                    />
+                  )}
+                  {type === "MULTI_SELECT" && f.options && f.options.length > 0 && (() => {
+                    const current = Array.isArray(val) ? (val as string[]) : [];
                     return (
-                      <div className="space-y-2 pt-1">
-                        <p className="text-sm text-muted-foreground">
-                          {periodicSelectionChargeSummaryFromHelpText(selectedSymbols, f.help_text)} Click
-                          elements to toggle.
-                        </p>
-                        <div className="overflow-x-auto rounded-md border p-2 bg-muted/30">
-                          <div className="inline-block min-w-max">
-                            <div className="flex flex-col gap-0.5">
-                              {grid.map((row, ri) => (
-                                <div key={ri} className="flex gap-0.5">
-                                  {row.map((el, ci) => (
-                                    <div key={`${ri}-${ci}`}>
-                                      {el ? (
-                                        elButton(el)
-                                      ) : (
-                                        <div className="w-9 h-9" />
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
-                              <div className="flex gap-0.5 mt-1">
-                                <div className="w-9 h-9 flex items-center justify-center text-xs font-semibold">
-                                  Ln
-                                </div>
-                                {lanthanides.map((el) => elButton(el))}
-                              </div>
-                              <div className="flex gap-0.5 mt-0.5">
-                                <div className="w-9 h-9 flex items-center justify-center text-xs font-semibold">
-                                  Ac
-                                </div>
-                                {actinides.map((el) => elButton(el))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                        {f.options.map((opt, i) => {
+                          const { value: optionValue, label: optionLabel } = normalizeChoiceOption(opt, i);
+                          return (
+                            <label key={`edit-${f.field_key}-${i}-${optionValue}`} className="flex items-center gap-1.5 text-sm">
+                              <Checkbox
+                                checked={current.includes(optionValue)}
+                                onCheckedChange={(checked) =>
+                                  updateFormValue(
+                                    f.field_key,
+                                    checked ? [...current, optionValue] : current.filter((v) => v !== optionValue)
+                                  )
+                                }
+                              />
+                              {optionLabel}
+                            </label>
+                          );
+                        })}
                       </div>
                     );
                   })()}
@@ -1253,13 +1103,24 @@ export function BookingUserInputs({
               The values above are sample set 1. Each extra sample set is charged and timed separately.
             </p>
             <SampleSetsEditor
-              fields={fields.filter((f) => !isCommentsInputFieldKey(f.field_key))}
+              fields={sampleSetFields}
               sets={editSampleSets}
               onChange={setEditSampleSets}
               primaryValues={editFormValues as SampleSetValues}
               disabled={saving}
             />
           </div>
+          <PeriodicElementsDialog
+            open={periodicField != null}
+            onOpenChange={(open) => !open && setPeriodicField(null)}
+            helpText={periodicField?.help_text}
+            selected={periodicSelection}
+            onSelectedChange={setPeriodicSelection}
+            onApply={() => {
+              if (!periodicField) return;
+              void applyPeriodicSelection(periodicField, Array.from(periodicSelection));
+            }}
+          />
           {editLimitErrorOnReadOnlyField ? (
             <p className="text-sm font-medium text-destructive" role="alert">
               {editLimitError?.message} Adjust the values above to stay within this limit.
