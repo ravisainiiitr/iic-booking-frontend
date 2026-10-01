@@ -269,7 +269,7 @@ const NoticeBoard = () => {
   return (
     <Card className="flex h-full min-w-0 flex-col overflow-hidden border-slate-200/80 shadow-sm dark:border-slate-800">
       <CardHeader className="flex-shrink-0 space-y-3 border-b border-slate-100 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent pb-4 dark:border-slate-800">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/30">
             <Megaphone className="h-5 w-5" aria-hidden />
           </span>
@@ -282,7 +282,6 @@ const NoticeBoard = () => {
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">Latest updates and announcements</p>
           </div>
         </div>
         {showFilters && (
