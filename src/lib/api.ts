@@ -310,7 +310,7 @@ export interface FacultyWalletExpenseReportData {
     internal_transfer_credits: string;
     withdrawal_reversal_credits: string;
   };
-  period_booking_spend: { total: string; booking_count: number };
+  period_booking_spend: { total: string; booking_count: number; uncharged_booking_count?: number };
   by_member: Array<{
     user_id: number;
     name: string;
@@ -6859,13 +6859,28 @@ class ApiClient {
     }>(endpoint);
   }
 
-  async getBookingStats() {
+  /**
+   * Reports & Statistics aggregates from one scoped queryset. `status_counts` always sums to
+   * `total_bookings`; spend / hours / average cover charged bookings only.
+   */
+  async getBookingStats(params?: { status?: string; date_from?: string; date_to?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append('status', params.status);
+    if (params?.date_from) qs.append('date_from', params.date_from);
+    if (params?.date_to) qs.append('date_to', params.date_to);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return this.request<{
       total_bookings: number;
+      status_counts: Record<string, number>;
+      charged_bookings?: number;
       total_spent: number;
       total_hours: number;
-      status_counts: Record<string, number>;
-    }>('/bookings/stats/');
+      average_cost?: number;
+      refunded_amount?: number;
+      status_sum_matches_total?: boolean;
+      scope?: 'personal' | 'wallet_group' | 'equipment' | 'department' | 'institute';
+      status_filter?: string | null;
+    }>(`/bookings/stats/${suffix}`);
   }
 
   /** Lab Operator and OIC (manager) dashboard: filtered booking totals, week view, follow-up queues. */
@@ -10706,6 +10721,8 @@ class ApiClient {
         report_title?: string;
         period_display?: string;
         month_year?: string;
+        report_duration_suffix?: string;
+        department_name?: string;
       };
       equipment: Array<{
         equipment_id: number;

@@ -29,14 +29,33 @@ interface BookingRow extends BookingRef {
   created_at: string;
 }
 
+const PAGE_SIZE = 100;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toRow = (b: any): BookingRow => ({
+  booking_id: b.booking_id,
+  real_booking_id: b.real_booking_id ?? null,
+  equipment_name: b.equipment_name || "",
+  equipment_code: b.equipment_code || "",
+  start_time: b.start_time || "",
+  end_time: b.end_time || "",
+  total_hours: Number(b.total_hours || 0),
+  total_charge: b.total_charge ?? "0",
+  status: b.status || "",
+  status_display: b.status_display || b.status || "",
+  rating: b.rating ?? null,
+  created_at: b.created_at || "",
+});
+
 const ReportBookingsList = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") || undefined;
   const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [totalSpent, setTotalSpent] = useState(0);
-  const [totalHours, setTotalHours] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totals, setTotals] = useState({ spent: 0, hours: 0, charged: 0, bookings: 0, refunded: 0, scope: "personal" });
 
   useEffect(() => {
     const token = apiClient.getToken();
@@ -44,44 +63,56 @@ const ReportBookingsList = () => {
       navigate("/auth");
       return;
     }
-    fetchBookings();
+    void fetchFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, statusFilter]);
 
-  const fetchBookings = async () => {
-    setLoading(true);
-    const response = await apiClient.getBookings({
+  const fetchPage = (offset: number) =>
+    apiClient.getBookings({
       ...(statusFilter ? { status: statusFilter } : {}),
       ordering: "-created_at",
       list_view: true,
+      limit: PAGE_SIZE,
+      offset,
     });
-    if (response.data?.bookings) {
-      const list = response.data.bookings.map((b: any) => ({
-        booking_id: b.booking_id,
-        equipment_name: b.equipment_name || "",
-        equipment_code: b.equipment_code || "",
-        start_time: b.start_time || "",
-        end_time: b.end_time || "",
-        total_hours: Number(b.total_hours || 0),
-        total_charge: b.total_charge ?? "0",
-        status: b.status || "",
-        status_display: b.status_display || b.status || "",
-        rating: b.rating ?? null,
-        created_at: b.created_at || "",
-      }));
-      setBookings(list);
-      const spent = list.reduce((sum: number, b: BookingRow) => sum + Number(b.total_charge || 0), 0);
-      const hours = list.reduce((sum: number, b: BookingRow) => sum + b.total_hours, 0);
-      setTotalSpent(spent);
-      setTotalHours(hours);
-    } else {
-      setBookings([]);
+
+  const fetchFirstPage = async () => {
+    setLoading(true);
+    const [listRes, statsRes] = await Promise.all([
+      fetchPage(0),
+      apiClient.getBookingStats(statusFilter ? { status: statusFilter } : undefined),
+    ]);
+    const list = (listRes.data?.bookings ?? []).map(toRow);
+    setBookings(list);
+    setTotalCount(Number(listRes.data?.total_count ?? list.length));
+    if (statsRes.data) {
+      setTotals({
+        spent: Number(statsRes.data.total_spent || 0),
+        hours: Number(statsRes.data.total_hours || 0),
+        charged: Number(statsRes.data.charged_bookings ?? statsRes.data.total_bookings ?? 0),
+        bookings: Number(statsRes.data.total_bookings || 0),
+        refunded: Number(statsRes.data.refunded_amount || 0),
+        scope: statsRes.data.scope || "personal",
+      });
     }
     setLoading(false);
   };
 
+  const loadMore = async () => {
+    setLoadingMore(true);
+    const res = await fetchPage(bookings.length);
+    const more = (res.data?.bookings ?? []).map(toRow);
+    setBookings((prev) => [...prev, ...more]);
+    if (res.data?.total_count != null) setTotalCount(Number(res.data.total_count));
+    setLoadingMore(false);
+  };
+
+  const isStaffScope = ["equipment", "department", "institute"].includes(totals.scope);
   const subtitle = statusFilter
-    ? `Bookings with status: ${statusFilter}`
-    : "Complete list of all your bookings with amount spent";
+    ? `Bookings with status: ${statusFilter.replace(/_/g, " ")}`
+    : isStaffScope
+      ? "Complete list of bookings in your reporting scope with amounts"
+      : "Complete list of all your bookings with amount spent";
 
   return (
     <div className="page-shell">
@@ -108,10 +139,16 @@ const ReportBookingsList = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount Spent</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {isStaffScope ? "Total Amount Charged" : "Total Amount Spent"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{formatINR(totalSpent)}</p>
+                  <p className="text-2xl font-bold">{formatINR(totals.spent)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {totals.charged} charged booking(s); excludes refunded amounts
+                    {totals.refunded > 0 ? ` (${formatINR(totals.refunded)} refunded)` : ""}
+                  </p>
                 </CardContent>
               </Card>
               <Card>
@@ -119,15 +156,19 @@ const ReportBookingsList = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Hours</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{totalHours.toFixed(2)}</p>
+                  <p className="text-2xl font-bold">{totals.hours.toFixed(2)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Charged bookings only</p>
                 </CardContent>
               </Card>
             </div>
 
             <Card>
               <CardHeader>
-                <CardTitle>Bookings ({bookings.length})</CardTitle>
-                <CardDescription>Amount spent and hours per booking</CardDescription>
+                <CardTitle>Bookings ({totalCount})</CardTitle>
+                <CardDescription>
+                  Amount and hours per booking
+                  {bookings.length < totalCount ? ` · showing ${bookings.length} of ${totalCount}` : ""}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {bookings.length === 0 ? (
@@ -183,6 +224,14 @@ const ReportBookingsList = () => {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {bookings.length < totalCount && (
+                  <div className="mt-4 flex justify-center">
+                    <Button variant="outline" onClick={() => void loadMore()} disabled={loadingMore}>
+                      {loadingMore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      Load more ({totalCount - bookings.length} remaining)
+                    </Button>
                   </div>
                 )}
               </CardContent>

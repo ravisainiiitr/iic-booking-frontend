@@ -60,25 +60,49 @@ import {
 
 interface BookingStats {
   totalBookings: number;
+  chargedBookings: number;
   totalSpent: number;
   totalHours: number;
+  averageCost: number;
+  refundedAmount: number;
   statusCounts: Record<string, number>;
+  scope: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
   BOOKED: "#22c55e",
   PENDING: "#eab308",
+  PENDING_PAYMENT: "#facc15",
+  WAITLISTED: "#06b6d4",
+  DISRUPTION_PENDING: "#fb923c",
+  HOLD: "#a3a3a3",
+  PROCESSING: "#6366f1",
   COMPLETED: "#3b82f6",
   CANCELLED: "#ef4444",
   ABSENT: "#f97316",
+  UNDER_MAINTENANCE: "#be123c",
+  OTHER_DISRUPTION: "#9f1239",
   REFUNDED: "#8b5cf6",
   BOOKING_NOT_UTILIZED: "#d97706",
   UNKNOWN: "#94a3b8",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: "Awaiting payment",
+  DISRUPTION_PENDING: "Awaiting your choice (disruption)",
+  ABSENT: "Operator unavailable",
+  UNDER_MAINTENANCE: "Under maintenance",
+  OTHER_DISRUPTION: "Analysis not possible",
+  BOOKING_NOT_UTILIZED: "Booking not utilized",
+};
+
 const UTILIZATION_PIE_COLORS = ["#22c55e", "#a855f7", "#f97316", "#eab308", "#64748b"];
 
 const getStatusColor = (status: string) => STATUS_COLORS[status] ?? "#94a3b8";
+const getStatusLabel = (status: string) => STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+
+const SPEND_DEFINITION =
+  "Charged bookings only (booked, processing, completed, not utilized). Refunded, cancelled, operator-unavailable, waitlisted and unpaid bookings are excluded.";
 
 function formatYmdLocal(d: Date): string {
   const y = d.getFullYear();
@@ -140,9 +164,13 @@ const Reports = () => {
   const { toast } = useToast();
   const [stats, setStats] = useState<BookingStats>({
     totalBookings: 0,
+    chargedBookings: 0,
     totalSpent: 0,
     totalHours: 0,
+    averageCost: 0,
+    refundedAmount: 0,
     statusCounts: {},
+    scope: "personal",
   });
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -237,11 +265,18 @@ const Reports = () => {
   const fetchStats = async () => {
     const response = await apiClient.getBookingStats();
     if (response.data) {
+      const d = response.data;
+      const totalSpent = Number(d.total_spent || 0);
+      const chargedBookings = Number(d.charged_bookings ?? d.total_bookings ?? 0);
       setStats({
-        totalBookings: Number(response.data.total_bookings || 0),
-        totalSpent: Number(response.data.total_spent || 0),
-        totalHours: Number(response.data.total_hours || 0),
-        statusCounts: response.data.status_counts || {},
+        totalBookings: Number(d.total_bookings || 0),
+        chargedBookings,
+        totalSpent,
+        totalHours: Number(d.total_hours || 0),
+        averageCost: Number(d.average_cost ?? (chargedBookings > 0 ? totalSpent / chargedBookings : 0)),
+        refundedAmount: Number(d.refunded_amount || 0),
+        statusCounts: d.status_counts || {},
+        scope: d.scope || "personal",
       });
     }
     setLoading(false);
@@ -360,7 +395,7 @@ const Reports = () => {
   const pieData = useMemo(
     () =>
       Object.entries(stats.statusCounts).map(([name, value]) => ({
-        name: name.replace(/_/g, " "),
+        name: getStatusLabel(name),
         value,
         fill: getStatusColor(name),
       })),
@@ -370,7 +405,7 @@ const Reports = () => {
   const barData = useMemo(
     () =>
       Object.entries(stats.statusCounts).map(([name, value]) => ({
-        status: name.replace(/_/g, " "),
+        status: getStatusLabel(name),
         count: value,
         fill: getStatusColor(name),
       })),
@@ -391,7 +426,15 @@ const Reports = () => {
     [utilizationPieData]
   );
 
-  const averageCost = stats.totalBookings > 0 ? stats.totalSpent / stats.totalBookings : 0;
+  const isStaffScope = ["equipment", "department", "institute"].includes(stats.scope);
+  const spentLabel = isStaffScope ? "Total Charged" : "Total Spent";
+  const scopeDescription: Record<string, string> = {
+    personal: "Your bookings",
+    wallet_group: "Your bookings and your linked students' bookings",
+    equipment: "Bookings on equipment you are assigned to",
+    department: "Bookings on your department's equipment",
+    institute: "All bookings (test accounts excluded)",
+  };
 
   const facultyBarData = useMemo(() => {
     if (!facultyReportData?.by_member?.length) return [];
@@ -429,7 +472,7 @@ const Reports = () => {
               {isLabInchargeUser
                 ? "Monthly-style performance metrics (users, samples, hours, working-window availability, ratings) for your assigned equipment. Export to PDF or Excel."
                 : isFacultyUser
-                  ? "Your personal booking overview is below. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
+                  ? "The booking overview below covers your bookings and your linked students' bookings. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
                   : "Click any section to view the full list of bookings with amount spent."}
             </p>
           </div>
@@ -513,8 +556,11 @@ const Reports = () => {
                         ₹{Number(facultyReportData.period_booking_spend?.total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {facultyReportData.period_booking_spend?.booking_count ?? 0} booking(s) in range
+                        {facultyReportData.period_booking_spend?.booking_count ?? 0} charged booking(s) created in range
                         {facultyReportData.equipment_filter_id != null ? " (filtered)" : ""}
+                        {(facultyReportData.period_booking_spend?.uncharged_booking_count ?? 0) > 0
+                          ? ` · ${facultyReportData.period_booking_spend?.uncharged_booking_count} refunded/cancelled/waitlisted not counted`
+                          : ""}
                       </p>
                     </div>
                     <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -574,7 +620,8 @@ const Reports = () => {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          Booking spend totals use confirmed booking charges in the period (excludes cancelled, refunded, waitlisted, and pending).
+                          Booking spend uses bookings created in the period. {SPEND_DEFINITION} Per-member and per-equipment
+                          tables use the same bookings, so they add up to the period total.
                           Recharge totals exclude refund lines and sub-wallet transfers so you can compare inflows to current balance.
                         </p>
                       </div>
@@ -836,6 +883,13 @@ const Reports = () => {
 
         {/* My bookings stats — hidden for Lab Operator (operators see equipment section only) */}
         {!isLabInchargeUser && (
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{scopeDescription[stats.scope] ?? scopeDescription.personal}</span>
+            {" · all time · "}
+            {stats.totalBookings} booking(s), {stats.chargedBookings} charged
+          </p>
+        )}
+        {!isLabInchargeUser && (
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <Link to="/reports/bookings" className="block group">
             <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
@@ -847,6 +901,7 @@ const Reports = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-4xl font-bold text-primary">{stats.totalBookings}</p>
+                <p className="text-xs text-muted-foreground mt-1">All statuses, incl. cancelled and refunded</p>
                 <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                   View full list <ArrowRight className="h-3 w-3" />
                 </p>
@@ -858,12 +913,16 @@ const Reports = () => {
             <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Spent
+                  {spentLabel}
                 </CardTitle>
                 <IndianRupee className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
               </CardHeader>
               <CardContent>
                 <p className="text-4xl font-bold text-primary">₹{stats.totalSpent.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1" title={SPEND_DEFINITION}>
+                  Excludes refunded amounts
+                  {stats.refundedAmount > 0 ? ` (₹${stats.refundedAmount.toFixed(2)} refunded)` : ""}
+                </p>
                 <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                   View amount details <ArrowRight className="h-3 w-3" />
                 </p>
@@ -881,6 +940,7 @@ const Reports = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-4xl font-bold text-primary">{stats.totalHours.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Charged bookings only</p>
                 <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                   View booking list <ArrowRight className="h-3 w-3" />
                 </p>
@@ -897,7 +957,10 @@ const Reports = () => {
                 <TrendingUp className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
               </CardHeader>
               <CardContent>
-                <p className="text-4xl font-bold text-primary">₹{averageCost.toFixed(2)}</p>
+                <p className="text-4xl font-bold text-primary">₹{stats.averageCost.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {spentLabel} ÷ {stats.chargedBookings} charged booking(s)
+                </p>
                 <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                   View all bookings <ArrowRight className="h-3 w-3" />
                 </p>
@@ -970,6 +1033,7 @@ const Reports = () => {
           <CardHeader>
             <CardTitle>Booking Status Breakdown</CardTitle>
             <CardDescription>
+              {stats.totalBookings} booking(s) across all statuses ·{" "}
               <Link to="/reports/bookings" className="text-primary hover:underline font-medium">
                 View complete list of bookings with amount spent →
               </Link>
@@ -986,7 +1050,7 @@ const Reports = () => {
                     to={`/reports/bookings?status=${encodeURIComponent(status)}`}
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 hover:border-primary/30 transition-colors group"
                   >
-                    <span className="font-medium capitalize">{status.replace(/_/g, " ")}</span>
+                    <span className="font-medium capitalize">{getStatusLabel(status)}</span>
                     <span className="flex items-center gap-2">
                       <span className="text-2xl font-bold text-primary">{count}</span>
                       <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
