@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { DynamicFieldRow } from "@/components/DynamicFieldRow";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import {
   mergePeriodicDisplaySymbols,
   parsePeriodicHelpText,
   periodicSelectionChargeSummaryFromHelpText,
 } from "@/data/periodicTableData";
+import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import {
   applyTableRowSyncToValues,
@@ -23,7 +25,6 @@ import {
 import { formatStepAttr, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
 import { computePeriodicElementUpdates, splitElements } from "@/lib/periodicElementSelection";
 import { MAX_SAMPLE_SETS, type SampleSetValues } from "@/lib/sampleSets";
-import { cn } from "@/lib/utils";
 
 export type SampleSetField = {
   field_key: string;
@@ -44,8 +45,6 @@ type Props = {
   primaryValues: SampleSetValues;
   disabled?: boolean;
 };
-
-const WIDE_TYPES = new Set(["TABLE", "PERIODIC_TABLE", "ICPMS_STANDARD_COVERAGE"]);
 
 const fieldTypeOf = (field: SampleSetField) => String(field.field_type || "").toUpperCase().trim();
 
@@ -235,6 +234,7 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
             value={raw != null ? String(raw) : ""}
             placeholder={field.default_value || ""}
             disabled={disabled}
+            className={dynamicFieldControlWidth(type, field.field_label)}
             onChange={(e) => update(index, key, e.target.value)}
           />
         );
@@ -250,6 +250,7 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
             step={formatStepAttr(step)}
             placeholder={field.default_value || ""}
             disabled={disabled}
+            className="w-28 tabular-nums"
             onChange={(e) => update(index, key, e.target.value)}
             onBlur={(e) => {
               const value = e.target.value.trim();
@@ -268,11 +269,13 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
             value={raw != null ? String(raw) : field.default_value || ""}
             onValueChange={(v) => update(index, key, v)}
             disabled={disabled}
+            aria-label={field.field_label || key}
+            className="flex flex-wrap items-center gap-x-5 gap-y-2"
           >
             {options.map((option, oi) => {
               const { value, label } = normalizeChoiceOption(option, oi);
               return (
-                <div key={`${key}-${oi}-${value}`} className="flex items-center space-x-2">
+                <div key={`${key}-${oi}-${value}`} className="flex items-center gap-2">
                   <RadioGroupItem value={value} id={`${id}-${value}`} />
                   <Label htmlFor={`${id}-${value}`} className="cursor-pointer font-normal">
                     {label}
@@ -291,7 +294,7 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
             onValueChange={(v) => update(index, key, v)}
             disabled={disabled}
           >
-            <SelectTrigger id={id} className="w-full">
+            <SelectTrigger id={id} className={dynamicFieldControlWidth(type)}>
               <SelectValue placeholder="Select an option" />
             </SelectTrigger>
             <SelectContent>
@@ -309,7 +312,7 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
       case "MULTI_SELECT": {
         const current = Array.isArray(raw) ? (raw as string[]) : [];
         return (
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
+          <div role="group" aria-label={field.field_label || key} className="flex flex-wrap gap-x-4 gap-y-1">
             {options.map((option, oi) => {
               const { value, label } = normalizeChoiceOption(option, oi);
               return (
@@ -393,19 +396,19 @@ export default function SampleSetsEditor({ fields, sets, onChange, primaryValues
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {fields.map((field) => {
-              const type = fieldTypeOf(field);
-              return (
-                <div key={field.field_key} className={cn("space-y-1", WIDE_TYPES.has(type) && "sm:col-span-2")}>
-                  <Label htmlFor={`sample-set-${index}-${field.field_key}`} className="text-xs">
-                    {field.field_label || field.field_key}
-                    {field.is_required && <span className="ml-1 text-destructive">*</span>}
-                  </Label>
-                  {renderField(set, index, field)}
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 gap-3 sm:gap-2">
+            {fields.map((field) => (
+              <DynamicFieldRow
+                key={field.field_key}
+                fieldType={fieldTypeOf(field)}
+                label={field.field_label || field.field_key}
+                htmlFor={`sample-set-${index}-${field.field_key}`}
+                required={field.is_required}
+                density="compact"
+              >
+                {renderField(set, index, field)}
+              </DynamicFieldRow>
+            ))}
           </div>
         </div>
       ))}

@@ -149,6 +149,8 @@ import {
 } from "@/lib/dynamicTableField";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import SampleSetsEditor, { type SampleSetField } from "@/components/SampleSetsEditor";
+import { DynamicFieldRow } from "@/components/DynamicFieldRow";
+import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
 import { readSampleSets, withSampleSets, withoutSampleSets, type SampleSetValues } from "@/lib/sampleSets";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
@@ -8799,7 +8801,7 @@ const BookEquipment = () => {
                   )}
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
                     <div className="mb-2 p-2 rounded-lg">
-                      <div className="grid grid-cols-1 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:gap-2.5">
                         {equipmentDetail.input_fields
                           .filter((field: any) => {
                             if (equipmentDetail?.profile_type === "PRINT_3D") {
@@ -8832,6 +8834,7 @@ const BookEquipment = () => {
                                     required={field.is_required}
                                     placeholder={field.default_value || ''}
                                     disabled={!!repeatSourceBooking}
+                                    className={dynamicFieldControlWidth(fieldType, field.field_label)}
                                   />
                                 );
                               
@@ -8858,8 +8861,8 @@ const BookEquipment = () => {
                                   );
                                 };
                                 return (
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center gap-1.5">
+                                  <div>
+                                    <div className="inline-flex items-stretch">
                                       <Input
                                         id={field.field_key}
                                         type="number"
@@ -8907,14 +8910,14 @@ const BookEquipment = () => {
                                         step={stepAttr}
                                         placeholder={field.default_value || formatNumericBound(effectiveMin)}
                                         disabled={!!repeatSourceBooking}
-                                        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-28 rounded-r-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       />
                                       <div className="flex flex-col shrink-0">
                                         <Button
                                           type="button"
                                           variant="outline"
                                           size="icon"
-                                          className="h-5 w-8 rounded-b-none border-b-0"
+                                          className="h-5 w-7 rounded-none rounded-tr-md border-input border-l-0 border-b-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                                           disabled={!!repeatSourceBooking}
                                           aria-label={`Increase by ${stepAttr}`}
                                           onClick={() => nudge(1)}
@@ -8925,7 +8928,7 @@ const BookEquipment = () => {
                                           type="button"
                                           variant="outline"
                                           size="icon"
-                                          className="h-5 w-8 rounded-t-none"
+                                          className="h-5 w-7 rounded-none rounded-br-md border-input border-l-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                                           disabled={!!repeatSourceBooking}
                                           aria-label={`Decrease by ${stepAttr}`}
                                           onClick={() => nudge(-1)}
@@ -8945,12 +8948,14 @@ const BookEquipment = () => {
                                     onValueChange={(value) => handleInputFieldChange(field.field_key, value)}
                                     required={field.is_required}
                                     disabled={!!repeatSourceBooking}
+                                    aria-label={String(field.field_label || field.field_key)}
+                                    className="flex flex-wrap items-center gap-x-5 gap-y-2"
                                   >
                                     {field.options && field.options.length > 0 ? (
                                       field.options.map((option: any, oi: number) => {
                                         const { value: optionValue, label: optionLabel } = normalizeChoiceOption(option, oi);
                                         return (
-                                          <div key={`${field.field_key}-${oi}-${optionValue}`} className="flex items-center space-x-2">
+                                          <div key={`${field.field_key}-${oi}-${optionValue}`} className="flex items-center gap-2">
                                             <RadioGroupItem value={optionValue} id={`${field.field_key}-${optionValue}`} />
                                             <Label
                                               htmlFor={`${field.field_key}-${optionValue}`}
@@ -8975,7 +8980,7 @@ const BookEquipment = () => {
                                     required={field.is_required}
                                     disabled={!!repeatSourceBooking}
                                   >
-                                    <SelectTrigger id={field.field_key} className="w-full">
+                                    <SelectTrigger id={field.field_key} className={dynamicFieldControlWidth(fieldType)}>
                                       <SelectValue placeholder="Select an option" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -9001,7 +9006,11 @@ const BookEquipment = () => {
                               
                               case 'MULTI_SELECT':
                                 return (
-                                  <div className="space-y-2">
+                                  <div
+                                    role="group"
+                                    aria-label={String(field.field_label || field.field_key)}
+                                    className="flex flex-wrap items-center gap-x-5 gap-y-2"
+                                  >
                                     {field.options && field.options.length > 0 ? (
                                       field.options.map((option: any, oi: number) => {
                                         const { value: optionValue, label: optionLabel } = normalizeChoiceOption(option, oi);
@@ -9009,7 +9018,7 @@ const BookEquipment = () => {
                                         const isChecked = currentValues.includes(optionValue);
                                         
                                         return (
-                                          <div key={`${field.field_key}-${oi}-${optionValue}`} className="flex items-center space-x-2">
+                                          <div key={`${field.field_key}-${oi}-${optionValue}`} className="flex items-center gap-2">
                                             <Checkbox
                                               id={`${field.field_key}-${optionValue}`}
                                               checked={isChecked}
@@ -9040,18 +9049,13 @@ const BookEquipment = () => {
                               
                               case 'TOGGLE':
                                 return (
-                                  <div className="flex items-center justify-between">
-                                    <Label htmlFor={field.field_key} className="font-normal cursor-pointer">
-                                      {field.field_label}
-                                    </Label>
-                                    <Switch
-                                      id={field.field_key}
-                                      checked={inputFieldValues[field.field_key] === true || inputFieldValues[field.field_key] === 'true'}
-                                      onCheckedChange={(checked) => handleInputFieldChange(field.field_key, checked)}
-                                      required={field.is_required}
-                                      disabled={!!repeatSourceBooking}
-                                    />
-                                  </div>
+                                  <Switch
+                                    id={field.field_key}
+                                    checked={inputFieldValues[field.field_key] === true || inputFieldValues[field.field_key] === 'true'}
+                                    onCheckedChange={(checked) => handleInputFieldChange(field.field_key, checked)}
+                                    required={field.is_required}
+                                    disabled={!!repeatSourceBooking}
+                                  />
                                 );
 
                               case 'PERIODIC_TABLE': {
@@ -9416,13 +9420,16 @@ const BookEquipment = () => {
                           
                           return (
                             <div key={field.field_key} className="space-y-1.5">
-                              <Label htmlFor={field.field_key} className="text-base">
-                                {field.field_label}
-                                {field.is_required && <span className="text-destructive ml-1">*</span>}
-                              </Label>
-                              <div className="text-base [&_input]:text-base [&_textarea]:text-base [&_button]:text-base">
-                              {renderInputField()}
-                              </div>
+                              <DynamicFieldRow
+                                fieldType={fieldType}
+                                label={field.field_label}
+                                htmlFor={field.field_key}
+                                required={field.is_required}
+                              >
+                                <div className="text-base [&_input]:text-base [&_textarea]:text-base [&_button]:text-base">
+                                  {renderInputField()}
+                                </div>
+                              </DynamicFieldRow>
                               {bookingAsExternalTarget &&
                                 !repeatSourceBooking &&
                                 String(field.field_label || "").toLowerCase().includes("any other requirements") && (
@@ -9431,7 +9438,8 @@ const BookEquipment = () => {
                                       Would you like your samples to be sent back once the analysis is complete?
                                     </Label>
                                     <RadioGroup
-                                      className="mt-3"
+                                      className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2"
+                                      aria-label="Send samples back after analysis"
                                       value={sampleReturnAfterAnalysis ? "yes" : "no"}
                                       onValueChange={(v) => {
                                         const next = v === "yes";
