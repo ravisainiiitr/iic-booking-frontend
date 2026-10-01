@@ -197,7 +197,6 @@ export type RechargeDraftSnapshot = {
   undertakingAccepted: boolean;
   projectForm: ProjectFormValues | null;
   otpStep: "form" | "otp" | "sric" | "done";
-  receiptSelected: boolean;
 };
 
 /** True when closing would lose something the user typed or chose. */
@@ -208,7 +207,6 @@ export function isRechargeDraftDirty(s: RechargeDraftSnapshot): boolean {
     s.amount.trim() ||
       s.projectId ||
       s.undertakingAccepted ||
-      s.receiptSelected ||
       (s.projectForm && isProjectFormDirty(s.projectForm)),
   );
 }

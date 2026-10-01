@@ -41,7 +41,7 @@ export interface GuideFeatureFlags {
   onlineGateway: boolean;
   peerTransfer: boolean;
   creditFacility: boolean;
-  /** This IITR student may submit wallet recharge receipts (department-wise / allowlist on the server). */
+  /** This IITR student may submit wallet recharge requests (department-wise / allowlist on the server). */
   studentRecharge: boolean;
   /** External booking user type (external, R&D, industry, other, external startup / MSME). */
   externalBooking: boolean;

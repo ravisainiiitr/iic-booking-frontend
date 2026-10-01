@@ -237,7 +237,7 @@ export function memberWalletSection(g: Gate): GuideSection {
       },
       g.when(g.flags.studentRecharge, {
         title: "Recharge",
-        body: `Click Recharge Wallet, choose Direct Cash Deposit / Bank Transfer, pay, then Upload payment receipt (with the UTR / reference if you have it). After the Department Account In-charge verifies it, the amount is added to your ${owner}'s wallet.`,
+        body: `Click Recharge Wallet, choose Direct Cash Deposit / Bank Transfer, select the department and amount, accept the undertaking and enter the OTP sent to your email. Then deposit the cash or complete the bank transfer at the SRIC Bill Section and share the transaction number. Once the request is approved, the amount is added to your ${owner}'s wallet.`,
       }),
     ]),
     rules: [

@@ -287,7 +287,7 @@ const Wallet = () => {
   const [txBookedByFilter, setTxBookedByFilter] = useState("");
 
   const canShowWalletRecharge = !isShared || (isStudent && iitrStudentRechargeEnabled);
-  const isIitrStudentReceiptOffline = isStudent && iitrStudentRechargeEnabled;
+  const isIitrStudentRecharge = isStudent && iitrStudentRechargeEnabled;
 
   const openRechargeDialog = useCallback((departmentId?: number | null, amount?: string | null) => {
     setRechargeDialog({ departmentId: departmentId ?? null, amount: amount ?? null });
@@ -1819,7 +1819,7 @@ const Wallet = () => {
                     </p>
                     <p className="mt-1.5 text-sm text-muted-foreground">
                       {isShared
-                        ? isIitrStudentReceiptOffline
+                        ? isIitrStudentRecharge
                           ? "Funds sit in your faculty supervisor’s wallet. Recharges you submit credit that wallet for the department you choose."
                           : "Available funds in the shared faculty wallet."
                         : "Consolidated balance across your department sub-wallets."}
@@ -1828,8 +1828,8 @@ const Wallet = () => {
                 </div>
                 {canShowWalletRecharge && isStudent && isShared && (
                   <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    Use <span className="font-medium text-foreground">Recharge Wallet</span> to submit a cash / bank
-                    transfer or payment-receipt request. Funds park in your faculty wallet after approval.
+                    Use <span className="font-medium text-foreground">Recharge Wallet</span> to submit a Direct Cash
+                    Deposit / Bank Transfer request. Funds park in your faculty wallet after approval.
                   </p>
                 )}
               </CardContent>
@@ -3272,7 +3272,7 @@ const Wallet = () => {
           onSubmitted={handleRechargeSubmitted}
           isFaculty={isFacultyEffective}
           userType={user?.user_type}
-          isStudentReceiptOffline={isIitrStudentReceiptOffline}
+          isStudentRecharge={isIitrStudentRecharge}
           subWallets={subWallets}
           initialDepartmentId={rechargeDialog.departmentId}
           initialAmount={rechargeDialog.amount}

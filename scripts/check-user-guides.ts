@@ -53,7 +53,7 @@ const ALLOWED: Array<[RegExp, GuideAudienceId[]]> = [
   [/KYC/, ROLES("startup", "external", "external_relations")],
   [/Channel i/, except("startup", "external", "external_relations")],
   [/Type A|Type B|urgent surcharge/, ROLES("student", "project_staff", "faculty", "oic", "admin")],
-  [/Upload payment receipt/, ROLES("student", "project_staff")],
+  [/Recharge Wallet, choose Direct Cash/, ROLES("student", "project_staff")],
   [/Recharge Wallet/, ROLES("faculty", "startup", "external", "student", "project_staff")],
   [/Verify Fund Receipt/, ROLES("admin", "finance")],
   [/Faculty Credit Facility/, ROLES("faculty", "dept_admin")],
@@ -82,7 +82,7 @@ const NEEDS_FLAG: Array<[RegExp, keyof GuideFeatureFlags]> = [
   [/Pay online/, "onlineGateway"],
   [/Click Transfer/, "peerTransfer"],
   [/Submit Credit Request/, "creditFacility"],
-  [/Upload payment receipt|Recharge Wallet, choose Direct Cash/, "studentRecharge"],
+  [/Recharge Wallet, choose Direct Cash/, "studentRecharge"],
   [/Transfer wallet balance to bank/, "externalBooking"],
   [/Temporary OIC \/ Leave Management/, "oicLeaveManagement"],
 ];

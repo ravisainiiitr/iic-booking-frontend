@@ -228,7 +228,6 @@ describe("isRechargeDraftDirty", () => {
     undertakingAccepted: false,
     projectForm: null,
     otpStep: "form" as const,
-    receiptSelected: false,
   };
 
   it("is clean for an untouched form and after submission", () => {
@@ -241,7 +240,6 @@ describe("isRechargeDraftDirty", () => {
     expect(isRechargeDraftDirty({ ...clean, amount: "500" })).toBe(true);
     expect(isRechargeDraftDirty({ ...clean, projectId: 3 })).toBe(true);
     expect(isRechargeDraftDirty({ ...clean, undertakingAccepted: true })).toBe(true);
-    expect(isRechargeDraftDirty({ ...clean, receiptSelected: true })).toBe(true);
     expect(isRechargeDraftDirty({ ...clean, projectForm: { ...EMPTY_PROJECT_FORM, name: "New" } })).toBe(true);
     expect(isRechargeDraftDirty({ ...clean, projectForm: EMPTY_PROJECT_FORM })).toBe(false);
     expect(isRechargeDraftDirty({ ...clean, otpStep: "otp" })).toBe(true);
