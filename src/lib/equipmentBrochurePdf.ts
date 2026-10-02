@@ -106,7 +106,7 @@ export function buildEquipmentBrochureInput(
     name: eq.name,
     code: eq.code,
     description: eq.description,
-    importantInstruction: eq.important_instruction ? richTextToPlain(eq.important_instruction) : eq.important_instruction,
+    importantInstruction: eq.important_instruction ? richTextToPlain(eq.important_instruction, { ascii: true }) : eq.important_instruction,
     location: eq.location,
     departmentName: eq.internal_department_name || fallbackDepartmentName || DEFAULT_DEPARTMENT_NAME,
     generalSpecs: general.map(toSpec),

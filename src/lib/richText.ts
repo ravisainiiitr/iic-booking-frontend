@@ -26,9 +26,17 @@ export const FONT_FAMILIES = [
   { name: "devanagari", label: "Hindi (Devanagari)" },
 ] as const;
 
+/** Point sizes offered by the editor; 11 is the note's normal text size (`--rt-size-*` in `index.css`). */
+export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36] as const;
+export const NORMAL_FONT_SIZE = 11;
+const SIZE_KEYWORDS: Record<string, number> = {
+  "xx-small": 7, "x-small": 7.5, small: 10, medium: 12, large: 13.5, "x-large": 18, "xx-large": 24,
+};
+
 export const textColorToken = (name: string) => `var(--rt-${name})`;
 export const highlightColorToken = (name: string) => `var(--rt-hl-${name})`;
 export const fontFamilyToken = (name: string) => `var(--rt-font-${name})`;
+export const sizeToken = (points: number) => `var(--rt-size-${points})`;
 
 const FONT_NAMES = new Set<string>(FONT_FAMILIES.map((f) => f.name));
 const fontAliases = (names: string[], font: string) => Object.fromEntries(names.map((n) => [n, font]));
@@ -50,9 +58,11 @@ const FONT_ALIASES: Record<string, string> = {
     "kohinoor devanagari"], "devanagari"),
 };
 
-const ALLOWED_TAGS = ["p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "h3", "h4", "span", "a", "mark"];
+const ALLOWED_TAGS = [
+  "p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "h3", "h4", "span", "a", "mark", "sub", "sup",
+];
 const STYLE_PROPS_BY_TAG: Record<string, string[]> = {
-  span: ["color", "font-family"],
+  span: ["color", "font-family", "font-size"],
   mark: ["background-color"],
   p: ["text-align"],
   h3: ["text-align"],
@@ -66,9 +76,12 @@ const TAG_RENAMES: Record<string, string> = {
 };
 const DROP_CONTENT_TAGS = new Set(["script", "style", "iframe", "object", "embed", "noscript", "template", "title", "head"]);
 const BLOCK_TAGS = new Set(["p", "h3", "h4", "li"]);
-const RICH_TAG = /<\/?(p|div|span|br|b|strong|i|em|u|s|strike|font|ul|ol|li|h[1-6]|blockquote|a|mark)\b/i;
+const RICH_TAG = /<\/?(p|div|span|br|b|strong|i|em|u|s|strike|font|ul|ol|li|h[1-6]|blockquote|a|mark|sub|sup)\b/i;
 const VAR_TOKEN = /^var\(\s*--rt-(hl-)?([a-z]+)\s*(,[^)]*)?\)$/;
 const FONT_TOKEN = /^var\(\s*--rt-font-([a-z]+)\s*\)$/;
+const SIZE_TOKEN = /^var\(\s*--rt-size-(\d{1,2})\s*\)$/;
+const SIZE_VALUE = /^(\d{1,3}(?:\.\d+)?)\s*(pt|px|em|rem|%)$/;
+const SCRIPT_STYLE = /vertical-align\s*:\s*(super|sub)\b/i;
 const SAFE_HREF = /^(?:https?:\/\/|mailto:)/i;
 
 const NAMED_COLORS: Record<string, [number, number, number]> = {
@@ -158,6 +171,34 @@ export function fontToken(value: string): string | null {
   return null;
 }
 
+/** `var(--rt-size-N)` for an allowed size token, or a pasted size snapped to the nearest allowed point size. */
+export function fontSizeToken(value: string): string | null {
+  const v = (value || "").trim().toLowerCase().replace("!important", "").trim();
+  const token = SIZE_TOKEN.exec(v);
+  if (token) {
+    const n = Number(token[1]);
+    return (FONT_SIZES as readonly number[]).includes(n) ? sizeToken(n) : null;
+  }
+  let points: number;
+  if (v in SIZE_KEYWORDS) points = SIZE_KEYWORDS[v];
+  else {
+    const m = SIZE_VALUE.exec(v);
+    if (!m) return null;
+    const n = Number(m[1]);
+    const perUnit: Record<string, number> = { pt: 1, px: 0.75, rem: 12, em: NORMAL_FONT_SIZE, "%": NORMAL_FONT_SIZE / 100 };
+    points = n * perUnit[m[2]];
+  }
+  if (!(points >= 6 && points <= 72)) return null;
+  const nearest = FONT_SIZES.reduce((best, size) => (Math.abs(size - points) < Math.abs(best - points) ? size : best));
+  return sizeToken(nearest);
+}
+
+/** The point size in a stored `var(--rt-size-N)` token, or null. */
+export function pointsFromSizeToken(value: string | null | undefined): number | null {
+  const m = SIZE_TOKEN.exec((value || "").trim());
+  return m ? Number(m[1]) : null;
+}
+
 function styleDecls(raw: string): [string, string][] {
   return (raw || "")
     .split(";")
@@ -174,7 +215,7 @@ function styleValue(raw: string, ...props: string[]): string {
   return found;
 }
 
-/** Keep only palette colours and allowed fonts (span/mark) and centre/right alignment (blocks). */
+/** Keep only palette colours, allowed fonts and sizes (span/mark) and centre/right alignment (blocks). */
 export function cleanStyle(tag: string, raw: string): string {
   const allowed = STYLE_PROPS_BY_TAG[tag] ?? [];
   const kept = new Map<string, string>();
@@ -184,6 +225,7 @@ export function cleanStyle(tag: string, raw: string): string {
     let token: string | null;
     if (prop === "color") token = paletteColor(value, "text");
     else if (prop === "font-family") token = fontToken(value);
+    else if (prop === "font-size") token = fontSizeToken(value);
     else if (prop === "background-color") token = paletteColor(value, "highlight");
     else token = TEXT_ALIGNS.has(value.toLowerCase()) ? value.toLowerCase() : null;
     if (token) kept.set(prop, token);
@@ -200,6 +242,8 @@ function inlineMarksFromStyle(raw: string): string[] {
     else if (prop === "text-decoration" || prop === "text-decoration-line") {
       if (v.includes("underline")) marks.push("u");
       if (v.includes("line-through")) marks.push("s");
+    } else if (prop === "vertical-align" && (v === "super" || v === "sub")) {
+      marks.push(v === "super" ? "sup" : "sub");
     }
   }
   return Array.from(new Set(marks));
@@ -222,6 +266,13 @@ function convertNode(node: Node, doc: Document): Node[] {
   if (tag === "font" && el.getAttribute("face")) style = `font-family: ${el.getAttribute("face")}; ${style}`;
   let target = TAG_RENAMES[tag] ?? tag;
   if (target === "strong" && /font-weight\s*:\s*(normal|[1-5]00)\b/i.test(style)) target = "span";
+  if (target === "sub" || target === "sup" || SCRIPT_STYLE.test(style)) {
+    // Sub/superscript already shrink the text; Docs adds its own smaller size.
+    style = styleDecls(style)
+      .filter(([prop]) => prop !== "font-size")
+      .map(([prop, value]) => `${prop}: ${value}`)
+      .join("; ");
+  }
 
   const wrappers: Element[] = [];
   const styledSpan = (spanStyle: string) => {
@@ -249,7 +300,10 @@ function convertNode(node: Node, doc: Document): Node[] {
     const start = el.getAttribute("start") || "";
     if (target === "ol" && /^\d{1,4}$/.test(start)) out.setAttribute("start", start);
     wrappers.push(out);
-    const blockFont = cleanStyle("span", `font-family: ${styleValue(style, "font-family")}`);
+    const blockFont = cleanStyle(
+      "span",
+      `font-family: ${styleValue(style, "font-family")}; font-size: ${styleValue(style, "font-size")}`
+    );
     if (BLOCK_TAGS.has(target) && blockFont) wrappers.push(styledSpan(blockFont));
   }
   for (const mark of inlineMarksFromStyle(style)) if (mark !== target) wrappers.push(doc.createElement(mark));
@@ -334,8 +388,27 @@ export function instructionToHtml(value: string | null | undefined): string {
   return looksLikeRichHtml(text) ? sanitizeRichHtml(text) : plainTextToHtml(text);
 }
 
-/** Plain-text rendering for PDFs and character counts (lists become "•" / "1." lines, like the backend). */
-export function richTextToPlain(value: string | null | undefined): string {
+const scriptChars = (from: string, to: string) => new Map(Array.from(from).map((c, i) => [c, Array.from(to)[i]]));
+const SCRIPT_CHARS: Record<"sub" | "sup", Map<string, string>> = {
+  sup: scriptChars("0123456789+-−=()ni", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁻⁼⁽⁾ⁿⁱ"),
+  sub: scriptChars("0123456789+-−=()aehklmnopstx", "₀₁₂₃₄₅₆₇₈₉₊₋₋₌₍₎ₐₑₕₖₗₘₙₒₚₛₜₓ"),
+};
+
+/** H₂O / cm⁻¹ when every character has a Unicode form, otherwise x^(…) / x_(…); ASCII for fonts without them. */
+function scriptText(text: string, kind: "sub" | "sup", ascii: boolean): string {
+  if (!text.trim()) return text;
+  if (ascii) return kind === "sub" ? text : /^[\w.+-]+$/.test(text) ? `^${text}` : `^(${text})`;
+  const chars = SCRIPT_CHARS[kind];
+  const all = Array.from(text);
+  if (all.every((c) => chars.has(c))) return all.map((c) => chars.get(c)).join("");
+  return `${kind === "sup" ? "^" : "_"}(${text})`;
+}
+
+/**
+ * Plain-text rendering for PDFs and character counts (lists become "•" / "1." lines, like the backend).
+ * `ascii` writes sub/superscript as H2O / cm^-1 for PDF fonts that lack the Unicode characters.
+ */
+export function richTextToPlain(value: string | null | undefined, options: { ascii?: boolean } = {}): string {
   const text = value ?? "";
   if (!looksLikeRichHtml(text) || typeof DOMParser === "undefined") return text.trim();
   const doc = new DOMParser().parseFromString(`<body>${text}</body>`, "text/html");
@@ -354,6 +427,12 @@ export function richTextToPlain(value: string | null | undefined): string {
     if (DROP_CONTENT_TAGS.has(tag)) return;
     if (tag === "br") {
       out.push("\n");
+      return;
+    }
+    if (tag === "sub" || tag === "sup") {
+      const start = out.length;
+      node.childNodes.forEach(walk);
+      out.splice(start, out.length - start, scriptText(out.slice(start).join(""), tag, !!options.ascii));
       return;
     }
     const isList = tag === "ul" || tag === "ol";

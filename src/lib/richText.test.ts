@@ -2,7 +2,10 @@
 import { describe, expect, it } from "vitest";
 import {
   FONT_FAMILIES,
+  FONT_SIZES,
+  fontSizeToken,
   fontToken,
+  pointsFromSizeToken,
   instructionToHtml,
   looksLikeRichHtml,
   paletteColor,
@@ -70,7 +73,8 @@ describe("sanitizeRichHtml", () => {
       '<p dir="ltr" style="line-height:1.38"><span style="font-size:11pt;font-family:Arial;color:#000000;' +
       'background-color:transparent;font-weight:700">Bold item</span></p></li></ul></b>';
     expect(sanitizeRichHtml(pasted)).toBe(
-      '<ul><li><p><span style="font-family: var(--rt-font-sans)"><strong>Bold item</strong></span></p></li></ul>'
+      '<ul><li><p><span style="font-size: var(--rt-size-11); font-family: var(--rt-font-sans)">' +
+        "<strong>Bold item</strong></span></p></li></ul>"
     );
   });
 });
@@ -111,9 +115,63 @@ describe("font families", () => {
           '<span style="font-family: x; background-image: url(javascript:alert(1))">b</span>' +
           '<span style="font-family: var(--rt-font-serif), url(https://evil/x.woff)">c</span>' +
           '<span style="font-family: Papyrus">d</span>' +
-          "<span style=\"font-family: 'Arial'; font-size: 30px\">e</span>"
+          "<span style=\"font-family: 'Arial'; font-size: 30vw\">e</span>"
       )
     ).toBe('abcd<span style="font-family: var(--rt-font-sans)">e</span>');
+  });
+});
+
+describe("font sizes", () => {
+  it("keeps allowed size tokens and old headings", () => {
+    const html =
+      '<p><span style="font-size: var(--rt-size-8)">small</span> ' +
+      '<span style="color: var(--rt-red); font-family: var(--rt-font-serif); font-size: var(--rt-size-36)">big</span></p>' +
+      '<h3><span style="font-size: var(--rt-size-20)">Old heading, resized</span></h3><h4>Old large</h4>';
+    expect(sanitizeRichHtml(html)).toBe(html);
+    for (const size of FONT_SIZES) expect(fontSizeToken(`var(--rt-size-${size})`)).toBe(`var(--rt-size-${size})`);
+    expect(pointsFromSizeToken("var(--rt-size-14)")).toBe(14);
+  });
+
+  it("snaps pasted sizes to the nearest allowed size and drops absurd ones", () => {
+    expect(fontSizeToken("14pt")).toBe("var(--rt-size-14)");
+    expect(fontSizeToken("13.0pt")).toBe("var(--rt-size-12)");
+    expect(fontSizeToken("15pt")).toBe("var(--rt-size-14)");
+    expect(fontSizeToken("24px")).toBe("var(--rt-size-18)");
+    expect(fontSizeToken("x-large")).toBe("var(--rt-size-18)");
+    expect(fontSizeToken("50pt")).toBe("var(--rt-size-36)");
+    for (const absurd of ["400pt", "2px", "0", "-5pt", "calc(100vh)", "expression(alert(1))", "var(--rt-size-13)", "14"]) {
+      expect(fontSizeToken(absurd)).toBeNull();
+    }
+    expect(
+      sanitizeRichHtml(
+        '<span style="font-size: 900px">a</span><span style="font-size: calc(10px + 90vw)">b</span>' +
+          '<span style="font-size: var(--x)">c</span><span style="font-size:14pt; position: fixed">d</span>'
+      )
+    ).toBe('abc<span style="font-size: var(--rt-size-14)">d</span>');
+    expect(sanitizeRichHtml('<h1 style="font-size: 20pt">Title</h1><p class=MsoNormal style="font-size:11.0pt">Body</p>')).toBe(
+      '<h3><span style="font-size: var(--rt-size-20)">Title</span></h3>' +
+        '<p><span style="font-size: var(--rt-size-11)">Body</span></p>'
+    );
+  });
+});
+
+describe("subscript and superscript", () => {
+  it("are kept, pasted from Docs and shown sensibly as plain text", () => {
+    const html = "<p>H<sub>2</sub>O, cm<sup>-1</sup>, 10<sup>5</sup>, x<sub>max</sub>, E = mc<sup>2</sup></p>";
+    expect(sanitizeRichHtml(html)).toBe(html);
+    expect(richTextToPlain(html)).toBe("H₂O, cm⁻¹, 10⁵, xₘₐₓ, E = mc²");
+    expect(richTextToPlain(html, { ascii: true })).toBe("H2O, cm^-1, 10^5, xmax, E = mc^2");
+    expect(richTextToPlain("<p>10<sup>th</sup> CO<sub>2 (g)</sub></p>")).toBe("10^(th) CO_(2 (g))");
+
+    const docs =
+      '<span style="font-size:11pt">H</span><span style="font-size:0.6em;vertical-align:sub">2</span>' +
+      '<span style="font-size:11pt">O and m</span><span style="font-size:0.6em;vertical-align:super">2</span>';
+    expect(sanitizeRichHtml(docs)).toBe(
+      '<span style="font-size: var(--rt-size-11)">H</span><sub>2</sub>' +
+        '<span style="font-size: var(--rt-size-11)">O and m</span><sup>2</sup>'
+    );
+    expect(sanitizeRichHtml("<p class=MsoNormal>cm<sup>-1</sup><o:p></o:p></p>")).toBe("<p>cm<sup>-1</sup></p>");
+    expect(sanitizeRichHtml('<sup onclick="x()" style="color: red">2</sup>')).toBe("<sup>2</sup>");
   });
 });
 

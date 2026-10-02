@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EditorContent, Extension, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
+import type { Mark, Node as PMNode } from "@tiptap/pm/model";
+import { Color, FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import { Highlight } from "@tiptap/extension-highlight";
+import { Subscript } from "@tiptap/extension-subscript";
+import { Superscript } from "@tiptap/extension-superscript";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Placeholder } from "@tiptap/extensions";
 import {
@@ -26,6 +29,8 @@ import {
   Redo2,
   RemoveFormatting,
   Strikethrough,
+  Subscript as SubscriptIcon,
+  Superscript as SuperscriptIcon,
   Underline,
   Undo2,
 } from "lucide-react";
@@ -35,14 +40,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { RichTextContent } from "@/components/RichTextContent";
 import {
   FONT_FAMILIES,
+  FONT_SIZES,
   HIGHLIGHT_COLORS,
+  NORMAL_FONT_SIZE,
   RICH_TEXT_PLAIN_MAX_LENGTH,
   TEXT_COLORS,
   fontFamilyToken,
   highlightColorToken,
   instructionToHtml,
   normalizeRichHtml,
+  pointsFromSizeToken,
   richTextToPlain,
+  sizeToken,
   textColorToken,
 } from "@/lib/richText";
 import { convertWordLists, normalizeLinkInput } from "@/lib/richTextEditing";
@@ -66,6 +75,35 @@ const COLOR_LABELS: Record<string, string> = {
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = isMac ? "⌘" : "Ctrl";
+
+/** Point size that matches the older "Heading" (h3, 1.25em) and "Large" (h4, 1.1em) styles. */
+const HEADING_POINTS: Record<number, number> = { 3: 14, 4: 12 };
+
+/** Size at the cursor or across the selection: "default", a point size, or "" when the selection is mixed. */
+function selectionSize(ed: Editor): string {
+  const { state } = ed;
+  const { from, to, empty, $from } = state.selection;
+  const sizeOf = (marks: readonly Mark[], parent: PMNode | null) => {
+    const token = marks.find((m) => m.type.name === "textStyle")?.attrs.fontSize as string | undefined;
+    const points = pointsFromSizeToken(token) ?? (parent?.type.name === "heading" ? HEADING_POINTS[parent.attrs.level] : null);
+    return points ? String(points) : "default";
+  };
+  if (empty) return sizeOf(state.storedMarks ?? $from.marks(), $from.parent);
+  const sizes = new Set<string>();
+  state.doc.nodesBetween(from, to, (node, _pos, parent) => {
+    if (node.isText) sizes.add(sizeOf(node.marks, parent));
+  });
+  if (sizes.size === 0) return sizeOf($from.marks(), $from.parent);
+  return sizes.size === 1 ? [...sizes][0] : "";
+}
+
+function stepSize(ed: Editor, direction: 1 | -1): boolean {
+  const current = selectionSize(ed);
+  const points = current === "default" || current === "" ? NORMAL_FONT_SIZE : Number(current);
+  const next = direction > 0 ? FONT_SIZES.find((s) => s > points) : [...FONT_SIZES].reverse().find((s) => s < points);
+  if (next) ed.chain().focus().setFontSize(sizeToken(next)).run();
+  return true;
+}
 
 const DEFAULT_PREVIEW_CLASS =
   "rounded-lg border-2 border-red-500/70 bg-red-50 px-4 py-3 text-base text-red-700 dark:border-red-500/50 dark:bg-red-950/40 dark:text-red-400";
@@ -198,6 +236,71 @@ function ColorMenu({
   );
 }
 
+function SizeMenu({ editor, current }: { editor: Editor; current: string }) {
+  const [open, setOpen] = useState(false);
+  const options = [{ value: "default", label: "Default" }, ...FONT_SIZES.map((s) => ({ value: String(s), label: String(s) }))];
+  const shown = current === "default" ? "Default" : current;
+  const apply = (value: string) => {
+    const chain = editor.chain().focus();
+    (value === "default" ? chain.unsetFontSize() : chain.setFontSize(sizeToken(Number(value)))).run();
+    setOpen(false);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Font size: ${current === "" ? "mixed" : shown}`}
+              aria-haspopup="listbox"
+              onMouseDown={(e) => e.preventDefault()}
+              className="inline-flex h-8 w-[5.5rem] shrink-0 items-center justify-between gap-1 rounded-md border bg-background px-1.5 text-sm tabular-nums hover:bg-muted"
+            >
+              <span className="truncate">{shown}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Font size
+          <span className="ml-1.5 text-muted-foreground">
+            {MOD}+] / {MOD}+[
+          </span>
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-28 p-1"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <div role="listbox" aria-label="Font size" className="max-h-80 overflow-y-auto">
+          {options.map((option) => {
+            const isSelected = option.value === current;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => apply(option.value)}
+                className={cn(
+                  "flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-sm tabular-nums hover:bg-muted",
+                  isSelected && "bg-primary/10 text-primary"
+                )}
+              >
+                {option.label}
+                {isSelected ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function FontMenu({ editor, current }: { editor: Editor; current: string | null }) {
   const [open, setOpen] = useState(false);
   const selected = FONT_FAMILIES.find((f) => fontFamilyToken(f.name) === current) ?? null;
@@ -308,6 +411,9 @@ export default function RichTextEditorCore({
       TextStyle,
       Color,
       FontFamily,
+      FontSize,
+      Subscript.extend({ excludes: "superscript" }),
+      Superscript.extend({ excludes: "subscript" }),
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ["heading", "paragraph"], alignments: ["left", "center", "right"] }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
@@ -319,6 +425,8 @@ export default function RichTextEditorCore({
               openLinkRef.current();
               return true;
             },
+            "Mod-]": () => stepSize(this.editor, 1),
+            "Mod-[": () => stepSize(this.editor, -1),
           };
         },
       }),
@@ -366,10 +474,12 @@ export default function RichTextEditorCore({
       italic: ed.isActive("italic"),
       underline: ed.isActive("underline"),
       strike: ed.isActive("strike"),
+      subscript: ed.isActive("subscript"),
+      superscript: ed.isActive("superscript"),
       bullet: ed.isActive("bulletList"),
       ordered: ed.isActive("orderedList"),
       link: ed.isActive("link"),
-      size: ed.isActive("heading", { level: 3 }) ? "heading" : ed.isActive("heading", { level: 4 }) ? "large" : "normal",
+      size: selectionSize(ed),
       align: ed.isActive({ textAlign: "center" }) ? "center" : ed.isActive({ textAlign: "right" }) ? "right" : "left",
       color: (ed.getAttributes("textStyle").color as string | undefined) ?? null,
       font: (ed.getAttributes("textStyle").fontFamily as string | undefined) ?? null,
@@ -409,13 +519,6 @@ export default function RichTextEditorCore({
 
   if (!editor || !state) return null;
 
-  const setSize = (size: string) => {
-    const chain = editor.chain().focus();
-    if (size === "heading") chain.setHeading({ level: 3 }).run();
-    else if (size === "large") chain.setHeading({ level: 4 }).run();
-    else chain.setParagraph().run();
-  };
-
   return (
     <div
       className={cn(
@@ -431,29 +534,15 @@ export default function RichTextEditorCore({
         <ToolButton label="Undo" shortcut={`${MOD}+Z`} icon={<Undo2 className="h-4 w-4" />} disabled={!state.canUndo} onClick={() => editor.chain().focus().undo().run()} />
         <ToolButton label="Redo" shortcut={`${MOD}+Shift+Z`} icon={<Redo2 className="h-4 w-4" />} disabled={!state.canRedo} onClick={() => editor.chain().focus().redo().run()} />
         <Divider />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <select
-              aria-label="Text size"
-              className="h-8 shrink-0 rounded-md border bg-background px-1.5 text-sm"
-              value={state.size}
-              onChange={(e) => setSize(e.target.value)}
-            >
-              <option value="normal">Normal</option>
-              <option value="large">Large</option>
-              <option value="heading">Heading</option>
-            </select>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            Text size
-          </TooltipContent>
-        </Tooltip>
         <FontMenu editor={editor} current={state.font} />
+        <SizeMenu editor={editor} current={state.size} />
         <Divider />
         <ToolButton label="Bold" shortcut={`${MOD}+B`} icon={<Bold className="h-4 w-4" />} active={state.bold} onClick={() => editor.chain().focus().toggleBold().run()} />
         <ToolButton label="Italic" shortcut={`${MOD}+I`} icon={<Italic className="h-4 w-4" />} active={state.italic} onClick={() => editor.chain().focus().toggleItalic().run()} />
         <ToolButton label="Underline" shortcut={`${MOD}+U`} icon={<Underline className="h-4 w-4" />} active={state.underline} onClick={() => editor.chain().focus().toggleUnderline().run()} />
         <ToolButton label="Strikethrough" shortcut={`${MOD}+Shift+S`} icon={<Strikethrough className="h-4 w-4" />} active={state.strike} onClick={() => editor.chain().focus().toggleStrike().run()} />
+        <ToolButton label="Subscript" shortcut={`${MOD}+,`} icon={<SubscriptIcon className="h-4 w-4" />} active={state.subscript} onClick={() => editor.chain().focus().toggleSubscript().run()} />
+        <ToolButton label="Superscript" shortcut={`${MOD}+.`} icon={<SuperscriptIcon className="h-4 w-4" />} active={state.superscript} onClick={() => editor.chain().focus().toggleSuperscript().run()} />
         <ColorMenu editor={editor} kind="text" current={state.color} />
         <ColorMenu editor={editor} kind="highlight" current={state.highlight} />
         <Divider />
