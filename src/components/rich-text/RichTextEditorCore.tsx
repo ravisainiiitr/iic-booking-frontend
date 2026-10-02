@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EditorContent, Extension, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Color, TextStyle } from "@tiptap/extension-text-style";
+import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
 import { Highlight } from "@tiptap/extension-highlight";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Placeholder } from "@tiptap/extensions";
@@ -11,6 +11,8 @@ import {
   AlignRight,
   Baseline,
   Bold,
+  Check,
+  ChevronDown,
   Eye,
   Highlighter,
   IndentDecrease,
@@ -32,9 +34,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RichTextContent } from "@/components/RichTextContent";
 import {
+  FONT_FAMILIES,
   HIGHLIGHT_COLORS,
   RICH_TEXT_PLAIN_MAX_LENGTH,
   TEXT_COLORS,
+  fontFamilyToken,
   highlightColorToken,
   instructionToHtml,
   normalizeRichHtml,
@@ -154,7 +158,12 @@ function ColorMenu({
           {label}
         </TooltipContent>
       </Tooltip>
-      <PopoverContent className="w-auto p-2" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent
+        className="w-auto p-2"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <p className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</p>
         <div className="grid grid-cols-5 gap-1.5">
           <button
@@ -183,6 +192,74 @@ function ColorMenu({
               {kind === "text" ? "A" : ""}
             </button>
           ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function FontMenu({ editor, current }: { editor: Editor; current: string | null }) {
+  const [open, setOpen] = useState(false);
+  const selected = FONT_FAMILIES.find((f) => fontFamilyToken(f.name) === current) ?? null;
+  const options = [{ name: null, label: "Default" }, ...FONT_FAMILIES];
+  const apply = (name: string | null) => {
+    const chain = editor.chain().focus();
+    (name ? chain.setFontFamily(fontFamilyToken(name)) : chain.unsetFontFamily()).run();
+    setOpen(false);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Font: ${selected?.label ?? "Default"}`}
+              aria-haspopup="listbox"
+              onMouseDown={(e) => e.preventDefault()}
+              className="inline-flex h-8 w-36 shrink-0 items-center justify-between gap-1 rounded-md border bg-background px-1.5 text-sm hover:bg-muted"
+            >
+              <span className="truncate" style={selected ? { fontFamily: fontFamilyToken(selected.name) } : undefined}>
+                {selected?.label ?? "Default font"}
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Font
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-52 p-1"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <div role="listbox" aria-label="Font">
+          {options.map((font) => {
+            const isSelected = (font.name ?? null) === (selected?.name ?? null);
+            return (
+              <button
+                key={font.name ?? "default"}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => apply(font.name)}
+                className={cn(
+                  "flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted",
+                  isSelected && "bg-primary/10 text-primary"
+                )}
+                style={font.name ? { fontFamily: fontFamilyToken(font.name) } : undefined}
+              >
+                <span>
+                  {font.label}
+                  {font.name === "devanagari" ? <span className="ml-1.5 text-muted-foreground">हिंदी</span> : null}
+                </span>
+                {isSelected ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+              </button>
+            );
+          })}
         </div>
       </PopoverContent>
     </Popover>
@@ -230,6 +307,7 @@ export default function RichTextEditorCore({
       }),
       TextStyle,
       Color,
+      FontFamily,
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ["heading", "paragraph"], alignments: ["left", "center", "right"] }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
@@ -294,6 +372,7 @@ export default function RichTextEditorCore({
       size: ed.isActive("heading", { level: 3 }) ? "heading" : ed.isActive("heading", { level: 4 }) ? "large" : "normal",
       align: ed.isActive({ textAlign: "center" }) ? "center" : ed.isActive({ textAlign: "right" }) ? "right" : "left",
       color: (ed.getAttributes("textStyle").color as string | undefined) ?? null,
+      font: (ed.getAttributes("textStyle").fontFamily as string | undefined) ?? null,
       highlight: (ed.getAttributes("highlight").color as string | undefined) ?? null,
       canUndo: ed.can().undo(),
       canRedo: ed.can().redo(),
@@ -369,6 +448,7 @@ export default function RichTextEditorCore({
             Text size
           </TooltipContent>
         </Tooltip>
+        <FontMenu editor={editor} current={state.font} />
         <Divider />
         <ToolButton label="Bold" shortcut={`${MOD}+B`} icon={<Bold className="h-4 w-4" />} active={state.bold} onClick={() => editor.chain().focus().toggleBold().run()} />
         <ToolButton label="Italic" shortcut={`${MOD}+I`} icon={<Italic className="h-4 w-4" />} active={state.italic} onClick={() => editor.chain().focus().toggleItalic().run()} />

@@ -550,6 +550,17 @@ body:has([data-embed-chrome]),
   --rt-hl-green: hsl(141 79% 85%);
   --rt-hl-blue: hsl(214 95% 87%);
   --rt-hl-pink: hsl(326 85% 90%);
+  /* System fonts only (no downloads); Noto Sans Devanagari is loaded as a header-only subset, so it comes last. */
+  --rt-font-sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --rt-font-serif: "Times New Roman", Times, Georgia, serif;
+  --rt-font-mono: ui-monospace, Consolas, "Courier New", monospace;
+  --rt-font-verdana: Verdana, Geneva, sans-serif;
+  --rt-font-tahoma: Tahoma, Verdana, sans-serif;
+  --rt-font-trebuchet: "Trebuchet MS", "Lucida Grande", sans-serif;
+  --rt-font-georgia: Georgia, "Times New Roman", serif;
+  --rt-font-garamond: Garamond, "EB Garamond", "Times New Roman", serif;
+  --rt-font-courier: "Courier New", Courier, monospace;
+  --rt-font-devanagari: "Nirmala UI", "Kohinoor Devanagari", Mangal, "Noto Sans Devanagari", sans-serif;
 }
 .dark {
   --rt-red: hsl(0 91% 71%);

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
+  FONT_FAMILIES,
+  fontToken,
   instructionToHtml,
   looksLikeRichHtml,
   paletteColor,
@@ -25,7 +27,7 @@ describe("sanitizeRichHtml", () => {
 
   it("drops scripts, event handlers and arbitrary styles", () => {
     const clean = sanitizeRichHtml(
-      '<p style="color: rgb(185, 28, 28); font-family: Georgia; position: fixed">' +
+      '<p style="color: rgb(185, 28, 28); font-family: Comic Sans MS; position: fixed">' +
         '<b onclick="steal()">Dry</b> <img src=x onerror="alert(1)"></p>' +
         "<script>alert(1)</script><svg><script>alert(2)</script></svg><iframe src=x></iframe>" +
         '<span style="background-image: url(javascript:alert(1))">x</span>'
@@ -57,7 +59,8 @@ describe("sanitizeRichHtml", () => {
       )
     ).toBe(
       '<p style="text-align: center">Centre</p><h3>Big</h3><strong><u>bu</u></strong> ' +
-        '<span style="color: var(--rt-red)">red</span> <mark style="background-color: var(--rt-hl-yellow)">hl</mark>'
+        '<span style="font-family: var(--rt-font-sans); color: var(--rt-red)">red</span> ' +
+        '<mark style="background-color: var(--rt-hl-yellow)">hl</mark>'
     );
   });
 
@@ -66,7 +69,51 @@ describe("sanitizeRichHtml", () => {
       '<b style="font-weight:normal;" id="docs-internal-guid-1"><ul><li dir="ltr" style="list-style-type:disc">' +
       '<p dir="ltr" style="line-height:1.38"><span style="font-size:11pt;font-family:Arial;color:#000000;' +
       'background-color:transparent;font-weight:700">Bold item</span></p></li></ul></b>';
-    expect(sanitizeRichHtml(pasted)).toBe("<ul><li><p><strong>Bold item</strong></p></li></ul>");
+    expect(sanitizeRichHtml(pasted)).toBe(
+      '<ul><li><p><span style="font-family: var(--rt-font-sans)"><strong>Bold item</strong></span></p></li></ul>'
+    );
+  });
+});
+
+describe("font families", () => {
+  it("keeps allowed font tokens next to palette colours", () => {
+    const html =
+      '<p><span style="font-family: var(--rt-font-serif); color: var(--rt-red)">serif</span> ' +
+      '<span style="font-family: var(--rt-font-devanagari)">हिंदी</span></p>';
+    expect(sanitizeRichHtml(html)).toBe(html);
+    for (const { name } of FONT_FAMILIES) expect(fontToken(`var(--rt-font-${name})`)).toBe(`var(--rt-font-${name})`);
+  });
+
+  it("maps Word / Docs fonts to the nearest option and drops the rest", () => {
+    expect(fontToken('"Times New Roman", serif')).toBe("var(--rt-font-serif)");
+    expect(fontToken("Calibri, sans-serif")).toBe("var(--rt-font-sans)");
+    expect(fontToken("Cambria")).toBe("var(--rt-font-serif)");
+    expect(fontToken("'Courier New'")).toBe("var(--rt-font-courier)");
+    expect(fontToken("Consolas")).toBe("var(--rt-font-mono)");
+    expect(fontToken("Mangal")).toBe("var(--rt-font-devanagari)");
+    expect(fontToken("Wingdings, Comic Sans MS")).toBeNull();
+    expect(fontToken("var(--rt-font-evil)")).toBeNull();
+    expect(paletteColor("var(--rt-font-serif)", "text")).toBeNull();
+
+    const pasted =
+      '<p style="font-family: Cambria"><span style="font-family: &quot;Courier New&quot;">code</span> body</p>';
+    expect(sanitizeRichHtml(pasted)).toBe(
+      '<p><span style="font-family: var(--rt-font-serif)">' +
+        '<span style="font-family: var(--rt-font-courier)">code</span> body</span></p>'
+    );
+    expect(richTextToPlain(pasted)).toBe("code body");
+  });
+
+  it("strips arbitrary fonts and CSS injection", () => {
+    expect(
+      sanitizeRichHtml(
+        '<span style="font-family: expression(alert(1))">a</span>' +
+          '<span style="font-family: x; background-image: url(javascript:alert(1))">b</span>' +
+          '<span style="font-family: var(--rt-font-serif), url(https://evil/x.woff)">c</span>' +
+          '<span style="font-family: Papyrus">d</span>' +
+          "<span style=\"font-family: 'Arial'; font-size: 30px\">e</span>"
+      )
+    ).toBe('abcd<span style="font-family: var(--rt-font-sans)">e</span>');
   });
 });
 

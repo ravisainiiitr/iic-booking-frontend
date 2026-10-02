@@ -12,12 +12,47 @@ export const TEXT_COLORS = ["red", "orange", "amber", "green", "blue", "purple",
 export const HIGHLIGHT_COLORS = ["yellow", "orange", "green", "blue", "pink"] as const;
 export const RICH_TEXT_PLAIN_MAX_LENGTH = 5000;
 
+/** Curated system font stacks; the stacks themselves are the `--rt-font-*` vars in `index.css`. */
+export const FONT_FAMILIES = [
+  { name: "sans", label: "Sans-serif" },
+  { name: "serif", label: "Serif" },
+  { name: "mono", label: "Monospace" },
+  { name: "verdana", label: "Verdana" },
+  { name: "tahoma", label: "Tahoma" },
+  { name: "trebuchet", label: "Trebuchet MS" },
+  { name: "georgia", label: "Georgia" },
+  { name: "garamond", label: "Garamond" },
+  { name: "courier", label: "Courier New" },
+  { name: "devanagari", label: "Hindi (Devanagari)" },
+] as const;
+
 export const textColorToken = (name: string) => `var(--rt-${name})`;
 export const highlightColorToken = (name: string) => `var(--rt-hl-${name})`;
+export const fontFamilyToken = (name: string) => `var(--rt-font-${name})`;
+
+const FONT_NAMES = new Set<string>(FONT_FAMILIES.map((f) => f.name));
+const fontAliases = (names: string[], font: string) => Object.fromEntries(names.map((n) => [n, font]));
+/** Fonts commonly pasted from Word / Google Docs (or chosen in the older toolbar) → nearest allowed font. */
+const FONT_ALIASES: Record<string, string> = {
+  ...fontAliases(["arial", "helvetica", "helvetica neue", "arial nova", "calibri", "carlito", "aptos", "segoe ui",
+    "roboto", "open sans", "lato", "noto sans", "liberation sans", "sans-serif", "system-ui"], "sans"),
+  ...fontAliases(["times new roman", "times", "cambria", "caladea", "book antiqua", "palatino linotype", "palatino",
+    "constantia", "noto serif", "liberation serif", "serif"], "serif"),
+  ...fontAliases(["consolas", "monaco", "menlo", "lucida console", "cascadia code", "roboto mono", "source code pro",
+    "ui-monospace", "monospace"], "mono"),
+  ...fontAliases(["courier new", "courier", "liberation mono"], "courier"),
+  ...fontAliases(["verdana", "geneva"], "verdana"),
+  tahoma: "tahoma",
+  ...fontAliases(["trebuchet ms", "trebuchet"], "trebuchet"),
+  georgia: "georgia",
+  ...fontAliases(["garamond", "eb garamond", "adobe garamond pro"], "garamond"),
+  ...fontAliases(["mangal", "nirmala ui", "kokila", "aparajita", "utsaah", "noto sans devanagari",
+    "kohinoor devanagari"], "devanagari"),
+};
 
 const ALLOWED_TAGS = ["p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "h3", "h4", "span", "a", "mark"];
 const STYLE_PROPS_BY_TAG: Record<string, string[]> = {
-  span: ["color"],
+  span: ["color", "font-family"],
   mark: ["background-color"],
   p: ["text-align"],
   h3: ["text-align"],
@@ -33,6 +68,7 @@ const DROP_CONTENT_TAGS = new Set(["script", "style", "iframe", "object", "embed
 const BLOCK_TAGS = new Set(["p", "h3", "h4", "li"]);
 const RICH_TAG = /<\/?(p|div|span|br|b|strong|i|em|u|s|strike|font|ul|ol|li|h[1-6]|blockquote|a|mark)\b/i;
 const VAR_TOKEN = /^var\(\s*--rt-(hl-)?([a-z]+)\s*(,[^)]*)?\)$/;
+const FONT_TOKEN = /^var\(\s*--rt-font-([a-z]+)\s*\)$/;
 const SAFE_HREF = /^(?:https?:\/\/|mailto:)/i;
 
 const NAMED_COLORS: Record<string, [number, number, number]> = {
@@ -110,6 +146,18 @@ export function paletteColor(value: string, kind: "text" | "highlight"): string 
   return token(name);
 }
 
+/** `var(--rt-font-…)` for an allowed font token or a known font name in a stack; otherwise null. */
+export function fontToken(value: string): string | null {
+  const v = (value || "").trim().toLowerCase().replace("!important", "").trim();
+  const m = FONT_TOKEN.exec(v);
+  if (m) return FONT_NAMES.has(m[1]) ? fontFamilyToken(m[1]) : null;
+  for (const name of v.split(",")) {
+    const alias = FONT_ALIASES[name.trim().replace(/^['"]+|['"]+$/g, "").trim()];
+    if (alias) return fontFamilyToken(alias);
+  }
+  return null;
+}
+
 function styleDecls(raw: string): [string, string][] {
   return (raw || "")
     .split(";")
@@ -126,15 +174,16 @@ function styleValue(raw: string, ...props: string[]): string {
   return found;
 }
 
-/** Keep only palette colours (span/mark) and centre/right alignment (blocks). */
+/** Keep only palette colours and allowed fonts (span/mark) and centre/right alignment (blocks). */
 export function cleanStyle(tag: string, raw: string): string {
   const allowed = STYLE_PROPS_BY_TAG[tag] ?? [];
   const kept = new Map<string, string>();
   for (const [rawProp, value] of styleDecls(raw)) {
     const prop = rawProp === "background" ? "background-color" : rawProp;
-    if (!allowed.includes(prop) || value.length > 120) continue;
+    if (!allowed.includes(prop) || value.length > 200) continue;
     let token: string | null;
     if (prop === "color") token = paletteColor(value, "text");
+    else if (prop === "font-family") token = fontToken(value);
     else if (prop === "background-color") token = paletteColor(value, "highlight");
     else token = TEXT_ALIGNS.has(value.toLowerCase()) ? value.toLowerCase() : null;
     if (token) kept.set(prop, token);
@@ -170,23 +219,26 @@ function convertNode(node: Node, doc: Document): Node[] {
     .flatMap((c) => convertNode(c, doc));
   let style = el.getAttribute("style") || "";
   if (tag === "font" && el.getAttribute("color")) style = `color: ${el.getAttribute("color")}; ${style}`;
+  if (tag === "font" && el.getAttribute("face")) style = `font-family: ${el.getAttribute("face")}; ${style}`;
   let target = TAG_RENAMES[tag] ?? tag;
   if (target === "strong" && /font-weight\s*:\s*(normal|[1-5]00)\b/i.test(style)) target = "span";
 
   const wrappers: Element[] = [];
+  const styledSpan = (spanStyle: string) => {
+    const span = doc.createElement("span");
+    span.setAttribute("style", spanStyle);
+    return span;
+  };
   if (target === "span") {
+    // Highlights are stored as <mark>; colour and font stay on the span inside it.
     const background = cleanStyle("mark", `background-color: ${styleValue(style, "background-color", "background")}`);
-    const color = cleanStyle("span", `color: ${styleValue(style, "color")}`);
+    const spanStyle = cleanStyle("span", style);
     if (background) {
       const mark = doc.createElement("mark");
       mark.setAttribute("style", background);
       wrappers.push(mark);
     }
-    if (color) {
-      const span = doc.createElement("span");
-      span.setAttribute("style", color);
-      wrappers.push(span);
-    }
+    if (spanStyle) wrappers.push(styledSpan(spanStyle));
   } else if (ALLOWED_TAGS.includes(target) && (target !== "a" || SAFE_HREF.test((el.getAttribute("href") || "").trim()))) {
     const out = doc.createElement(target);
     let cleaned = cleanStyle(target, style);
@@ -197,6 +249,8 @@ function convertNode(node: Node, doc: Document): Node[] {
     const start = el.getAttribute("start") || "";
     if (target === "ol" && /^\d{1,4}$/.test(start)) out.setAttribute("start", start);
     wrappers.push(out);
+    const blockFont = cleanStyle("span", `font-family: ${styleValue(style, "font-family")}`);
+    if (BLOCK_TAGS.has(target) && blockFont) wrappers.push(styledSpan(blockFont));
   }
   for (const mark of inlineMarksFromStyle(style)) if (mark !== target) wrappers.push(doc.createElement(mark));
 
