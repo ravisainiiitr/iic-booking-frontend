@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   DEADLINE_PASSED_TEXT,
-  RESCHEDULE_LOCKED_TEXT,
+  SAMPLE_ACCEPTED_LOCKED_TEXT,
   cancelRescheduleDeadline,
   formatDeadlineText,
   inputEditRefundDeadlineText,
+  isSampleAcceptedLocked,
+  serverAllowsOwnerCancel,
+  serverAllowsReschedule,
 } from "./bookingDeadlines";
 
 // Local-time constructors keep these tests independent of the machine time zone.
@@ -18,37 +21,87 @@ const booking = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-describe("reschedule locked after the lab accepts the sample", () => {
-  it("replaces the deadline with the locked text and keeps the cancel cutoff", () => {
-    const result = cancelRescheduleDeadline(booking({ can_reschedule: false }), NOW);
+const LOCKED = {
+  can_reschedule: false,
+  reschedule_block_reason: "reschedule_locked_sample_accepted",
+  can_cancel: false,
+  cancel_block_reason: "cancel_locked_sample_accepted",
+};
+
+describe("cancel and reschedule locked after the lab accepts the sample", () => {
+  it("replaces the deadline with one combined line and no cancel cutoff", () => {
+    const result = cancelRescheduleDeadline(booking(LOCKED), NOW);
     expect(result.kind).toBe("open");
-    expect(result.rescheduleLocked).toBe(true);
-    expect(RESCHEDULE_LOCKED_TEXT).toBe("Reschedule not available — sample accepted by the lab");
-    expect(formatDeadlineText(result)).toBe(`${RESCHEDULE_LOCKED_TEXT}; cancel until Wed 7 Oct, 9:00 pm`);
+    expect(result.sampleLocked).toBe(true);
+    expect(SAMPLE_ACCEPTED_LOCKED_TEXT).toBe(
+      "Sample accepted by the lab — rescheduling and cancellation are no longer available. Use Message the lab if something has changed.",
+    );
+    const text = formatDeadlineText(result);
+    expect(text).toBe(SAMPLE_ACCEPTED_LOCKED_TEXT);
+    expect(text).not.toMatch(/cancel until/i);
   });
 
-  it("shows only the locked text once the cancel cutoff has passed, keeping kind passed", () => {
-    const result = cancelRescheduleDeadline(booking({ can_reschedule: false }), at(8, 9));
+  it("detects the lock from either block reason", () => {
+    for (const fields of [
+      { cancel_block_reason: "cancel_locked_sample_accepted" },
+      { reschedule_block_reason: "reschedule_locked_sample_accepted" },
+      { can_reschedule: false },
+    ]) {
+      expect(isSampleAcceptedLocked(fields)).toBe(true);
+      expect(formatDeadlineText(cancelRescheduleDeadline(booking(fields), NOW))).toBe(SAMPLE_ACCEPTED_LOCKED_TEXT);
+    }
+  });
+
+  it("is not triggered by an owner-only cancel block (supervisor view)", () => {
+    const fields = { can_cancel: false, cancel_block_reason: "cancel_owner_only", can_reschedule: true };
+    expect(isSampleAcceptedLocked(fields)).toBe(false);
+    expect(formatDeadlineText(cancelRescheduleDeadline(booking(fields), NOW))).toBe(
+      "Cancel/reschedule until Wed 7 Oct, 9:00 pm",
+    );
+  });
+
+  it("shows the combined line once the cutoff has passed, keeping kind passed", () => {
+    const result = cancelRescheduleDeadline(booking(LOCKED), at(8, 9));
     expect(result.kind).toBe("passed");
-    expect(formatDeadlineText(result)).toBe(RESCHEDULE_LOCKED_TEXT);
+    expect(formatDeadlineText(result)).toBe(SAMPLE_ACCEPTED_LOCKED_TEXT);
   });
 
-  it("shows only the locked text for repeat bookings (owner cannot cancel)", () => {
-    const result = cancelRescheduleDeadline(booking({ can_reschedule: false, source_booking_id: 7 }), NOW);
-    expect(formatDeadlineText(result)).toBe(RESCHEDULE_LOCKED_TEXT);
+  it("shows the combined line for repeat bookings", () => {
+    const result = cancelRescheduleDeadline(booking({ ...LOCKED, source_booking_id: 7 }), NOW);
+    expect(formatDeadlineText(result)).toBe(SAMPLE_ACCEPTED_LOCKED_TEXT);
   });
 
-  it("is unaffected when can_reschedule is true or unknown", () => {
-    for (const can_reschedule of [true, null, undefined]) {
-      const result = cancelRescheduleDeadline(booking({ can_reschedule }), NOW);
-      expect(result.rescheduleLocked).toBeUndefined();
+  it("is unaffected when the flags are true or unknown", () => {
+    for (const v of [true, null, undefined]) {
+      const result = cancelRescheduleDeadline(booking({ can_reschedule: v, can_cancel: v }), NOW);
+      expect(result.sampleLocked).toBeUndefined();
       expect(formatDeadlineText(result)).toBe("Cancel/reschedule until Wed 7 Oct, 9:00 pm");
     }
   });
 
   it("does not add the locked text to bookings with no owner actions", () => {
-    const result = cancelRescheduleDeadline(booking({ can_reschedule: false, status: "COMPLETED" }), NOW);
+    const result = cancelRescheduleDeadline(booking({ ...LOCKED, status: "COMPLETED" }), NOW);
     expect(formatDeadlineText(result)).toBeNull();
+  });
+});
+
+describe("owner Cancel / Reschedule button visibility from server flags", () => {
+  it("hides both once the lab has accepted the sample", () => {
+    expect(serverAllowsOwnerCancel(LOCKED)).toBe(false);
+    expect(serverAllowsReschedule(LOCKED)).toBe(false);
+  });
+
+  it("hides Cancel for a supervisor (owner-only) while Reschedule follows its own flag", () => {
+    const supervisor = { can_cancel: false, cancel_block_reason: "cancel_owner_only", can_reschedule: true };
+    expect(serverAllowsOwnerCancel(supervisor)).toBe(false);
+    expect(serverAllowsReschedule(supervisor)).toBe(true);
+  });
+
+  it("shows both before acceptance, and when the server did not say (older payloads)", () => {
+    for (const v of [true, null, undefined]) {
+      expect(serverAllowsOwnerCancel({ can_cancel: v })).toBe(true);
+      expect(serverAllowsReschedule({ can_reschedule: v })).toBe(true);
+    }
   });
 });
 

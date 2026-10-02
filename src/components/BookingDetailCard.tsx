@@ -55,7 +55,12 @@ import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleT
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
-import { cancelRescheduleDeadline, inputEditRefundDeadlineText } from "@/lib/bookingDeadlines";
+import {
+  cancelRescheduleDeadline,
+  inputEditRefundDeadlineText,
+  serverAllowsOwnerCancel,
+  serverAllowsReschedule,
+} from "@/lib/bookingDeadlines";
 import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
@@ -231,6 +236,10 @@ export interface BookingDetailCardBooking extends BookingRef {
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
   reschedule_block_message?: string | null;
+  /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors). */
+  can_cancel?: boolean | null;
+  cancel_block_reason?: string | null;
+  cancel_block_message?: string | null;
   is_waitlist_entry?: boolean;
   waitlist_code?: string;
   waitlist_position?: number;
@@ -2372,7 +2381,8 @@ export function BookingDetailCard({
                     isOwn &&
                     !isOperator &&
                     !isExternalBookingUserType(booking.user_type_snapshot) &&
-                    !ownerDeadlinePassed;
+                    !ownerDeadlinePassed &&
+                    serverAllowsOwnerCancel(booking);
                   // Admin / Dept Admin / OIC: cancel others within server-enforced scope (list already scoped).
                   const staffMayCancelOther =
                     Boolean(isManagerOrAdmin) && !isOwn && !isWaitlistedEntry;
@@ -2453,7 +2463,7 @@ export function BookingDetailCard({
                 canPerformAction(booking, "reschedule", isOperator) &&
                 !isExternalSelfView &&
                 !ownerRescheduleBlocked &&
-                booking.can_reschedule !== false && (
+                serverAllowsReschedule(booking) && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("reschedule", booking)}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Reschedule

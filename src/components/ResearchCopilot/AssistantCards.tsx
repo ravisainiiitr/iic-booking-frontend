@@ -1137,7 +1137,11 @@ function Bookings({ card, busy, onAction, onNavigate }: Props) {
                       {str(b.when)}
                       {ref ? ` · ${ref}` : ""}
                     </span>
-                    {b.cutoff && b.self_service_open ? (
+                    {b.sample_locked ? (
+                      <span className="block text-[10px] text-muted-foreground">
+                        Sample accepted by the lab — use Message the lab for changes
+                      </span>
+                    ) : b.cutoff && b.self_service_open ? (
                       <span className="block text-[10px] text-muted-foreground">Change or cancel until {str(b.cutoff)}</span>
                     ) : null}
                   </span>

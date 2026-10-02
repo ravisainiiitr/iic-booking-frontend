@@ -52,7 +52,12 @@ import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTime } from "@/lib/bookingDates";
-import { cancelRescheduleDeadline, inputEditRefundDeadlineText } from "@/lib/bookingDeadlines";
+import {
+  cancelRescheduleDeadline,
+  inputEditRefundDeadlineText,
+  serverAllowsOwnerCancel,
+  serverAllowsReschedule,
+} from "@/lib/bookingDeadlines";
 import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
@@ -176,6 +181,9 @@ interface Booking extends BookingRef {
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
   reschedule_block_message?: string | null;
+  can_cancel?: boolean | null;
+  cancel_block_reason?: string | null;
+  cancel_block_message?: string | null;
   equipment_profile_type?: string | null;
   equipment_profile_type_display?: string | null;
   print_analyses?: Array<{
@@ -926,7 +934,7 @@ const MyBookings = () => {
   };
 
   const canReschedule = (booking: Booking) => {
-    if (!canCancelOrReschedule(booking.status) || booking.can_reschedule === false) {
+    if (!canCancelOrReschedule(booking.status) || !serverAllowsReschedule(booking)) {
       return false;
     }
 
@@ -978,6 +986,7 @@ const MyBookings = () => {
       return canCancelBooking(booking);
     }
     return (
+      serverAllowsOwnerCancel(booking) &&
       canCancelBooking(booking) &&
       (!!booking.maintenance_disruption_flag || isWithinThresholdWindow(booking))
     );
@@ -1045,6 +1054,10 @@ const MyBookings = () => {
       openCancelDialog(booking);
       return;
     }
+    if (!isStaffCancelingOtherUser(booking) && !serverAllowsOwnerCancel(booking)) {
+      toast.error(booking.cancel_block_message || "This booking can't be cancelled.");
+      return;
+    }
     // Owner cancel: enforce reschedule-hours threshold (maintenance disruption always allowed).
     // Staff canceling another user's booking: no owner time-window gate (server enforces role scope).
     if (
@@ -1069,7 +1082,7 @@ const MyBookings = () => {
   };
 
   const handleRescheduleClick = (booking: Booking) => {
-    if (booking.can_reschedule === false) {
+    if (!serverAllowsReschedule(booking)) {
       toast.error(booking.reschedule_block_message || "This booking can't be rescheduled.");
       return;
     }

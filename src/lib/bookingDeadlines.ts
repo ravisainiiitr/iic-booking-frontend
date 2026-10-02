@@ -15,8 +15,11 @@ export interface DeadlineBookingFields {
   source_booking_id?: number | null;
   virtual_booking_id?: string | null;
   input_edit_refund_deadline?: string | null;
-  /** Server rule for the viewer; false once the lab has accepted the sample. */
+  /** Server rules for the viewer; false once the lab has accepted the sample. */
   can_reschedule?: boolean | null;
+  reschedule_block_reason?: string | null;
+  can_cancel?: boolean | null;
+  cancel_block_reason?: string | null;
 }
 
 export type DeadlineKind = "open" | "passed" | "disruption" | "disruption_waiting" | "waitlist" | "none";
@@ -27,12 +30,32 @@ export interface CancelRescheduleDeadline {
   deadline: Date | null;
   /** Repeat bookings cannot be cancelled by the owner, only rescheduled. */
   rescheduleOnly: boolean;
-  /** The lab has accepted the sample, so the owner / supervisor can no longer reschedule. */
-  rescheduleLocked?: boolean;
+  /** The lab has accepted the sample, so the owner / supervisor can no longer reschedule or cancel. */
+  sampleLocked?: boolean;
 }
 
 export const DEADLINE_PASSED_TEXT = "Deadline passed — contact the Officer in Charge";
-export const RESCHEDULE_LOCKED_TEXT = "Reschedule not available — sample accepted by the lab";
+export const SAMPLE_ACCEPTED_LOCKED_TEXT =
+  "Sample accepted by the lab — rescheduling and cancellation are no longer available. Use Message the lab if something has changed.";
+export const RESCHEDULE_LOCKED_SAMPLE_ACCEPTED = "reschedule_locked_sample_accepted";
+export const CANCEL_LOCKED_SAMPLE_ACCEPTED = "cancel_locked_sample_accepted";
+
+export function isSampleAcceptedLocked(booking: DeadlineBookingFields): boolean {
+  return (
+    booking.reschedule_block_reason === RESCHEDULE_LOCKED_SAMPLE_ACCEPTED ||
+    booking.cancel_block_reason === CANCEL_LOCKED_SAMPLE_ACCEPTED ||
+    booking.can_reschedule === false
+  );
+}
+
+/** Owner-facing Cancel / Reschedule buttons stay hidden when the server says no; unknown (null) leaves the local rules in charge. */
+export function serverAllowsOwnerCancel(booking: DeadlineBookingFields): boolean {
+  return booking.can_cancel !== false;
+}
+
+export function serverAllowsReschedule(booking: DeadlineBookingFields): boolean {
+  return booking.can_reschedule !== false;
+}
 
 export function isWaitlistBooking(booking: DeadlineBookingFields): boolean {
   return String(booking.status || "").toUpperCase() === "WAITLISTED" || booking.is_waitlist_entry === true;
@@ -58,8 +81,8 @@ function parseDate(value: string | null | undefined): Date | null {
  */
 export function cancelRescheduleDeadline(booking: DeadlineBookingFields, now: Date): CancelRescheduleDeadline {
   const result = timeWindow(booking, now);
-  if (booking.can_reschedule === false && result.kind !== "waitlist" && result.kind !== "none") {
-    return { ...result, rescheduleLocked: true };
+  if (isSampleAcceptedLocked(booking) && result.kind !== "waitlist" && result.kind !== "none") {
+    return { ...result, sampleLocked: true };
   }
   return result;
 }
@@ -88,16 +111,7 @@ export function formatDeadlineDateTime(date: Date): string {
 }
 
 export function formatDeadlineText(result: CancelRescheduleDeadline): string | null {
-  if (result.rescheduleLocked) {
-    if (result.rescheduleOnly) return RESCHEDULE_LOCKED_TEXT;
-    if (result.kind === "open" && result.deadline) {
-      return `${RESCHEDULE_LOCKED_TEXT}; cancel until ${formatDeadlineDateTime(result.deadline)}`;
-    }
-    if (result.kind === "disruption" || result.kind === "disruption_waiting") {
-      return `${RESCHEDULE_LOCKED_TEXT}; you can cancel anytime`;
-    }
-    return RESCHEDULE_LOCKED_TEXT;
-  }
+  if (result.sampleLocked) return SAMPLE_ACCEPTED_LOCKED_TEXT;
   switch (result.kind) {
     case "open":
       if (!result.deadline) return null;

@@ -211,7 +211,7 @@ export function myBookingsSection(g: Gate): GuideSection {
     ],
     rules: compact([
       "You can cancel or reschedule yourself until the equipment's cutoff (48 hours unless the lab set another) before the slot.",
-      "Once the lab has accepted your sample, Reschedule is no longer available to you or your supervisor; use Message the lab to contact the Officer in Charge.",
+      "Once the lab has accepted your sample, Reschedule and Cancel are no longer available to you or your supervisor; use Message the lab to contact the Officer in Charge.",
       "Refunds follow the cancellation policy; the amount is shown before you confirm.",
       g.only(WALLET_OWNERS, "Refunds are credited to the wallet that was charged."),
     ]),
