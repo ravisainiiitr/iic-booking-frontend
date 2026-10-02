@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
+import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
 
@@ -175,8 +176,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!isAuthenticated || !apiClient.getToken()) return;
 
-    const checkSession = () => {
+    let lastCheckAt = Date.now();
+    // During a slot-opening window the check backs off to ~60 s with per-tab jitter so it
+    // does not compete with booking requests.
+    const peakGapMs = PEAK_BACKGROUND_POLL_MS + Math.floor(Math.random() * 15_000);
+    const checkSession = (force = false) => {
       if (document.visibilityState !== "visible") return;
+      if (!force && isPeakActiveNow() && Date.now() - lastCheckAt < peakGapMs) return;
+      lastCheckAt = Date.now();
       void apiClient.getCurrentUser().then((userResponse) => {
         if (userResponse.error || !userResponse.data) return;
         const next = userResponse.data;
@@ -212,10 +219,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") checkSession();
+      if (document.visibilityState === "visible") checkSession(!isPeakActiveNow());
     };
 
-    const intervalId = setInterval(checkSession, SESSION_CHECK_MS);
+    const intervalId = setInterval(() => checkSession(), SESSION_CHECK_MS);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       clearInterval(intervalId);

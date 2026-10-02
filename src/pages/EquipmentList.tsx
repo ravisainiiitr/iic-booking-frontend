@@ -9,6 +9,7 @@ import DepartmentFilter, { type DepartmentFilterValue } from "@/components/Depar
 import { toast } from "sonner";
 import { type EquipmentData } from "@/data/equipmentData";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
@@ -71,6 +72,8 @@ interface ApiEquipment {
   publication_count?: number | null;
   featured_publication_title?: string | null;
   featured_citation?: string | null;
+  from_price?: number | string | null;
+  from_price_unit?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -100,12 +103,16 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       contactNumber: "",
       internalRate: 0,
       externalRate: 0,
+      fromPrice: eq.from_price ?? null,
+      fromPriceUnit: eq.from_price_unit ?? null,
       avgRating: eq.avg_rating ?? null,
       ratingCount: eq.rating_count ?? null,
       publicationCount: eq.publication_count ?? null,
       featuredPublicationTitle: eq.featured_publication_title ?? null,
       featuredCitation: eq.featured_citation ?? null,
     }));
+
+const ALL_CATEGORIES = "__all__";
 
 /** Default department from an already-loaded department list, or null when it is not cached yet. */
 const cachedDefaultDepartment = (): DepartmentFilterValue | null => {
@@ -161,7 +168,25 @@ const EquipmentList = () => {
     return (peekCatalogEquipment(initialDepartment, scope)?.data ?? []) as ApiEquipment[];
   });
   const [loading, setLoading] = useState(() => rawEquipment.length === 0);
-  const [searchQuery, setSearchQuery] = useState("");
+  // Search text and category also live in the URL so Back from an equipment page keeps them.
+  const searchQuery = searchParams.get("q") ?? "";
+  const categoryFilter = searchParams.get("category") ?? "";
+  const setUrlParam = useCallback(
+    (key: string, value: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value) next.set(key, value);
+          else next.delete(key);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  const setSearchQuery = useCallback((value: string) => setUrlParam("q", value), [setUrlParam]);
+  const setCategoryFilter = useCallback((value: string) => setUrlParam("category", value), [setUrlParam]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<DepartmentFilterValue>(
     () => initialDepartment ?? "all",
   );
@@ -199,7 +224,7 @@ const EquipmentList = () => {
   const hasSessionUser = Boolean(user);
   const [authReady, setAuthReady] = useState(() => hasSessionUser && Boolean(apiClient.getToken()));
 
-  const equipment = useMemo(
+  const displayedEquipment = useMemo(
     () =>
       transformApiEquipment(
         filterCatalogEquipmentForDisplay(rawEquipment, expandedParentId, {
@@ -207,6 +232,20 @@ const EquipmentList = () => {
         }),
       ),
     [rawEquipment, expandedParentId, searchQuery],
+  );
+  const categoryOptions = useMemo(
+    () =>
+      Array.from(new Set(displayedEquipment.map((eq) => (eq.category || "").trim()).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [displayedEquipment],
+  );
+  const equipment = useMemo(
+    () =>
+      categoryFilter
+        ? displayedEquipment.filter((eq) => (eq.category || "").trim() === categoryFilter)
+        : displayedEquipment,
+    [displayedEquipment, categoryFilter],
   );
 
 
@@ -392,7 +431,22 @@ const EquipmentList = () => {
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
+    categoryFilter.length > 0 ||
     (!isDeptAdmin && selectedDepartmentId !== "all");
+
+  const clearFilters = (includeDepartment: boolean) => {
+    if (includeDepartment) setSelectedDepartmentId("all");
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("q");
+        next.delete("category");
+        if (includeDepartment) next.set("dept", "all");
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   const showCatalogLoading =
     (!isDeptAdmin && !departmentReady) || (loading && equipment.length === 0);
@@ -463,6 +517,30 @@ const EquipmentList = () => {
               disabled={!departmentReady}
             />
           )}
+          {categoryOptions.length > 1 || categoryFilter ? (
+            <Select
+              value={categoryFilter || ALL_CATEGORIES}
+              onValueChange={(v) => setCategoryFilter(v === ALL_CATEGORIES ? "" : v)}
+            >
+              <SelectTrigger
+                className="h-11 w-full sm:w-56 shrink-0 rounded-xl text-sm"
+                aria-label="Filter by category or technique"
+              >
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CATEGORIES}>All categories</SelectItem>
+                {categoryFilter && !categoryOptions.includes(categoryFilter) ? (
+                  <SelectItem value={categoryFilter}>{categoryFilter}</SelectItem>
+                ) : null}
+                {categoryOptions.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           <div className="relative w-full sm:w-72 md:w-80 shrink-0 sm:ml-auto">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -502,17 +580,11 @@ const EquipmentList = () => {
                   : "There is no active equipment in the catalog at the moment. Check back later."}
               </p>
               {hasActiveFilters && !isDeptAdmin ? (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedDepartmentId("all");
-                  }}
-                >
+                <Button variant="outline" onClick={() => clearFilters(true)}>
                   Clear filters
                 </Button>
               ) : hasActiveFilters && isDeptAdmin ? (
-                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                <Button variant="outline" onClick={() => clearFilters(false)}>
                   Clear search
                 </Button>
               ) : null}
@@ -535,8 +607,13 @@ const EquipmentList = () => {
                     expandedParentId == null &&
                     isCatalogFamilyParent(rawEquipment, id, { searchActive: Boolean(searchQuery.trim()) })
                   ) {
-                    setSearchQuery("");
-                    setExpandedParentId(id);
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete("q");
+                      next.delete("category");
+                      next.set("family", String(id));
+                      return next;
+                    });
                     return true;
                   }
                   return false;

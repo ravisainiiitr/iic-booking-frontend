@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { isNewBuildDeployed, loadedEntryScript } from "@/lib/buildUpdate";
+import { isPeakActiveNow } from "@/lib/peakWindow";
 
 const CHECK_INTERVAL_MS = 5 * 60_000;
 const MIN_GAP_MS = 60_000;
@@ -17,7 +18,7 @@ export function BuildUpdateNotifier() {
     let disposed = false;
 
     const check = async () => {
-      if (notified || disposed || document.visibilityState !== "visible") return;
+      if (notified || disposed || document.visibilityState !== "visible" || isPeakActiveNow()) return;
       if (Date.now() - lastCheck < MIN_GAP_MS) return;
       lastCheck = Date.now();
       if (!(await isNewBuildDeployed(current)) || disposed || notified) return;

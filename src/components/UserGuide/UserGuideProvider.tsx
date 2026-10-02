@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -12,7 +14,6 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveGuideAudienceForUser, shouldAutoShowUserGuide, type GuideUserLike } from "@/guides/resolveAudience";
 import type { GuideAudienceId, UserGuideContent } from "@/guides/types";
-import UserGuideDialog from "@/components/UserGuide/UserGuideDialog";
 import { loadGuideFlags } from "@/components/UserGuide/guideFlags";
 import { formatPersonName } from "@/lib/displayName";
 import {
@@ -34,6 +35,9 @@ interface UserGuideContextValue {
 }
 
 const UserGuideContext = createContext<UserGuideContextValue | undefined>(undefined);
+
+// Kept out of the entry bundle: only users who open the guide download the dialog.
+const UserGuideDialog = lazy(() => import("@/components/UserGuide/UserGuideDialog"));
 
 type GuideUser = GuideUserLike & {
   oic_enable_leave_management?: boolean | null;
@@ -159,19 +163,23 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   return (
     <UserGuideContext.Provider value={value}>
       {children}
-      <UserGuideDialog
-        open={open}
-        onOpenChange={(next) => {
-          if (!next && open) {
-            void markGuideViewed();
-          }
-          setOpen(next);
-        }}
-        guide={guide}
-        loading={hasGuide && !guide}
-        userName={formatPersonName(user)}
-        userEmail={user?.email}
-      />
+      {(open || wanted) && (
+        <Suspense fallback={null}>
+          <UserGuideDialog
+            open={open}
+            onOpenChange={(next) => {
+              if (!next && open) {
+                void markGuideViewed();
+              }
+              setOpen(next);
+            }}
+            guide={guide}
+            loading={hasGuide && !guide}
+            userName={formatPersonName(user)}
+            userEmail={user?.email}
+          />
+        </Suspense>
+      )}
     </UserGuideContext.Provider>
   );
 }

@@ -102,7 +102,7 @@ const AdminSettings = () => {
             <SettingsTile
               icon={<Shield className="h-5 w-5" />}
               title="Session / Auto-logout"
-              description="Inactivity timeout for authenticated sessions"
+              description="Inactivity timeout and the slot-opening peak window"
               onClick={() => navigate("/admin-settings/auth")}
             />
           )}

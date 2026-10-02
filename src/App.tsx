@@ -12,6 +12,7 @@ import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilo
 import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
+import PeakWindowGate from "./components/peak/PeakWindowGate";
 
 function EmbedChrome() {
   const { search } = useLocation();
@@ -35,11 +36,13 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BuildUpdateNotifier />
-            <EmbedChrome />
-            <GlobalBackButton />
-            <ResearchCopilotLauncher />
-            <PendingActionsPrompt />
-            <AppRoutes />
+            <PeakWindowGate>
+              <EmbedChrome />
+              <GlobalBackButton />
+              <ResearchCopilotLauncher />
+              <PendingActionsPrompt />
+              <AppRoutes />
+            </PeakWindowGate>
           </NotificationProvider>
           </UserGuideProvider>
         </AuthProvider>

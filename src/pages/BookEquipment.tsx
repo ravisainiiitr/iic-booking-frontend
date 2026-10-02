@@ -101,9 +101,9 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { MySpendingLimitNotice } from "@/components/wallet/MySpendingLimitNotice";
-import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
-import RescheduleSlotPicker, { type RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
-import { PortalFeedbackForm } from "@/components/PortalFeedbackDialog";
+import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import type { RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
+import { BookingDetailCard, PortalFeedbackForm, RescheduleSlotPicker } from "@/components/booking/lazyBookingExtras";
 import { publishWorkspaceTitle } from "@/lib/workspaceTitle";
 import {
   Dialog,

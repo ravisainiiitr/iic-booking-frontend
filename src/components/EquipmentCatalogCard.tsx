@@ -14,7 +14,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePeakWindow } from "@/hooks/use-peak-window";
 import { apiClient } from "@/lib/api";
+import { isPeakBlockableUserType, prefetchBookingPage } from "@/lib/peakWindow";
 import { cn } from "@/lib/utils";
 
 export type EquipmentCardAccent = {
@@ -34,6 +36,9 @@ export type EquipmentCatalogCardItem = {
   status?: string | null;
   statusDisplay?: string | null;
   internalRate?: number | string | null;
+  /** Lowest standard rate for the viewer's user type (null when hidden or unknown). */
+  fromPrice?: number | string | null;
+  fromPriceUnit?: string | null;
   avgRating?: number | null;
   ratingCount?: number | null;
   departmentName?: string | null;
@@ -95,7 +100,8 @@ export default function EquipmentCatalogCard({
   imagePriority = false,
 }: Props) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const peak = usePeakWindow();
   const [playingVideo, setPlayingVideo] = useState(false);
   const [citationsOpen, setCitationsOpen] = useState(false);
   const [citationsLoading, setCitationsLoading] = useState(false);
@@ -111,11 +117,36 @@ export default function EquipmentCatalogCard({
   const isOperational = status === "ACTIVE";
   const pubCount = Number(item.publicationCount ?? 0);
 
+  const canBookHere =
+    isAuthenticated && canShowBookNow && isOperational && !isPeakBlockableUserType(user?.user_type ?? null);
+  const bookingPath = `/book-equipment?equipment_id=${Number(item.id)}${canBookForOtherUsers ? "&mode=book" : ""}`;
+  const directToBooking = peak.active && canBookHere;
+
   const openEquipment = () => {
+    const id = Number(item.id);
+    if (onOpenEquipment?.(id)) return;
+    navigate(directToBooking ? bookingPath : `/equipment/${id}`);
+  };
+
+  const openBooking = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const id = Number(item.id);
+    if (onOpenEquipment?.(id)) return;
+    navigate(bookingPath);
+  };
+
+  const goToDetails = () => {
     const id = Number(item.id);
     if (onOpenEquipment?.(id)) return;
     navigate(`/equipment/${id}`);
   };
+
+  const openDetails = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    goToDetails();
+  };
+
+  const warmBooking = canBookHere ? prefetchBookingPage : undefined;
 
   const openCitations = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -148,6 +179,13 @@ export default function EquipmentCatalogCard({
   const half = avg != null ? avg - full >= 0.5 : false;
 
   const rateN = item.internalRate == null ? 0 : Number(item.internalRate);
+  const fromPriceN = item.fromPrice == null ? 0 : Number(item.fromPrice);
+  const priceLabel =
+    Number.isFinite(fromPriceN) && fromPriceN > 0
+      ? `from ₹${fromPriceN.toLocaleString("en-IN", { maximumFractionDigits: 2 })}${item.fromPriceUnit ? `/${item.fromPriceUnit}` : ""}`
+      : rateN > 0
+        ? `₹${rateN.toFixed(2)}/hour`
+        : null;
   const metaRows: Array<{ label: string; value: string }> = [];
   if (item.departmentName) metaRows.push({ label: "Department", value: item.departmentName });
   if (item.showMakeOnCard && item.make?.trim()) metaRows.push({ label: "Make", value: item.make.trim() });
@@ -166,6 +204,9 @@ export default function EquipmentCatalogCard({
           accent.border
         )}
         onClick={openEquipment}
+        onMouseEnter={warmBooking}
+        onFocus={warmBooking}
+        onTouchStart={warmBooking}
       >
         <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
           {playingVideo && item.video ? (
@@ -271,8 +312,8 @@ export default function EquipmentCatalogCard({
             <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">{item.description}</p>
           ) : null}
 
-          {rateN > 0 ? (
-            <p className="text-base font-semibold tabular-nums text-primary">₹{rateN.toFixed(2)}/hour</p>
+          {priceLabel ? (
+            <p className="text-base font-semibold tabular-nums text-primary">{priceLabel}</p>
           ) : null}
         </CardHeader>
 
@@ -314,17 +355,34 @@ export default function EquipmentCatalogCard({
             ) : null}
 
             {canShowBookNow && (
-              <Button
-                className={cn("w-full text-white", accent.button)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const id = Number(item.id);
-                  if (onOpenEquipment?.(id)) return;
-                  navigate(`/equipment/${id}`);
-                }}
-              >
-                View details
-              </Button>
+              <div className="flex gap-2">
+                {directToBooking ? (
+                  <>
+                    <Button className={cn("flex-1 text-white", accent.button)} onClick={openBooking}>
+                      Book now
+                    </Button>
+                    <Button variant="outline" onClick={openDetails}>
+                      Details
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className={cn("flex-1 text-white", accent.button)} onClick={openDetails}>
+                      View details
+                    </Button>
+                    {canBookHere ? (
+                      <Button
+                        variant="outline"
+                        onClick={openBooking}
+                        aria-label={`Book ${item.name}`}
+                        className="border-primary/40 text-primary hover:bg-primary/5"
+                      >
+                        Book
+                      </Button>
+                    ) : null}
+                  </>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
@@ -395,7 +453,7 @@ export default function EquipmentCatalogCard({
               size="sm"
               onClick={() => {
                 setCitationsOpen(false);
-                openEquipment();
+                goToDetails();
               }}
             >
               Open equipment details

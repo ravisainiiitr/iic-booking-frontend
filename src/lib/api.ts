@@ -1,4 +1,5 @@
 import { type BookingRef } from "@/lib/bookingRef";
+import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import type {
   MyResearchBootstrap,
   MyResearchHome,
@@ -714,6 +715,22 @@ export interface SupportNotificationSettings {
   max_recipients: number;
   updated_at: string | null;
   updated_by_name: string | null;
+}
+
+export interface PeakWindowSettings {
+  enabled: boolean;
+  lead_minutes: number;
+  trail_minutes: number;
+  block_external_users: boolean;
+  external_notice_minutes: number;
+  defer_background_tasks: boolean;
+  updated_at?: string;
+  status?: {
+    peak_window_active: boolean;
+    starts_at: string | null;
+    ends_at: string | null;
+    next_window: { opening_at: string; starts_at: string; ends_at: string } | null;
+  };
 }
 
 interface ApiResponse<T> {
@@ -1670,6 +1687,11 @@ class ApiClient {
             this.onUnauthorized();
           }
         }
+        if (response.status === 403 && isPeakPausedBody(data)) {
+          notifyPeakExternalPaused(data);
+          const message = data.message || data.detail || "External access is paused while new slots open.";
+          return { error: message, status: 403, errorCode: PEAK_EXTERNAL_PAUSED_CODE, data: data as T };
+        }
         // Portal-migration SCHEMA_PENDING (503): keep full JSON payload for UI banners.
         // Do not treat schema/results/table as "field errors".
         const schemaPendingBody = data as { code?: unknown; message?: unknown; error?: unknown };
@@ -2414,6 +2436,18 @@ class ApiClient {
       by_user_type: Record<string, number>;
       user_type_choices: Array<{ code: string; name: string }>;
     }>('/auth/settings/');
+  }
+
+  /** Main admin only: slot-opening peak window (lead/trail minutes, external pause, on/off). */
+  async getPeakWindowSettings() {
+    return this.request<PeakWindowSettings>('/admin/peak-window-settings/', { cache: 'no-store' });
+  }
+
+  async updatePeakWindowSettings(data: Partial<Omit<PeakWindowSettings, 'updated_at' | 'status'>>) {
+    return this.request<PeakWindowSettings>('/admin/peak-window-settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   /** Admin only: update auth settings (global and/or by_user_type). */

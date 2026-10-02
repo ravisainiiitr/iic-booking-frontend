@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { apiClient } from "@/lib/api";
+import { isPeakActiveNow } from "@/lib/peakWindow";
 import { cn } from "@/lib/utils";
 
 type NoticeKind = "urgent" | "warning" | "info";
@@ -248,7 +249,7 @@ const NoticeBoard = () => {
   useEffect(() => {
     void fetchNotices();
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void fetchNotices(true);
+      if (document.visibilityState === "visible" && !isPeakActiveNow()) void fetchNotices(true);
     }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [fetchNotices]);

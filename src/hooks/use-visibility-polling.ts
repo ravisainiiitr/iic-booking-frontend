@@ -1,4 +1,8 @@
 import { useEffect, useRef } from "react";
+import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
+
+const peakAwareIntervalWithJitter = (intervalMs: number) =>
+  Math.max(intervalMs, PEAK_BACKGROUND_POLL_MS) + Math.floor(Math.random() * 10_000);
 
 type UseVisibilityPollingOptions = {
   /** Polling interval in ms (default 12s). */
@@ -25,10 +29,14 @@ export function useVisibilityPolling({
     if (!enabled) return;
 
     let cancelled = false;
+    let lastPollAt = Date.now();
+    const peakGapMs = peakAwareIntervalWithJitter(intervalMs);
 
     const tick = () => {
       if (cancelled) return;
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (isPeakActiveNow() && Date.now() - lastPollAt < peakGapMs) return;
+      lastPollAt = Date.now();
       void onPollRef.current();
     };
 

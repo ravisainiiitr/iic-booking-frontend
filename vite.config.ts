@@ -42,6 +42,21 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), preloadHomeHeroImage(), mode === "development" && componentTagger()].filter(Boolean),
+  build: {
+    rollupOptions: {
+      output: {
+        // React + router change far less often than app code, so returning visitors keep them
+        // cached across deploys. Only libraries the entry needs anyway go here; grouping libraries
+        // used by lazy pages would pull them into the first download.
+        manualChunks(id) {
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run[\\/]router)[\\/]/.test(id)) {
+            return "vendor-react";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

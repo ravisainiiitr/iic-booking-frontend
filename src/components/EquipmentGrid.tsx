@@ -56,6 +56,8 @@ interface ApiEquipment {
   publication_count?: number | null;
   featured_publication_title?: string | null;
   featured_citation?: string | null;
+  from_price?: number | string | null;
+  from_price_unit?: string | null;
 }
 
 const EquipmentGrid = () => {
@@ -221,6 +223,8 @@ const EquipmentGrid = () => {
       publicationCount: eq.publication_count ?? null,
       featuredPublicationTitle: eq.featured_publication_title ?? null,
       featuredCitation: eq.featured_citation ?? null,
+      fromPrice: eq.from_price ?? null,
+      fromPriceUnit: eq.from_price_unit ?? null,
       address: eq.location || "IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",

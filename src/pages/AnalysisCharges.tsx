@@ -192,13 +192,17 @@ export default function AnalysisCharges() {
   const allUserTypesSelected = selectedUserTypes === null;
   const noUserTypesSelected = selectedUserTypes !== null && selectedUserTypes.length === 0;
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     if (!tableRows.length) {
       toast.error("Nothing to export — select at least one equipment with charges.");
       return;
     }
-    exportAnalysisChargesExcel(tableRows, { departmentName: departmentTitle });
-    toast.success("Excel downloaded.");
+    try {
+      await exportAnalysisChargesExcel(tableRows, { departmentName: departmentTitle });
+      toast.success("Excel downloaded.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Excel export failed");
+    }
   };
 
   const handleDownloadPdf = async () => {

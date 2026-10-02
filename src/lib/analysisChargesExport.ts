@@ -3,9 +3,8 @@
  * Layout: department header; rows = equipment (+ parameter for multi-param);
  * columns = user categories.
  */
-import * as XLSX from "xlsx-js-style";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+// The spreadsheet/PDF libraries are ~1 MB, so they load only when the user exports.
+import type * as XLSXTypes from "xlsx-js-style";
 import { format } from "date-fns";
 import { DEFAULT_DEPARTMENT_NAME, drawPdfLetterhead } from "@/lib/pdfLetterhead";
 
@@ -198,11 +197,12 @@ function cellExportText(cell: AnalysisChargePivotCell): string {
 const GST_EXPORT_NOTE =
   "Note: All rates are exclusive of GST. GST @ 18% will be applicable to external users. No GST is applicable to IIT Roorkee internal users.";
 
-export function exportAnalysisChargesExcel(
+export async function exportAnalysisChargesExcel(
   rows: AnalysisChargeExportRow[],
   options?: { filename?: string; departmentName?: string }
-): void {
+): Promise<void> {
   if (!rows.length) return;
+  const XLSX = await import("xlsx-js-style");
   const dept = (options?.departmentName || "").trim() || "Department";
   const generated = format(new Date(), "dd MMM yyyy, HH:mm");
   const pivot = pivotAnalysisChargeRows(rows);
@@ -245,7 +245,7 @@ export function exportAnalysisChargesExcel(
   const lastCol = Math.max(header.length - 1, 1);
   const headerRow = 5;
   const firstDataRow = headerRow + 1;
-  const merges: XLSX.Range[] = [
+  const merges: XLSXTypes.Range[] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
@@ -333,6 +333,7 @@ export async function exportAnalysisChargesPdf(
   options?: { filename?: string; departmentName?: string; title?: string }
 ): Promise<void> {
   if (!rows.length) return;
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const pivot = pivotAnalysisChargeRows(rows);
   const useLandscape = pivot.categories.length > 3 || pivot.hasParameters;
   const doc = new jsPDF({
