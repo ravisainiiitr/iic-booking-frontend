@@ -64,6 +64,7 @@ import {
   type InputEditRefundWindow,
 } from "@/lib/inputEditRefund";
 import { inputEditQuotaNotice } from "@/lib/bookingQuota";
+import { formatInputScalar, resolveChoiceDisplay } from "@/lib/bookingInputDisplay";
 
 export interface InputFieldDef {
   field_key: string;
@@ -110,65 +111,12 @@ interface BookingUserInputsProps {
   refundViewer?: InputEditRefundViewer;
   /** Booking owner's weekly/monthly limit is shown in the Edit dialog (staff edits are not limited). */
   quotaBooking?: { equipmentId: number | string; bookingId: number | string };
+  /** `editButtonOnly`: just the Edit button and its dialog, for views that show the inputs themselves. */
+  variant?: "full" | "editButtonOnly";
 }
 
-function formatVal(v: unknown): string {
-  if (v === undefined || v === null) return "—";
-  if (typeof v === "boolean") return v ? "Yes" : "No";
-  if (Array.isArray(v)) {
-    if (v.length > 0 && Array.isArray(v[0])) return `${(v as unknown[][]).length} row(s)`;
-    return v.join(", ");
-  }
-  return String(v);
-}
-
-function resolveRadioComboDisplay(
-  value: unknown,
-  options: (string | { value?: string; label?: string })[] | undefined,
-  fieldType: string
-): string {
-  const type = String(fieldType || "").toUpperCase();
-  if (value === undefined || value === null || value === "") return "—";
-  if (type !== "RADIO" && type !== "COMBO") return formatVal(value);
-  if (!options || options.length === 0) return formatVal(value);
-
-  const normalized = options.map((o, i) => normalizeChoiceOption(o, i));
-  const optionLabels = normalized.map((o) => o.label);
-  const optionValues = normalized.map((o) => o.value);
-
-  // When value is boolean (or string "true"/"false"), map to option labels per optional text (e.g. Yes/No)
-  const isBoolLike =
-    typeof value === "boolean" ||
-    (typeof value === "string" && (value.trim().toLowerCase() === "true" || value.trim().toLowerCase() === "false"));
-  if (isBoolLike && options.length >= 1) {
-    const boolVal = value === true || String(value).trim().toLowerCase() === "true";
-    const yesIdx = optionLabels.findIndex((l) => /^yes$/i.test(String(l)));
-    const noIdx = optionLabels.findIndex((l) => /^no$/i.test(String(l)));
-    if (yesIdx >= 0 && noIdx >= 0) {
-      return boolVal ? (optionLabels[yesIdx] || optionValues[yesIdx]) : (optionLabels[noIdx] || optionValues[noIdx]);
-    }
-    const yesValIdx = optionValues.findIndex((v) => /^true$/i.test(String(v)));
-    const noValIdx = optionValues.findIndex((v) => /^false$/i.test(String(v)));
-    if (yesValIdx >= 0 && noValIdx >= 0) {
-      return boolVal ? (optionLabels[yesValIdx] || optionValues[yesValIdx]) : (optionLabels[noValIdx] || optionValues[noValIdx]);
-    }
-    // Convention: two options, first = false, second = true (e.g. "No", "Yes")
-    if (options.length === 2) {
-      return boolVal ? (optionLabels[1] ?? optionValues[1]) : (optionLabels[0] ?? optionValues[0]);
-    }
-  }
-
-  const strVal = String(value).trim();
-  if (/^\d+$/.test(strVal)) {
-    const idx = parseInt(strVal, 10);
-    if (idx >= 1 && idx <= optionLabels.length) return optionLabels[idx - 1] || strVal;
-  }
-  const byValue = optionValues.indexOf(strVal);
-  if (byValue >= 0) return optionLabels[byValue] || strVal;
-  const byLabel = optionLabels.indexOf(strVal);
-  if (byLabel >= 0) return optionLabels[byLabel];
-  return strVal;
-}
+const formatVal = formatInputScalar;
+const resolveRadioComboDisplay = resolveChoiceDisplay;
 
 export function BookingUserInputs({
   inputValues,
@@ -189,6 +137,7 @@ export function BookingUserInputs({
   refundWindow,
   refundViewer = "owner",
   quotaBooking,
+  variant = "full",
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -580,7 +529,21 @@ export function BookingUserInputs({
   }, [editDialogOpen, editFormValues, editableFields, fields]);
 
   return (
-    <div className="mt-6 pt-6 border-t border-border/80">
+    <div className={variant === "editButtonOnly" ? "contents" : "mt-6 pt-6 border-t border-border/80"}>
+      {variant === "editButtonOnly" ? (
+        hasEditableFields ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="no-print"
+            onClick={openEditDialog}
+            title="Edit user inputs"
+          >
+            <Pencil className="h-4 w-4 mr-1.5" />
+            Edit inputs
+          </Button>
+        ) : null
+      ) : (
       <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-4 bg-primary/5 dark:bg-primary/10 border-b border-border/60">
           <div className="flex items-center gap-2.5">
@@ -834,6 +797,7 @@ export function BookingUserInputs({
         ))}
       </ul>
       </div>
+      )}
 
       {/* Edit popup */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

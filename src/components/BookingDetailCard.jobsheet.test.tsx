@@ -1,0 +1,97 @@
+import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
+import { BookingDetailCard, type BookingDetailCardBooking } from "./BookingDetailCard";
+
+vi.mock("@/lib/api", () => {
+  const empty = vi.fn(async () => ({ data: null }));
+  const apiClient = new Proxy({} as Record<string, unknown>, {
+    get: (target, key) => (key in target ? target[key as string] : empty),
+  });
+  apiClient.getProfilePictureUrl = () => "";
+  return { API_BASE_URL: "/api", apiClient, default: apiClient };
+});
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: { id: 99, user_type: "operator" }, isAuthenticated: true }),
+}));
+
+const booking = {
+  id: 501,
+  booking_id: 501,
+  virtual_booking_id: "XRD-#501",
+  user: 7,
+  user_email: "asha@example.org",
+  user_name: "Asha Verma",
+  user_phone: "+91 98765 43210",
+  user_department: "Chemistry",
+  equipment: 3,
+  equipment_code: "XRD",
+  equipment_name: "X-Ray Diffractometer",
+  wallet_owner_name: "Prof. R. Kumar",
+  charge_profile: 1,
+  user_type_snapshot: "faculty",
+  user_type_snapshot_display: "Faculty",
+  total_time_minutes: 120,
+  total_hours: 2,
+  total_charge: "1234.00",
+  input_values: { A: "4", B: "pwd", comments: "Grind gently", _sample_sets: [{ A: "2", B: "liq" }] },
+  input_fields: [
+    { field_key: "A", field_label: "No. of Samples", field_type: "NUMERIC" },
+    { field_key: "B", field_label: "Sample form", field_type: "RADIO", options: [{ value: "pwd", label: "Powder" }, { value: "liq", label: "Liquid" }] },
+    { field_key: "comments", field_label: "Comments", field_type: "TEXT" },
+  ],
+  selected_parameters: null,
+  charge_breakdown: [{ amount: 1234, description: "Analysis charge" }],
+  status: "BOOKED",
+  status_display: "Booked",
+  notes: "",
+  start_time: "2026-10-06T10:00:00+05:30",
+  end_time: "2026-10-06T12:00:00+05:30",
+  daily_slots: [],
+  sample_trace: [],
+  accounts_in_charge: { user_id: 11, name: "Accounts Person", email: "acc@example.org" },
+  lab_in_charge: { user_id: 12, name: "Lab Person" },
+  created_at: "2026-10-01T10:00:00Z",
+  updated_at: "2026-10-01T10:00:00Z",
+} as unknown as BookingDetailCardBooking;
+
+function renderCard(props: { isOperator: boolean; isManagerOrAdmin?: boolean; currentUserType: string; currentUserId: number }) {
+  return renderToStaticMarkup(
+    <MemoryRouter>
+      <BookingDetailCard booking={booking} onClose={() => {}} onUpdated={() => {}} {...props} />
+    </MemoryRouter>,
+  );
+}
+
+describe("BookingDetailCard job sheet", () => {
+  it("gives Lab Operators the job sheet with the requirements table and no charges or billing", () => {
+    const html = renderCard({ isOperator: true, currentUserType: "operator", currentUserId: 99 });
+    expect(html).toContain("Job sheet");
+    expect(html).toContain("Print job sheet");
+    expect(html).toContain("Prof. Asha Verma");
+    expect(html).toContain('href="tel:+919876543210"');
+    expect(html).toContain('href="mailto:asha@example.org"');
+    expect(html).toContain("Instructions from the user");
+    expect(html).toContain("Grind gently");
+    expect(html).toContain("Set 2");
+    expect(html).toContain("Liquid");
+    for (const hidden of ["₹", "1,234", "Total Cost", "Charge Breakdown", "Invoice", "Accounts Person"]) {
+      expect(html, hidden).not.toContain(hidden);
+    }
+  });
+
+  it("leaves the booking owner's view unchanged", () => {
+    const html = renderCard({ isOperator: false, currentUserType: "faculty", currentUserId: 7 });
+    expect(html).not.toContain("Job sheet");
+    expect(html).toContain("Total Cost");
+    expect(html).toContain("Charge Breakdown");
+    expect(html).toContain("For Invoice Related Query");
+  });
+
+  it("leaves the Officer In Charge's view unchanged", () => {
+    const html = renderCard({ isOperator: false, isManagerOrAdmin: true, currentUserType: "manager", currentUserId: 50 });
+    expect(html).not.toContain("Job sheet");
+    expect(html).toContain("Total Cost");
+    expect(html).toContain("Charge Breakdown");
+  });
+});

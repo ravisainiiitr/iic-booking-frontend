@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -45,6 +46,7 @@ import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
+  sample_summary?: SampleSummary | null;
   user: number;
   user_email: string;
   user_name: string;
@@ -557,6 +559,11 @@ const BookingManagement = () => {
                             />
                             <ExternalLink className="h-3.5 w-3.5 opacity-70" />
                           </button>
+                          {isOperator && formatSampleSummary(booking.sample_summary) && (
+                            <span className="block text-xs font-normal text-muted-foreground">
+                              {formatSampleSummary(booking.sample_summary)}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}

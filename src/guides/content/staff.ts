@@ -26,6 +26,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         body: "Hover over a booked slot in the week calendar to see the user's name, department, email, mobile and booking ID.",
       },
       g.only(["operator"], {
+        title: "Read the job sheet",
+        body: "Click a booking ID to open its job sheet: user, date and time, sample stage, the user's instructions and the Sample requirements table. One sample set shows as Parameter and Value; several sets show one column per set, with cells that differ from Set 1 tinted. Use Print job sheet for an A4 copy.",
+      }),
+      g.only(["operator"], {
         title: "Close the run",
         body: "After the run, choose Complete (and publish results per lab process), or Not Utilized if the user did not use the slot.",
       }),
@@ -45,6 +49,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
     ]),
     tips: compact([
       g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over but not completed; a reminder email goes out daily at 9:00 AM until they are."),
+      g.only(["operator"], "Booking lists show the number of sample sets and samples under each booking ID, for example 3 sets · 12 samples."),
     ]),
   };
 }

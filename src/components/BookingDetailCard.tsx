@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { format } from "date-fns";
 import { apiClient, type PrintAnalysisResult } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
@@ -44,6 +44,8 @@ import { toast } from "sonner";
 import BookingEventHistory from "@/components/BookingEventHistory";
 import BookingLabMessages from "@/components/BookingLabMessages";
 import BookingUserInputs from "@/components/BookingUserInputs";
+import { OperatorJobSheet } from "@/components/booking/OperatorJobSheet";
+import { printElement } from "@/lib/jobSheet";
 import InputEditPayCountdown from "@/components/InputEditPayCountdown";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
@@ -673,6 +675,7 @@ export function BookingDetailCard({
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const chargeRecalcPayingRef = useRef(false);
+  const jobSheetRef = useRef<HTMLDivElement | null>(null);
   const [actionSubmitLoading, setActionSubmitLoading] = useState(false);
   const [extendHoldUntilLocal, setExtendHoldUntilLocal] = useState("");
   const [extendHoldReasonCode, setExtendHoldReasonCode] = useState<string>("");
@@ -1508,6 +1511,66 @@ export function BookingDetailCard({
     !isOperator &&
     !isManagerOrAdmin &&
     (ownerDeadlinePassed || ownerDeadline?.kind === "disruption_waiting");
+  /** Lab Operators get a job sheet: what to run and for whom, without charges, billing or contact cards. */
+  const isJobSheetView =
+    isOperator &&
+    !isManagerOrAdmin &&
+    (normalizedCurrentUserType === "operator" || isLabInchargeType) &&
+    !isWaitlistedEntry &&
+    !isOwnBooking;
+
+  const hasInputValues = Boolean(booking.input_values && Object.keys(booking.input_values).length > 0);
+  const bookingUserInputsProps: ComponentProps<typeof BookingUserInputs> = {
+    inputValues: booking.input_values,
+    inputFields: booking.input_fields ?? undefined,
+    editableInputFields: booking.editable_input_fields ?? undefined,
+    status: booking.status,
+    enableChargeRecalculation: !!booking.equipment_enable_charge_recalculation && !booking.source_booking_id,
+    sampleTrace: isWaitlistedEntry ? undefined : (booking.sample_trace ?? undefined),
+    isAdminUser: Boolean(isManagerOrAdmin),
+    disabled: !!booking.source_booking_id,
+    atmosphereSensitiveSample: !!booking.atmosphere_sensitive_sample,
+    autoOpenEdit: autoOpenEditInputs,
+    onAutoOpenEditConsumed: onAutoOpenEditInputsConsumed,
+    slotDurationMinutes: booking.equipment_slot_duration_minutes,
+    canChangeSampleSets:
+      booking.viewer_can_change_sample_sets ??
+      (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager"),
+    allowSampleSets: booking.equipment_allow_multiple_sample_sets !== false,
+    refundWindow: {
+      deadline: booking.input_edit_refund_deadline,
+      instantOpen: booking.input_edit_instant_refund_open,
+    },
+    refundViewer: inputEditRefundViewer,
+    quotaBooking:
+      bookingPk != null && booking.equipment != null
+        ? { equipmentId: booking.equipment, bookingId: bookingPk }
+        : undefined,
+    onUpdate: async (newInputValues) => {
+      if (bookingPk == null) {
+        toast.error("This booking cannot be updated right now.");
+        return;
+      }
+      const res = await apiClient.updateBookingInputValues(bookingPk, newInputValues as Record<string, string | number | boolean | string[]>);
+      if (res.error) throw Object.assign(new Error(res.error), { code: res.errorCode });
+      // Reflect edits immediately in booking details without requiring page refresh.
+      const updatedBooking = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
+      if (updatedBooking) {
+        setBooking(updatedBooking);
+      }
+      const summary = res.data?.charge_recalculation_summary;
+      if (summary?.extra_amount && summary.pay_window_seconds) {
+        toast.warning(
+          `The new charge is ${formatINR(summary.extra_amount)} higher. Pay it within ${summary.pay_window_seconds} seconds, otherwise your edit is cancelled.`
+        );
+        window.setTimeout(() => {
+          document.getElementById(`charge-recalc-summary-${bookingPk}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+      }
+      onUpdated();
+      return inputEditSavedMessage(summary, inputEditRefundViewer);
+    },
+  };
 
   return (
     <div id="booking-detail-section" className="mt-6 scroll-mt-6">
@@ -1516,7 +1579,12 @@ export function BookingDetailCard({
           <ArrowLeft className="h-4 w-4 mr-2" />
           {backLabel}
         </Button>
-        {showPrintButton && (
+        {isJobSheetView ? (
+          <Button variant="outline" size="sm" onClick={() => printElement(jobSheetRef.current)}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print job sheet
+          </Button>
+        ) : showPrintButton && (
           <Button variant="outline" size="sm" onClick={() => window.print()} aria-label="Print booking">
             <Printer className="h-4 w-4 mr-2" />
             Print
@@ -1524,6 +1592,18 @@ export function BookingDetailCard({
         )}
       </div>
       <Card className="booking-detail-print-area">
+        {isJobSheetView ? (
+          <CardHeader className="min-w-0 p-4 pb-2 sm:p-6 sm:pb-2">
+            <OperatorJobSheet
+              ref={jobSheetRef}
+              booking={booking}
+              statusBadgeClass={getStatusColor(booking.status)}
+              editInputs={
+                hasInputValues ? <BookingUserInputs {...bookingUserInputsProps} variant="editButtonOnly" /> : null
+              }
+            />
+          </CardHeader>
+        ) : (
         <CardHeader>
           <div className="flex justify-between items-start gap-3">
             <div className="min-w-0">
@@ -1560,8 +1640,9 @@ export function BookingDetailCard({
             <Badge className={`${getStatusColor(booking.status)} text-sm shrink-0`}>{booking.status_display}</Badge>
           </div>
         </CardHeader>
+        )}
         <CardContent className="text-base">
-          {!isWaitlistedEntry ? (
+          {isJobSheetView ? null : !isWaitlistedEntry ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 mb-4">
               <div className="min-w-0">
                 <p className="text-sm sm:text-base text-muted-foreground">Start Time</p>
@@ -1673,7 +1754,7 @@ export function BookingDetailCard({
             />
           )}
 
-          {isCompleted && booking.sample_collection_deadline_at && (
+          {isCompleted && booking.sample_collection_deadline_at && !isJobSheetView && (
             <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-1">
               <div className="text-base font-semibold text-foreground">Sample Collection Deadline</div>
               <p className="text-base font-medium text-foreground">
@@ -1718,13 +1799,13 @@ export function BookingDetailCard({
                 </p>
               )}
             </div>
-          ) : booking.atmosphere_sensitive_sample ? (
+          ) : booking.atmosphere_sensitive_sample && !isJobSheetView ? (
             <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-50/80 dark:bg-sky-950/30 px-3 py-2 text-sm text-sky-900 dark:text-sky-100">
               Atmosphere-sensitive sample: will be submitted at slot start. Do not mark Booking Not Utilized before the slot begins.
             </div>
           ) : null}
 
-          {showIstemWorkflow && (
+          {showIstemWorkflow && !isJobSheetView && (
             <div className="rounded-lg border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/90 dark:bg-amber-950/25 p-4 mb-4 space-y-3">
               <p className="font-semibold text-foreground">I-STEM (national portal)</p>
               {isManagerOrAdmin ? (
@@ -1911,7 +1992,7 @@ export function BookingDetailCard({
           </div>
           )}
 
-          {(booking.rating != null || booking.rating_feedback != null) && (
+          {!isJobSheetView && (booking.rating != null || booking.rating_feedback != null) && (
             <div className="mt-4 pt-4 border-t">
               <p className="text-base font-medium mb-2">User rating</p>
               <div className="space-y-2">
@@ -3331,60 +3412,8 @@ export function BookingDetailCard({
             />
           )}
 
-          {!isFinanceUser && booking.input_values && Object.keys(booking.input_values).length > 0 ? (
-            <BookingUserInputs
-              inputValues={booking.input_values}
-              inputFields={booking.input_fields ?? undefined}
-              editableInputFields={booking.editable_input_fields ?? undefined}
-              status={booking.status}
-              enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation && !booking.source_booking_id}
-              sampleTrace={isWaitlistedEntry ? undefined : (booking.sample_trace ?? undefined)}
-              isAdminUser={Boolean(isManagerOrAdmin)}
-              disabled={!!booking.source_booking_id}
-              atmosphereSensitiveSample={!!booking.atmosphere_sensitive_sample}
-              autoOpenEdit={autoOpenEditInputs}
-              onAutoOpenEditConsumed={onAutoOpenEditInputsConsumed}
-              slotDurationMinutes={booking.equipment_slot_duration_minutes}
-              canChangeSampleSets={
-                booking.viewer_can_change_sample_sets ??
-                (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager")
-              }
-              allowSampleSets={booking.equipment_allow_multiple_sample_sets !== false}
-              refundWindow={{
-                deadline: booking.input_edit_refund_deadline,
-                instantOpen: booking.input_edit_instant_refund_open,
-              }}
-              refundViewer={inputEditRefundViewer}
-              quotaBooking={
-                bookingPk != null && booking.equipment != null
-                  ? { equipmentId: booking.equipment, bookingId: bookingPk }
-                  : undefined
-              }
-              onUpdate={async (newInputValues) => {
-                if (bookingPk == null) {
-                  toast.error("This booking cannot be updated right now.");
-                  return;
-                }
-                const res = await apiClient.updateBookingInputValues(bookingPk, newInputValues as Record<string, string | number | boolean | string[]>);
-                if (res.error) throw Object.assign(new Error(res.error), { code: res.errorCode });
-                // Reflect edits immediately in booking details without requiring page refresh.
-                const updatedBooking = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
-                if (updatedBooking) {
-                  setBooking(updatedBooking);
-                }
-                const summary = res.data?.charge_recalculation_summary;
-                if (summary?.extra_amount && summary.pay_window_seconds) {
-                  toast.warning(
-                    `The new charge is ${formatINR(summary.extra_amount)} higher. Pay it within ${summary.pay_window_seconds} seconds, otherwise your edit is cancelled.`
-                  );
-                  window.setTimeout(() => {
-                    document.getElementById(`charge-recalc-summary-${bookingPk}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }, 150);
-                }
-                onUpdated();
-                return inputEditSavedMessage(summary, inputEditRefundViewer);
-              }}
-            />
+          {isJobSheetView ? null : !isFinanceUser && hasInputValues ? (
+            <BookingUserInputs {...bookingUserInputsProps} />
           ) : !isFinanceUser ? (
             <div className="mt-6 pt-6 border-t border-border/80">
               <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
@@ -3402,7 +3431,7 @@ export function BookingDetailCard({
             </div>
           ) : null}
 
-          {!isWaitlistedEntry && booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
+          {!isJobSheetView && !isWaitlistedEntry && booking.charge_breakdown && booking.charge_breakdown.length > 0 && (
             <div className="mt-4 pt-4 border-t">
               <p className="text-base sm:text-lg font-semibold mb-2">Charge Breakdown:</p>
               <ul className="space-y-1.5">
@@ -3453,7 +3482,7 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {booking.charge_recalculation_pending_amount != null && Number(booking.charge_recalculation_pending_amount) !== 0 && (
+          {!isJobSheetView && booking.charge_recalculation_pending_amount != null && Number(booking.charge_recalculation_pending_amount) !== 0 && (
             <div id={`charge-recalc-summary-${bookingPk}`} className="mt-4 p-4 rounded-lg border bg-muted/30 space-y-3">
               <p className="text-base font-medium">Charge recalculation summary</p>
               <div className="text-sm space-y-1">
@@ -3526,7 +3555,7 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {booking.notes && (
+          {booking.notes && !isJobSheetView && (
             <div className="mt-4 pt-4 border-t">
               <p className="text-base font-medium mb-1">Notes:</p>
               <p className="text-base text-muted-foreground">{booking.notes}</p>
@@ -3549,7 +3578,7 @@ export function BookingDetailCard({
                 }}
               >
                 <History className="h-4 w-4 mr-2" />
-                {expandedBookings.has(booking.booking_id) ? "Hide" : "Show"} Event History
+                {expandedBookings.has(booking.booking_id) ? "Hide" : "Show"} {isJobSheetView ? "History" : "Event History"}
               </Button>
               {expandedBookings.has(booking.booking_id) && (
                 <div className="mt-4">
@@ -3595,7 +3624,9 @@ export function BookingDetailCard({
                       <span>Supervisor Name: {actionDialog.booking.wallet_owner_name}</span>
                     </div>
                   )}
-                  <p className="text-sm text-muted-foreground">Amount: {formatINR(actionDialog.booking.total_charge)}</p>
+                  {!isJobSheetView && (
+                    <p className="text-sm text-muted-foreground">Amount: {formatINR(actionDialog.booking.total_charge)}</p>
+                  )}
                 </div>
               </>
             )}

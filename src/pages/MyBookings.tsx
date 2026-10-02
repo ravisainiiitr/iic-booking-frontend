@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
+import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
@@ -142,6 +143,7 @@ interface Booking extends BookingRef {
     phone?: string | null;
     user_type?: string;
   }>;
+  sample_summary?: SampleSummary | null;
   istem_fbr_number?: string | null;
   istem_fbr_status?: string | null;
   istem_fbr_status_display?: string | null;
@@ -1376,6 +1378,11 @@ const MyBookings = () => {
       </button>
     );
 
+  const renderSampleSummary = (booking: Booking) => {
+    const text = isLabOperatorUser ? formatSampleSummary(booking.sample_summary) : "";
+    return text ? <span className="block text-xs font-normal text-muted-foreground">{text}</span> : null;
+  };
+
   const formatListStart = (booking: Booking) =>
     isWaitlistedEntry(booking)
       ? (booking.created_at ? new Date(booking.created_at).toLocaleString() : "—")
@@ -1637,6 +1644,7 @@ const MyBookings = () => {
                       <TableRow key={booking.booking_id} className="group">
                         <TableCell className="font-medium">
                           {renderBookingIdButton(booking)}
+                          {renderSampleSummary(booking)}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}
@@ -1691,6 +1699,7 @@ const MyBookings = () => {
                             </Badge>
                           </div>
                           <p className="break-words font-medium">{booking.equipment_name}</p>
+                          {renderSampleSummary(booking)}
                           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                             <dt className="text-muted-foreground">{isWaitlistedEntry(booking) ? "Requested" : "Start"}</dt>
                             <dd>{formatListStart(booking)}</dd>

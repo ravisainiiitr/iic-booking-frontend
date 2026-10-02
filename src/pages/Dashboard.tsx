@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
 import { getUserTypeDisplayName, isExternalBookingUserType } from "@/lib/userTypes";
 import { hasRbacPermission } from "@/lib/rbac";
+import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import { hasAdminPanelAccess } from "@/lib/adminPanelAccess";
 import { useAuth } from "@/contexts/AuthContext";
@@ -238,6 +239,7 @@ type LabOperatorDashBooking = {
   status_display?: string;
   start_time: string | null;
   end_time: string | null;
+  sample_summary?: SampleSummary | null;
 };
 
 type LabDashPeriod = "today" | "week" | "month" | "year" | "custom";
@@ -4564,6 +4566,11 @@ const Dashboard = () => {
                                       >
                                         {row.virtual_booking_id || row.booking_ref}
                                       </button>
+                                      {formatSampleSummary(row.sample_summary) && (
+                                        <span className="block text-xs font-normal text-muted-foreground">
+                                          {formatSampleSummary(row.sample_summary)}
+                                        </span>
+                                      )}
                                     </TableCell>
                                     <TableCell className="max-w-[200px] truncate" title={row.equipment_name}>
                                       {row.equipment_name}

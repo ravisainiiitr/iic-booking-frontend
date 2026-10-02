@@ -160,6 +160,85 @@
   }
 }
 
+/* Lab Operator job sheet: printElement() clones the sheet into #jobsheet-print-portal and prints only that, on A4. */
+@media screen {
+  #jobsheet-print-portal {
+    display: none;
+  }
+}
+@page jobsheet {
+  size: A4 portrait;
+  margin: 12mm;
+}
+@media print {
+  html.print-jobsheet body > *:not(#jobsheet-print-portal) {
+    display: none !important;
+  }
+  html.print-jobsheet #jobsheet-print-portal,
+  html.print-jobsheet #jobsheet-print-portal * {
+    visibility: visible !important;
+  }
+  html.print-jobsheet #jobsheet-print-portal {
+    page: jobsheet;
+    display: block;
+    position: static;
+    width: 100%;
+    font-size: 10.5pt;
+    color: #000;
+    background: #fff;
+  }
+  #jobsheet-print-portal * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-color: #9ca3af !important;
+  }
+  #jobsheet-print-portal .jobsheet-diff {
+    background: #fef3c7 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #jobsheet-print-portal a {
+    text-decoration: none !important;
+  }
+  #jobsheet-print-portal .jobsheet-table-scroll {
+    overflow: visible !important;
+  }
+  #jobsheet-print-portal .jobsheet-table {
+    width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+  }
+  #jobsheet-print-portal .jobsheet-table th,
+  #jobsheet-print-portal .jobsheet-table td {
+    position: static !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    border: 1px solid #9ca3af !important;
+    padding: 4pt 6pt !important;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+  #jobsheet-print-portal thead {
+    display: table-header-group;
+  }
+  #jobsheet-print-portal tfoot {
+    display: table-row-group;
+  }
+  #jobsheet-print-portal tr,
+  #jobsheet-print-portal dl,
+  #jobsheet-print-portal header,
+  #jobsheet-print-portal .jobsheet-subtable {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  #jobsheet-print-portal .jobsheet-section > div:first-child,
+  #jobsheet-print-portal h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}
+
 /* Print: show only the detailed booking view (BookingManagement or single card in MyBookings) */
 @media print {
   .no-print {
