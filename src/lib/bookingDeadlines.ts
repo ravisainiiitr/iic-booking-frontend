@@ -15,6 +15,8 @@ export interface DeadlineBookingFields {
   source_booking_id?: number | null;
   virtual_booking_id?: string | null;
   input_edit_refund_deadline?: string | null;
+  /** Server rule for the viewer; false once the lab has accepted the sample. */
+  can_reschedule?: boolean | null;
 }
 
 export type DeadlineKind = "open" | "passed" | "disruption" | "disruption_waiting" | "waitlist" | "none";
@@ -25,9 +27,12 @@ export interface CancelRescheduleDeadline {
   deadline: Date | null;
   /** Repeat bookings cannot be cancelled by the owner, only rescheduled. */
   rescheduleOnly: boolean;
+  /** The lab has accepted the sample, so the owner / supervisor can no longer reschedule. */
+  rescheduleLocked?: boolean;
 }
 
 export const DEADLINE_PASSED_TEXT = "Deadline passed — contact the Officer in Charge";
+export const RESCHEDULE_LOCKED_TEXT = "Reschedule not available — sample accepted by the lab";
 
 export function isWaitlistBooking(booking: DeadlineBookingFields): boolean {
   return String(booking.status || "").toUpperCase() === "WAITLISTED" || booking.is_waitlist_entry === true;
@@ -52,6 +57,14 @@ function parseDate(value: string | null | undefined): Date | null {
  * (exact cutoff counts as open). Maintenance disruption bypasses the threshold.
  */
 export function cancelRescheduleDeadline(booking: DeadlineBookingFields, now: Date): CancelRescheduleDeadline {
+  const result = timeWindow(booking, now);
+  if (booking.can_reschedule === false && result.kind !== "waitlist" && result.kind !== "none") {
+    return { ...result, rescheduleLocked: true };
+  }
+  return result;
+}
+
+function timeWindow(booking: DeadlineBookingFields, now: Date): CancelRescheduleDeadline {
   const rescheduleOnly = isRepeatBooking(booking);
   if (isWaitlistBooking(booking)) return { kind: "waitlist", deadline: null, rescheduleOnly: false };
   if (!OWNER_ACTIONABLE_STATUSES.has(String(booking.status || "").toUpperCase())) {
@@ -75,6 +88,16 @@ export function formatDeadlineDateTime(date: Date): string {
 }
 
 export function formatDeadlineText(result: CancelRescheduleDeadline): string | null {
+  if (result.rescheduleLocked) {
+    if (result.rescheduleOnly) return RESCHEDULE_LOCKED_TEXT;
+    if (result.kind === "open" && result.deadline) {
+      return `${RESCHEDULE_LOCKED_TEXT}; cancel until ${formatDeadlineDateTime(result.deadline)}`;
+    }
+    if (result.kind === "disruption" || result.kind === "disruption_waiting") {
+      return `${RESCHEDULE_LOCKED_TEXT}; you can cancel anytime`;
+    }
+    return RESCHEDULE_LOCKED_TEXT;
+  }
   switch (result.kind) {
     case "open":
       if (!result.deadline) return null;

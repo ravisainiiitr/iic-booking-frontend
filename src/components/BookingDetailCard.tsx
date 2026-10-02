@@ -227,6 +227,10 @@ export interface BookingDetailCardBooking extends BookingRef {
   maintenance_reschedule_extra_week?: boolean;
   /** True when this booking is already in maintenance-disruption workflow (Admin/OIC flag or equipment maintenance). */
   maintenance_disruption_flag?: boolean;
+  /** Server rule for the viewer: false once the lab has accepted the sample (owner / supervisor); null when unknown. */
+  can_reschedule?: boolean | null;
+  reschedule_block_reason?: string | null;
+  reschedule_block_message?: string | null;
   is_waitlist_entry?: boolean;
   waitlist_code?: string;
   waitlist_position?: number;
@@ -614,6 +618,22 @@ export function BookingDetailCard({
   const [actionNotes, setActionNotes] = useState("");
   const [sendEmailToSupervisor, setSendEmailToSupervisor] = useState(true);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  /** The Actions buttons depend on many role/status rules, so emptiness is read from the rendered row. */
+  const [actionsEmpty, setActionsEmpty] = useState(false);
+  const actionsObserverRef = useRef<MutationObserver | null>(null);
+  const actionsSectionRef = useCallback((section: HTMLDivElement | null) => {
+    actionsObserverRef.current?.disconnect();
+    actionsObserverRef.current = null;
+    if (!section) return;
+    const update = () => {
+      const content = Array.from(section.children).filter((el) => !el.hasAttribute("data-actions-title"));
+      setActionsEmpty(content.every((el) => el.hasAttribute("data-actions-buttons") && el.childElementCount === 0));
+    };
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(section, { childList: true, subtree: true });
+    actionsObserverRef.current = observer;
+  }, []);
   const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
   const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
   const [completeLoading, setCompleteLoading] = useState(false);
@@ -2047,8 +2067,8 @@ export function BookingDetailCard({
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t no-print">
-            <p className="text-base sm:text-lg font-semibold mb-2">Actions:</p>
+          <div ref={actionsSectionRef} className={`mt-4 pt-4 border-t no-print${actionsEmpty ? " hidden" : ""}`}>
+            <p data-actions-title className="text-base sm:text-lg font-semibold mb-2">Actions:</p>
             {isRefunded && (
               <p className="text-sm text-muted-foreground mb-2">
                 Actions are disabled for refunded bookings.
@@ -2064,7 +2084,7 @@ export function BookingDetailCard({
               secondaryText={ownerEditRefundText}
               className="mb-2 text-sm"
             />
-            <div className="flex flex-wrap gap-2">
+            <div data-actions-buttons className="flex flex-wrap gap-2">
               {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
                 <SampleSubmittedAction
                   bookingId={bookingPk ?? 0}
@@ -2432,7 +2452,8 @@ export function BookingDetailCard({
                 !isFinanceUser &&
                 canPerformAction(booking, "reschedule", isOperator) &&
                 !isExternalSelfView &&
-                !ownerRescheduleBlocked && (
+                !ownerRescheduleBlocked &&
+                booking.can_reschedule !== false && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("reschedule", booking)}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Reschedule

@@ -172,6 +172,10 @@ interface Booking extends BookingRef {
   equipment_status?: string | null;
   /** False when equipment is not ACTIVE (e.g. under maintenance) */
   equipment_is_operational?: boolean;
+  /** Server rule for the viewer: false once the lab has accepted the sample (owner / supervisor). */
+  can_reschedule?: boolean | null;
+  reschedule_block_reason?: string | null;
+  reschedule_block_message?: string | null;
   equipment_profile_type?: string | null;
   equipment_profile_type_display?: string | null;
   print_analyses?: Array<{
@@ -922,7 +926,7 @@ const MyBookings = () => {
   };
 
   const canReschedule = (booking: Booking) => {
-    if (!canCancelOrReschedule(booking.status)) {
+    if (!canCancelOrReschedule(booking.status) || booking.can_reschedule === false) {
       return false;
     }
 
@@ -1065,6 +1069,10 @@ const MyBookings = () => {
   };
 
   const handleRescheduleClick = (booking: Booking) => {
+    if (booking.can_reschedule === false) {
+      toast.error(booking.reschedule_block_message || "This booking can't be rescheduled.");
+      return;
+    }
     // Check if reschedule is allowed based on time threshold
     if (!canReschedule(booking)) {
       if (booking.start_time) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEADLINE_PASSED_TEXT,
+  RESCHEDULE_LOCKED_TEXT,
   cancelRescheduleDeadline,
   formatDeadlineText,
   inputEditRefundDeadlineText,
@@ -15,6 +16,40 @@ const booking = (overrides: Record<string, unknown> = {}) => ({
   start_time: at(9, 21).toISOString(),
   equipment_reschedule_hours_threshold: 48,
   ...overrides,
+});
+
+describe("reschedule locked after the lab accepts the sample", () => {
+  it("replaces the deadline with the locked text and keeps the cancel cutoff", () => {
+    const result = cancelRescheduleDeadline(booking({ can_reschedule: false }), NOW);
+    expect(result.kind).toBe("open");
+    expect(result.rescheduleLocked).toBe(true);
+    expect(RESCHEDULE_LOCKED_TEXT).toBe("Reschedule not available — sample accepted by the lab");
+    expect(formatDeadlineText(result)).toBe(`${RESCHEDULE_LOCKED_TEXT}; cancel until Wed 7 Oct, 9:00 pm`);
+  });
+
+  it("shows only the locked text once the cancel cutoff has passed, keeping kind passed", () => {
+    const result = cancelRescheduleDeadline(booking({ can_reschedule: false }), at(8, 9));
+    expect(result.kind).toBe("passed");
+    expect(formatDeadlineText(result)).toBe(RESCHEDULE_LOCKED_TEXT);
+  });
+
+  it("shows only the locked text for repeat bookings (owner cannot cancel)", () => {
+    const result = cancelRescheduleDeadline(booking({ can_reschedule: false, source_booking_id: 7 }), NOW);
+    expect(formatDeadlineText(result)).toBe(RESCHEDULE_LOCKED_TEXT);
+  });
+
+  it("is unaffected when can_reschedule is true or unknown", () => {
+    for (const can_reschedule of [true, null, undefined]) {
+      const result = cancelRescheduleDeadline(booking({ can_reschedule }), NOW);
+      expect(result.rescheduleLocked).toBeUndefined();
+      expect(formatDeadlineText(result)).toBe("Cancel/reschedule until Wed 7 Oct, 9:00 pm");
+    }
+  });
+
+  it("does not add the locked text to bookings with no owner actions", () => {
+    const result = cancelRescheduleDeadline(booking({ can_reschedule: false, status: "COMPLETED" }), NOW);
+    expect(formatDeadlineText(result)).toBeNull();
+  });
 });
 
 describe("cancelRescheduleDeadline", () => {
