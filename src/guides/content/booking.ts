@@ -58,6 +58,7 @@ export function bookSection(g: Gate): GuideSection {
       g.when(g.flags.externalBooking, "External bookings follow the external booking window and any slots the lab reserves for external users."),
       g.when(g.flags.externalBooking, "To give IIT Roorkee users a fair start, external access is paused from 8:55 to 9:15 pm on Wednesdays; a notice appears beforehand."),
       "The booking page shows how much of your weekly booking quota is left. A booking that needs more time is stopped before you pick slots.",
+      "Cancelled or refunded bookings give their quota back, and repeat samples never use quota. A booking moved because of a disruption or by the lab stays counted in its original week; when you reschedule it yourself, it counts in the new week. Editing your inputs uses or frees quota as the analysis time changes.",
       g.only(WALLET_MEMBERS, "Until your supervisor's wallet is linked, a banner offers Link supervisor's wallet or Invite your supervisor; you can still fill in the form."),
       g.only([...WALLET_MEMBERS, "faculty"], "If the wallet cannot cover the charge, the page says how much to add before you confirm."),
       g.only(WALLET_MEMBERS, "Your supervisor's spending limit, if set, is checked before the booking is made."),

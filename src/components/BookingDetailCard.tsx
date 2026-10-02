@@ -3355,13 +3355,18 @@ export function BookingDetailCard({
                 instantOpen: booking.input_edit_instant_refund_open,
               }}
               refundViewer={inputEditRefundViewer}
+              quotaBooking={
+                bookingPk != null && booking.equipment != null
+                  ? { equipmentId: booking.equipment, bookingId: bookingPk }
+                  : undefined
+              }
               onUpdate={async (newInputValues) => {
                 if (bookingPk == null) {
                   toast.error("This booking cannot be updated right now.");
                   return;
                 }
                 const res = await apiClient.updateBookingInputValues(bookingPk, newInputValues as Record<string, string | number | boolean | string[]>);
-                if (res.error) throw new Error(res.error);
+                if (res.error) throw Object.assign(new Error(res.error), { code: res.errorCode });
                 // Reflect edits immediately in booking details without requiring page refresh.
                 const updatedBooking = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
                 if (updatedBooking) {

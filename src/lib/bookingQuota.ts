@@ -21,6 +21,8 @@ export type MyBookingQuota = {
   periods: BookingQuotaPeriod[];
   remaining_minutes: number | null;
   binding: BookingQuotaPeriod | null;
+  /** Only when queried with a booking_id. */
+  booking?: { id: number; counts_toward_quota: boolean; minutes: number } | null;
 };
 
 /**
@@ -115,6 +117,25 @@ export function quotaBlockReason(
   }
   const need = Math.round(Number(requiredMinutes) || 0);
   return `This booking needs ${need} min but you only have ${left} min left ${period}. Reduce the samples in Step 1 or pick a slot in another ${when}.`;
+}
+
+/**
+ * Edit inputs dialog: how much more instrument time an edit may add before the booking limit blocks it.
+ * Null when the booking does not count (repeat sample, waitlisted, ...) or no visible limit applies.
+ */
+export function inputEditQuotaNotice(quota: MyBookingQuota | null | undefined): string | null {
+  const q = visibleQuota(quota);
+  if (!q || !q.applies || !q.binding || !q.booking?.counts_toward_quota) return null;
+  const b = q.binding;
+  const when = b.period === "MONTHLY" ? "month" : "week";
+  const target = b.shared && q.equipment_group_name ? q.equipment_group_name : q.equipment_name;
+  const left = Math.max(0, Math.round(b.remaining_minutes));
+  const counted = Math.max(0, Math.round(q.booking.minutes));
+  const head = `This booking counts ${counted} min toward your ${target} limit for its ${when}.`;
+  if (left <= 0) {
+    return `${head} No minutes are left that ${when}, so edits that need more instrument time will be refused. Fewer samples free up time.`;
+  }
+  return `${head} Edits can add up to ${left} more min. Fewer samples free up time.`;
 }
 
 /** Monday (yyyy-MM-dd) of the visible week is the reference date sent to the quota endpoint. */

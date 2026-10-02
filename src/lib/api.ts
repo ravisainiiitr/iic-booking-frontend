@@ -3604,6 +3604,14 @@ class ApiClient {
     });
   }
 
+  /** The quota period an existing booking counts in (its owner's usage), plus the minutes the booking itself counts. */
+  async getBookingQuota(equipmentId: number | string, bookingId: number | string) {
+    const q = new URLSearchParams({ booking_id: String(bookingId) });
+    return this.request<MyBookingQuota>(`/equipments/${equipmentId}/my-booking-quota/?${q.toString()}`, {
+      cache: "no-store",
+    });
+  }
+
   /** IITR Faculty: shared-wallet spend / recharges by linked students (optional date + equipment filter). */
   async getFacultyWalletExpenseReport(params: {
     date_from?: string;

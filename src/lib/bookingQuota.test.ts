@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  inputEditQuotaNotice,
   quotaBlockReason,
   quotaBlocksBooking,
   quotaLimitIsEffectivelyUnlimited,
@@ -37,6 +38,19 @@ function quota(over: Partial<MyBookingQuota> = {}, binding: Partial<NonNullable<
 }
 
 describe("booking quota", () => {
+  it("tells the Edit inputs dialog how much more time an edit may add", () => {
+    const booking = { id: 7, counts_toward_quota: true, minutes: 90 };
+    expect(inputEditQuotaNotice(quota({ booking }))).toBe(
+      "This booking counts 90 min toward your XPS limit for its week. Edits can add up to 60 more min. Fewer samples free up time.",
+    );
+    expect(inputEditQuotaNotice(quota({ booking }, { remaining_minutes: 0, used_minutes: 240 }))).toContain(
+      "No minutes are left that week, so edits that need more instrument time will be refused.",
+    );
+    expect(inputEditQuotaNotice(quota({ booking: { ...booking, counts_toward_quota: false } }))).toBeNull();
+    expect(inputEditQuotaNotice(quota())).toBeNull();
+    expect(inputEditQuotaNotice(quota({ booking }, { limit_minutes: 10075 }))).toBeNull();
+  });
+
   it("summarises usage in plain words", () => {
     expect(quotaSummaryText(quota())).toBe("You've used 180 of 240 min on XPS this week (60 min left).");
     expect(quotaSummaryText(quota({}, { period: "MONTHLY" }))).toContain("this month");

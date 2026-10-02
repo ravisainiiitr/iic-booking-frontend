@@ -63,6 +63,7 @@ import {
   type InputEditRefundViewer,
   type InputEditRefundWindow,
 } from "@/lib/inputEditRefund";
+import { inputEditQuotaNotice } from "@/lib/bookingQuota";
 
 export interface InputFieldDef {
   field_key: string;
@@ -107,6 +108,8 @@ interface BookingUserInputsProps {
   /** Cancellation deadline that decides whether a lower charge is refunded at once. */
   refundWindow?: InputEditRefundWindow;
   refundViewer?: InputEditRefundViewer;
+  /** Booking owner's weekly/monthly limit is shown in the Edit dialog (staff edits are not limited). */
+  quotaBooking?: { equipmentId: number | string; bookingId: number | string };
 }
 
 function formatVal(v: unknown): string {
@@ -185,9 +188,36 @@ export function BookingUserInputs({
   allowSampleSets = true,
   refundWindow,
   refundViewer = "owner",
+  quotaBooking,
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quotaNotice, setQuotaNotice] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+  const quotaEquipmentId = refundViewer === "owner" ? quotaBooking?.equipmentId : undefined;
+  const quotaBookingId = quotaBooking?.bookingId;
+  const loadQuotaNotice = (isCancelled: () => boolean = () => false) => {
+    if (quotaEquipmentId == null || quotaBookingId == null) return;
+    apiClient
+      .getBookingQuota(quotaEquipmentId, quotaBookingId)
+      .then((res) => {
+        if (!isCancelled()) setQuotaNotice(inputEditQuotaNotice(res.data));
+      })
+      .catch(() => {
+        if (!isCancelled()) setQuotaNotice(null);
+      });
+  };
+
+  useEffect(() => {
+    setQuotaError(null);
+    if (!editDialogOpen) return;
+    let cancelled = false;
+    loadQuotaNotice(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per open
+  }, [editDialogOpen, quotaEquipmentId, quotaBookingId]);
   const [editFormValues, setEditFormValues] = useState<Record<string, string | number | boolean | string[] | string[][]>>({});
   const [icpmsStandardsByFieldKey, setIcpmsStandardsByFieldKey] = useState<
     Record<
@@ -504,7 +534,15 @@ export function BookingUserInputs({
       );
       setEditDialogOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : "Failed to update");
+      const message = e instanceof Error && e.message ? e.message : "Failed to update";
+      if ((e as { code?: string } | null)?.code === "QUOTA_EXCEEDED") {
+        setQuotaError(message);
+        loadQuotaNotice();
+        window.setTimeout(() => {
+          document.getElementById("input-edit-quota-error")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 50);
+      }
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -819,6 +857,29 @@ export function BookingUserInputs({
               <p className="text-sm leading-relaxed" data-testid="input-edit-refund-notice">
                 {inputEditRefundNotice(refundWindow ?? {}, refundViewer)}
               </p>
+            </div>
+          ) : null}
+          {editDialogOpen && (quotaError || quotaNotice) ? (
+            <div
+              id="input-edit-quota-error"
+              className={cn(
+                "mb-1 flex gap-2.5 rounded-lg border px-3 py-2.5",
+                quotaError
+                  ? "border-red-200 bg-red-50 text-red-950 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-50"
+                  : "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-50",
+              )}
+            >
+              <Info
+                className={cn(
+                  "mt-0.5 h-4 w-4 shrink-0",
+                  quotaError ? "text-red-600 dark:text-red-300" : "text-amber-600 dark:text-amber-300",
+                )}
+                aria-hidden
+              />
+              <div className="space-y-1 text-sm leading-relaxed" data-testid="input-edit-quota-notice">
+                {quotaError ? <p className="font-medium">{quotaError}</p> : null}
+                {quotaNotice ? <p>{quotaNotice}</p> : null}
+              </div>
             </div>
           ) : null}
           {incompleteOptionalEditableKeys.length > 0 ? (
