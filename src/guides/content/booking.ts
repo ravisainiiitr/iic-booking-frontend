@@ -73,7 +73,7 @@ export function inputsSection(): GuideSection {
       },
       {
         title: "Add sets with different parameters",
-        body: "Under Samples with different parameters, click Add sample with different parameters. Use Duplicate this sample set or Remove this sample set as needed.",
+        body: "At the bottom of Step 1, click Add sample with different parameters. The new set starts with the equipment's default values; use Copy set 1 values, Duplicate or Remove on a set's header as needed, and click the header to collapse it.",
       },
       {
         title: "Edit inputs after booking",
@@ -82,6 +82,7 @@ export function inputsSection(): GuideSection {
     ],
     rules: [
       "Each sample set is charged and timed separately within the same booking.",
+      "Sample sets are offered only where the equipment allows them; bookings made earlier keep their sets.",
       "A higher charge from an edit must be paid within 1 minute, or the edit is cancelled and the old values return.",
       "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
       "Inputs can be edited until the booking is completed.",

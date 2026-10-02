@@ -106,6 +106,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   atmosphere_sensitive_sample?: boolean;
   /** When false, atmosphere-sensitive option is not offered for this equipment. */
   equipment_atmosphere_sensitive_sample_enabled?: boolean;
+  /** False when the main admin turned off "Allow samples with different parameters" for this equipment. */
+  equipment_allow_multiple_sample_sets?: boolean;
   lifecycle_countdown?: {
     enabled: boolean;
     phase?: "submit_sample" | "booking" | "collect_sample" | string;
@@ -3305,6 +3307,7 @@ export function BookingDetailCard({
                 booking.viewer_can_change_sample_sets ??
                 (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager")
               }
+              allowSampleSets={booking.equipment_allow_multiple_sample_sets !== false}
               refundWindow={{
                 deadline: booking.input_edit_refund_deadline,
                 instantOpen: booking.input_edit_instant_refund_open,

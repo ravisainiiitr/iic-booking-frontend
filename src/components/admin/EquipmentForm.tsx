@@ -34,6 +34,7 @@ import { isNumericHelpTextConvention, parseNumericHelpText } from "@/lib/numeric
 import { formatCoordinate } from "@/lib/equipmentGps";
 import { CONTACT_HONORIFICS, formatNameWithHonorific } from "@/lib/displayName";
 import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFields";
+import { AllowSampleSetsField } from "@/components/admin/AllowSampleSetsField";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   Dialog,
@@ -196,6 +197,8 @@ export type EquipmentFormData = {
   operator_unavailable_after_booking_end_hours?: number | null;
   skip_quota_check?: boolean;
   enable_charge_recalculation?: boolean;
+  /** Users may add samples with different parameters (extra sample sets). Main administrator only. */
+  allow_multiple_sample_sets?: boolean;
   user_rating_enabled?: boolean;
   sample_preparation_by_user?: boolean;
   urgent_peak_window_minutes?: number | null;
@@ -493,6 +496,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     show_lifecycle_countdowns: true,
     sample_submission_lead_hours: 24,
     atmosphere_sensitive_sample_enabled: false,
+    allow_multiple_sample_sets: true,
     sample_collect_deadline_hours: 72,
     repeat_sample_request_days: null,
     repeat_sample_disclaimer: "",
@@ -772,6 +776,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
         skip_quota_check: d.skip_quota_check === true,
         enable_charge_recalculation: d.enable_charge_recalculation === true,
+        allow_multiple_sample_sets: d.allow_multiple_sample_sets !== false,
         user_rating_enabled: d.user_rating_enabled !== false,
         sample_preparation_by_user: d.sample_preparation_by_user === true,
         urgent_peak_window_minutes: (d.urgent_peak_window_minutes as number | null) ?? null,
@@ -1001,6 +1006,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : 24,
       skip_quota_check: formData.skip_quota_check === true,
       enable_charge_recalculation: formData.enable_charge_recalculation === true,
+      ...(isMainAdmin ? { allow_multiple_sample_sets: formData.allow_multiple_sample_sets !== false } : {}),
       user_rating_enabled: formData.user_rating_enabled !== false,
       sample_preparation_by_user: formData.sample_preparation_by_user === true,
       urgent_peak_window_minutes:
@@ -2226,6 +2232,12 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           />
           Sample preparation by user
         </label>
+        <AllowSampleSetsField
+          className="sm:col-span-2"
+          checked={formData.allow_multiple_sample_sets}
+          canEdit={isMainAdmin}
+          onCheckedChange={(c) => setFormData((p) => ({ ...p, allow_multiple_sample_sets: c }))}
+        />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

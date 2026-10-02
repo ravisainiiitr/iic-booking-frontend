@@ -92,6 +92,8 @@ interface BookingUserInputsProps {
   skipFormulaLimits?: boolean;
   /** After booking only the equipment's OIC and main administrators may add or remove sample sets. */
   canChangeSampleSets?: boolean;
+  /** The equipment's "Allow samples with different parameters" switch; when off, no set can be added. */
+  allowSampleSets?: boolean;
   /** Cancellation deadline that decides whether a lower charge is refunded at once. */
   refundWindow?: InputEditRefundWindow;
   refundViewer?: InputEditRefundViewer;
@@ -171,6 +173,7 @@ export function BookingUserInputs({
   slotDurationMinutes,
   skipFormulaLimits = false,
   canChangeSampleSets = false,
+  allowSampleSets = true,
   refundWindow,
   refundViewer = "owner",
 }: BookingUserInputsProps) {
@@ -1114,21 +1117,23 @@ export function BookingUserInputs({
               );
             })}
           </div>
-          <div className="space-y-2 border-t pt-4">
-            <p className="text-sm font-medium">Samples with different parameters</p>
-            <p className="text-xs text-muted-foreground">
-              The values above are sample set 1. Each extra sample set is charged and timed separately.
-            </p>
-            <SampleSetsEditor
-              fields={sampleSetFields}
-              sets={editSampleSets}
-              onChange={setEditSampleSets}
-              primaryValues={editFormValues as SampleSetValues}
-              disabled={saving}
-              allowAddRemove={canChangeSampleSets}
-              addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
-            />
-          </div>
+          {(editSampleSets.length > 0 || (allowSampleSets && canChangeSampleSets)) && (
+            <div className="space-y-2 border-t pt-4" data-testid="edit-sample-sets">
+              {editSampleSets.length > 0 && (
+                <p className="text-xs text-muted-foreground">The values above are sample set 1.</p>
+              )}
+              <SampleSetsEditor
+                fields={sampleSetFields}
+                sets={editSampleSets}
+                onChange={setEditSampleSets}
+                primaryValues={editFormValues as SampleSetValues}
+                disabled={saving}
+                allowAddRemove={canChangeSampleSets}
+                allowAdd={allowSampleSets}
+                addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
+              />
+            </div>
+          )}
           <PeriodicElementsDialog
             open={periodicField != null}
             onOpenChange={(open) => !open && setPeriodicField(null)}

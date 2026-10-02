@@ -45,7 +45,6 @@ import {
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import {
   formatNumericBound,
-  initialNumericFieldValue,
   isNumericInputDraft,
   isNumericValueWithinBounds,
   numericFieldAllowsNegative,
@@ -151,7 +150,14 @@ import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import SampleSetsEditor, { type SampleSetField } from "@/components/SampleSetsEditor";
 import { DynamicFieldRow } from "@/components/DynamicFieldRow";
 import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
-import { readSampleSets, withSampleSets, withoutSampleSets, type SampleSetValues } from "@/lib/sampleSets";
+import {
+  readSampleSets,
+  sampleSetsAllowedFor,
+  withSampleSets,
+  withoutSampleSets,
+  type SampleSetValues,
+} from "@/lib/sampleSets";
+import { buildInitialInputValues, getInitialDynamicInputValue } from "@/lib/dynamicFieldDefaults";
 import { boundsWithCombinedMax, combinedLimitError, combinedLimits, maxForPrimarySet } from "@/lib/sampleSetLimits";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
@@ -303,6 +309,8 @@ interface EquipmentDetail {
   waitlist_has_room?: boolean;
   /** When true, booking UI may offer atmosphere-sensitive sample (submit at slot start). */
   atmosphere_sensitive_sample_enabled?: boolean;
+  /** Main-admin switch: false hides "Add sample with different parameters" for this equipment. */
+  allow_multiple_sample_sets?: boolean;
   input_fields?: Array<any>;
   charge_profiles?: Array<any>;
   [key: string]: any;
@@ -594,55 +602,6 @@ function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: str
     if (w > maxDate) break;
   }
   return weeks;
-}
-
-/** Default value for a dynamic input field when equipment is loaded or booking form resets. */
-function getInitialDynamicInputValue(
-  field: any,
-  allFields?: any[]
-): string | boolean | string[] | number | string[][] {
-  const fieldType = String(field.field_type || "").toUpperCase().trim();
-  if (fieldType === "TOGGLE") {
-    return field.default_value === "true" || field.default_value === true;
-  }
-  if (fieldType === "MULTI_SELECT") {
-    return field.default_value ? field.default_value.split(",") : [];
-  }
-  if (fieldType === "PERIODIC_TABLE") {
-    const count = field.default_value ? parseInt(String(field.default_value), 10) : 0;
-    return isNaN(count) ? 0 : count;
-  }
-  if (fieldType === "ICPMS_STANDARD_COVERAGE") {
-    return 0;
-  }
-  if (fieldType === "TABLE") {
-    const sourceKey = resolveTableRowCountSourceKey(field, allFields);
-    const { columns, hasSerialColumn } = resolveTableColumns(field.options, {
-      rowCountDriven: Boolean(sourceKey),
-    });
-    const colCount = columns.length;
-    if (!colCount) return [];
-    if (!sourceKey) {
-      const row = Array(colCount).fill("");
-      if (hasSerialColumn) row[0] = "1";
-      return [row];
-    }
-    // Row count driven by another field — start empty; sync fills from source value
-    return [];
-  }
-  if (fieldType === "NUMERIC") {
-    return initialNumericFieldValue(field);
-  }
-  if (fieldType === "RADIO" || fieldType === "COMBO") {
-    if (field.default_value) return field.default_value;
-    const opts = field.options;
-    if (Array.isArray(opts) && opts.length > 0) {
-      const first = opts[0];
-      return String((first && typeof first === "object" && "value" in first) ? first.value : first);
-    }
-    return "";
-  }
-  return field.default_value || "";
 }
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -1677,6 +1636,19 @@ const BookEquipment = () => {
     user_label?: string | null;
   } | null>(null);
   const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
+  /** The equipment's "Allow samples with different parameters" switch (on unless the main admin turned it off). */
+  const sampleSetsAllowed = sampleSetsAllowedFor(equipmentDetail);
+  /** A saved template keeps its sets after the switch is turned off: they can be changed or removed, not added to. */
+  const keepExistingSampleSets = isTemplateFlow && equipmentDetail?.profile_type !== "PRINT_3D";
+  const sampleSetsOffered =
+    (sampleSetsAllowed || (keepExistingSampleSets && sampleSets.length > 0)) &&
+    !repeatSourceBooking &&
+    !isProformaFlow &&
+    (equipmentDetail?.input_fields?.length ?? 0) > 0;
+  const showSampleSetOneHeader = sampleSetsOffered && sampleSets.length > 0;
+  useEffect(() => {
+    if (!sampleSetsAllowed && !keepExistingSampleSets && sampleSets.length > 0) setSampleSets([]);
+  }, [sampleSetsAllowed, keepExistingSampleSets, sampleSets.length]);
   /** Booking option: book the first free equipment of the group automatically (else ask before booking it). */
   const [autoAllocateAlternative, setAutoAllocateAlternative] = useState(false);
   const groupAlternativeOption =
@@ -2831,28 +2803,7 @@ const BookEquipment = () => {
       
       // Initialize input field values with default values
       if (eq.input_fields && eq.input_fields.length > 0) {
-        
-        const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
-        eq.input_fields.forEach((field: any) => {
-          const fieldType = String(field.field_type || '').toUpperCase().trim();
-          if (fieldType === 'PERIODIC_TABLE') {
-            const { preselected } = parsePeriodicHelpText(field.help_text);
-            const fromOptions =
-              field.options && Array.isArray(field.options)
-                ? field.options.map((s: string) => String(s).trim()).filter(Boolean)
-                : [];
-            const { all, billable } = mergePeriodicDisplaySymbols(
-              [...fromOptions, ...Array.from(preselected)],
-              field.help_text
-            );
-            initialValues[field.field_key] = billable.length;
-            initialValues[field.field_key + '_elements'] = all.join(',');
-          } else {
-            initialValues[field.field_key] = getInitialDynamicInputValue(field, eq.input_fields);
-          }
-        });
-        applyTableRowSyncToValues(initialValues as Record<string, unknown>, eq.input_fields);
-        setInputFieldValues(initialValues);
+        setInputFieldValues(buildInitialInputValues(eq.input_fields));
         setSampleSets([]);
         setIcpmsCoverageByFieldKey({});
       }
@@ -3249,13 +3200,13 @@ const BookEquipment = () => {
         applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
         return next as Record<string, string | boolean | string[] | number>;
       });
-      setSampleSets(
-        isPrint3d
-          ? []
-          : readSampleSets(source.input_values)
-              .map((s) => sanitizeRebookInputValues(s, rebookFields).carried as SampleSetValues)
-              .filter((s) => Object.keys(s).length > 0)
-      );
+      const rebookSets = isPrint3d
+        ? []
+        : readSampleSets(source.input_values)
+            .map((s) => sanitizeRebookInputValues(s, rebookFields).carried as SampleSetValues)
+            .filter((s) => Object.keys(s).length > 0);
+      const rebookSetsAllowed = equipmentDetail?.allow_multiple_sample_sets !== false;
+      setSampleSets(rebookSetsAllowed ? rebookSets : []);
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
@@ -3277,6 +3228,11 @@ const BookEquipment = () => {
           `Some inputs from ${label} no longer match this equipment's current options and were reset: ${dropped.join(", ")}.`
         );
       }
+      if (!rebookSetsAllowed && rebookSets.length > 0) {
+        toast.info(
+          `Only sample set 1 from ${label} was copied: this equipment no longer accepts samples with different parameters.`
+        );
+      }
     })();
     return () => {
       cancelled = true;
@@ -3288,6 +3244,7 @@ const BookEquipment = () => {
     equipmentDetail?.input_fields,
     equipmentDetail?.profile_type,
     equipmentDetail?.atmosphere_sensitive_sample_enabled,
+    equipmentDetail?.allow_multiple_sample_sets,
     userId,
   ]);
 
@@ -3357,13 +3314,19 @@ const BookEquipment = () => {
         applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
         return next as Record<string, string | boolean | string[] | number>;
       });
-      setSampleSets(
-        isPrint3d
-          ? []
-          : readSampleSets(template.input_values || {})
-              .map((s) => sanitizeRebookInputValues(s, templateFields).carried as SampleSetValues)
-              .filter((s) => Object.keys(s).length > 0)
-      );
+      const templateSets = isPrint3d
+        ? []
+        : readSampleSets(template.input_values || {})
+            .map((s) => sanitizeRebookInputValues(s, templateFields).carried as SampleSetValues)
+            .filter((s) => Object.keys(s).length > 0);
+      const dropTemplateSets =
+        equipmentDetail?.allow_multiple_sample_sets === false && !isTemplateFlow && templateSets.length > 0;
+      setSampleSets(dropTemplateSets ? [] : templateSets);
+      if (dropTemplateSets) {
+        toast.info(
+          `Only sample set 1 of "${template.name}" was loaded: this equipment no longer accepts samples with different parameters.`
+        );
+      }
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
@@ -8908,8 +8871,20 @@ const BookEquipment = () => {
                     </div>
                   )}
                   {equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0 ? (
-                    <div className="mb-2 p-2 rounded-lg">
-                      <div className="grid grid-cols-1 gap-3 sm:gap-2.5">
+                    <div
+                      className={cn(
+                        "mb-2 rounded-lg",
+                        showSampleSetOneHeader
+                          ? "overflow-hidden border border-border bg-card shadow-sm dark:bg-muted/10"
+                          : "p-2"
+                      )}
+                    >
+                      {showSampleSetOneHeader && (
+                        <div className="border-b border-border/70 bg-muted/40 px-3 py-2.5 dark:bg-muted/20">
+                          <span className="text-sm font-semibold">Sample set 1</span>
+                        </div>
+                      )}
+                      <div className={cn("grid grid-cols-1 gap-3 sm:gap-2.5", showSampleSetOneHeader && "p-3")}>
                         {equipmentDetail.input_fields
                           .filter((field: any) => {
                             if (equipmentDetail?.profile_type === "PRINT_3D") {
@@ -9522,18 +9497,8 @@ const BookEquipment = () => {
                     <p className="text-sm text-muted-foreground mb-4">No additional information required for this equipment.</p>
                   )}
 
-                  {!repeatSourceBooking &&
-                    !isProformaFlow &&
-                    equipmentDetail?.profile_type !== "PRINT_3D" &&
-                    (equipmentDetail?.input_fields?.length ?? 0) > 0 && (
-                    <div className="mt-2 space-y-2 p-2">
-                      <div>
-                        <p className="text-sm font-medium">Samples with different parameters</p>
-                        <p className="text-xs text-muted-foreground">
-                          The details above are sample set 1. Add a sample set for each extra sample that needs different
-                          parameters; each set is charged and timed separately and added to this booking.
-                        </p>
-                      </div>
+                  {sampleSetsOffered && (
+                    <div className={cn("mb-2", !showSampleSetOneHeader && "px-2")} data-testid="booking-sample-sets">
                       <SampleSetsEditor
                         fields={((equipmentDetail?.input_fields ?? []) as SampleSetField[]).filter(
                           (field) => !calculateHiddenFieldKeys.has(String(field.field_key || "").trim())
@@ -9541,6 +9506,7 @@ const BookEquipment = () => {
                         sets={sampleSets}
                         onChange={setSampleSets}
                         primaryValues={inputFieldValues}
+                        allowAdd={sampleSetsAllowed}
                       />
                     </div>
                   )}

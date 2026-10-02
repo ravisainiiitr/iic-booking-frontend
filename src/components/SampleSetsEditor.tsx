@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ClipboardCopy, Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,13 @@ import {
   maxForExtraSet,
 } from "@/lib/sampleSetLimits";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
-import { MAX_SAMPLE_SETS, type SampleSetValues } from "@/lib/sampleSets";
+import {
+  defaultSampleSetValues,
+  MAX_SAMPLE_SETS,
+  sampleSetSummary,
+  type SampleSetValues,
+} from "@/lib/sampleSets";
+import { cn } from "@/lib/utils";
 
 export type SampleSetField = {
   field_key: string;
@@ -50,14 +56,24 @@ type Props = {
   fields: SampleSetField[];
   sets: SampleSetValues[];
   onChange: (sets: SampleSetValues[]) => void;
-  /** Values of sample set 1, copied when another set is added. */
+  /** Values of sample set 1 (for the combined A / B maximum and "Copy set 1 values"). */
   primaryValues: SampleSetValues;
   disabled?: boolean;
   /** When false, sets cannot be added, duplicated or removed (values inside existing sets stay editable). */
   allowAddRemove?: boolean;
   /** Shown when `allowAddRemove` is false. */
   addRemoveLockedNote?: string;
+  /**
+   * The equipment's "Allow samples with different parameters" switch. When false no set can be added or
+   * duplicated; sets saved earlier stay editable and removable.
+   */
+  allowAdd?: boolean;
 };
+
+export const SAMPLE_SET_HELPER_TEXT =
+  "Need different settings for some samples? Add another sample set — each set is charged and timed separately.";
+export const SAMPLE_SETS_SWITCHED_OFF_NOTE =
+  "This equipment no longer accepts new sample sets. The sets below can still be changed or removed.";
 
 const fieldTypeOf = (field: SampleSetField) => String(field.field_type || "").toUpperCase().trim();
 
@@ -116,24 +132,64 @@ export default function SampleSetsEditor({
   disabled,
   allowAddRemove = true,
   addRemoveLockedNote = "Only the Officer In-Charge or administrator can add or remove sample sets after booking.",
+  allowAdd = true,
 }: Props) {
   const setsRef = useRef(sets);
   setsRef.current = sets;
   const [periodicTarget, setPeriodicTarget] = useState<{ index: number; field: SampleSetField } | null>(null);
   const [periodicSelection, setPeriodicSelection] = useState<Set<string>>(new Set());
 
+  // Stable ids per set (sets are plain values) so collapse state and scrolling follow the right card.
+  const nextIdRef = useRef(1);
+  const idsRef = useRef<number[]>([]);
+  if (idsRef.current.length > sets.length) idsRef.current = idsRef.current.slice(0, sets.length);
+  while (idsRef.current.length < sets.length) idsRef.current.push(nextIdRef.current++);
+  const ids = idsRef.current;
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [scrollToId, setScrollToId] = useState<number | null>(null);
+  const cardRefs = useRef(new Map<number, HTMLElement>());
+
+  useEffect(() => {
+    if (scrollToId == null) return;
+    cardRefs.current.get(scrollToId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setScrollToId(null);
+  }, [scrollToId]);
+
   const allowances = combinedAllowances(fields, primaryValues, sets);
   const overLimit = allowances.find((a) => a.over);
   const atSetCap = sets.length >= MAX_SAMPLE_SETS;
-  const newSet = fitNewSampleSet(fields, primaryValues, sets, copyOf(primaryValues));
+  const newSet = fitNewSampleSet(fields, primaryValues, sets, defaultSampleSetValues(fields));
   const exhausted = allowances.find((a) => Math.max(0, a.remaining) < a.floor);
-  const addBlockedReason = !allowAddRemove
-    ? addRemoveLockedNote
-    : atSetCap
-      ? `At most ${MAX_SAMPLE_SETS + 1} sample sets are allowed in one booking.`
-      : exhausted
-        ? `${exhausted.label} already uses the maximum allowed (${formatNumericBound(exhausted.max)}) across all sample sets, so another sample set cannot be added.`
-        : null;
+  const addBlockedReason = !allowAdd
+    ? SAMPLE_SETS_SWITCHED_OFF_NOTE
+    : !allowAddRemove
+      ? addRemoveLockedNote
+      : atSetCap
+        ? `At most ${MAX_SAMPLE_SETS + 1} sample sets are allowed in one booking.`
+        : exhausted
+          ? `${exhausted.label} already uses the maximum allowed (${formatNumericBound(exhausted.max)}) across all sample sets, so another sample set cannot be added.`
+          : null;
+
+  /** Insert `values` at `index`, giving the new card its own id and bringing it into view. */
+  const insertSet = (index: number, values: SampleSetValues) => {
+    const id = nextIdRef.current++;
+    idsRef.current = [...ids.slice(0, index), id, ...ids.slice(index)];
+    setScrollToId(id);
+    onChange([...sets.slice(0, index), values, ...sets.slice(index)]);
+  };
+
+  const removeSet = (index: number) => {
+    idsRef.current = ids.filter((_, i) => i !== index);
+    onChange(sets.filter((_, i) => i !== index));
+  };
+
+  const toggleCollapsed = (id: number) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const patchSet = (index: number, updates: SampleSetValues, sourceKey?: string) => {
     onChange(
@@ -403,59 +459,123 @@ export default function SampleSetsEditor({
     }
   };
 
+  const addDisabled = disabled || Boolean(addBlockedReason) || newSet == null;
+  const addButton = (label: string, className?: string) => (
+    <span title={addBlockedReason ?? undefined} className={cn("inline-flex", className)}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-1.5 border-dashed sm:w-auto"
+        disabled={addDisabled}
+        onClick={() => newSet && insertSet(sets.length, newSet)}
+      >
+        <Plus className="h-4 w-4" aria-hidden />
+        {label}
+      </Button>
+    </span>
+  );
+
   return (
-    <div className="space-y-3">
-      {sets.map((set, index) => (
-        <div key={index} className="rounded-lg border border-primary/20 bg-primary/[0.03] p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold">Sample set {index + 2}</p>
-            <div className="flex items-center gap-1">
-              {(() => {
-                const duplicate = fitNewSampleSet(fields, primaryValues, sets, copyOf(set));
-                return (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled || Boolean(addBlockedReason) || duplicate == null}
-                    onClick={() =>
-                      duplicate && onChange([...sets.slice(0, index + 1), duplicate, ...sets.slice(index + 1)])
-                    }
-                    title={addBlockedReason ?? "Duplicate this sample set"}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                );
-              })()}
-              <Button
+    <div className="space-y-3" data-testid="sample-sets-editor">
+      {sets.map((set, index) => {
+        const id = ids[index];
+        const isCollapsed = collapsed.has(id);
+        const title = `Sample set ${index + 2}`;
+        const duplicate = fitNewSampleSet(fields, primaryValues, sets, copyOf(set));
+        const fromSetOne = fitNewSampleSet(
+          fields,
+          primaryValues,
+          sets.filter((_, i) => i !== index),
+          copyOf(primaryValues),
+        );
+        const summary = isCollapsed ? sampleSetSummary(fields, set) : "";
+        return (
+          <section
+            key={id}
+            ref={(el) => {
+              if (el) cardRefs.current.set(id, el);
+              else cardRefs.current.delete(id);
+            }}
+            aria-label={title}
+            className="scroll-mt-24 overflow-hidden rounded-lg border border-border bg-card shadow-sm dark:bg-muted/10"
+          >
+            <div className="flex items-center gap-2 border-b border-border/70 bg-muted/40 px-2 py-1.5 dark:bg-muted/20">
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                disabled={disabled || !allowAddRemove}
-                onClick={() => onChange(sets.filter((_, i) => i !== index))}
-                title={allowAddRemove ? "Remove this sample set" : addRemoveLockedNote}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-expanded={!isCollapsed}
+                onClick={() => toggleCollapsed(id)}
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+                <ChevronDown
+                  className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isCollapsed && "-rotate-90")}
+                  aria-hidden
+                />
+                <span className="shrink-0 text-sm font-semibold">{title}</span>
+                {summary && <span className="min-w-0 truncate text-xs text-muted-foreground">{summary}</span>}
+              </button>
+              <div className="flex shrink-0 items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  disabled={disabled || fromSetOne == null}
+                  onClick={() => fromSetOne && onChange(sets.map((s, i) => (i === index ? fromSetOne : s)))}
+                  title={
+                    fromSetOne == null
+                      ? "Sample set 1's values do not fit the maximum allowed across all sample sets."
+                      : "Replace this set's values with sample set 1's values"
+                  }
+                  aria-label={`Copy sample set 1 values into ${title}`}
+                >
+                  <ClipboardCopy className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">Copy set 1 values</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  disabled={disabled || Boolean(addBlockedReason) || duplicate == null}
+                  onClick={() => duplicate && insertSet(index + 1, duplicate)}
+                  title={addBlockedReason ?? "Duplicate this sample set"}
+                  aria-label={`Duplicate ${title}`}
+                >
+                  <Copy className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  disabled={disabled || !allowAddRemove}
+                  onClick={() => removeSet(index)}
+                  title={allowAddRemove ? "Remove this sample set" : addRemoveLockedNote}
+                  aria-label={`Remove ${title}`}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:gap-2">
-            {fields.map((field) => (
-              <DynamicFieldRow
-                key={field.field_key}
-                fieldType={fieldTypeOf(field)}
-                label={field.field_label || field.field_key}
-                htmlFor={`sample-set-${index}-${field.field_key}`}
-                required={field.is_required}
-                density="compact"
-              >
-                {renderField(set, index, field)}
-              </DynamicFieldRow>
-            ))}
-          </div>
-        </div>
-      ))}
+            {!isCollapsed && (
+              <div className="grid grid-cols-1 gap-3 p-3 sm:gap-2.5">
+                {fields.map((field) => (
+                  <DynamicFieldRow
+                    key={field.field_key}
+                    fieldType={fieldTypeOf(field)}
+                    label={field.field_label || field.field_key}
+                    htmlFor={`sample-set-${index}-${field.field_key}`}
+                    required={field.is_required}
+                  >
+                    {renderField(set, index, field)}
+                  </DynamicFieldRow>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
       {sets.length > 0 && allowances.length > 0 && (
         <ul className="space-y-0.5 text-xs text-muted-foreground" aria-live="polite">
           {allowances.map((a) => (
@@ -470,21 +590,19 @@ export default function SampleSetsEditor({
           {combinedLimitMessage(overLimit)} Lower the values in one of the sample sets.
         </p>
       )}
-      <div className="space-y-1">
-        <span title={addBlockedReason ?? undefined} className="inline-block">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled || Boolean(addBlockedReason) || newSet == null}
-            onClick={() => newSet && onChange([...sets, newSet])}
-          >
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add sample with different parameters
-          </Button>
-        </span>
-        {addBlockedReason && !atSetCap && <p className="text-xs text-muted-foreground">{addBlockedReason}</p>}
-      </div>
+      {!allowAdd ? (
+        sets.length > 0 && <p className="text-xs text-muted-foreground">{SAMPLE_SETS_SWITCHED_OFF_NOTE}</p>
+      ) : sets.length === 0 ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 dark:bg-muted/10 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <p className="text-xs text-muted-foreground sm:text-sm">{SAMPLE_SET_HELPER_TEXT}</p>
+          {addButton("Add sample with different parameters", "w-full shrink-0 sm:w-auto")}
+        </div>
+      ) : (
+        addButton("Add another sample set", "w-full sm:w-auto")
+      )}
+      {allowAdd && addBlockedReason && !atSetCap && (
+        <p className="text-xs text-muted-foreground">{addBlockedReason}</p>
+      )}
       <PeriodicElementsDialog
         open={periodicTarget != null}
         onOpenChange={(open) => !open && setPeriodicTarget(null)}
