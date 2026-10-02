@@ -286,7 +286,11 @@ export function exportAnalysisChargesExcel(
     setStyle(headerRow, c, {
       font: { bold: true, color: { rgb: "FFFFFF" } },
       fill: { patternType: "solid", fgColor: { rgb: "0F4C81" } },
-      alignment: { horizontal: c === 0 ? "center" : "left", vertical: "center", wrapText: true },
+      alignment: {
+        horizontal: c === 0 || c >= firstCategoryCol ? "center" : "left",
+        vertical: "center",
+        wrapText: true,
+      },
       border,
     });
   }
@@ -307,7 +311,7 @@ export function exportAnalysisChargesExcel(
             ? { bold: true }
             : {},
         alignment: {
-          horizontal: isSerial ? "center" : "left",
+          horizontal: isSerial || catIdx >= 0 ? "center" : "left",
           vertical: isSerial || isEquipment || isSpanningCategory ? "center" : "top",
           wrapText: true,
         },
@@ -341,7 +345,7 @@ export async function exportAnalysisChargesPdf(
   const dept = (options?.departmentName || "").trim() || DEFAULT_DEPARTMENT_NAME;
   const title = options?.title || "Analysis Charges";
 
-  let y = await drawPdfLetterhead(doc, {
+  const y = await drawPdfLetterhead(doc, {
     departmentName: dept,
     documentTitle: title,
   });
@@ -380,6 +384,7 @@ export async function exportAnalysisChargesPdf(
     return [String(r.serialNumber), pdfSafeMoney(r.equipmentName), ...amounts];
   });
   const rowShaded = pivot.rows.map((r) => r.serialNumber % 2 === 0);
+  const firstCategoryCol = pivot.hasParameters ? 3 : 2;
 
   autoTable(doc, {
     startY: tableStartY,
@@ -403,6 +408,7 @@ export async function exportAnalysisChargesPdf(
       lineWidth: 0.4,
     },
     didParseCell: (data) => {
+      if (data.column.index >= firstCategoryCol) data.cell.styles.halign = "center";
       if (data.section !== "body") return;
       data.cell.styles.fillColor = rowShaded[data.row.index] ? [245, 248, 252] : [255, 255, 255];
     },

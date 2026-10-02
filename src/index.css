@@ -192,6 +192,29 @@
     box-shadow: none;
     border: 1px solid hsl(var(--border));
   }
+  .charges-print-area,
+  .charges-print-area * {
+    visibility: visible;
+  }
+  .charges-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+  }
+  .charges-print-area table,
+  .charges-print-area th,
+  .charges-print-area td {
+    min-width: 0 !important;
+  }
+  .charges-print-area table {
+    font-size: 10px;
+  }
+  .charges-print-area th,
+  .charges-print-area td {
+    padding: 4px 6px !important;
+  }
 }
 
 /* Dashboard feature cards — white surfaces + accent icon panels */

@@ -13,14 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ChargesMergedHint, ChargesTable } from "@/components/ui/charges-table";
+import { chargesTableClasses as ct } from "@/components/ui/charges-table-classes";
 import { apiClient } from "@/lib/api";
 import {
   exportAnalysisChargesExcel,
@@ -31,6 +25,11 @@ import {
 import { buildAnalysisChargeRowsForEquipment } from "@/lib/analysisChargeRows";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+/** Widths of the two sticky lead columns; the equipment column's `left` must equal the serial width. */
+const serialColClass = "w-10 min-w-[2.5rem] px-1.5 sm:w-14 sm:min-w-[3.5rem] sm:px-2";
+const equipmentColClass =
+  "left-10 min-w-[8.5rem] max-w-[9.5rem] px-3 sm:left-14 sm:min-w-[12rem] sm:max-w-none sm:px-4";
 
 const GST_TABLE_NOTE =
   "Note: All rates are exclusive of GST. GST @ 18% will be applicable to external users. No GST is applicable to IIT Roorkee internal users.";
@@ -416,7 +415,7 @@ export default function AnalysisCharges() {
               : "Select one or more equipment to view charges by user category."}
           </div>
         ) : (
-          <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+          <section className="charges-print-area overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
             <div className="border-b border-border/60 bg-gradient-to-r from-primary/[0.07] via-card to-card px-4 py-5 sm:px-6">
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
                 Department
@@ -427,88 +426,129 @@ export default function AnalysisCharges() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Charges by user category — standard published rates
               </p>
-              <p className="mt-4 whitespace-nowrap overflow-x-auto text-base font-bold tracking-tight text-amber-900 sm:text-lg dark:text-amber-200">
+              <p className="mt-4 whitespace-nowrap overflow-x-auto print:whitespace-normal print:text-sm text-base font-bold tracking-tight text-amber-900 sm:text-lg dark:text-amber-200">
                 {GST_TABLE_NOTE}
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[720px] border-collapse">
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b-2 border-primary/30">
-                    <TableHead className="sticky left-0 z-10 w-14 border border-border/70 bg-primary/10 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
-                      S.No.
-                    </TableHead>
-                    <TableHead className="sticky left-14 z-10 min-w-[11rem] border border-border/70 bg-primary/10 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
+            <div className="p-3 sm:p-4">
+              <ChargesTable
+                className="min-w-[720px]"
+                viewportClassName="max-h-[75vh]"
+              >
+                <thead>
+                  <tr>
+                    <th
+                      scope="col"
+                      className={cn(ct.th, ct.stickyLeft, ct.thStickyLeft, serialColClass, "text-center")}
+                    >
+                      <span className="sm:hidden" aria-label="S.No.">#</span>
+                      <span className="hidden sm:inline">S.No.</span>
+                    </th>
+                    <th
+                      scope="col"
+                      className={cn(ct.th, ct.stickyLeft, ct.thStickyLeft, equipmentColClass)}
+                    >
                       Equipment
-                    </TableHead>
+                    </th>
                     {pivotTable.hasParameters ? (
-                      <TableHead className="min-w-[9rem] border border-border/70 bg-primary/10 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs">
+                      <th scope="col" className={cn(ct.th, "min-w-[9rem]")}>
                         Parameter
-                      </TableHead>
+                      </th>
                     ) : null}
                     {pivotTable.categories.map((cat) => (
-                      <TableHead
-                        key={cat}
-                        className="min-w-[9rem] border border-border/70 bg-primary/10 text-center text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-primary sm:text-xs"
-                      >
+                      <th key={cat} scope="col" className={cn(ct.th, "min-w-[9rem] text-center")}>
                         {cat}
-                      </TableHead>
+                      </th>
                     ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pivotTable.rows.map((row, idx) => (
-                    <TableRow
-                      key={`${row.equipmentName}-${row.parameter ?? "base"}-${idx}`}
-                      className={cn(
-                        "border-border/60",
-                        row.serialNumber % 2 === 0 && "bg-slate-50/80 dark:bg-slate-900/30"
-                      )}
-                    >
-                      {row.isFirstOfEquipment ? (
-                        <TableCell
-                          rowSpan={row.equipmentRowSpan}
-                          className="sticky left-0 z-[1] border border-border/60 bg-card px-3 py-3 text-center align-middle text-sm tabular-nums text-muted-foreground sm:px-4"
-                        >
-                          {row.serialNumber}
-                        </TableCell>
-                      ) : null}
-                      {row.isFirstOfEquipment ? (
-                        <TableCell
-                          rowSpan={row.equipmentRowSpan}
-                          className="sticky left-14 z-[1] border border-border/60 bg-card px-3 py-3 align-middle text-[0.95rem] font-semibold text-primary sm:px-4"
-                        >
-                          {row.equipmentName}
-                        </TableCell>
-                      ) : null}
-                      {pivotTable.hasParameters ? (
-                        <TableCell className="border border-border/60 px-3 py-2.5 align-middle text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-4">
-                          {row.parameter || "—"}
-                        </TableCell>
-                      ) : null}
-                      {pivotTable.categories.map((cat) => {
-                        const cell = row.cells[cat];
-                        if (cell?.spanned) return null;
-                        return (
-                          <TableCell
-                            key={cat}
-                            rowSpan={cell?.rowSpan}
-                            className="border border-border/60 px-2.5 py-2.5 text-center align-middle sm:px-3"
-                          >
-                            {cell ? (
-                              <p className="text-sm leading-snug text-foreground tabular-nums whitespace-pre-line">
-                                {cell.amount}
-                              </p>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pivotTable.rows.map((row, idx) => {
+                    const endsGroup = (span: number) => {
+                      const next = pivotTable.rows[idx + span];
+                      return next !== undefined && next.isFirstOfEquipment;
+                    };
+                    const groupEndClass = (span = 1) => endsGroup(span) && ct.groupEnd;
+                    return (
+                      <tr
+                        key={`${row.equipmentName}-${row.parameter ?? "base"}-${idx}`}
+                        className={cn(ct.row, row.serialNumber % 2 === 0 && ct.zebra)}
+                      >
+                        {row.isFirstOfEquipment ? (
+                          <td
+                            rowSpan={row.equipmentRowSpan}
+                            className={cn(
+                              ct.td,
+                              ct.rowHeader,
+                              ct.stickyLeft,
+                              serialColClass,
+                              "text-center text-sm font-normal tabular-nums text-muted-foreground dark:text-slate-400",
+                              groupEndClass(row.equipmentRowSpan)
                             )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                          >
+                            {row.serialNumber}
+                          </td>
+                        ) : null}
+                        {row.isFirstOfEquipment ? (
+                          <th
+                            scope="rowgroup"
+                            rowSpan={row.equipmentRowSpan}
+                            className={cn(
+                              ct.td,
+                              ct.rowHeader,
+                              ct.stickyLeft,
+                              equipmentColClass,
+                              "text-left text-sm font-semibold leading-snug text-primary dark:text-sky-300 sm:text-[0.95rem]",
+                              groupEndClass(row.equipmentRowSpan)
+                            )}
+                          >
+                            {row.equipmentName}
+                          </th>
+                        ) : null}
+                        {pivotTable.hasParameters ? (
+                          <td
+                            className={cn(
+                              ct.td,
+                              "text-sm font-medium text-slate-800 dark:text-slate-200",
+                              groupEndClass()
+                            )}
+                          >
+                            {row.parameter || "—"}
+                          </td>
+                        ) : null}
+                        {pivotTable.categories.map((cat) => {
+                          const cell = row.cells[cat];
+                          if (cell?.spanned) return null;
+                          const span = cell?.rowSpan ?? 1;
+                          return (
+                            <td
+                              key={cat}
+                              rowSpan={cell?.rowSpan}
+                              className={cn(
+                                ct.td,
+                                "text-center",
+                                span > 1 && ct.merged,
+                                groupEndClass(span)
+                              )}
+                            >
+                              {cell ? (
+                                <>
+                                  <span className="block whitespace-pre-line text-sm font-semibold leading-snug tabular-nums text-foreground">
+                                    {cell.amount}
+                                  </span>
+                                  {span > 1 ? <ChargesMergedHint>All parameters</ChargesMergedHint> : null}
+                                </>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </ChargesTable>
             </div>
           </section>
         )}
