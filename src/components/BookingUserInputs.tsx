@@ -45,7 +45,13 @@ import SampleSetsEditor, { PeriodicElementsField } from "@/components/SampleSets
 import { computePeriodicElementUpdates } from "@/lib/periodicElementSelection";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import { readSampleSets, SAMPLE_SETS_KEY, type SampleSetValues } from "@/lib/sampleSets";
-import { boundsWithCombinedMax, combinedLimitError, combinedLimits, maxForPrimarySet } from "@/lib/sampleSetLimits";
+import {
+  boundsWithCombinedMax,
+  combinedLimitError,
+  combinedLimits,
+  maxForPrimarySet,
+  sampleSetFieldLimitError,
+} from "@/lib/sampleSetLimits";
 import {
   inputEditRefundNotice,
   type InputEditRefundViewer,
@@ -281,7 +287,13 @@ export function BookingUserInputs({
     ? combinedLimitError(sampleSetFields, editFormValues, editSampleSets, {
         primary: iv as Record<string, unknown>,
         sets: storedSampleSets,
-      })
+      }) ??
+      sampleSetFieldLimitError(
+        sampleSetFields,
+        editSampleSets,
+        { slotDurationMinutes, skipFormulaLimits },
+        storedSampleSets,
+      )
     : null;
   const hasPeriodicTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"
@@ -1131,6 +1143,9 @@ export function BookingUserInputs({
                 allowAddRemove={canChangeSampleSets}
                 allowAdd={allowSampleSets}
                 addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
+                slotDurationMinutes={slotDurationMinutes}
+                skipFormulaLimits={skipFormulaLimits}
+                storedSets={storedSampleSets}
               />
             </div>
           )}

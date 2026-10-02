@@ -3,7 +3,15 @@
  * (sample set 1 plus every "Samples with different parameters" set). Mirrors the backend
  * `sample_set_limits.combined_max_error`.
  */
-import { formatNumericBound, numericConstraints, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import {
+  formatNumericBound,
+  isNumericInputDraft,
+  numericConstraints,
+  numericMaxFormula,
+  resolveFieldAFormulaMax,
+  resolveNumericFieldBounds,
+  type NumericFieldBounds,
+} from "@/lib/numericFieldLimits";
 
 export const COMBINED_LIMIT_FIELD_KEYS = ["A", "B"] as const;
 
@@ -159,4 +167,92 @@ export function fitNewSampleSet<T extends Values>(
 
 export function formatAllowance(allowance: CombinedAllowance): string {
   return `${allowance.label}: ${formatNumericBound(allowance.used)} of ${formatNumericBound(allowance.max)} used across all sample sets`;
+}
+
+export type SampleSetFormulaContext = {
+  /** Equipment slot length, for formulas using SLOT_DURATION_MINUTES. */
+  slotDurationMinutes?: number | null;
+  /** External booking users skip field A's formula / options.max, as in sample set 1. */
+  skipFormulaLimits?: boolean;
+};
+
+function formulaMaxFor(field: CombinedLimitFieldDef, values: Values, ctx: SampleSetFormulaContext) {
+  return ctx.skipFormulaLimits ? undefined : resolveFieldAFormulaMax(field, values, ctx.slotDurationMinutes);
+}
+
+/**
+ * Limits of a NUMERIC field in one sample set. A formula maximum (e.g. A <= B*4) is worked out from that
+ * set's own values, exactly as sample set 1's is from its values.
+ */
+export function sampleSetFieldBounds(
+  field: CombinedLimitFieldDef,
+  values: Values,
+  ctx: SampleSetFormulaContext = {},
+): NumericFieldBounds {
+  return resolveNumericFieldBounds(field, formulaMaxFor(field, values, ctx));
+}
+
+/** How a formula maximum was worked out, e.g. "B × 4, where B is Number of Slots = 2" (mirrors the backend). */
+export function formulaLimitNote(formula: string, values: Values, labels: Record<string, string>): string {
+  const refs: string[] = [];
+  for (const key of new Set(formula.match(/(?<![A-Za-z0-9_])[A-Z](?![A-Za-z0-9_])/g) ?? [])) {
+    const raw = values[key];
+    const n = raw === undefined || raw === null || raw === "" ? NaN : Number(String(raw).trim().replace(",", "."));
+    const shown = Number.isFinite(n) ? formatNumericBound(n) : "not set";
+    const label = labels[key];
+    refs.push(label && label !== key ? `${key} is ${label} = ${shown}` : `${key} = ${shown}`);
+  }
+  const note = formula.trim().replace(/\s*\*\s*/g, " × ");
+  return refs.length ? `${note}, where ${refs.join(" and ")}` : note;
+}
+
+/**
+ * First NUMERIC value outside its limits in an extra sample set, each set checked on its own values (its
+ * own B for A <= B*4), named by set ("Sample set 2: …"), else null. Mirrors the backend check.
+ * `storedSets` are the sets as saved when editing: an unchanged value below the minimum of 1 saved before
+ * that rule is kept, as the backend does.
+ */
+export function sampleSetFieldLimitError(
+  fields: CombinedLimitFieldDef[] | null | undefined,
+  sets: Values[],
+  ctx: SampleSetFormulaContext = {},
+  storedSets: Values[] = [],
+): string | null {
+  const numeric = (fields ?? []).filter((f) => String(f.field_type || "").trim().toUpperCase() === "NUMERIC");
+  if (numeric.length === 0) return null;
+  const labels: Record<string, string> = {};
+  for (const f of fields ?? []) {
+    const key = String(f.field_key || "");
+    if (key && !(key in labels)) labels[key] = f.field_label || key;
+  }
+  for (const [index, values] of sets.entries()) {
+    for (const field of numeric) {
+      const key = String(field.field_key || "");
+      const raw = values?.[key];
+      if (raw === undefined || raw === null || raw === "" || (typeof raw === "string" && isNumericInputDraft(raw))) {
+        continue;
+      }
+      const n = typeof raw === "number" ? raw : Number(String(raw).trim().replace(",", "."));
+      if (!Number.isFinite(n)) continue;
+      const formulaMax = formulaMaxFor(field, values, ctx);
+      const { min, max } = resolveNumericFieldBounds(field, formulaMax);
+      const label = labels[key] || key;
+      const prefix = `Sample set ${index + 2}: `;
+      if (n < min) {
+        const stored = storedSets[index]?.[key];
+        const keptLegacy =
+          stored !== undefined &&
+          String(stored).trim() === String(raw).trim() &&
+          n >= resolveNumericFieldBounds(field, undefined, { applyMinFloor: false }).min;
+        if (keptLegacy) continue;
+        return `${prefix}${label} cannot be less than ${formatNumericBound(min)}.`;
+      }
+      if (n > max) {
+        const formula = formulaMax !== undefined ? numericMaxFormula(field.options) : "";
+        const note = formula ? ` (${formulaLimitNote(formula, values, labels)})` : "";
+        return `${prefix}${label} cannot be greater than ${formatNumericBound(max)}${note}.`;
+      }
+    }
+  }
+  return null;
 }

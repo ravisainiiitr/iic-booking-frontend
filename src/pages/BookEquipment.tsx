@@ -158,7 +158,13 @@ import {
   type SampleSetValues,
 } from "@/lib/sampleSets";
 import { buildInitialInputValues, getInitialDynamicInputValue } from "@/lib/dynamicFieldDefaults";
-import { boundsWithCombinedMax, combinedLimitError, combinedLimits, maxForPrimarySet } from "@/lib/sampleSetLimits";
+import {
+  boundsWithCombinedMax,
+  combinedLimitError,
+  combinedLimits,
+  maxForPrimarySet,
+  sampleSetFieldLimitError,
+} from "@/lib/sampleSetLimits";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { takeBookingAssistantPrefill } from "@/lib/bookingAssistantPrefill";
@@ -1288,6 +1294,29 @@ const BookEquipment = () => {
     }
     return null;
   }, [equipmentDetail, inputFieldValues, calculateHiddenFieldKeys, isProformaFlow, bookingAsExternalTarget]);
+
+  const sampleSetFields = useMemo(
+    () =>
+      ((equipmentDetail?.input_fields ?? []) as SampleSetField[]).filter(
+        (field) => !calculateHiddenFieldKeys.has(String(field.field_key || "").trim())
+      ),
+    [equipmentDetail, calculateHiddenFieldKeys]
+  );
+  /** Extra sample sets: each field against its own set's limits (A <= B*4 uses that set's B), as Step 1 does. */
+  const sampleSetFieldError = useMemo(
+    () =>
+      equipmentDetail?.profile_type === "PRINT_3D"
+        ? null
+        : sampleSetFieldLimitError(
+            sampleSetFields.filter((field) => !(isProformaFlow && isNonChargeAffectingInputField(field))),
+            sampleSets,
+            {
+              slotDurationMinutes: toFiniteNumber(equipmentDetail?.slot_duration_minutes),
+              skipFormulaLimits: bookingAsExternalTarget,
+            }
+          ),
+    [equipmentDetail, sampleSetFields, sampleSets, isProformaFlow, bookingAsExternalTarget]
+  );
 
   /** External logistics: return samples after analysis (adds return shipping fee before GST). */
   const [sampleReturnAfterAnalysis, setSampleReturnAfterAnalysis] = useState<boolean>(false);
@@ -3678,7 +3707,7 @@ const BookEquipment = () => {
         }
       }
       // Any other shown number outside its limits: the box itself says what to change.
-      if (numericInputLimitError) return;
+      if (numericInputLimitError || sampleSetFieldError) return;
     }
 
     // If no input fields, we still need to call the API with empty values
@@ -3787,7 +3816,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys, numericInputLimitError]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys, numericInputLimitError, sampleSetFieldError]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -4037,7 +4066,7 @@ const BookEquipment = () => {
       : (!hasInputFields || allRequiredFilled);
 
     // Calculate charge when inputs are sufficient
-    if (readyToCalculate && !sampleSetLimitError && !numericInputLimitError) {
+    if (readyToCalculate && !sampleSetLimitError && !numericInputLimitError && !sampleSetFieldError) {
       const currentValuesHash = buildChargeCalculationHash({
         inputFieldValues,
         printAnalysisId,
@@ -4081,7 +4110,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, sampleSets, sampleSetLimitError, numericInputLimitError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
+  }, [inputFieldValues, sampleSets, sampleSetLimitError, numericInputLimitError, sampleSetFieldError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
@@ -9500,13 +9529,13 @@ const BookEquipment = () => {
                   {sampleSetsOffered && (
                     <div className={cn("mb-2", !showSampleSetOneHeader && "px-2")} data-testid="booking-sample-sets">
                       <SampleSetsEditor
-                        fields={((equipmentDetail?.input_fields ?? []) as SampleSetField[]).filter(
-                          (field) => !calculateHiddenFieldKeys.has(String(field.field_key || "").trim())
-                        )}
+                        fields={sampleSetFields}
                         sets={sampleSets}
                         onChange={setSampleSets}
                         primaryValues={inputFieldValues}
                         allowAdd={sampleSetsAllowed}
+                        slotDurationMinutes={toFiniteNumber(equipmentDetail?.slot_duration_minutes)}
+                        skipFormulaLimits={bookingAsExternalTarget}
                       />
                     </div>
                   )}

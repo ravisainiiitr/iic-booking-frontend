@@ -22,7 +22,7 @@ import {
   resolveTableRowCountSourceKey,
   syncTableRowsToCount,
 } from "@/lib/dynamicTableField";
-import { formatNumericBound, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import { formatNumericBound } from "@/lib/numericFieldLimits";
 import { computePeriodicElementUpdates, splitElements } from "@/lib/periodicElementSelection";
 import {
   boundsWithCombinedMax,
@@ -31,6 +31,8 @@ import {
   fitNewSampleSet,
   formatAllowance,
   maxForExtraSet,
+  sampleSetFieldBounds,
+  sampleSetFieldLimitError,
 } from "@/lib/sampleSetLimits";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
 import {
@@ -68,6 +70,12 @@ type Props = {
    * duplicated; sets saved earlier stay editable and removable.
    */
   allowAdd?: boolean;
+  /** Equipment slot length, for max formulas using SLOT_DURATION_MINUTES. */
+  slotDurationMinutes?: number | null;
+  /** External booking users skip field A's max formula, as in sample set 1. */
+  skipFormulaLimits?: boolean;
+  /** Sets as saved (when editing), so unchanged legacy values below the minimum are not flagged. */
+  storedSets?: SampleSetValues[];
 };
 
 export const SAMPLE_SET_HELPER_TEXT =
@@ -133,7 +141,11 @@ export default function SampleSetsEditor({
   allowAddRemove = true,
   addRemoveLockedNote = "Only the Officer In-Charge or administrator can add or remove sample sets after booking.",
   allowAdd = true,
+  slotDurationMinutes,
+  skipFormulaLimits = false,
+  storedSets,
 }: Props) {
+  const formulaContext = { slotDurationMinutes, skipFormulaLimits };
   const setsRef = useRef(sets);
   setsRef.current = sets;
   const [periodicTarget, setPeriodicTarget] = useState<{ index: number; field: SampleSetField } | null>(null);
@@ -157,6 +169,7 @@ export default function SampleSetsEditor({
 
   const allowances = combinedAllowances(fields, primaryValues, sets);
   const overLimit = allowances.find((a) => a.over);
+  const fieldLimitError = sampleSetFieldLimitError(fields, sets, formulaContext, storedSets);
   const atSetCap = sets.length >= MAX_SAMPLE_SETS;
   const newSet = fitNewSampleSet(fields, primaryValues, sets, defaultSampleSetValues(fields));
   const exhausted = allowances.find((a) => Math.max(0, a.remaining) < a.floor);
@@ -331,7 +344,7 @@ export default function SampleSetsEditor({
       case "NUMERIC": {
         const limit = allowances.find((a) => a.key === key);
         const { bounds, maxHint } = boundsWithCombinedMax(
-          resolveNumericFieldBounds(field),
+          sampleSetFieldBounds(field, set, formulaContext),
           limit,
           limit ? maxForExtraSet(limit, primaryValues, sets, index) : undefined,
         );
@@ -588,6 +601,11 @@ export default function SampleSetsEditor({
       {sets.length > 0 && overLimit && (
         <p className="text-sm font-medium text-destructive" role="alert">
           {combinedLimitMessage(overLimit)} Lower the values in one of the sample sets.
+        </p>
+      )}
+      {fieldLimitError && (
+        <p className="text-sm font-medium text-destructive" role="alert">
+          {fieldLimitError}
         </p>
       )}
       {!allowAdd ? (
