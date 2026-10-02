@@ -83,6 +83,7 @@ const AdminSettingsSupport = lazyPage(() => import("@/pages/AdminSettingsSupport
 const AdminSettingsFeedback = lazyPage(() => import("@/pages/AdminSettingsFeedback"));
 const AdminSettingsQualityImprovement = lazyPage(() => import("@/pages/AdminSettingsQualityImprovement"));
 const AdminRewardsConfig = lazyPage(() => import("@/pages/AdminRewardsConfig"));
+const Rewards = lazyPage(() => import("@/pages/Rewards"));
 const OICAccessories = lazyPage(() => import("@/pages/OICAccessories"));
 const OICPrintMaterials = lazyPage(() => import("@/pages/OICPrintMaterials"));
 const OICEquipmentSettings = lazyPage(() => import("@/pages/OICEquipmentSettings"));
@@ -196,6 +197,7 @@ export default function AppRoutes() {
           <Route path="/urgent-requests-wallet" element={<UrgentRequestsWallet />} />
           <Route path="/my-urgent-requests" element={<MyUrgentRequests />} />
           <Route path="/my-publications" element={<MyPublications />} />
+          <Route path="/rewards" element={<Rewards />} />
           <Route path="/publication-claims" element={<PublicationClaimsReview />} />
           <Route path="/student-management" element={<StudentManagement />} />
           <Route path="/booking-attempt-logs" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />

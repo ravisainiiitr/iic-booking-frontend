@@ -114,6 +114,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/publication-claims": { title: "Publication Claims" },
   "/ta-assignments": { title: "TA Duty Assignments" },
   "/ta-nomination-call": { title: "TA Nomination Call" },
+  "/rewards": { title: "TA Reward Points", description: "Points earned from TA duties and their redemptions." },
   "/notice-board-requests": { title: "Notice Board Requests" },
   "/repeat-sample-requests": { title: "Repeat Sample Requests" },
   "/tickets": { title: "Support Tickets" },
@@ -2022,6 +2023,35 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "ta_reward_points",
+      label: "TA reward points",
+      visible: Boolean(userTypeStr === "student"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800"
+              onClick={() => openWorkspace("/rewards", "TA Reward Points")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Star className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">TA reward points</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Points earned from TA duties, their value and redemptions against bookings
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View reward points</Button>
               </CardContent>
             </Card>
       ),

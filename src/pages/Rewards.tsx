@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 
 type RewardSummary = {
   points_balance: string;
@@ -27,6 +28,7 @@ export default function Rewards() {
   const [summary, setSummary] = useState<RewardSummary | null>(null);
   const [entries, setEntries] = useState<RewardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const embedded = useEmbeddedMode();
 
   useEffect(() => {
     let mounted = true;
@@ -47,10 +49,12 @@ export default function Rewards() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">TA Reward Points</h1>
-          <p className="text-muted-foreground mt-1">Track earned points and redemptions.</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-3xl font-bold">TA Reward Points</h1>
+            <p className="text-muted-foreground mt-1">Track earned points and redemptions.</p>
+          </div>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Summary</CardTitle>
