@@ -1,23 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
-import { IndianRupee, Info, Loader2, Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, IndianRupee, Info, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
+import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatINRWithPaise } from "@/lib/money";
+import { DEFAULT_CATALOG_DEPARTMENT_NAME } from "@/lib/catalogCache";
+import { formatINRAmount } from "@/lib/money";
 import { trainingApi } from "@/lib/trainingApi";
-import type { DemoPurpose, DemoRequest, FacultyStudentTrainings, TrainingEquipmentDetail, TrainingEquipmentRef } from "@/lib/trainingTypes";
+import type {
+  DemoPurpose,
+  DemoQuote,
+  DemoRequest,
+  DemoTerms,
+  FacultyStudentTrainings,
+  TrainingEquipmentDepartment,
+  TrainingEquipmentDetail,
+  TrainingEquipmentRef,
+} from "@/lib/trainingTypes";
 import { EquipmentPicker } from "./EquipmentPicker";
-import { PURPOSE_OPTIONS, estimateCharge, formatDuration, isChargeable } from "./trainingHelpers";
+import { PURPOSE_OPTIONS, coursePurposeHint, demoTermsParts, durationPresets, formatDuration } from "./trainingHelpers";
 import { WindowsEditor, windowsToIso, type LocalWindow } from "./WindowsEditor";
-
-const DURATION_PRESETS = [60, 90, 120, 180, 240];
 
 /** Faculty: request a demonstration on an instrument for a class or research group. */
 export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoRequest) => void }) {
+  const [department, setDepartment] = useState<DepartmentFilterValue>("all");
+  const [departmentReady, setDepartmentReady] = useState(false);
+  const [trainingDepartments, setTrainingDepartments] = useState<TrainingEquipmentDepartment[] | null>(null);
+  const [defaultTerms, setDefaultTerms] = useState<DemoTerms | null>(null);
   const [equipment, setEquipment] = useState<TrainingEquipmentRef | null>(null);
   const [detail, setDetail] = useState<TrainingEquipmentDetail | null>(null);
   const [purpose, setPurpose] = useState<DemoPurpose>("COURSE");
@@ -31,12 +44,20 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
   const [participantText, setParticipantText] = useState("");
   const [chargeAck, setChargeAck] = useState(false);
+  const [quote, setQuote] = useState<DemoQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
     void trainingApi.facultyStudents().then((res) => {
       if (alive) setStudents(res.data?.results ?? []);
+    });
+    void trainingApi.equipment({}).then((res) => {
+      if (!alive || !res.data) return;
+      setTrainingDepartments(res.data.departments ?? null);
+      setDefaultTerms(res.data.demo_terms ?? null);
     });
     return () => {
       alive = false;
@@ -59,13 +80,50 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
 
   const durationNum = Number(duration);
   const participantsNum = Number(participants);
-  const maxMinutes = detail?.demo_max_minutes ?? null;
-  const chargeable = Boolean(detail) && isChargeable(purpose, detail?.demo_rate_per_hour);
-  const estimate = useMemo(() => estimateCharge(detail?.demo_rate_per_hour, durationNum), [detail, durationNum]);
+  const terms: DemoTerms | null = detail ?? defaultTerms;
+  const maxMinutes = terms?.demo_max_minutes ?? null;
+  const presets = durationPresets(maxMinutes);
+  const overMax = Boolean(maxMinutes && durationNum > maxMinutes);
+  const durationValid = Number.isInteger(durationNum) && durationNum >= 15 && !overMax;
+
+  useEffect(() => {
+    setQuote(null);
+    setQuoteError(null);
+    if (!equipment || !durationValid) return;
+    let alive = true;
+    setQuoteLoading(true);
+    const handle = window.setTimeout(() => {
+      void trainingApi.demoQuote(equipment.equipment_id, { purpose, minutes: durationNum }).then((res) => {
+        if (!alive) return;
+        setQuoteLoading(false);
+        setQuote(res.data ?? null);
+        setQuoteError(res.data ? null : res.error || "Could not work out the charge.");
+      });
+    }, 300);
+    return () => {
+      alive = false;
+      window.clearTimeout(handle);
+      setQuoteLoading(false);
+    };
+  }, [equipment, purpose, durationNum, durationValid]);
 
   useEffect(() => {
     setChargeAck(false);
   }, [purpose, equipment, duration]);
+
+  const changeDepartment = (next: DepartmentFilterValue) => {
+    setDepartment(next);
+    if (!equipment || next === "all") return;
+    const name = trainingDepartments?.find((d) => d.id === next)?.name;
+    if (!name || equipment.department !== name) setEquipment(null);
+  };
+
+  const selectedDepartment = department === "all" ? null : trainingDepartments?.find((d) => d.id === department) ?? null;
+  const departmentHasNoEquipment = Boolean(trainingDepartments && department !== "all" && !selectedDepartment);
+  const openDepartments = (trainingDepartments ?? []).map((d) => `${d.name} (${d.equipment_count})`).join(", ");
+
+  const chargeable = Boolean(quote?.chargeable);
+  const balanceError = quote?.balance_error ?? null;
 
   const toggleStudent = (id: number, on: boolean) =>
     setSelectedStudents((prev) => (on ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id)));
@@ -75,9 +133,10 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
     if (purpose === "COURSE" && !courseCode.trim()) return toast.error("Enter the course code for a course demonstration.");
     if (!Number.isInteger(participantsNum) || participantsNum <= 0) return toast.error("Enter the number of participants.");
     if (!Number.isInteger(durationNum) || durationNum <= 0) return toast.error("Enter the duration in minutes.");
-    if (maxMinutes && durationNum > maxMinutes) return toast.error(`This equipment allows at most ${formatDuration(maxMinutes)} per demonstration.`);
+    if (overMax && maxMinutes) return toast.error(`This equipment allows at most ${formatDuration(maxMinutes)} per demonstration.`);
     const { windows: iso, error } = windowsToIso(windows);
     if (error) return toast.error(error);
+    if (balanceError) return toast.error(balanceError);
     if (chargeable && !chargeAck) return toast.error("Please acknowledge the demonstration charge.");
 
     setBusy(true);
@@ -111,27 +170,47 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
     onCreated(res.data);
   };
 
+  const amountText = quote?.amount ? formatINRAmount(quote.amount) : "";
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground" data-testid="demo-terms">
+        {demoTermsParts(terms).map((part, i) => (
+          <span key={part} className="inline-flex items-center gap-1">
+            {i === 0 ? <IndianRupee className="h-3 w-3" aria-hidden /> : null}
+            {part}
+          </span>
+        ))}
+      </div>
+
+      <DepartmentFilter
+        value={department}
+        onChange={changeDepartment}
+        defaultDepartmentName={DEFAULT_CATALOG_DEPARTMENT_NAME}
+        onResolved={() => setDepartmentReady(true)}
+        className="max-w-xl"
+        triggerClassName="max-w-md"
+      />
+
       <div className="space-y-1.5">
         <Label>
           Equipment <span className="text-destructive">*</span>
         </Label>
-        <EquipmentPicker value={equipment} onChange={setEquipment} />
-        {detail ? (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <IndianRupee className="h-3 w-3" aria-hidden />
-              {Number(detail.demo_rate_per_hour) > 0 ? `${formatINRWithPaise(detail.demo_rate_per_hour)} per hour (non-course)` : "No demonstration charge"}
+        <EquipmentPicker
+          value={equipment}
+          onChange={setEquipment}
+          departmentId={department}
+          disabled={!departmentReady}
+          emptyText={department === "all" ? "No matching equipment." : "No matching equipment in this department."}
+        />
+        {departmentHasNoEquipment && !equipment ? (
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+            <span>
+              No equipment in this department is open for demonstration requests yet.
+              {openDepartments ? ` Open now: ${openDepartments}.` : ""}
             </span>
-            {maxMinutes ? <span>Max {formatDuration(maxMinutes)} per demonstration</span> : null}
-            {detail.demo_refund_full_days != null ? (
-              <span>
-                Full refund if cancelled ≥ {detail.demo_refund_full_days} day(s) ahead
-                {detail.demo_refund_half_days != null ? `, half refund ≥ ${detail.demo_refund_half_days} day(s)` : ""}
-              </span>
-            ) : null}
-          </div>
+          </p>
         ) : null}
       </div>
 
@@ -151,7 +230,7 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
             </SelectContent>
           </Select>
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Info className="h-3 w-3" aria-hidden /> Course/curricular demonstrations are free.
+            <Info className="h-3 w-3 shrink-0" aria-hidden /> {coursePurposeHint(terms?.course_demos_free)}
           </p>
         </div>
         <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-2">
@@ -179,16 +258,69 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
           <Label htmlFor="demo-duration">
             Duration (minutes) <span className="text-destructive">*</span>
           </Label>
-          <Input id="demo-duration" type="number" min={15} step={15} max={maxMinutes ?? undefined} value={duration} onChange={(e) => setDuration(e.target.value)} />
+          <Input
+            id="demo-duration"
+            type="number"
+            min={15}
+            step={15}
+            max={maxMinutes ?? undefined}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            aria-invalid={overMax || undefined}
+          />
           <div className="flex flex-wrap gap-1">
-            {DURATION_PRESETS.filter((m) => !maxMinutes || m <= maxMinutes).map((m) => (
+            {presets.map((m) => (
               <Button key={m} type="button" size="sm" variant={durationNum === m ? "secondary" : "ghost"} className="h-6 px-2 text-xs" onClick={() => setDuration(String(m))}>
                 {formatDuration(m)}
               </Button>
             ))}
           </div>
+          {overMax && maxMinutes ? (
+            <p className="text-xs text-destructive">At most {formatDuration(maxMinutes)} per demonstration.</p>
+          ) : null}
         </div>
       </div>
+
+      {equipment ? (
+        <div className="rounded-md border border-border/70 px-3 py-2 text-sm" aria-live="polite" data-testid="demo-estimate">
+          {quoteError ? (
+            <span className="text-destructive">{quoteError}</span>
+          ) : quoteLoading || (!quote && durationValid) ? (
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Working out the charge…
+            </span>
+          ) : !quote ? (
+            <span className="text-muted-foreground">Enter a valid duration to see the charge.</span>
+          ) : !quote.chargeable && quote.rate_available ? (
+            <span className="text-muted-foreground">
+              {quote.purpose === "COURSE" && quote.course_demos_free ? "Course/curricular demonstrations are free." : "No charge for this demonstration."}
+            </span>
+          ) : !quote.rate_available ? (
+            <span className="text-muted-foreground">
+              Charged at the internal IITR rate; the OIC confirms the amount when approving. {quote.basis}
+            </span>
+          ) : (
+            <div className="space-y-0.5">
+              <p>
+                <span className="font-medium">Estimated charge: {amountText}</span>{" "}
+                <span className="text-muted-foreground">
+                  (internal IITR rate {formatINRAmount(quote.rate_per_hour)}/h, {formatDuration(quote.minutes)})
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Deducted from your {quote.wallet_label} when the OIC approves
+                {quote.wallet_balance != null ? ` · Balance ${formatINRAmount(quote.wallet_balance)}` : ""}
+              </p>
+            </div>
+          )}
+          {balanceError ? (
+            <p className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-destructive" role="alert">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>{balanceError} Recharge your wallet before submitting.</span>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {students?.length ? (
         <div className="space-y-1.5">
@@ -233,19 +365,28 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
         <Textarea id="demo-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Samples, topics to cover, special requirements…" />
       </div>
 
-      {chargeable ? (
+      {chargeable && !balanceError ? (
         <label className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
           <Checkbox checked={chargeAck} onCheckedChange={(v) => setChargeAck(v === true)} className="mt-0.5" />
           <span>
-            I understand this demonstration is chargeable at {formatINRWithPaise(detail?.demo_rate_per_hour)} per hour (about{" "}
-            <strong>{formatINRWithPaise(estimate)}</strong> for {formatDuration(durationNum)}), debited from my wallet once approved. The OIC may waive
-            the charge.
+            {quote?.amount ? (
+              <>
+                I agree that <strong>{amountText}</strong> (internal IITR rate for {formatDuration(durationNum)}) will be deducted from my{" "}
+                {quote.wallet_label} when the OIC approves this demonstration. A shorter approved duration costs less; cancellations are refunded
+                as per the policy above.
+              </>
+            ) : (
+              <>
+                I agree that this demonstration is charged at the equipment's internal IITR rate, confirmed by the OIC, and deducted from my
+                wallet when approved.
+              </>
+            )}
           </span>
         </label>
       ) : null}
 
       <div className="flex justify-end">
-        <Button type="button" onClick={() => void submit()} disabled={busy}>
+        <Button type="button" onClick={() => void submit()} disabled={busy || Boolean(balanceError)}>
           {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
           Submit request
         </Button>

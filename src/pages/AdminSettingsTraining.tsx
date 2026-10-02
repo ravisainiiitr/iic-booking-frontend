@@ -78,7 +78,6 @@ const ALL_NUMBER_FIELDS = FIELD_GROUPS.flatMap((g) => g.fields);
 
 type FormState = {
   numbers: Partial<Record<NumberField, string>>;
-  rate: string;
   weights: Record<string, string>;
   underrep: number[];
   notes: string;
@@ -98,7 +97,6 @@ function formFromPolicy(policy: TrainingPolicy | null, blank: boolean): FormStat
   }
   return {
     numbers,
-    rate: !blank && policy?.demo_rate_per_hour != null ? String(policy.demo_rate_per_hour) : "",
     weights,
     underrep: !blank && policy ? [...(policy.underrepresented_override_department_ids ?? [])] : [],
     notes: "",
@@ -111,7 +109,6 @@ function payloadFromForm(form: FormState): Partial<TrainingPolicyFields> {
     const raw = form.numbers[f.key];
     if (raw !== undefined && raw.trim() !== "") (out as Record<string, unknown>)[f.key] = Number(raw);
   }
-  if (form.rate.trim() !== "") out.demo_rate_per_hour = form.rate.trim();
   const weights: Record<string, number> = {};
   for (const [k, v] of Object.entries(form.weights)) if (v.trim() !== "") weights[k] = Number(v);
   if (Object.keys(weights).length) out.scoring_weights = weights;
@@ -213,27 +210,13 @@ function PolicyFieldsForm({
                 </div>
               </div>
             ))}
-            {group.title === "Demonstrations" ? (
-              <div className="space-y-1">
-                <Label htmlFor="policy-rate" className="text-sm">
-                  Demonstration rate (non-course)
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="policy-rate"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.rate}
-                    onChange={(e) => onChange({ ...form, rate: e.target.value })}
-                    placeholder={blankMeansInherit ? `Inherit${placeholders?.demo_rate_per_hour ? ` (${placeholders.demo_rate_per_hour})` : ""}` : ""}
-                    className="h-9"
-                  />
-                  <span className="shrink-0 text-xs text-muted-foreground">₹ / hour</span>
-                </div>
-              </div>
-            ) : null}
           </div>
+          {group.title === "Demonstrations" ? (
+            <p className="text-xs text-muted-foreground">
+              Demonstrations are charged at each equipment's internal IITR booking rate and deducted from the faculty member's wallet; the
+              refund days above set the cancellation refunds.
+            </p>
+          ) : null}
         </fieldset>
       ))}
 
@@ -294,7 +277,6 @@ function policyTarget(p: TrainingPolicy): string {
 function overriddenFields(p: TrainingPolicy): string[] {
   const out: string[] = [];
   for (const f of ALL_NUMBER_FIELDS) if (p[f.key] != null) out.push(`${f.label}: ${p[f.key]}${f.unit ? ` ${f.unit}` : ""}`);
-  if (p.demo_rate_per_hour != null) out.push(`Rate: ₹${p.demo_rate_per_hour}/h`);
   if (Object.keys(p.scoring_weights ?? {}).length) out.push(`${Object.keys(p.scoring_weights).length} weight(s)`);
   if (p.underrepresented_override_department_ids?.length) out.push(`${p.underrepresented_override_department_ids.length} dept override(s)`);
   return out;

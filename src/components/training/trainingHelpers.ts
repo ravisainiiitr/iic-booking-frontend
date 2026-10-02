@@ -1,5 +1,5 @@
 import { formatBookingDateTime, parseBookingDate } from "@/lib/bookingDates";
-import type { DemoPurpose, TrainingBadge } from "@/lib/trainingTypes";
+import type { DemoPurpose, DemoTerms, TrainingBadge } from "@/lib/trainingTypes";
 
 export type StatusTone = "neutral" | "info" | "warning" | "success" | "danger" | "muted" | "accent";
 
@@ -284,9 +284,31 @@ export function parseRate(rate: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Demo charge applies only for non-course purposes on equipment with a positive rate. */
-export function isChargeable(purpose: DemoPurpose, rate: string | number | null | undefined): boolean {
-  return purpose !== "COURSE" && parseRate(rate) > 0;
+export const DEMO_DURATION_PRESETS = [60, 90, 120, 180, 240];
+
+/** Duration chips that fit within the policy maximum (all of them when there is no maximum). */
+export function durationPresets(maxMinutes: number | null | undefined): number[] {
+  return DEMO_DURATION_PRESETS.filter((m) => !maxMinutes || m <= maxMinutes);
+}
+
+/** Policy banner on the demonstration form: charge basis, max duration, refund windows, wallet. */
+export function demoTermsParts(terms: DemoTerms | null | undefined): string[] {
+  const parts = [
+    terms?.course_demos_free ? "Charged at internal IITR rates (course/curricular demonstrations free)" : "Charged at internal IITR rates",
+  ];
+  if (terms?.demo_max_minutes) parts.push(`Max ${formatDuration(terms.demo_max_minutes)} per demonstration`);
+  if (terms?.demo_refund_full_days != null) {
+    const half = terms.demo_refund_half_days != null ? `, half refund ≥ ${terms.demo_refund_half_days} day(s)` : "";
+    parts.push(`Full refund if cancelled ≥ ${terms.demo_refund_full_days} day(s) ahead${half}`);
+  }
+  parts.push("Amount is deducted from your wallet");
+  return parts;
+}
+
+export function coursePurposeHint(courseDemosFree: boolean | undefined): string {
+  return courseDemosFree
+    ? "Course/curricular demonstrations are free."
+    : "Course/curricular demonstrations are charged at the internal IITR rate, like all demonstrations.";
 }
 
 export function estimateCharge(rate: string | number | null | undefined, minutes: number | null | undefined): number {

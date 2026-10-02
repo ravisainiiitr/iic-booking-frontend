@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  coursePurposeHint,
   deadlineCountdown,
+  demoTermsParts,
+  durationPresets,
   estimateCharge,
   formatDuration,
   formatScore,
   fromLocalInputValue,
   humanizeCode,
-  isChargeable,
   isCurtailed,
   parseIdList,
   scoreBreakdownRows,
@@ -77,11 +79,30 @@ describe("isCurtailed", () => {
 });
 
 describe("charges", () => {
-  it("course demonstrations are free; others are chargeable when the rate is positive", () => {
-    expect(isChargeable("COURSE", "500.00")).toBe(false);
-    expect(isChargeable("RESEARCH_INDUCTION", "500.00")).toBe(true);
-    expect(isChargeable("OTHER", "0.00")).toBe(false);
-    expect(isChargeable("OTHER", null)).toBe(false);
+  it("builds the policy banner from the Training Policy terms", () => {
+    expect(demoTermsParts({ demo_max_minutes: 180, demo_refund_full_days: 7, demo_refund_half_days: 2 })).toEqual([
+      "Charged at internal IITR rates",
+      "Max 3 h per demonstration",
+      "Full refund if cancelled ≥ 7 day(s) ahead, half refund ≥ 2 day(s)",
+      "Amount is deducted from your wallet",
+    ]);
+    expect(demoTermsParts({ demo_max_minutes: 90, demo_refund_full_days: 10, demo_refund_half_days: null, course_demos_free: true })).toEqual([
+      "Charged at internal IITR rates (course/curricular demonstrations free)",
+      "Max 1 h 30 min per demonstration",
+      "Full refund if cancelled ≥ 10 day(s) ahead",
+      "Amount is deducted from your wallet",
+    ]);
+    expect(demoTermsParts(null)).toEqual(["Charged at internal IITR rates", "Amount is deducted from your wallet"]);
+  });
+
+  it("hides duration chips above the policy maximum", () => {
+    expect(durationPresets(180)).toEqual([60, 90, 120, 180]);
+    expect(durationPresets(null)).toEqual([60, 90, 120, 180, 240]);
+  });
+
+  it("describes whether course demonstrations are free", () => {
+    expect(coursePurposeHint(true)).toBe("Course/curricular demonstrations are free.");
+    expect(coursePurposeHint(false)).toMatch(/charged at the internal IITR rate/);
   });
 
   it("estimates the charge from the hourly rate", () => {

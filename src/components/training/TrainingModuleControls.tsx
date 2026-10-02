@@ -39,7 +39,7 @@ function Pill({ tone, children }: { tone: "on" | "off" | "info"; children: React
   return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>{children}</span>;
 }
 
-/** Main Admin controls: module switch, audience and per-equipment enablement. */
+/** Main Admin controls: module switch, audience, course-demo charging and per-equipment enablement. */
 export function TrainingModuleControls({ onChanged }: { onChanged?: () => void }) {
   const [state, setState] = useState<TrainingModuleState | null>(null);
   const [savingModule, setSavingModule] = useState(false);
@@ -93,7 +93,7 @@ export function TrainingModuleControls({ onChanged }: { onChanged?: () => void }
     onChanged?.();
   };
 
-  const updateModule = async (input: { module_enabled?: boolean; audience?: TrainingAudience }) => {
+  const updateModule = async (input: { module_enabled?: boolean; audience?: TrainingAudience; course_demos_free?: boolean }) => {
     setSavingModule(true);
     const res = await trainingApi.updateModule(input);
     setSavingModule(false);
@@ -103,6 +103,8 @@ export function TrainingModuleControls({ onChanged }: { onChanged?: () => void }
     }
     afterChange(res.data);
     if (input.module_enabled !== undefined) toast.success(input.module_enabled ? "Training & Certification switched on." : "Training & Certification switched off.");
+    else if (input.course_demos_free !== undefined)
+      toast.success(input.course_demos_free ? "Course/curricular demonstrations are now free." : "Course/curricular demonstrations are now charged.");
     else toast.success(`Audience set to: ${res.data.audience_label}.`);
   };
 
@@ -198,6 +200,25 @@ export function TrainingModuleControls({ onChanged }: { onChanged?: () => void }
               OICs, Lab Operators and administrators of enabled equipment always see the Training workspace and attendance pages so the flow can be run.
             </p>
           </fieldset>
+
+          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-border/60 pt-4">
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="training-course-demos-free" className="text-sm font-medium">
+                Course/curricular demonstrations are free
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Off: every demonstration is charged at the equipment's internal IITR rate and deducted from the faculty member's wallet on
+                approval. On: course demonstrations cost nothing; research-group and other demonstrations are still charged.
+              </p>
+            </div>
+            <Switch
+              id="training-course-demos-free"
+              checked={Boolean(state.course_demos_free)}
+              disabled={savingModule}
+              onCheckedChange={(v) => void updateModule({ course_demos_free: v })}
+              aria-label="Course/curricular demonstrations are free"
+            />
+          </div>
 
           <dl className="grid grid-cols-1 gap-3 border-t border-border/60 pt-4 sm:grid-cols-3">
             <DetailRow label="Server env switch">{state.env_module_enabled ? "On" : "Off"}</DetailRow>

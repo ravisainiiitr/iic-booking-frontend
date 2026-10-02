@@ -6,8 +6,14 @@ import type { GuideSection, GuideStep } from "../types";
 const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: string[] }>> = {
   faculty: {
     steps: [
-      { title: "Request a demonstration", body: "Open Training & Demos and request a demonstration of an equipment for your class or group." },
+      {
+        title: "Request a demonstration",
+        body: "Open Training & Demos, choose the department (IIC by default) and the equipment, and request a demonstration for your class or group. The form shows the estimated charge.",
+      },
       { title: "Nominate students", body: "When a training call is open, nominate your students for hands-on training before the deadline." },
+    ],
+    rules: [
+      "Demonstrations are charged at the equipment's internal IITR rate and deducted from your wallet when the OIC approves. Cancel early for a full or half refund; a rejected request costs nothing.",
     ],
   },
   student: {
@@ -34,7 +40,7 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
         title: "Enable Training",
         body: "In Admin Settings → Training Policy, switch the module on, choose Test accounts only or Everyone eligible, and turn Training on for each equipment.",
       },
-      { title: "Training Policy", body: "Set the training rules on the same page." },
+      { title: "Training Policy", body: "Set the training rules on the same page, including whether course demonstrations are free." },
     ],
     rules: [
       "With Test accounts only, real faculty and students see no Training menus; Officers In Charge and Lab Operators of enabled equipment still see the Training workspace and attendance.",

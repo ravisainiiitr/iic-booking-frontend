@@ -8,16 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatINRWithPaise } from "@/lib/money";
+import { formatINRAmount, formatINRWithPaise } from "@/lib/money";
 import { reservationConflicts, trainingApi } from "@/lib/trainingApi";
 import type {
   CurtailReasonCode,
-  DemoChargeMode,
   DemoDecisionInput,
+  DemoQuote,
   DemoRequest,
   DemoRevision,
   ReservationConflict,
-  TrainingEquipmentDetail,
   TrainingUserRef,
 } from "@/lib/trainingTypes";
 import { cn } from "@/lib/utils";
@@ -108,32 +107,16 @@ type DecideMode = "approve" | "curtail" | "propose" | "reject";
 
 function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => void }) {
   const [mode, setMode] = useState<DecideMode>("approve");
-  const [equipment, setEquipment] = useState<TrainingEquipmentDetail | null>(null);
   const [duration, setDuration] = useState(String(request.requested_duration_minutes));
   const [participants, setParticipants] = useState(String(request.participants_requested));
   const [reasonCode, setReasonCode] = useState<CurtailReasonCode | "">("");
   const [remarks, setRemarks] = useState("");
-  const [chargeMode, setChargeMode] = useState<DemoChargeMode>(request.purpose === "COURSE" ? "FREE" : "WALLET");
-  const [rate, setRate] = useState(request.rate_per_hour ?? "");
+  const [quote, setQuote] = useState<DemoQuote | null>(null);
+  const [rate, setRate] = useState("");
   const [scheduleNow, setScheduleNow] = useState(false);
   const [startLocal, setStartLocal] = useState("");
   const [busy, setBusy] = useState(false);
   const [conflicts, setConflicts] = useState<ReservationConflict[]>([]);
-
-  const isCourse = request.purpose === "COURSE";
-
-  useEffect(() => {
-    let alive = true;
-    void trainingApi.equipmentDetail(request.equipment.equipment_id).then((res) => {
-      if (!alive || !res.data) return;
-      setEquipment(res.data);
-      setRate((prev) => prev || res.data?.demo_rate_per_hour || "");
-      if (parseRate(res.data.demo_rate_per_hour) <= 0) setChargeMode("FREE");
-    });
-    return () => {
-      alive = false;
-    };
-  }, [request.equipment.equipment_id]);
 
   const durationNum = Number(duration);
   const participantsNum = Number(participants);
@@ -145,6 +128,23 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
     );
   const effectiveDuration = mode === "curtail" ? durationNum : request.requested_duration_minutes;
   const showCharge = mode !== "reject";
+  const needsRate = Boolean(quote?.chargeable && !quote.rate_available);
+
+  useEffect(() => {
+    if (!showCharge || !Number.isInteger(effectiveDuration) || effectiveDuration <= 0) return;
+    let alive = true;
+    const handle = window.setTimeout(() => {
+      void trainingApi
+        .demoQuote(request.equipment.equipment_id, { purpose: request.purpose, minutes: effectiveDuration, request_id: request.id })
+        .then((res) => {
+          if (alive) setQuote(res.data ?? null);
+        });
+    }, 250);
+    return () => {
+      alive = false;
+      window.clearTimeout(handle);
+    };
+  }, [showCharge, effectiveDuration, request.equipment.equipment_id, request.purpose, request.id]);
 
   const validate = (): string | null => {
     if (mode === "curtail") {
@@ -157,7 +157,7 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
     if (mode === "propose" && !fromLocalInputValue(startLocal)) return "Choose the proposed start time.";
     if (mode === "reject" && !remarks.trim()) return "Remarks are required to reject a request.";
     if ((mode === "approve" || mode === "curtail") && scheduleNow && !fromLocalInputValue(startLocal)) return "Choose a start time or untick “Schedule now”.";
-    if (showCharge && !isCourse && chargeMode === "WALLET" && parseRate(rate) <= 0) return "Enter an hourly rate above zero, or choose Free.";
+    if (showCharge && needsRate && parseRate(rate) <= 0) return "Enter the hourly rate to charge.";
     return null;
   };
 
@@ -178,10 +178,7 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
       if (curtailed && reasonCode) input.reason_code = reasonCode;
     }
     if (remarks.trim()) input.remarks = remarks.trim();
-    if (showCharge) {
-      input.charge_mode = isCourse ? "FREE" : chargeMode;
-      if (!isCourse && chargeMode === "WALLET") input.rate_per_hour = String(rate);
-    }
+    if (showCharge && needsRate) input.rate_per_hour = String(rate);
     if (mode === "propose" || ((mode === "approve" || mode === "curtail") && scheduleNow)) {
       input.start_at = fromLocalInputValue(startLocal);
     }
@@ -300,34 +297,42 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
       ) : null}
 
       {showCharge ? (
-        isCourse ? (
-          <p className="text-xs text-muted-foreground">Course / curricular demonstration — free of charge.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1 rounded-md border border-border/70 px-3 py-2 text-sm" data-testid="decide-charge">
+          {!quote ? (
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Working out the charge…
+            </span>
+          ) : !quote.chargeable && quote.rate_available ? (
+            <p className="text-muted-foreground">
+              {request.purpose === "COURSE" && quote.course_demos_free
+                ? "Course / curricular demonstration — free of charge (Training Policy setting)."
+                : "No charge for this demonstration."}
+            </p>
+          ) : needsRate ? (
             <div className="space-y-1">
-              <Label>Charge</Label>
-              <Select value={chargeMode} onValueChange={(v) => setChargeMode(v as DemoChargeMode)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FREE">Free</SelectItem>
-                  <SelectItem value="WALLET">Charge faculty wallet</SelectItem>
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">{quote.basis} Enter the hourly rate to charge the faculty member's wallet.</p>
+              <Label htmlFor="decide-rate">Rate per hour (₹)</Label>
+              <Input id="decide-rate" type="number" min={0} step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="sm:w-48" />
+              <p className="text-xs text-muted-foreground">
+                Estimated {money(estimateCharge(rate, effectiveDuration))} for {formatDuration(effectiveDuration)}
+              </p>
             </div>
-            {chargeMode === "WALLET" ? (
-              <div className="space-y-1">
-                <Label htmlFor="decide-rate">Rate per hour (₹)</Label>
-                <Input id="decide-rate" type="number" min={0} step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} />
-                <p className="text-xs text-muted-foreground">
-                  Estimated {money(estimateCharge(rate, effectiveDuration))}
-                  {equipment ? ` · equipment rate ${money(equipment.demo_rate_per_hour)}/h` : ""}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        )
+          ) : (
+            <p>
+              <span className="font-medium">Charge on approval: {formatINRAmount(quote.amount)}</span>{" "}
+              <span className="text-muted-foreground">
+                (internal IITR rate {formatINRAmount(quote.rate_per_hour)}/h × {formatDuration(effectiveDuration)}), deducted from the faculty
+                member's {quote.wallet_label}.
+              </span>
+            </p>
+          )}
+          {quote?.balance_error ? (
+            <p className="flex items-start gap-1.5 text-xs font-medium text-destructive" role="alert">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              {quote.balance_error} Approval will fail until they recharge.
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {mode === "approve" || mode === "curtail" ? (
@@ -647,7 +652,8 @@ export function DemoRequestDialog({ requestId, open, onOpenChange, onChanged }: 
   const showAttendance = Boolean(perms?.attendance || perms?.complete);
   const chargeText = useMemo(() => {
     if (!request) return "";
-    if (request.purpose === "COURSE" || request.charge_mode === "FREE") return "Free";
+    if (request.charge_text) return request.charge_text;
+    if (request.charge_mode === "FREE") return "Free";
     if (!request.charge_mode) return request.rate_per_hour ? `${money(request.rate_per_hour)}/h (to be confirmed)` : "To be decided by the OIC";
     const parts = [`${money(request.rate_per_hour)}/h`];
     if (request.charge_amount) parts.push(`${request.charged ? "charged" : "estimated"} ${money(request.charge_amount)}`);
@@ -805,7 +811,7 @@ export function DemoRequestDialog({ requestId, open, onOpenChange, onChanged }: 
               open={cancelOpen}
               onOpenChange={setCancelOpen}
               title="Cancel this demonstration?"
-              description="Reserved instrument slots are released. Any wallet charge is refunded according to the equipment's demo refund window."
+              description="Reserved instrument slots are released. Any wallet charge is refunded per the demonstration refund policy: full or half refund depending on how far ahead you cancel (cancellations by IIC are refunded in full)."
               confirmLabel="Cancel demonstration"
               destructive
               onConfirm={async (text) => {

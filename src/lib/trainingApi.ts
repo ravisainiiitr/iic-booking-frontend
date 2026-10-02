@@ -7,6 +7,8 @@ import type {
   CreateDemoRequestInput,
   CreateNominationInput,
   DemoDecisionInput,
+  DemoPurpose,
+  DemoQuote,
   DemoRequest,
   FacultyStudentTrainings,
   MyTrainings,
@@ -25,7 +27,7 @@ import type {
   TrainingBadge,
   TrainingBootstrap,
   TrainingEquipmentDetail,
-  TrainingEquipmentRef,
+  TrainingEquipmentList,
   TrainingEvent,
   TrainingModuleEquipment,
   TrainingModuleState,
@@ -145,8 +147,11 @@ type Results<T> = { results: T[] };
 export const trainingApi = {
   bootstrap: () => get<TrainingBootstrap>("bootstrap/"),
 
-  equipment: (query: { q?: string; managed?: boolean }) => get<Results<TrainingEquipmentRef>>("equipment/", query),
+  equipment: (query: { q?: string; managed?: boolean; department_id?: number | "all" }) =>
+    get<TrainingEquipmentList>("equipment/", query),
   equipmentDetail: (id: number) => get<TrainingEquipmentDetail>(`equipment/${id}/`),
+  demoQuote: (id: number, query: { purpose: DemoPurpose; minutes: number; request_id?: number }) =>
+    get<DemoQuote>(`equipment/${id}/demo-quote/`, query),
   freeWindows: (id: number, query: { date_from: string; date_to?: string; duration: number }) =>
     get<{ windows: TrainingWindow[] }>(`equipment/${id}/free-windows/`, query),
 
@@ -223,7 +228,7 @@ export const trainingApi = {
   policyHistory: () => get<Results<TrainingPolicy>>("policy/history/"),
 
   moduleState: () => get<TrainingModuleState>("admin/module/"),
-  updateModule: (input: { module_enabled?: boolean; audience?: TrainingAudience }) =>
+  updateModule: (input: { module_enabled?: boolean; audience?: TrainingAudience; course_demos_free?: boolean }) =>
     post<TrainingModuleState>("admin/module/", input),
   moduleEquipment: (query: { q?: string; enabled?: boolean }) =>
     get<{ count: number; limit: number; results: TrainingModuleEquipment[] }>("admin/equipment/", query),

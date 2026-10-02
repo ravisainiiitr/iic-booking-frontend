@@ -44,6 +44,8 @@ export interface TrainingModuleState {
   audience: TrainingAudience;
   audience_label: string;
   audience_choices: Array<{ value: TrainingAudience; label: string }>;
+  /** Off (default): course/curricular demonstrations are charged at the internal IITR rate like any other. */
+  course_demos_free?: boolean;
   env_pilot_equipment_codes: string[];
   pilot_oic_count: number;
   all_equipment_in_scope: boolean;
@@ -59,12 +61,46 @@ export interface TrainingEquipmentRef {
   department?: string | null;
 }
 
-export interface TrainingEquipmentDetail extends TrainingEquipmentRef {
-  demo_rate_per_hour: string;
+/** Policy terms shown on the demonstration form (equipment-specific once equipment is chosen). */
+export interface DemoTerms {
   demo_max_minutes: number | null;
   demo_refund_full_days: number | null;
   demo_refund_half_days: number | null;
+  course_demos_free?: boolean;
+  charged_at_internal_rate?: boolean;
+}
+
+export interface TrainingEquipmentDetail extends TrainingEquipmentRef, DemoTerms {
   can_manage: boolean;
+}
+
+export interface TrainingEquipmentDepartment {
+  id: number;
+  name: string;
+  equipment_count: number;
+}
+
+export interface TrainingEquipmentList {
+  results: TrainingEquipmentRef[];
+  departments?: TrainingEquipmentDepartment[];
+  demo_terms?: DemoTerms;
+}
+
+/** Estimated demonstration charge at the equipment's internal IITR rate. */
+export interface DemoQuote {
+  purpose: DemoPurpose;
+  minutes: number;
+  chargeable: boolean;
+  rate_available: boolean;
+  rate_per_hour: string | null;
+  amount: string | null;
+  basis: string;
+  course_demos_free: boolean;
+  wallet_label: string;
+  wallet_balance?: string | null;
+  balance_error: string | null;
+  demo_max_minutes: number | null;
+  over_max: boolean;
 }
 
 export interface TrainingWindow {
@@ -153,6 +189,7 @@ export interface DemoRequest {
   rate_per_hour: string | null;
   charge_amount: string | null;
   charged: boolean;
+  charge_text?: string;
   refund_amount: string | null;
   cancelled_by_side: string | null;
   cancel_reason: string | null;

@@ -14,10 +14,14 @@ type Props = {
   id?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Internal department (Department/Centre) to list equipment from; "all" or unset lists every department. */
+  departmentId?: number | "all";
+  /** Shown when nothing matches (defaults to a generic message). */
+  emptyText?: string;
 };
 
 /** Search-as-you-type equipment picker backed by `training/equipment/`. */
-export function EquipmentPicker({ value, onChange, managed = false, id, placeholder, disabled }: Props) {
+export function EquipmentPicker({ value, onChange, managed = false, id, placeholder, disabled, departmentId, emptyText }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TrainingEquipmentRef[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,14 +33,14 @@ export function EquipmentPicker({ value, onChange, managed = false, id, placehol
     const current = ++seq.current;
     setLoading(true);
     const handle = window.setTimeout(() => {
-      void trainingApi.equipment({ q: query.trim() || undefined, managed }).then((res) => {
+      void trainingApi.equipment({ q: query.trim() || undefined, managed, department_id: departmentId }).then((res) => {
         if (current !== seq.current) return;
         setResults(res.data?.results ?? []);
         setLoading(false);
       });
     }, 250);
     return () => window.clearTimeout(handle);
-  }, [query, managed, value, open]);
+  }, [query, managed, value, open, departmentId]);
 
   if (value) {
     return (
@@ -83,7 +87,7 @@ export function EquipmentPicker({ value, onChange, managed = false, id, placehol
             </p>
           ) : results.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">
-              {managed ? "No equipment you manage matches." : "No matching equipment."}
+              {emptyText ?? (managed ? "No equipment you manage matches." : "No matching equipment.")}
             </p>
           ) : (
             <ul className="divide-y divide-border/60">

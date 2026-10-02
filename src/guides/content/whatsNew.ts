@@ -32,7 +32,7 @@ const CATALOG: CatalogItem[] = [
   { id: "catalog", roles: BOOKERS, theme: "booking", icon: "search", title: "Catalog prices and Book now", benefit: "Equipment cards show a From price and a Book now button; filter by category.", sectionId: "book" },
   { id: "peak-external", roles: ["startup", "external"], when: (f) => f.externalBooking, theme: "booking", icon: "clock", title: "Paused at slot opening", benefit: "External access pauses 8:55–9:15 pm on Wednesdays so IIT Roorkee users can book new slots.", sectionId: "book" },
   { id: "assistant-need-help", roles: BOOKERS, when: (f) => f.assistant, theme: "assistant", icon: "bot", title: "Need help? after a failed booking", benefit: "The Booking Assistant explains what went wrong; rate answers with Was this helpful?", sectionId: "assistant" },
-  { id: "training-faculty", roles: ["faculty"], when: (f) => f.training, theme: "students", icon: "star", title: "Training & Demos", benefit: "Request equipment demonstrations and nominate students for hands-on training.", sectionId: "training" },
+  { id: "training-faculty", roles: ["faculty"], when: (f) => f.training, theme: "students", icon: "star", title: "Training & Demos", benefit: "Request equipment demonstrations by department, charged at internal IITR rates from your wallet, and nominate students for hands-on training.", sectionId: "training" },
   { id: "training-student", roles: ["student"], when: (f) => f.training, theme: "booking", icon: "star", title: "My Trainings", benefit: "Follow your training applications and sessions, and earn Trained badges.", sectionId: "training" },
 
   // Newest: lab and administration
