@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookmarkCheck, CalendarCheck, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, BookmarkCheck, CalendarCheck, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, type BookingTemplate } from "@/lib/api";
+import { fixTemplateUrl, templateHealthBadge } from "@/lib/templateHealth";
+import { cn } from "@/lib/utils";
 import {
   TEMPLATE_OPTION_LABELS,
   bookWithTemplateUrl,
@@ -36,7 +38,7 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await apiClient.listBookingTemplates(equipmentId);
+    const res = await apiClient.listBookingTemplates(equipmentId, { health: true });
     if (res.error) toast.error(res.error);
     setTemplates(res.data?.templates ?? []);
     setLoading(false);
@@ -94,6 +96,7 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
             const updated = formatTemplateUpdated(t.updated_at);
             const inputs = filledInputCount(t.input_values);
             const slots = templateSlotSummary(t);
+            const health = templateHealthBadge(t.health);
             const optionBadges: Array<[string, string]> = [
               ["slots", t.preferred_slot ? shortPreferredSlotLabel(t.preferred_slot) : slots.choice ?? ""],
               ["fallback", slots.fallbackLabel],
@@ -103,11 +106,39 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
               <li key={t.id} className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-base font-semibold">{t.name}</p>
+                    <p className="flex min-w-0 items-center gap-2 text-base font-semibold">
+                      <span className="truncate">{t.name}</span>
+                      {health?.tone === "attention" ? (
+                        <Badge variant="destructive" className="shrink-0 font-normal">
+                          {health.label}
+                        </Badge>
+                      ) : null}
+                    </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {inputs} input{inputs === 1 ? "" : "s"} filled
                       {updated ? ` · Updated ${updated}` : ""}
                     </p>
+                    {health ? (
+                      <p
+                        className={cn(
+                          "mt-1.5 flex items-start gap-1.5 text-xs",
+                          health.tone === "attention" ? "text-destructive" : "text-amber-800 dark:text-amber-300"
+                        )}
+                      >
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span>
+                          {health.issue.message}
+                          {health.count > 1 ? ` (+${health.count - 1} more)` : ""}
+                          <button
+                            type="button"
+                            className="ml-1.5 font-medium underline underline-offset-2 hover:no-underline"
+                            onClick={() => navigate(fixTemplateUrl(t, health.issue))}
+                          >
+                            Fix
+                          </button>
+                        </span>
+                      </p>
+                    ) : null}
                     {optionBadges.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {optionBadges.map(([key, label]) => (

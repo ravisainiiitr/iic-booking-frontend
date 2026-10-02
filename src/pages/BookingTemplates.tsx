@@ -19,7 +19,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient, type BookingTemplate } from "@/lib/api";
+import { apiClient, type BookingTemplate, type TemplateHealthIssue } from "@/lib/api";
+import { fixTemplateUrl, templateHealthBadge } from "@/lib/templateHealth";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { PageHero, PageShell, StandaloneOnly, heroButtonClass } from "@/components/PageShell";
@@ -97,7 +98,7 @@ export default function BookingTemplates() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const res = await apiClient.listBookingTemplates();
+    const res = await apiClient.listBookingTemplates(undefined, { health: true });
     if (res.error || !res.data) {
       setError(res.error || "Could not load your booking templates.");
     } else {
@@ -255,6 +256,7 @@ export default function BookingTemplates() {
       duplicating={duplicatingId === t.id}
       onBook={() => navigate(bookWithTemplateUrl(t))}
       onEdit={() => navigate(editTemplateUrl(t, BOOKING_TEMPLATES_PATH))}
+      onFix={(issue) => navigate(fixTemplateUrl(t, issue, BOOKING_TEMPLATES_PATH))}
       onDuplicate={() => void duplicate(t)}
       onDelete={() => setPendingDelete(t)}
     />
@@ -501,6 +503,7 @@ function TemplateCard({
   duplicating,
   onBook,
   onEdit,
+  onFix,
   onDuplicate,
   onDelete,
 }: {
@@ -509,6 +512,7 @@ function TemplateCard({
   duplicating: boolean;
   onBook: () => void;
   onEdit: () => void;
+  onFix: (issue: TemplateHealthIssue) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
@@ -518,13 +522,19 @@ function TemplateCard({
   const options = TEMPLATE_OPTION_LABELS.filter(([key]) => t.options?.[key] === true);
   const blocked = t.bookable === false;
   const slots = templateSlotSummary(t);
+  const health = blocked ? null : templateHealthBadge(t.health);
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-border/80 bg-card shadow-sm transition-shadow hover:shadow-md dark:hover:border-primary/40">
       <div className="flex items-start justify-between gap-2 px-4 pt-4">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold tracking-tight" title={t.name}>
-            {t.name}
+          <h3 className="flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight" title={t.name}>
+            <span className="truncate">{t.name}</span>
+            {health?.tone === "attention" ? (
+              <Badge variant="destructive" className="shrink-0 font-normal">
+                {health.label}
+              </Badge>
+            ) : null}
           </h3>
           {showEquipment ? (
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -611,6 +621,32 @@ function TemplateCard({
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             {t.booking_block_reason || "You cannot book this equipment right now."}
           </p>
+        ) : null}
+        {health ? (
+          <div
+            className={cn(
+              "flex items-start justify-between gap-2 rounded-lg border px-3 py-2 text-xs",
+              health.tone === "attention"
+                ? "border-destructive/40 bg-destructive/5 text-destructive"
+                : "border-amber-300/70 bg-amber-50/70 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+            )}
+          >
+            <p className="flex min-w-0 items-start gap-1.5">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                {health.issue.message}
+                {health.count > 1 ? ` (+${health.count - 1} more)` : ""}
+              </span>
+            </p>
+            <Button
+              size="sm"
+              variant={health.tone === "attention" ? "destructive" : "outline"}
+              className="h-7 shrink-0 px-2.5 text-xs"
+              onClick={() => onFix(health.issue)}
+            >
+              Fix
+            </Button>
+          </div>
         ) : null}
       </div>
 

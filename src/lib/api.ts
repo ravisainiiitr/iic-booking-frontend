@@ -500,8 +500,55 @@ export interface BookingTemplate {
   preferred_slot?: TemplatePreferredSlot | null;
   if_slot_taken?: TemplateIfSlotTaken;
   if_slot_taken_consented_at?: string | null;
+  /** Whether the template would book cleanly now (detail responses; lists with ?health=1). */
+  health?: TemplateHealth;
   created_at: string | null;
   updated_at: string | null;
+}
+
+export type TemplateHealthSeverity = "error" | "warning" | "info";
+
+/** One finding of the server's template check; numeric limits carry ``limit`` and ``fix: "clamp"``. */
+export interface TemplateHealthIssue {
+  code: string;
+  severity: TemplateHealthSeverity;
+  message: string;
+  field?: string | null;
+  /** Sample set number (1 = the main inputs). */
+  set?: number | null;
+  label?: string;
+  limit?: number;
+  value?: number;
+  fix?: "clamp";
+}
+
+export interface TemplateHealth {
+  status: "ok" | "advice" | "needs_attention" | "unknown";
+  issues: TemplateHealthIssue[];
+  error_count: number;
+  fixable_error_count: number;
+  warning_count: number;
+  analysis_minutes?: number | null;
+  required_slots?: number | null;
+  booked_minutes?: number | null;
+  estimated_charge?: string | null;
+  /** Only the input checks ran (while new slots open). */
+  light?: boolean;
+}
+
+export interface BookingTemplateAttention {
+  total: number;
+  needs_attention: number;
+  templates: Array<{
+    id: number;
+    name: string;
+    equipment: number;
+    equipment_name: string | null;
+    equipment_code: string | null;
+    issue: string;
+    field: string | null;
+    error_count: number;
+  }>;
 }
 
 export interface BookingTemplateWriteBody {
@@ -6326,9 +6373,27 @@ class ApiClient {
     }>(`/server-time/`, { cache: "no-store" });
   }
 
-  async listBookingTemplates(equipmentId?: number) {
-    const q = equipmentId != null ? `?equipment=${encodeURIComponent(String(equipmentId))}` : "";
+  async listBookingTemplates(equipmentId?: number, opts?: { health?: boolean }) {
+    const params = new URLSearchParams();
+    if (equipmentId != null) params.set("equipment", String(equipmentId));
+    if (opts?.health) params.set("health", "1");
+    const q = params.toString() ? `?${params.toString()}` : "";
     return this.request<{ templates: BookingTemplate[] }>(`/booking-templates/${q}`, { cache: "no-store" });
+  }
+
+  /** Advice for a template being created or edited; nothing is saved. */
+  async checkBookingTemplate(body: {
+    equipment: number;
+    input_values: Record<string, unknown>;
+    options?: BookingTemplateOptions;
+    preferred_slot?: Omit<TemplatePreferredSlot, "weekday_name"> | null;
+  }) {
+    return this.request<TemplateHealth>(`/booking-templates/check/`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /** How many of the user's templates would fail at booking time for a reason they can fix. */
+  async getBookingTemplateAttention() {
+    return this.request<BookingTemplateAttention>(`/booking-templates/attention/`, { cache: "no-store" });
   }
 
   async getBookingTemplate(templateId: number) {

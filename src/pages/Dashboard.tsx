@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
+import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -3611,6 +3612,7 @@ const Dashboard = () => {
         )}
         {/* The administration overview lists these under "Needs attention". */}
         {showAdminOverview ? null : <PendingActionsSummary className="mb-4" />}
+        {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
         {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div

@@ -13,11 +13,14 @@ import {
   type TemplateIfSlotTaken,
   type TemplatePreferredSlotResolution,
   type TemplateSlotAlternative,
+  type TemplateHealth,
   type TemplateSlotFallback,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
 import { TemplateSlotSettings } from "@/components/booking-templates/TemplateSlotSettings";
+import { TemplateHealthAdvice, focusTemplateField } from "@/components/booking-templates/TemplateHealthAdvice";
+import { clampTemplateValues, templateApplyNotice, templateHealthBadge } from "@/lib/templateHealth";
 import { BookingAttemptFollowUp, type BookingAttemptSnapshot } from "@/components/BookingAttemptFollowUp";
 import {
   draftFromTemplate,
@@ -3455,6 +3458,9 @@ const BookEquipment = () => {
   const [preferredSlotChosen, setPreferredSlotChosen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  /** Template flow: the server's advice for the details being edited (what would fail or change at booking). */
+  const [templateHealth, setTemplateHealth] = useState<TemplateHealth | null>(null);
+  const [checkingTemplateHealth, setCheckingTemplateHealth] = useState(false);
   const templatePickerAvailable =
     !isCalculateChargesFlow && !isProformaFlow && !isTemplateFlow && !repeatSourceBooking && userId != null;
   const appliedTemplateOptionsRef = useRef<BookingTemplateOptions | null>(null);
@@ -3494,7 +3500,7 @@ const BookEquipment = () => {
       return;
     }
     let cancelled = false;
-    apiClient.listBookingTemplates(eqId).then((res) => {
+    apiClient.listBookingTemplates(eqId, { health: true }).then((res) => {
       if (!cancelled) setBookingTemplates(res.data?.templates ?? []);
     });
     return () => {
@@ -3503,11 +3509,13 @@ const BookEquipment = () => {
   }, [templatePickerAvailable, equipmentDetail?.equipment_id]);
 
   const applyBookingTemplate = useCallback(
-    (template: BookingTemplate, opts?: { resolvePreferredSlot?: boolean }) => {
+    (template: BookingTemplate, opts?: { resolvePreferredSlot?: boolean }): { dropped: string[]; notified: boolean } => {
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
       const templateFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
+      const health = isTemplateFlow ? null : template.health ?? null;
+      const { values: templateValues, adjusted } = clampTemplateValues(template.input_values || {}, health?.issues);
       const { carried, dropped } = sanitizeRebookInputValues(
-        withoutSampleSets(template.input_values || {}),
+        withoutSampleSets(templateValues),
         templateFields,
         isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
       );
@@ -3518,17 +3526,12 @@ const BookEquipment = () => {
       });
       const templateSets = isPrint3d
         ? []
-        : readSampleSets(template.input_values || {})
+        : readSampleSets(templateValues)
             .map((s) => sanitizeRebookInputValues(s, templateFields).carried as SampleSetValues)
             .filter((s) => Object.keys(s).length > 0);
       const dropTemplateSets =
         equipmentDetail?.allow_multiple_sample_sets === false && !isTemplateFlow && templateSets.length > 0;
       setSampleSets(dropTemplateSets ? [] : templateSets);
-      if (dropTemplateSets) {
-        toast.info(
-          `Only sample set 1 of "${template.name}" was loaded: this equipment no longer accepts samples with different parameters.`
-        );
-      }
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
@@ -3570,12 +3573,16 @@ const BookEquipment = () => {
       } else {
         setPreferredResolveRequest(null);
       }
-      if (dropped.length > 0) {
-        toast.info(
-          `Some inputs in "${template.name}" no longer match this equipment's current options and were reset: ${dropped.join(", ")}.`
-        );
+      const notice = templateApplyNotice(template.name, {
+        adjusted: dropTemplateSets ? adjusted.filter((a) => a.set === 1) : adjusted,
+        dropped,
+        setsDropped: dropTemplateSets,
+        health,
+      });
+      if (notice) {
+        (notice.tone === "warning" ? toast.warning : toast.info)(notice.message, { duration: 12000 });
       }
-      return dropped;
+      return { dropped, notified: !!notice };
     },
     [equipmentDetail, researchWorkspaceFromUrl, isTemplateFlow]
   );
@@ -3700,8 +3707,9 @@ const BookEquipment = () => {
     }
     const template = bookingTemplates.find((t) => String(t.id) === templateId);
     if (!template) return;
-    applyBookingTemplate(template);
-    toast.success(`Template "${template.name}" applied. Charges are recalculated; choose your slots.`);
+    if (!applyBookingTemplate(template).notified) {
+      toast.success(`Template "${template.name}" applied. Charges are recalculated; choose your slots.`);
+    }
   };
 
   // On landing, fill the form from the first template in the list (sorted by name), unless the URL
@@ -3716,8 +3724,9 @@ const BookEquipment = () => {
     const first = bookingTemplates.find((t) => Number(t.equipment) === Number(eqId));
     if (!first) return;
     autoAppliedTemplateEqRef.current = eqId;
-    applyBookingTemplate(first);
-    toast.success(`Template "${first.name}" applied automatically. Pick another from the list if needed, then choose your slots.`);
+    if (!applyBookingTemplate(first).notified) {
+      toast.success(`Template "${first.name}" applied automatically. Pick another from the list if needed, then choose your slots.`);
+    }
   }, [
     bookingTemplates,
     equipmentDetail?.equipment_id,
@@ -3752,10 +3761,11 @@ const BookEquipment = () => {
         toast.error("This booking template belongs to another equipment.");
         return;
       }
-      applyBookingTemplate(res.data);
+      const { notified } = applyBookingTemplate(res.data);
       if (isTemplateFlow) {
         setTemplateName(res.data.name);
-      } else {
+        if (res.data.health) setTemplateHealth(res.data.health);
+      } else if (!notified) {
         toast.success(`Template "${res.data.name}" applied. Charges are recalculated; choose your slots.`);
       }
     })();
@@ -3807,12 +3817,68 @@ const BookEquipment = () => {
         toast.error(res.error || "Could not save the template.");
         return;
       }
-      toast.success(`Template "${res.data.name}" saved. Choose it on the booking page to fill these details.`);
+      const saved = templateHealthBadge(res.data.health);
+      if (saved?.tone === "attention") {
+        toast.warning(`Template "${res.data.name}" saved, but it needs attention before booking: ${saved.issue.message}`, {
+          duration: 10000,
+        });
+      } else {
+        toast.success(`Template "${res.data.name}" saved. Choose it on the booking page to fill these details.`);
+      }
       navigate(templateReturnTo ?? `/equipment/${eqId}?panel=booking_templates`);
     } finally {
       setSavingTemplate(false);
     }
   };
+
+  // Template flow: re-check the details against the equipment's current limits a moment after each change.
+  const templateCheckBody = useMemo(() => {
+    const eqId = equipmentDetail?.equipment_id;
+    if (!isTemplateFlow || eqId == null) return null;
+    return JSON.stringify({
+      equipment: eqId,
+      input_values: withSampleSets({ ...inputFieldValues }, sampleSets),
+      options: { atmosphere_sensitive_sample: atmosphereSensitiveSample, research_workspace: researchWorkspaceId },
+      preferred_slot: draftToBody(preferredSlotDraft).preferred_slot ?? null,
+    });
+  }, [
+    isTemplateFlow,
+    equipmentDetail?.equipment_id,
+    inputFieldValues,
+    sampleSets,
+    atmosphereSensitiveSample,
+    researchWorkspaceId,
+    preferredSlotDraft,
+  ]);
+  useEffect(() => {
+    if (!templateCheckBody) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setCheckingTemplateHealth(true);
+      apiClient
+        .checkBookingTemplate(JSON.parse(templateCheckBody))
+        .then((res) => {
+          if (!cancelled && res.data) setTemplateHealth(res.data);
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingTemplateHealth(false);
+        });
+    }, 800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [templateCheckBody]);
+
+  // Template flow opened from "Fix": go to the input the problem is about once the template is loaded.
+  const fixFieldParam = isTemplateFlow ? searchParams.get("fix") : null;
+  const fixFocusedRef = useRef(false);
+  useEffect(() => {
+    if (!fixFieldParam || fixFocusedRef.current || !templateName || !equipmentDetail) return;
+    fixFocusedRef.current = true;
+    const set = templateHealth?.issues.find((i) => i.field === fixFieldParam)?.set ?? null;
+    window.setTimeout(() => focusTemplateField(fixFieldParam, set), 400);
+  }, [fixFieldParam, templateName, equipmentDetail, templateHealth]);
 
   useEffect(() => {
     if (!isCalculateChargesFlow || !equipmentDetail) return;
@@ -8818,6 +8884,9 @@ const BookEquipment = () => {
                 </div>
               </CardHeader>
               <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
+                {isTemplateFlow && equipmentDetail ? (
+                  <TemplateHealthAdvice health={templateHealth} checking={checkingTemplateHealth} />
+                ) : null}
                 {/* Accessory availability — informational, before booking steps */}
                 {equipmentDetail &&
                   !isProformaFlow &&
@@ -11250,7 +11319,7 @@ const BookEquipment = () => {
                 )}
 
                 {isTemplateFlow && equipmentDetail && (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 space-y-3" data-template-section="preferred-slot">
                     <TemplateSlotSettings
                       autoSlotSelection={autoSlotSelection}
                       onAutoSlotSelectionChange={setAutoSlotSelection}
