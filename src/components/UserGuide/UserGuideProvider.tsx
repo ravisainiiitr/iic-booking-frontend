@@ -14,7 +14,7 @@ import { resolveGuideAudienceForUser, shouldAutoShowUserGuide, type GuideUserLik
 import type { GuideAudienceId, UserGuideContent } from "@/guides/types";
 import UserGuideDialog from "@/components/UserGuide/UserGuideDialog";
 import { loadGuideFlags } from "@/components/UserGuide/guideFlags";
-import { formatUserDisplayName } from "@/lib/displayName";
+import { formatPersonName } from "@/lib/displayName";
 import {
   hasUserGuideAutoShownThisLogin,
   markUserGuideAutoShownThisLogin,
@@ -168,7 +168,8 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
         }}
         guide={guide}
         loading={hasGuide && !guide}
-        userName={formatUserDisplayName(user)}
+        userName={formatPersonName(user)}
+        userEmail={user?.email}
       />
     </UserGuideContext.Provider>
   );

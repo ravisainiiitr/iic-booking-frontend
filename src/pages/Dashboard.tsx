@@ -39,7 +39,7 @@ import DashboardWorkspace from "@/components/DashboardWorkspace";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import DepartmentBrochureDialog from "@/components/DepartmentBrochureDialog";
-import { formatUserDisplayName } from "@/lib/displayName";
+import { formatUserDisplayName, formatWelcomeGreeting } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
 import {
@@ -557,7 +557,7 @@ const Dashboard = () => {
 
     const displayName = formatUserDisplayName(user);
     if (userTypeLower === "faculty") {
-      toast.success(`Welcome, ${displayName}.`, {
+      toast.success(formatWelcomeGreeting(displayName), {
         description: "You are signed in to the Institute Equipment Booking Portal. Please review your dashboard for booking updates and pending actions.",
       });
     } else {

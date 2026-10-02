@@ -11,7 +11,7 @@ import {
 } from "@/components/UserGuide/GuideContent";
 import { openPrintableGuide, sectionMatches, WHATS_NEW_ID } from "@/components/UserGuide/guideUtils";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatUserDisplayName } from "@/lib/displayName";
+import { formatPersonName, formatWelcomeGreeting } from "@/lib/displayName";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +53,7 @@ export default function UserGuidePage() {
     );
   }
 
-  const firstName = (formatUserDisplayName(user) || "").trim().split(/\s+/)[0];
+  const greeting = formatWelcomeGreeting(formatPersonName(user));
   const sections = guide.sections.filter((s) => sectionMatches(s, query));
 
   return shell(
@@ -71,7 +71,7 @@ export default function UserGuidePage() {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {firstName ? `Welcome, ${firstName}. ` : ""}
+              {`${greeting} `}
               {guide.welcomeBody}
             </p>
           </div>

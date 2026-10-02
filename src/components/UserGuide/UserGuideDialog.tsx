@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { formatSignedInAs, formatWelcomeGreeting } from "@/lib/displayName";
 import type { UserGuideContent } from "@/guides/types";
 import { BookOpen, ChevronLeft, ChevronRight, Copy, Download, Maximize2, Minus, Search, X } from "lucide-react";
 import { GuideChapterSelect, GuideSectionBody, GuideSectionHeader, GuideToc, WhatsNewView } from "./GuideContent";
@@ -14,7 +15,10 @@ interface UserGuideDialogProps {
   guide: UserGuideContent | null;
   /** The role has a guide but its content is still downloading. */
   loading?: boolean;
+  /** Formatted person name (e.g. "Prof. Ravi Saini"); empty when unknown. */
   userName?: string | null;
+  /** Shown in the header when no name is known. */
+  userEmail?: string | null;
 }
 
 type WindowMode = "normal" | "minimized" | "maximized";
@@ -29,7 +33,7 @@ function defaultPosition() {
   return { x, y };
 }
 
-export default function UserGuideDialog({ open, onOpenChange, guide, loading = false, userName }: UserGuideDialogProps) {
+export default function UserGuideDialog({ open, onOpenChange, guide, loading = false, userName, userEmail }: UserGuideDialogProps) {
   const [activeId, setActiveId] = useState(WHATS_NEW_ID);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<WindowMode>("normal");
@@ -101,7 +105,7 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
     setMode("maximized");
   };
 
-  const firstName = (userName || "").trim().split(/\s+/)[0];
+  const signedInAs = formatSignedInAs(userName, userEmail);
 
   const windowControls = (
     <div className="flex shrink-0 items-center gap-0.5">
@@ -194,7 +198,7 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
                   {mode !== "minimized" && guide ? (
                     <DialogPrimitive.Description className="truncate text-xs text-primary-foreground/85">
                       {guide.audienceLabel}
-                      {firstName ? ` · Signed in as ${firstName}` : ""}
+                      {signedInAs ? ` · ${signedInAs}` : ""}
                     </DialogPrimitive.Description>
                   ) : (
                     <DialogPrimitive.Description className="sr-only">User guide window</DialogPrimitive.Description>
@@ -257,7 +261,7 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
                         <GuideSectionBody section={section} large={mode === "maximized"} />
                       </>
                     ) : (
-                      <WhatsNewView guide={guide} onNavigate={go} greeting={firstName ? `Welcome, ${firstName}.` : undefined} />
+                      <WhatsNewView guide={guide} onNavigate={go} greeting={formatWelcomeGreeting(userName)} />
                     )}
                   </div>
                 </div>
