@@ -6,8 +6,17 @@ export function classifyBookingFailure(message: string | null | undefined, extra
   if (extra?.waitlist_full) return "waitlist_full";
   const m = String(message || "").toLowerCase();
   if (!m) return "other";
-  if (m.includes("access to any wallet") || m.includes("link your supervisor") || m.includes("join request")) return "no_wallet";
-  if (m.includes("insufficient") || m.includes("recharge") || m.includes("wallet balance")) return "insufficient_funds";
+  if (
+    m.includes("access to any wallet") ||
+    m.includes("link your supervisor") ||
+    m.includes("join request") ||
+    (m.includes("wallet") && m.includes("not linked"))
+  ) {
+    return "no_wallet";
+  }
+  if (m.includes("insufficient") || m.includes("enough balance") || m.includes("recharge") || m.includes("wallet balance")) {
+    return "insufficient_funds";
+  }
   if (m.includes("quota") || m.includes("limit exceeded") || m.includes("weekly limit") || m.includes("monthly limit")) return "quota";
   if (
     m.includes("not available") ||
@@ -55,6 +64,6 @@ export function partitionSelectionAfterRefresh<S extends SlotRef, F extends Fres
 export function droppedSlotsNotice(count: number): string {
   if (count <= 0) return "";
   return count === 1
-    ? "1 of your selected slots was taken by someone else and has been removed (marked in the grid). Your details are kept — pick another slot and confirm again."
-    : `${count} of your selected slots were taken by someone else and have been removed (marked in the grid). Your details are kept — pick other slots and confirm again.`;
+    ? "1 of your selected slots was taken by someone else and has been removed (marked in the grid)."
+    : `${count} of your selected slots were taken by someone else and have been removed (marked in the grid).`;
 }

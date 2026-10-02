@@ -5,12 +5,7 @@ import { describe, expect, it } from "vitest";
 const SRC = join(__dirname, "..");
 
 /** Files owned by other workstreams that still have unlabelled icon buttons. */
-const PENDING_FILES = new Set([
-  "components/BookingUserInputs.tsx",
-  "components/SampleSetsEditor.tsx",
-  "pages/BookEquipment.tsx",
-  "pages/Wallet.tsx",
-]);
+const PENDING_FILES = new Set<string>([]);
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

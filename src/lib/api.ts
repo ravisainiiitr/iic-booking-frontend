@@ -1725,6 +1725,10 @@ class ApiClient {
               field === 'error' ||
               field === 'slot_taken' ||
               field === 'slot_alternatives' ||
+              field === 'waitlist_position' ||
+              field === 'waitlist_code' ||
+              field === 'waitlist_full' ||
+              field === 'virtual_booking_id' ||
               (field === 'message' && !data.email_verified)
             ) {
               continue;

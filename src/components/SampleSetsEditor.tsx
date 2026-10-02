@@ -269,6 +269,7 @@ export default function SampleSetsEditor({
                         ) : (
                           <Input
                             className="h-8 text-sm"
+                            aria-label={`${columns[ci] || `Column ${ci + 1}`}, row ${ri + 1}`}
                             value={row[ci] ?? ""}
                             disabled={disabled}
                             onChange={(e) => setCell(ri, ci, e.target.value)}
@@ -285,6 +286,7 @@ export default function SampleSetsEditor({
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                           disabled={disabled}
                           title="Delete row"
+                          aria-label={`Delete row ${ri + 1}`}
                           onClick={() => {
                             const next = rows.filter((_, i) => i !== ri);
                             setRows(hasSerialColumn ? syncTableRowsToCount(next, next.length, columns.length, true) : next);

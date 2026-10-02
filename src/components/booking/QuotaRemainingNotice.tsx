@@ -3,13 +3,14 @@ import { Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  summary: string;
+  summary?: string | null;
   /** Set when this booking needs more time than is left; slot picking is then stopped. */
   blockReason?: string | null;
   className?: string;
 };
 
 export function QuotaRemainingNotice({ summary, blockReason, className }: Props) {
+  if (!summary && !blockReason) return null;
   return (
     <div
       role={blockReason ? "alert" : "status"}
@@ -24,8 +25,8 @@ export function QuotaRemainingNotice({ summary, blockReason, className }: Props)
     >
       <Gauge className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       <div>
-        <p>{summary}</p>
-        {blockReason && <p className="mt-0.5 font-medium">{blockReason}</p>}
+        {summary && <p>{summary}</p>}
+        {blockReason && <p className={cn("font-medium", summary && "mt-0.5")}>{blockReason}</p>}
       </div>
     </div>
   );

@@ -6,10 +6,12 @@ type Props = {
   pending: boolean;
   supervisorName?: string | null;
   onLink: () => void;
+  /** Opens the "Invite your supervisor" email form (for supervisors who have never signed in). */
+  onInvite?: () => void;
 };
 
 /** Shown at the top of the booking page to students who have no supervisor wallet linked yet. */
-export function WalletLinkBanner({ pending, supervisorName, onLink }: Props) {
+export function WalletLinkBanner({ pending, supervisorName, onLink, onInvite }: Props) {
   if (pending) {
     return (
       <div
@@ -46,13 +48,20 @@ export function WalletLinkBanner({ pending, supervisorName, onLink }: Props) {
           <p className="font-semibold">Link your supervisor's wallet to book</p>
           <p className="text-amber-900/80 dark:text-amber-100/80">
             Bookings are paid from your supervisor's wallet. Send them a link request; once they approve it, come back here —
-            your form is saved.
+            your form is saved. Supervisor not on the portal yet? Invite them by email.
           </p>
         </div>
       </div>
-      <Button type="button" size="sm" className="shrink-0" onClick={onLink}>
-        Link supervisor's wallet
-      </Button>
+      <div className="flex shrink-0 flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={onLink}>
+          Link supervisor's wallet
+        </Button>
+        {onInvite && (
+          <Button type="button" size="sm" variant="outline" onClick={onInvite}>
+            Invite your supervisor
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

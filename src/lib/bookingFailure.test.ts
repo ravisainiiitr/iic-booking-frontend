@@ -10,6 +10,7 @@ describe("classifyBookingFailure", () => {
     expect(classifyBookingFailure("Booking unsuccessful. All slots are occupied.")).toBe("slot_taken");
     expect(classifyBookingFailure("Weekly quota exceeded for XPS")).toBe("quota");
     expect(classifyBookingFailure("Insufficient wallet balance")).toBe("insufficient_funds");
+    expect(classifyBookingFailure("Your wallet does not have enough balance for this booking.")).toBe("insufficient_funds");
     expect(classifyBookingFailure("Anything", { waitlist_full: true })).toBe("waitlist_full");
     expect(classifyBookingFailure("Something odd")).toBe("other");
   });
@@ -43,5 +44,6 @@ describe("keeping the form after a failed booking", () => {
     expect(droppedSlotsNotice(0)).toBe("");
     expect(droppedSlotsNotice(1)).toMatch(/^1 of your selected slots was taken/);
     expect(droppedSlotsNotice(2)).toMatch(/^2 of your selected slots were taken/);
+    expect(droppedSlotsNotice(1)).not.toMatch(/details are kept/i);
   });
 });

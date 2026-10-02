@@ -28,7 +28,7 @@ import {
 } from "@/lib/templatePreferredSlot";
 import { buildWeeklySlotRows, preferredSlotDraftProblem, slotsRequiredForMinutes } from "@/lib/weeklySlotTemplate";
 import { useShowServerClockInHeader } from "@/lib/serverClockHeader";
-import { offerAssistantHelpForError } from "@/lib/assistantHelp";
+import { offerAssistantHelp } from "@/lib/assistantHelp";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
@@ -181,7 +181,7 @@ import {
   saveBookingDraft,
   type BookingDraft,
 } from "@/lib/bookingDraft";
-import { droppedSlotsNotice, partitionSelectionAfterRefresh } from "@/lib/bookingFailure";
+import { classifyBookingFailure, droppedSlotsNotice, partitionSelectionAfterRefresh } from "@/lib/bookingFailure";
 import { bookingWalletStatus, formatRupees, insufficientFundsMessage, type EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import { saveReturnToBooking } from "@/lib/rechargeReturn";
 import { focusBookingField, missingRequiredFields } from "@/lib/missingFieldsHint";
@@ -1679,12 +1679,12 @@ const BookEquipment = () => {
     navigate(`/wallet?${params.toString()}`);
   };
 
-  const goToWalletLink = () => {
+  const goToWalletLink = (opts?: { invite?: boolean }) => {
     const path = bookingReturnPath();
     if (path) {
       saveReturnToBooking({ path, equipmentName: equipmentDetail?.name || selectedEquipment?.name || null, reason: "wallet_link" });
     }
-    navigate("/wallet");
+    navigate(opts?.invite ? "/wallet#invite-supervisor" : "/wallet");
   };
   const repeatBookableFromMs = useMemo(() => {
     const iso = repeatSourceBooking?.bookable_from;
@@ -3762,6 +3762,22 @@ const BookEquipment = () => {
     if (repeatSourceBooking) {
       return;
     }
+    const offerChargeErrorHelp = (message: string, fieldLabels?: string[]) => {
+      const missing =
+        fieldLabels ??
+        missingRequiredFields(
+          equipmentDetail.input_fields as Array<{ field_key?: string; field_label?: string; is_required?: boolean }> | undefined,
+          inputFieldValues,
+          calculateHiddenFieldKeys,
+        ).map((f) => f.label);
+      offerAssistantHelp({
+        code: "charge_error",
+        equipmentId: Number(selectedEquipment.id),
+        equipmentName: selectedEquipment.name,
+        message,
+        missingFields: missing,
+      });
+    };
 
     if (isCalculateChargesFlow && !chargeEstimateUserType) {
       return;
@@ -3886,7 +3902,7 @@ const BookEquipment = () => {
         if (isAdminOrOIC() || isCalculateChargesFlow) {
           toast.error(response.error);
         }
-        offerAssistantHelpForError(`Charge calculation failed: ${response.error}`, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
+        offerChargeErrorHelp(`Charge calculation failed: ${response.error}`);
         return;
       }
 
@@ -3905,6 +3921,7 @@ const BookEquipment = () => {
           const labels = abFields.map((f: any) => f.field_label || f.field_key).join(' and ');
           toast.error(`"${labels}" must be at least 1. Please update Step 1 and recalculate charge.`);
           setChargeErrorRaw({ message: `"${labels}" must be at least 1. Please update Step 1.`, network: false });
+          offerChargeErrorHelp(`Charge calculation failed: "${labels}" must be at least 1.`, abFields.map((f: any) => String(f.field_label || f.field_key)));
           setChargeCalculationFailed(true);
           setChargeCalculated(false);
           setCalculatedCharge(null);
@@ -3949,7 +3966,7 @@ const BookEquipment = () => {
       setShowSlots(false);
       // Store the hash even on failure to prevent retrying with same values
       lastCalculatedValuesRef.current = currentValuesHash;
-      offerAssistantHelpForError("Charge calculation failed", { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
+      offerChargeErrorHelp("Charge calculation failed");
       setChargeErrorRaw({ message: String(error?.message || ""), network: error instanceof TypeError });
     } finally {
       if (requestSeq === chargeRequestSeqRef.current) {
@@ -6339,15 +6356,29 @@ const BookEquipment = () => {
       return;
     }
     const raw = String(errRes.error || "Booking unsuccessful.");
-    if (selectedEquipment) {
-      offerAssistantHelpForError(raw, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
-    }
     const message = errRes.waitlist_full ? `${raw} ${WAITLIST_FULL_MESSAGE}` : raw;
+    const firstSlotDate = selectedSlots[0]?.date ? format(selectedSlots[0].date, "yyyy-MM-dd") : null;
     let dropped = 0;
     try {
       dropped = await keepFormAfterFailedBooking();
     } catch {
       dropped = 0;
+    }
+    if (selectedEquipment) {
+      let code: string = classifyBookingFailure(raw, { waitlist_full: errRes.waitlist_full });
+      if (code === "other") {
+        if (dropped > 0) code = "slot_taken";
+        else if (walletLinkRequired) code = "no_wallet";
+        else if (walletStatus.kind === "insufficient") code = "insufficient_funds";
+        else if (quotaBlock) code = "quota";
+      }
+      offerAssistantHelp({
+        code,
+        equipmentId: Number(selectedEquipment.id),
+        equipmentName: selectedEquipment.name,
+        message: raw,
+        date: firstSlotDate,
+      });
     }
     setBookingResultDialog({
       open: true,
@@ -7215,7 +7246,8 @@ const BookEquipment = () => {
                     <WalletLinkBanner
                       pending={walletStatus.kind === "link_pending"}
                       supervisorName={walletStatus.kind === "link_pending" ? walletStatus.supervisorName : null}
-                      onLink={goToWalletLink}
+                      onLink={() => goToWalletLink()}
+                      onInvite={() => goToWalletLink({ invite: true })}
                     />
                   </div>
                 )}
@@ -8105,7 +8137,7 @@ const BookEquipment = () => {
                                     setNewSlotStatus(v);
                                   }}
                                 >
-                                  <SelectTrigger className="h-9 w-full text-sm font-medium sm:w-[260px] md:w-[280px]">
+                                  <SelectTrigger aria-label="Slot operation" className="h-9 w-full text-sm font-medium sm:w-[260px] md:w-[280px]">
                                     <SelectValue placeholder="Select operation" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -8155,6 +8187,7 @@ const BookEquipment = () => {
                                 )}
                                 {newSlotStatus === "BLOCKED" && (
                                   <Input
+                                    aria-label="Other Reasons label (optional)"
                                     placeholder="Other Reasons label (optional)"
                                     value={blockedLabelForStatus}
                                     onChange={(e) => setBlockedLabelForStatus(e.target.value)}
@@ -8771,7 +8804,7 @@ const BookEquipment = () => {
                       <div>
                         <Label className="text-sm font-medium">User type</Label>
                         <Select value={adminUserTypeFilter} onValueChange={setAdminUserTypeFilter}>
-                          <SelectTrigger className="mt-2 max-w-xs">
+                          <SelectTrigger aria-label="User type" className="mt-2 max-w-xs">
                             <SelectValue placeholder="All types" />
                           </SelectTrigger>
                           <SelectContent>
@@ -9617,6 +9650,7 @@ const BookEquipment = () => {
                                                     ) : (
                                                       <Input
                                                         className="h-8 text-sm"
+                                                        aria-label={`${columns[ci] || `Column ${ci + 1}`}, row ${ri + 1}`}
                                                         value={row[ci] ?? ''}
                                                         onChange={(e) => setCell(ri, ci, e.target.value)}
                                                         placeholder=""
@@ -9634,6 +9668,7 @@ const BookEquipment = () => {
                                                       className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                                       onClick={() => deleteRow(ri)}
                                                       title="Delete row"
+                                                      aria-label={`Delete row ${ri + 1}`}
                                                       disabled={!!repeatSourceBooking}
                                                     >
                                                       <Trash2 className="h-4 w-4" />
@@ -9962,6 +9997,7 @@ const BookEquipment = () => {
                           </p>
                           <div className="flex items-center gap-2">
                             <Input
+                              aria-label="Reward points to redeem"
                               type="number"
                               min="0"
                               step="1"
@@ -10083,8 +10119,8 @@ const BookEquipment = () => {
                       )}
                     </div>
 
-                {quotaBlock && quotaSummary && (
-                  <QuotaRemainingNotice summary={quotaSummary} blockReason={quotaBlock} className="mb-2" />
+                {quotaBlock && (
+                  <QuotaRemainingNotice blockReason={quotaBlock} className="mb-2" />
                 )}
                 {takenSlotIds.size > 0 && (
                   <p className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100" role="status">
@@ -10139,7 +10175,7 @@ const BookEquipment = () => {
                 )}
 
                 {/* Week Navigation */}
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -10149,7 +10185,7 @@ const BookEquipment = () => {
                     <ChevronLeft className="h-4 w-4 mr-2" />
                     Previous Week
                   </Button>
-                  <div className="text-center">
+                  <div className="text-center order-first basis-full min-w-0 sm:order-none sm:basis-auto sm:flex-1">
                     <span className="font-semibold">
                       {format(currentWeekStart, "MMM dd")} - {format(addDays(currentWeekStart, 6), "MMM dd, yyyy")}
                     </span>
@@ -10697,6 +10733,11 @@ const BookEquipment = () => {
                             cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                           }
 
+                          const overQuotaCell = displayStatus === "Over your quota" && !isSelected;
+                          if (overQuotaCell) {
+                            cellStyle = { backgroundColor: "#e2e8f0", color: "#334155" };
+                          }
+
                           if (externalCalendarDayOverlay) {
                             displayStatus = holidayName
                               ? holidayCellLabel(holidayName)
@@ -10824,7 +10865,7 @@ const BookEquipment = () => {
                                 ${isPast && !considerBooked && slotExists && !isAdminOrOIC() ? 'cursor-help' : ''}
                                 ${isSelected ? 'bg-primary text-primary-foreground' : ''}
                                 ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'cursor-pointer hover:opacity-90' : ''}
-                                ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'cursor-help opacity-60' : ''}
+                                ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && isDisabled ? (overQuotaCell ? 'cursor-help' : 'cursor-help opacity-60') : ''}
                               `}
                               style={cellStyle}
                             >
@@ -11035,7 +11076,7 @@ const BookEquipment = () => {
                     {walletLinkRequired && !bookingForAnotherUser && (
                       <p role="status" className="mt-4 text-sm text-amber-900 dark:text-amber-100">
                         You can pick slots now, but you can confirm only after your supervisor's wallet is linked.{" "}
-                        <button type="button" className="font-medium underline underline-offset-2" onClick={goToWalletLink}>
+                        <button type="button" className="font-medium underline underline-offset-2" onClick={() => goToWalletLink()}>
                           {walletStatus.kind === "link_pending" ? "View request" : "Link supervisor's wallet"}
                         </button>
                       </p>

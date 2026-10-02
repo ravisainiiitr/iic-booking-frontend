@@ -2590,7 +2590,7 @@ const Wallet = () => {
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
                     <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as "all" | "credit" | "debit")}>
-                      <SelectTrigger className="w-full sm:w-[120px] h-9">
+                      <SelectTrigger aria-label="Transaction type" className="w-full sm:w-[120px] h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -2601,8 +2601,9 @@ const Wallet = () => {
                     </Select>
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                    <Label htmlFor="tx-date-from" className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
                     <Input
+                      id="tx-date-from"
                       type="date"
                       className="w-full sm:w-[140px] h-9"
                       value={txDateFrom}
@@ -2610,8 +2611,9 @@ const Wallet = () => {
                     />
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+                    <Label htmlFor="tx-date-to" className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
                     <Input
+                      id="tx-date-to"
                       type="date"
                       className="w-full sm:w-[140px] h-9"
                       value={txDateTo}
@@ -2621,7 +2623,7 @@ const Wallet = () => {
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Department</Label>
                     <Select value={txDepartmentFilter || "__all__"} onValueChange={(v) => setTxDepartmentFilter(v === "__all__" ? "" : v)}>
-                      <SelectTrigger className="w-full sm:w-[160px] h-9">
+                      <SelectTrigger aria-label="Department" className="w-full sm:w-[160px] h-9">
                         <SelectValue placeholder="All departments" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2637,7 +2639,7 @@ const Wallet = () => {
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Equipment</Label>
                     <Select value={txEquipmentFilter || "__all__"} onValueChange={(v) => setTxEquipmentFilter(v === "__all__" ? "" : v)}>
-                      <SelectTrigger className="w-full sm:w-[180px] h-9">
+                      <SelectTrigger aria-label="Equipment" className="w-full sm:w-[180px] h-9">
                         <SelectValue placeholder="All equipment" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2656,7 +2658,7 @@ const Wallet = () => {
                       value={txBookedByFilter || "__all__"}
                       onValueChange={(v) => setTxBookedByFilter(v === "__all__" ? "" : v)}
                     >
-                      <SelectTrigger className="w-full sm:w-[180px] h-9">
+                      <SelectTrigger aria-label="Booked by" className="w-full sm:w-[180px] h-9">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2675,6 +2677,7 @@ const Wallet = () => {
                   <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[180px] w-full">
                     <Search className="h-4 w-4 text-muted-foreground shrink-0" />
                     <Input
+                      aria-label="Search transactions"
                       placeholder="Search description or equipment..."
                       className="h-9 w-full"
                       value={txSearchText}
@@ -2835,35 +2838,35 @@ const Wallet = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Account holder name</Label>
-                      <Input value={bankForm.account_holder_name} onChange={(e) => setBankForm((p) => ({ ...p, account_holder_name: e.target.value }))} />
+                      <Label htmlFor="bank-account-holder-name">Account holder name</Label>
+                      <Input id="bank-account-holder-name" value={bankForm.account_holder_name} onChange={(e) => setBankForm((p) => ({ ...p, account_holder_name: e.target.value }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Bank name</Label>
-                      <Input value={bankForm.bank_name} onChange={(e) => setBankForm((p) => ({ ...p, bank_name: e.target.value }))} />
+                      <Label htmlFor="bank-bank-name">Bank name</Label>
+                      <Input id="bank-bank-name" value={bankForm.bank_name} onChange={(e) => setBankForm((p) => ({ ...p, bank_name: e.target.value }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Account number</Label>
-                      <Input value={bankForm.account_number} onChange={(e) => setBankForm((p) => ({ ...p, account_number: e.target.value }))} />
+                      <Label htmlFor="bank-account-number">Account number</Label>
+                      <Input id="bank-account-number" value={bankForm.account_number} onChange={(e) => setBankForm((p) => ({ ...p, account_number: e.target.value }))} />
                       {bankDetails?.masked_account_number && (
                         <p className="text-xs text-muted-foreground">Saved: {bankDetails.masked_account_number}</p>
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label>IFSC code</Label>
-                      <Input value={bankForm.ifsc_code} onChange={(e) => setBankForm((p) => ({ ...p, ifsc_code: e.target.value }))} />
+                      <Label htmlFor="bank-ifsc-code">IFSC code</Label>
+                      <Input id="bank-ifsc-code" value={bankForm.ifsc_code} onChange={(e) => setBankForm((p) => ({ ...p, ifsc_code: e.target.value }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Branch (optional)</Label>
-                      <Input value={bankForm.branch_name} onChange={(e) => setBankForm((p) => ({ ...p, branch_name: e.target.value }))} />
+                      <Label htmlFor="bank-branch-name">Branch (optional)</Label>
+                      <Input id="bank-branch-name" value={bankForm.branch_name} onChange={(e) => setBankForm((p) => ({ ...p, branch_name: e.target.value }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Account type (optional)</Label>
-                      <Input value={bankForm.account_type} onChange={(e) => setBankForm((p) => ({ ...p, account_type: e.target.value }))} />
+                      <Label htmlFor="bank-account-type">Account type (optional)</Label>
+                      <Input id="bank-account-type" value={bankForm.account_type} onChange={(e) => setBankForm((p) => ({ ...p, account_type: e.target.value }))} />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>UPI ID (optional)</Label>
-                      <Input value={bankForm.upi_id} onChange={(e) => setBankForm((p) => ({ ...p, upi_id: e.target.value }))} />
+                      <Label htmlFor="bank-upi-id">UPI ID (optional)</Label>
+                      <Input id="bank-upi-id" value={bankForm.upi_id} onChange={(e) => setBankForm((p) => ({ ...p, upi_id: e.target.value }))} />
                     </div>
                   </div>
 
@@ -2898,7 +2901,7 @@ const Wallet = () => {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <CardTitle>Request bank transfer</CardTitle>
-                            <Button variant="ghost" size="sm" onClick={() => setShowWithdrawDialog(false)}>
+                            <Button variant="ghost" size="sm" aria-label="Close" onClick={() => setShowWithdrawDialog(false)}>
                               <X className="h-4 w-4" />
                             </Button>
                           </div>
@@ -2906,8 +2909,9 @@ const Wallet = () => {
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="space-y-2">
-                            <Label>Amount (₹)</Label>
+                            <Label htmlFor="withdraw-amount">Amount (₹)</Label>
                             <Input
+                              id="withdraw-amount"
                               type="number"
                               min="0.01"
                               step="0.01"
@@ -2918,8 +2922,8 @@ const Wallet = () => {
                             <p className="text-xs text-muted-foreground">Available: ₹{balance.toFixed(2)}</p>
                           </div>
                           <div className="space-y-2">
-                            <Label>Note (optional)</Label>
-                            <Textarea value={withdrawNote} onChange={(e) => setWithdrawNote(e.target.value)} rows={3} />
+                            <Label htmlFor="withdraw-note">Note (optional)</Label>
+                            <Textarea id="withdraw-note" value={withdrawNote} onChange={(e) => setWithdrawNote(e.target.value)} rows={3} />
                           </div>
                           <Button className="w-full" onClick={handleCreateWithdrawalRequest} disabled={submittingWithdraw}>
                             {submittingWithdraw ? (

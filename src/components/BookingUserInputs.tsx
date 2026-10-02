@@ -1090,6 +1090,7 @@ export function BookingUserInputs({
                                         ) : (
                                           <Input
                                             className="h-9 text-base"
+                                            aria-label={`${columns[ci] || `Column ${ci + 1}`}, row ${ri + 1}`}
                                             value={row[ci] ?? ""}
                                             onChange={(e) => setCell(ri, ci, e.target.value)}
                                           />
@@ -1105,6 +1106,7 @@ export function BookingUserInputs({
                                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                           onClick={() => deleteRow(ri)}
                                           title="Delete row"
+                                          aria-label={`Delete row ${ri + 1}`}
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
