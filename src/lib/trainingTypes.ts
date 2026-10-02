@@ -14,12 +14,42 @@ export interface TrainingRoles {
   dept_admin: boolean;
 }
 
+export type TrainingAudience = "TEST_ACCOUNTS" | "EVERYONE";
+
 export interface TrainingBootstrap {
   enabled: boolean;
+  audience?: TrainingAudience;
   pilot: boolean;
   pilot_equipment_count: number;
+  can_manage_module?: boolean;
   roles: TrainingRoles;
   menus: Record<TrainingMenuKey, boolean>;
+}
+
+export interface TrainingModuleEquipment {
+  equipment_id: number;
+  code: string;
+  name: string;
+  department?: string | null;
+  status: string;
+  enabled: boolean;
+  env_pilot: boolean;
+  training_active: boolean;
+}
+
+export interface TrainingModuleState {
+  module_enabled: boolean;
+  db_module_enabled: boolean;
+  env_module_enabled: boolean;
+  audience: TrainingAudience;
+  audience_label: string;
+  audience_choices: Array<{ value: TrainingAudience; label: string }>;
+  env_pilot_equipment_codes: string[];
+  pilot_oic_count: number;
+  all_equipment_in_scope: boolean;
+  enabled_equipment: TrainingModuleEquipment[];
+  updated_at: string | null;
+  updated_by: string | null;
 }
 
 export interface TrainingEquipmentRef {
@@ -571,6 +601,8 @@ export interface TrainingLevel {
 
 export interface TrainingPolicyOverview {
   module_enabled: boolean;
+  audience?: TrainingAudience;
+  can_manage_module?: boolean;
   pilot_equipment_codes: string[];
   pilot_oic_count: number;
   can_edit_global: boolean;

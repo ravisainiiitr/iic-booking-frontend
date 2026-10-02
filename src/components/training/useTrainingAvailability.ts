@@ -26,6 +26,11 @@ export async function loadTrainingBootstrap(): Promise<TrainingBootstrap | null>
   return inflight;
 }
 
+/** Drop the cached bootstrap so the next load reflects changed module settings. */
+export function resetTrainingBootstrap(): void {
+  cached = null;
+}
+
 function cachedForCurrentToken(): TrainingBootstrap | null | undefined {
   if (!cached) return undefined;
   return cached.token === apiClient.getToken() ? cached.data : undefined;

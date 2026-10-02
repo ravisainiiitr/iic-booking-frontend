@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { EquipmentPicker } from "@/components/training/EquipmentPicker";
+import { TrainingModuleControls } from "@/components/training/TrainingModuleControls";
 import { formatDateTime, humanizeCode, parseIdList, scoreFactorLabel } from "@/components/training/trainingHelpers";
 import { DetailRow, EmptyState, LoadingBlock, ModuleUnavailable, SectionCard, TrainingPageFrame } from "@/components/training/trainingUi";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -482,7 +483,7 @@ export default function AdminSettingsTraining() {
   return (
     <TrainingPageFrame
       title="Training Policy"
-      description="Selection caps, scoring weights, timelines and demonstration charges for Training & Certification."
+      description="Where Training & Certification is enabled and for whom, plus selection caps, scoring weights, timelines and demonstration charges."
       icon={<Settings2 className="h-5 w-5" />}
       onRefresh={allowed ? () => void load() : undefined}
       refreshing={loading}
@@ -497,23 +498,25 @@ export default function AdminSettingsTraining() {
         <EmptyState title="Policy not loaded" />
       ) : (
         <>
-          <SectionCard title="Module status" icon={<ShieldCheck className="h-4 w-4" />}>
-            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <DetailRow label="Training & Certification">
-                <span className={overview.module_enabled ? "font-medium text-emerald-700 dark:text-emerald-300" : "font-medium text-muted-foreground"}>
-                  {overview.module_enabled ? "Enabled" : "Disabled"}
-                </span>
-              </DetailRow>
-              <DetailRow label="Pilot equipment">
-                {overview.pilot_equipment_codes.length ? overview.pilot_equipment_codes.join(", ") : "All equipment (no pilot list)"}
-              </DetailRow>
-              <DetailRow label="Pilot OICs">{overview.pilot_oic_count}</DetailRow>
-            </dl>
-            <p className="mt-3 text-xs text-muted-foreground">
-              The module and pilot list are switched on through the server environment configuration, not from this page. Menus stay hidden
-              while the module is disabled; you can still prepare the policy here.
-            </p>
-          </SectionCard>
+          {overview.can_manage_module ? (
+            <TrainingModuleControls />
+          ) : (
+            <SectionCard title="Module status" icon={<ShieldCheck className="h-4 w-4" />}>
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <DetailRow label="Training & Certification">
+                  <span className={overview.module_enabled ? "font-medium text-emerald-700 dark:text-emerald-300" : "font-medium text-muted-foreground"}>
+                    {overview.module_enabled ? "Enabled" : "Disabled"}
+                  </span>
+                </DetailRow>
+                <DetailRow label="Audience">{overview.audience === "EVERYONE" ? "Everyone eligible" : "Test accounts only"}</DetailRow>
+                <DetailRow label="Pilot OICs">{overview.pilot_oic_count}</DetailRow>
+              </dl>
+              <p className="mt-3 text-xs text-muted-foreground">
+                The Main Administrator switches the module on and chooses the equipment and audience on this page. Menus stay hidden while the
+                module is disabled; you can still prepare the policy here.
+              </p>
+            </SectionCard>
+          )}
 
           <SectionCard
             title={`Institute-wide policy${globalPolicy ? ` · v${globalPolicy.version}` : ""}`}

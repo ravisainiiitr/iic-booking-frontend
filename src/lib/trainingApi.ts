@@ -20,12 +20,15 @@ import type {
   SessionAttendance,
   SessionInput,
   ShortlistRun,
+  TrainingAudience,
   TrainingAward,
   TrainingBadge,
   TrainingBootstrap,
   TrainingEquipmentDetail,
   TrainingEquipmentRef,
   TrainingEvent,
+  TrainingModuleEquipment,
+  TrainingModuleState,
   TrainingPolicy,
   TrainingPolicyOverview,
   TrainingSession,
@@ -218,4 +221,12 @@ export const trainingApi = {
   policy: () => get<TrainingPolicyOverview>("policy/"),
   publishPolicy: (input: PublishPolicyInput) => post<TrainingPolicy>("policy/", input),
   policyHistory: () => get<Results<TrainingPolicy>>("policy/history/"),
+
+  moduleState: () => get<TrainingModuleState>("admin/module/"),
+  updateModule: (input: { module_enabled?: boolean; audience?: TrainingAudience }) =>
+    post<TrainingModuleState>("admin/module/", input),
+  moduleEquipment: (query: { q?: string; enabled?: boolean }) =>
+    get<{ count: number; limit: number; results: TrainingModuleEquipment[] }>("admin/equipment/", query),
+  setEquipmentEnabled: (equipmentId: number, enabled: boolean) =>
+    post<TrainingModuleEquipment>(`admin/equipment/${equipmentId}/`, { enabled }),
 };

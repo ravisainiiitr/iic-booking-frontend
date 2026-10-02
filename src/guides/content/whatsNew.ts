@@ -42,7 +42,7 @@ const CATALOG: CatalogItem[] = [
   { id: "training-operator", roles: ["operator"], when: (f) => f.training, theme: "lab", icon: "star", title: "Training attendance", benefit: "Mark who attended training sessions on your equipment.", sectionId: "training" },
   { id: "equipment-form", roles: ["admin"], theme: "admin", icon: "settings", title: "Titles and sample sets switch", benefit: "Pick Dr., Prof. or another title for OICs and Lab Operators, and turn sample sets on or off per equipment.", sectionId: "administration" },
   { id: "peak-admin", roles: ["admin"], theme: "admin", icon: "clock", title: "Peak booking window", benefit: "Pause external users around the weekly slot opening; internal users go straight to booking.", sectionId: "administration" },
-  { id: "training-admin", roles: ["admin"], when: (f) => f.training, theme: "admin", icon: "star", title: "Training Policy", benefit: "Set the rules for Training & Certification.", sectionId: "training" },
+  { id: "training-admin", roles: ["admin"], when: (f) => f.training, theme: "admin", icon: "star", title: "Training per equipment", benefit: "In Training Policy, turn Training on for each equipment and choose Test accounts only or Everyone eligible.", sectionId: "training" },
 
   // Booking
   { id: "templates", roles: BOOKERS, theme: "booking", icon: "template", title: "Booking templates", benefit: "Save an instrument's form and preferred weekly slot, then book in one click.", sectionId: "templates" },

@@ -29,7 +29,16 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
     steps: [{ title: "Mark attendance", body: "Open Training attendance and mark who attended each session or demonstration on your equipment." }],
   },
   admin: {
-    steps: [{ title: "Training Policy", body: "Set the training rules in Admin Settings → Training Policy." }],
+    steps: [
+      {
+        title: "Enable Training",
+        body: "In Admin Settings → Training Policy, switch the module on, choose Test accounts only or Everyone eligible, and turn Training on for each equipment.",
+      },
+      { title: "Training Policy", body: "Set the training rules on the same page." },
+    ],
+    rules: [
+      "With Test accounts only, real faculty and students see no Training menus; Officers In Charge and Lab Operators of enabled equipment still see the Training workspace and attendance.",
+    ],
   },
 };
 
