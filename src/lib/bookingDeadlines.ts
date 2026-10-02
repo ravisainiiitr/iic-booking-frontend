@@ -14,7 +14,6 @@ export interface DeadlineBookingFields {
   is_waitlist_entry?: boolean | null;
   source_booking_id?: number | null;
   virtual_booking_id?: string | null;
-  input_edit_refund_deadline?: string | null;
   /** Server rules for the viewer; false once the lab has accepted the sample, and for non-owners (block reason `*_owner_only`). */
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
@@ -131,11 +130,4 @@ export function formatDeadlineText(result: CancelRescheduleDeadline): string | n
     default:
       return null;
   }
-}
-
-/** Secondary line while a lower charge from editing sample details is still refunded instantly. */
-export function inputEditRefundDeadlineText(booking: DeadlineBookingFields, now: Date): string | null {
-  const deadline = parseDate(booking.input_edit_refund_deadline);
-  if (!deadline || deadline.getTime() <= now.getTime()) return null;
-  return `Edit sample details with refund until ${formatDeadlineDateTime(deadline)}`;
 }

@@ -4,7 +4,6 @@ import {
   SAMPLE_ACCEPTED_LOCKED_TEXT,
   cancelRescheduleDeadline,
   formatDeadlineText,
-  inputEditRefundDeadlineText,
   isSampleAcceptedLocked,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
@@ -214,19 +213,5 @@ describe("cancelRescheduleDeadline", () => {
     }
     const disrupted = cancelRescheduleDeadline(booking({ source_booking_id: 12, maintenance_disruption_flag: true }), NOW);
     expect(formatDeadlineText(disrupted)).not.toMatch(/cancel/i);
-  });
-});
-
-describe("inputEditRefundDeadlineText", () => {
-  it("shows the refund window while it is in the future", () => {
-    expect(inputEditRefundDeadlineText({ input_edit_refund_deadline: at(3, 9, 30).toISOString() }, NOW)).toBe(
-      "Edit sample details with refund until Sat 3 Oct, 9:30 am",
-    );
-  });
-
-  it("returns null when missing, invalid or past", () => {
-    expect(inputEditRefundDeadlineText({}, NOW)).toBeNull();
-    expect(inputEditRefundDeadlineText({ input_edit_refund_deadline: "nope" }, NOW)).toBeNull();
-    expect(inputEditRefundDeadlineText({ input_edit_refund_deadline: at(1, 9).toISOString() }, NOW)).toBeNull();
   });
 });

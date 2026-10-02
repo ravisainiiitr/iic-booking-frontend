@@ -54,7 +54,6 @@ import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
   cancelRescheduleDeadline,
-  inputEditRefundDeadlineText,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
@@ -77,7 +76,6 @@ interface Booking extends BookingRef {
   equipment_name: string;
   wallet_owner_name?: string | null;
   equipment_reschedule_hours_threshold?: number;
-  input_edit_refund_deadline?: string | null;
   charge_profile: number;
   user_type_snapshot: string;
   user_type_snapshot_display?: string | null;
@@ -1341,16 +1339,9 @@ const MyBookings = () => {
     return cancelRescheduleDeadline(booking, now);
   };
 
-  const renderBookingDeadline = (booking: Booking, now: Date, className?: string) => {
-    const isOwn = user?.id != null && Number(booking.user) === Number(user.id);
-    return (
-      <BookingDeadlineNote
-        deadline={getOwnerDeadline(booking, now)}
-        secondaryText={isOwn && !isWaitlistedEntry(booking) ? inputEditRefundDeadlineText(booking, now) : null}
-        className={className}
-      />
-    );
-  };
+  const renderBookingDeadline = (booking: Booking, now: Date, className?: string) => (
+    <BookingDeadlineNote deadline={getOwnerDeadline(booking, now)} className={className} />
+  );
 
   const renderBookingIdButton = (booking: Booking, touch = false) =>
     isWaitlistedEntry(booking) ? (

@@ -57,7 +57,6 @@ import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
   cancelRescheduleDeadline,
-  inputEditRefundDeadlineText,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
@@ -1509,8 +1508,6 @@ export function BookingDetailCard({
     !isOperator &&
     !isManagerOrAdmin &&
     (ownerDeadlinePassed || ownerDeadline?.kind === "disruption_waiting");
-  const ownerEditRefundText =
-    isOwnBooking && !isWaitlistedEntry ? inputEditRefundDeadlineText(booking, deadlineNow) : null;
 
   return (
     <div id="booking-detail-section" className="mt-6 scroll-mt-6">
@@ -2088,11 +2085,7 @@ export function BookingDetailCard({
                 Actions are disabled while booking is in hold state.
               </p>
             )}
-            <BookingDeadlineNote
-              deadline={ownerDeadline}
-              secondaryText={ownerEditRefundText}
-              className="mb-2 text-sm"
-            />
+            <BookingDeadlineNote deadline={ownerDeadline} className="mb-2 text-sm" />
             <div data-actions-buttons className="flex flex-wrap gap-2">
               {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
                 <SampleSubmittedAction
