@@ -53,6 +53,15 @@ describe("SampleSetsEditor layout", () => {
     expect(html).not.toContain("Sample set 2");
   });
 
+  it("compact (peak window): only an add link, with the helper behind an info button", () => {
+    const html = render({ compact: true });
+    expect(html).toContain('data-testid="sample-sets-compact"');
+    expect(html).toContain("Add sample with different parameters");
+    expect(html).toContain('aria-label="About samples with different parameters"');
+    expect(html).not.toContain(SAMPLE_SET_HELPER_TEXT);
+    expect(render({ compact: true, sets: [{ A: 1, B: "BSE", C: "None", D: "", E: true }] })).toContain("Sample set 2");
+  });
+
   it("renders a card per extra set and an Add another sample set button", () => {
     const html = render({ sets: [{ A: 1, B: "BSE", C: "None", D: "", E: true }] });
     expect(html).toContain("Sample set 2");

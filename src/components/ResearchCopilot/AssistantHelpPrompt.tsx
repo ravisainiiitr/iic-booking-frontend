@@ -14,7 +14,7 @@ export function AssistantHelpPrompt({ detail, onAccept, onDismiss }: Props) {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-20 right-3 z-[9999] w-[min(340px,calc(100vw-1.5rem))] rounded-xl border bg-card p-3 text-card-foreground shadow-xl sm:right-6"
+      className="fixed bottom-[calc(5rem+var(--booking-action-bar-h,0px))] right-3 z-[9999] w-[min(340px,calc(100vw-1.5rem))] rounded-xl border bg-card p-3 text-card-foreground shadow-xl sm:right-6"
     >
       <div className="flex items-start gap-2">
         <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />

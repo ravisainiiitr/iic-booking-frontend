@@ -96,7 +96,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, CalendarPlus, FlaskConical, MousePointerClick } from "lucide-react";
 import { RichTextContent } from "@/components/RichTextContent";
 import { looksLikeRichHtml } from "@/lib/richText";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, ShieldCheck, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock, BookmarkCheck, Save } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock, BookmarkCheck, Save } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
@@ -203,6 +203,12 @@ import { MissingFieldsHint } from "@/components/booking/MissingFieldsHint";
 import { SlotReasonPopover, type SlotReasonTarget } from "@/components/booking/SlotReasonPopover";
 import { RestoredDraftNotice } from "@/components/booking/RestoredDraftNotice";
 import { ChargeErrorNotice } from "@/components/booking/ChargeErrorNotice";
+import { BookingFallbackOptions, NO_SLOT_ALTERNATE_HINT } from "@/components/booking/BookingFallbackOptions";
+import { PeakCollapsible } from "@/components/booking/PeakCollapsible";
+import { ClampedNote } from "@/components/booking/ClampedNote";
+import { BookingActionBar } from "@/components/booking/BookingActionBar";
+import { InfoTip } from "@/components/booking/InfoTip";
+import { usePeakWindow } from "@/hooks/use-peak-window";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
@@ -1661,6 +1667,8 @@ const BookEquipment = () => {
     : selectedSlots.length > 0 || (canSubmitWithoutSlots && !hasBookableSlotInSelectedWeek)
       ? 3
       : 2;
+  /** Peak booking window: optional panels start collapsed so the slot grid and Confirm need less scrolling. */
+  const peakCompact = usePeakWindow().active && isRegularBookingFlow;
 
   const bookingReturnPath = () => {
     const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
@@ -7200,12 +7208,12 @@ const BookEquipment = () => {
         </div>
       )}
       {!isEmbedFlow && <DashboardHeader />}
-      <main className={isEmbedFlow ? "w-full px-0 py-1 text-base leading-relaxed" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8 text-base md:text-lg leading-relaxed"}>
+      <main className={isEmbedFlow ? "w-full px-0 py-1 text-base leading-relaxed" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-4 md:py-6 text-base md:text-lg leading-relaxed"}>
         {!isEmbedFlow && (
-        <div className="max-w-6xl mx-auto mb-6">
+        <div className="max-w-6xl mx-auto mb-3 md:mb-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+              <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
                 {isCalculateChargesFlow
                   ? `Calculate charges — ${selectedEquipment.name}`
                   : isTemplateFlow
@@ -7214,7 +7222,7 @@ const BookEquipment = () => {
                     ? `Manage ${selectedEquipment.name}`
                     : selectedEquipment.name}
               </h1>
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <EquipmentDepartmentLabel
                   name={(equipmentDetail as any)?.internal_department_name}
                 />
@@ -8673,12 +8681,9 @@ const BookEquipment = () => {
         {(((!requiresBookModeBeforeForm() || adminManageMode === 'book') && adminManageMode !== 'status') || isCalculateChargesFlow || isTemplateFlow) && (
         <div className={isEmbedFlow ? "max-w-none mx-auto" : "max-w-6xl mx-auto"}>
           <Card className={isEmbedFlow ? "border-0 shadow-none" : undefined}>
-              <CardHeader className={isEmbedFlow ? "px-1 pt-1 pb-2" : undefined}>
-                <div className="flex justify-between items-start gap-3 flex-wrap">
+              <CardHeader className={isEmbedFlow ? "px-1 pt-1 pb-2" : "px-4 py-3 md:px-6 md:py-4"}>
+                <div className="flex justify-between items-center gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
-                    {!isEmbedFlow && (
-                      <CardTitle className="text-xl md:text-2xl">{selectedEquipment.name}</CardTitle>
-                    )}
                     <CardDescription className={isEmbedFlow ? "text-sm" : "text-base md:text-lg"}>
                       {isCalculateChargesFlow ? (
                         <>Select user type and parameters to estimate charges. No time slots are required.</>
@@ -8733,7 +8738,7 @@ const BookEquipment = () => {
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
                 {/* Accessory availability — informational, before booking steps */}
                 {equipmentDetail &&
                   !isProformaFlow &&
@@ -8742,7 +8747,14 @@ const BookEquipment = () => {
                     equipmentDetail.accessories.length > 0) ||
                     (Array.isArray(equipmentDetail.additional_accessories) &&
                       equipmentDetail.additional_accessories.length > 0)) && (
-                    <div className="mb-6">
+                    <PeakCollapsible
+                      id="accessories"
+                      collapsible={peakCompact}
+                      title="Accessories"
+                      summary={`${(equipmentDetail.accessories?.length ?? 0) + (equipmentDetail.additional_accessories?.length ?? 0)} listed`}
+                      className="mb-3"
+                    >
+                    <div className={peakCompact ? undefined : "mb-3"}>
                       <EquipmentAccessoriesSection
                         compact
                         accessories={(equipmentDetail.accessories || []).map(
@@ -8775,6 +8787,7 @@ const BookEquipment = () => {
                         }))}
                       />
                     </div>
+                    </PeakCollapsible>
                   )}
 
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
@@ -9025,17 +9038,24 @@ const BookEquipment = () => {
 
                 {!!(equipmentDetail?.important_instruction || "").trim() && (
                   <div
-                    className="mb-6 rounded-lg border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 dark:border-red-500/50 px-4 py-3"
+                    className="mb-3 rounded-lg border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 dark:border-red-500/50 px-3 py-2 md:px-4"
                     role="note"
+                    data-testid="important-instruction"
                   >
-                    <RichTextContent
-                      value={equipmentDetail?.important_instruction}
-                      className={
-                        looksLikeRichHtml(equipmentDetail?.important_instruction)
-                          ? "text-base md:text-lg text-red-700 dark:text-red-400"
-                          : "text-base md:text-lg font-bold text-red-700 dark:text-red-400"
-                      }
-                    />
+                    <ClampedNote
+                      clamp={peakCompact}
+                      className="text-base md:text-lg"
+                      buttonClassName="text-red-700 dark:text-red-400"
+                    >
+                      <RichTextContent
+                        value={equipmentDetail?.important_instruction}
+                        className={
+                          looksLikeRichHtml(equipmentDetail?.important_instruction)
+                            ? "text-base md:text-lg text-red-700 dark:text-red-400"
+                            : "text-base md:text-lg font-bold text-red-700 dark:text-red-400"
+                        }
+                      />
+                    </ClampedNote>
                   </div>
                 )}
 
@@ -9055,7 +9075,14 @@ const BookEquipment = () => {
                 )}
 
                 {templatePickerAvailable && !bookingForAnotherUser && equipmentDetail && (
-                  <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+                  <PeakCollapsible
+                    id="template"
+                    collapsible={peakCompact}
+                    title="Booking template"
+                    summary={appliedTemplate ? appliedTemplate.name : bookingTemplates.length > 0 ? `${bookingTemplates.length} saved` : "None saved"}
+                    className="mb-3"
+                  >
+                  <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2", !peakCompact && "mb-3")}>
                     <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                       <BookmarkCheck className="h-4 w-4 text-primary" aria-hidden />
                       Booking template
@@ -9107,6 +9134,7 @@ const BookEquipment = () => {
                       </Button>
                     )}
                   </div>
+                  </PeakCollapsible>
                 )}
                 {templatePickerAvailable && !bookingForAnotherUser && appliedTemplate && (
                   <PreferredSlotBanner
@@ -9805,6 +9833,7 @@ const BookEquipment = () => {
                         primaryValues={inputFieldValues}
                         allowAdd={sampleSetsAllowed}
                         slotDurationMinutes={toFiniteNumber(equipmentDetail?.slot_duration_minutes)}
+                        compact={peakCompact}
                       />
                     </div>
                   )}
@@ -9813,23 +9842,20 @@ const BookEquipment = () => {
                     !isCalculateChargesFlow &&
                     !isProformaFlow &&
                     atmosphereSensitiveAllowed && (
-                    <div className="mt-4 p-4 rounded-lg border bg-muted/20 space-y-2">
-                      <div className="flex items-start gap-3">
+                    <div className="mt-3 rounded-lg border bg-muted/20 px-3 py-2">
+                      <div className="flex items-center gap-2">
                         <Checkbox
                           id="atmosphere-sensitive-sample"
                           checked={atmosphereSensitiveSample}
                           onCheckedChange={(c) => setAtmosphereSensitiveSample(c === true)}
-                          className="mt-0.5"
                         />
-                        <div className="space-y-1">
-                          <Label htmlFor="atmosphere-sensitive-sample" className="font-medium cursor-pointer">
-                            Atmosphere-sensitive sample (submit at slot start)
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Select if the sample must be brought at the booking start time instead of the normal submission lead time.
-                            Lab staff will be notified and should not mark the booking as Not Utilized before the slot begins.
-                          </p>
-                        </div>
+                        <Label htmlFor="atmosphere-sensitive-sample" className="font-medium cursor-pointer">
+                          Atmosphere-sensitive sample (submit at slot start)
+                        </Label>
+                        <InfoTip label="About atmosphere-sensitive samples">
+                          Select if the sample must be brought at the booking start time instead of the normal submission lead time.
+                          Lab staff will be notified and should not mark the booking as Not Utilized before the slot begins.
+                        </InfoTip>
                       </div>
                     </div>
                   )}
@@ -10090,12 +10116,18 @@ const BookEquipment = () => {
                 {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow && (
                   <>
                     <div className="mb-2">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                         <h3 className="text-base font-semibold">Step 3: Select Time Slots</h3>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <Label htmlFor="auto-slot-selection" className="text-sm font-normal cursor-pointer">
                             Auto-select all required slots
                           </Label>
+                          <InfoTip label="About auto-selecting slots">
+                            When enabled, the system will automatically select all required consecutive slots.
+                            {equipmentDetail?.split_booking_enabled
+                              ? " If consecutive slots aren't available, random slots will be selected."
+                              : " Only consecutive slots will be selected (non-consecutive selection is not allowed)."}
+                          </InfoTip>
                           <Switch
                             id="auto-slot-selection"
                             checked={autoSlotSelection}
@@ -10109,14 +10141,6 @@ const BookEquipment = () => {
                           />
                         </div>
                       </div>
-                      {autoSlotSelection && (
-                        <p className="text-sm text-muted-foreground mb-2">
-                          When enabled, the system will automatically select all required consecutive slots. 
-                          {equipmentDetail?.split_booking_enabled 
-                            ? " If consecutive slots aren't available, random slots will be selected."
-                            : " Only consecutive slots will be selected (non-consecutive selection is not allowed)."}
-                        </p>
-                      )}
                     </div>
 
                 {quotaBlock && (
@@ -10915,131 +10939,77 @@ const BookEquipment = () => {
 
                     {/* Booking Summary */}
                     {selectedSlots.length > 0 && (
-                      <div className="mt-6 p-4 bg-muted rounded-lg">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">Selected Slots: {selectedSlots.length}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {calculatedCharge ? (
-                              <>
-                                {getEffectiveSelectedMinutes()} minutes / {calculatedCharge.total_time_minutes} minutes
-                              </>
-                            ) : (
-                              <>Total Hours: {selectedSlots.length}</>
-                            )}
-                          </span>
-                        </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted px-3 py-2 text-sm" data-testid="booking-summary">
+                        <span className="font-medium">Selected Slots: {selectedSlots.length}</span>
+                        <span className="text-muted-foreground">
+                          {calculatedCharge ? (
+                            <>
+                              {getEffectiveSelectedMinutes()} minutes / {calculatedCharge.total_time_minutes} minutes
+                            </>
+                          ) : (
+                            <>Total Hours: {selectedSlots.length}</>
+                          )}
+                        </span>
                         {calculatedCharge && (
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-muted-foreground">Remaining:</span>
-                            <span className={`text-sm font-medium ${getRemainingMinutes() === 0 ? 'text-destructive' : ''}`}>
+                          <span className="text-muted-foreground">
+                            Remaining:{" "}
+                            <span className={`font-medium text-foreground ${getRemainingMinutes() === 0 ? '!text-destructive' : ''}`}>
                               {getRemainingMinutes()} minutes
                             </span>
-                          </div>
+                          </span>
                         )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Total Cost</span>
-                          <span className="text-2xl font-bold">
+                        <span className="ml-auto flex items-baseline gap-2">
+                          <span className="text-muted-foreground">Total Cost</span>
+                          <span className="text-xl font-bold">
                             {formatINR(
                               calculatedCharge
                                 ? calculatedCharge.total_charge
                                 : calculateTotalCost()
                             )}
                           </span>
-                        </div>
+                        </span>
                       </div>
                     )}
 
                     {/* Booking options — waitlist / fallback options are internal only; external users book selected slots or get an unsuccessful result (no waitlist). */}
                     {(!bookingAsExternalTarget || groupAlternativeOption) && (
-                    <div className="mt-6 rounded-xl border border-border/80 bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <p className="text-sm font-medium text-foreground">Booking options</p>
-                      </div>
-                      <div className="space-y-3">
-                        {groupAlternativeOption ? (
-                          <>
-                            <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
-                              <Checkbox
-                                id="auto-allocate-alternative"
-                                checked={autoAllocateAlternative}
-                                onCheckedChange={(c) => setAutoAllocateAlternative(c === true)}
-                                className="mt-0.5 h-4 w-4"
-                              />
-                              <span className="text-sm text-foreground group-hover:text-foreground">
-                                Automatically search and allocate alternate equipment
-                              </span>
-                            </label>
-                            <p className="text-xs text-muted-foreground pl-7">
-                              {autoAllocateAlternative
-                                ? "If this equipment has no free slot for your booking, the next available equipment in the same group is searched and your booking is allocated there automatically."
-                                : "If this equipment has no free slot for your booking, the next available equipment in the same group is searched and shown to you; nothing is booked on it until you confirm."}
-                              {groupAlternativeSearchWithoutSlots
-                                ? " No slot is free on this equipment in the selected week, so you can submit without selecting a slot."
-                                : ""}
-                            </p>
-                          </>
-                        ) : null}
-                        {!bookingAsExternalTarget && Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek ? (
-                          <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
-                            <Checkbox
-                              id="waitlisted-booking"
-                              checked={waitlistIntentMode}
-                              onCheckedChange={(c) => setWaitlistIntentMode(c === true)}
-                              className="mt-0.5 h-4 w-4"
-                            />
-                            <span className="text-sm text-foreground group-hover:text-foreground">
-                              Waitlisted Booking
-                            </span>
-                          </label>
-                        ) : null}
-                        {!bookingAsExternalTarget && hasBookableSlotInSelectedWeek ? (
-                          <>
-                            <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
-                              <Checkbox
-                                id="book-any-available-slots"
-                                checked={bookAnyAvailableSlots}
-                                onCheckedChange={(c) => {
-                                  const v = c === true;
-                                  setBookAnyAvailableSlots(v);
-                                  if (!v) setBookEvenIfSingleSlotAvailable(false);
-                                }}
-                                className="mt-0.5 h-4 w-4"
-                              />
-                              <span className="text-sm text-foreground group-hover:text-foreground">
-                                Book any available slots
-                              </span>
-                            </label>
-                            <p className="text-xs text-muted-foreground pl-7">First priority: book your required slots and duration. If selected slots are unavailable, the system will auto-select available slots in this window (in time order, even if not consecutive) until your required duration is covered.</p>
-                            {bookAnyAvailableSlots && (
-                              <>
-                                <label className="flex items-start gap-3 cursor-pointer group rounded-lg p-3 border border-transparent hover:bg-background/50 hover:border-border/60 transition-colors">
-                                  <Checkbox
-                                    id="book-even-if-single-slot-available"
-                                    checked={bookEvenIfSingleSlotAvailable}
-                                    onCheckedChange={(c) => setBookEvenIfSingleSlotAvailable(c === true)}
-                                    className="mt-0.5 h-4 w-4"
-                                  />
-                                  <span className="text-sm text-foreground group-hover:text-foreground">
-                                    Book even if single slot is available
-                                  </span>
-                                </label>
-                                <p className="text-xs text-muted-foreground pl-7">If required duration cannot be met, book a single available slot and charge accordingly (number of slots/samples adjusted).</p>
-                              </>
-                            )}
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
+                      <BookingFallbackOptions
+                        className="mt-3"
+                        alternate={{
+                          show: groupAlternativeOption,
+                          checked: autoAllocateAlternative,
+                          onChange: setAutoAllocateAlternative,
+                        }}
+                        waitlist={{
+                          show:
+                            !bookingAsExternalTarget &&
+                            Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 &&
+                            !hasBookableSlotInSelectedWeek,
+                          checked: waitlistIntentMode,
+                          onChange: setWaitlistIntentMode,
+                        }}
+                        anySlots={{
+                          show: !bookingAsExternalTarget && hasBookableSlotInSelectedWeek,
+                          checked: bookAnyAvailableSlots,
+                          onChange: setBookAnyAvailableSlots,
+                        }}
+                        singleSlot={{
+                          show: true,
+                          checked: bookEvenIfSingleSlotAvailable,
+                          onChange: setBookEvenIfSingleSlotAvailable,
+                        }}
+                        hint={groupAlternativeSearchWithoutSlots ? NO_SLOT_ALTERNATE_HINT : undefined}
+                      />
                     )}
 
                     {!bookingForAnotherUser && (
                       <ResearchWorkspacePicker
-                        className="mt-6"
+                        className="mt-3"
                         value={researchWorkspaceId}
                         onChange={setResearchWorkspaceId}
                         folderLabel={researchFolderLabel}
                         rememberLast
+                        collapsible={peakCompact}
                       />
                     )}
 
@@ -11059,7 +11029,7 @@ const BookEquipment = () => {
                       const minutes = calculatedCharge ? getEffectiveSelectedMinutes() : null;
                       const charge = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());
                       return (
-                        <p className="mt-6 text-sm text-foreground" data-testid="booking-review-line">
+                        <p className="mt-3 text-sm text-foreground" data-testid="booking-review-line">
                           <span className="font-medium">Review: </span>
                           {[
                             workspaceEquipmentTitle || null,
@@ -11100,7 +11070,7 @@ const BookEquipment = () => {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="mt-6 flex flex-wrap gap-4">
+                    <div className="mt-3 space-y-2 empty:hidden">
                       {bookingAsExternalTarget &&
                         ((isExternalUser && !istemPortalAcknowledged) ||
                           (isAdminOrOIC() &&
@@ -11132,9 +11102,28 @@ const BookEquipment = () => {
                           .
                         </div>
                       ) : null}
+                    </div>
+                    <BookingActionBar
+                      summary={(() => {
+                        const total = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());
+                        return (
+                          <>
+                            <span className="font-semibold">
+                              {selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""} selected
+                            </span>
+                            {total != null && Number.isFinite(total) ? (
+                              <>
+                                <span className="text-muted-foreground"> · Total </span>
+                                <span className="font-semibold">{formatINR(total)}</span>
+                              </>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    >
                       <Button
                         variant="outline"
-                        className="flex-1 min-w-[140px]"
+                        className="flex-1 sm:flex-none sm:min-w-[140px]"
                         onClick={() => {
                           if (autoSlotSelection && selectedSlots.length > 0) {
                             setAutoSlotGuardPending("clear");
@@ -11144,18 +11133,20 @@ const BookEquipment = () => {
                           setSelectedSlots([]);
                         }}
                         disabled={selectedSlots.length === 0 && !waitlistIntentEffective}
+                        aria-label="Clear Selection"
                       >
-                        Clear Selection
+                        <span className="sm:hidden" aria-hidden="true">Clear</span>
+                        <span className="hidden sm:inline" aria-hidden="true">Clear Selection</span>
                       </Button>
                       <Button
                         variant="outline"
-                        className="flex-1 min-w-[140px]"
+                        className="hidden sm:inline-flex sm:min-w-[140px]"
                         onClick={() => navigate("/equipments")}
                       >
                         Book another equipment
                       </Button>
                       <Button
-                        className="flex-1 min-w-[140px]"
+                        className="flex-[2] sm:flex-none sm:min-w-[200px]"
                         onClick={handleBooking}
                         disabled={
                           !selectedEquipmentIsOperational ||
@@ -11187,84 +11178,55 @@ const BookEquipment = () => {
                           </>
                         )}
                       </Button>
+                    </BookingActionBar>
+                    <div className="mt-1 sm:hidden">
+                      <Button variant="link" size="sm" className="h-auto px-0" onClick={() => navigate("/equipments")}>
+                        Book another equipment
+                      </Button>
                     </div>
                   </>
                 )}
 
                 {isTemplateFlow && equipmentDetail && (
-                  <div className="mt-6 space-y-6">
-                    <div className="rounded-xl border border-border/80 bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <p className="text-sm font-medium text-foreground">Booking options</p>
+                  <div className="mt-4 space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2 dark:bg-muted/20">
+                        <Label htmlFor="template-auto-slot-selection" className="text-sm font-normal cursor-pointer">
+                          Auto-select all required slots
+                        </Label>
+                        <Switch
+                          id="template-auto-slot-selection"
+                          checked={autoSlotSelection}
+                          onCheckedChange={setAutoSlotSelection}
+                        />
+                        <InfoTip label="About template booking options">
+                          Slots are chosen when you book. These options are applied to that booking.
+                        </InfoTip>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Slots are chosen when you book. These options are applied to that booking.
-                      </p>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3 rounded-lg p-3">
-                          <Label htmlFor="template-auto-slot-selection" className="text-sm font-normal cursor-pointer">
-                            Auto-select all required slots
-                          </Label>
-                          <Switch
-                            id="template-auto-slot-selection"
-                            checked={autoSlotSelection}
-                            onCheckedChange={setAutoSlotSelection}
-                          />
-                        </div>
-                        {groupAlternativeOption && (
-                          <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 hover:bg-background/50">
-                            <Checkbox
-                              id="template-auto-allocate-alternative"
-                              checked={autoAllocateAlternative}
-                              onCheckedChange={(c) => setAutoAllocateAlternative(c === true)}
-                              className="mt-0.5 h-4 w-4"
-                            />
-                            <span className="text-sm text-foreground">
-                              Automatically search and allocate alternate equipment
-                            </span>
-                          </label>
-                        )}
-                        {!bookingAsExternalTarget && (
-                          <>
-                            <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 hover:bg-background/50">
-                              <Checkbox
-                                id="template-waitlisted-booking"
-                                checked={waitlistIntentMode}
-                                onCheckedChange={(c) => setWaitlistIntentMode(c === true)}
-                                className="mt-0.5 h-4 w-4"
-                              />
-                              <span className="text-sm text-foreground">
-                                Add to the waitlist if the booking cannot be completed
-                              </span>
-                            </label>
-                            <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 hover:bg-background/50">
-                              <Checkbox
-                                id="template-book-any-available-slots"
-                                checked={bookAnyAvailableSlots}
-                                onCheckedChange={(c) => {
-                                  const v = c === true;
-                                  setBookAnyAvailableSlots(v);
-                                  if (!v) setBookEvenIfSingleSlotAvailable(false);
-                                }}
-                                className="mt-0.5 h-4 w-4"
-                              />
-                              <span className="text-sm text-foreground">Book any available slots</span>
-                            </label>
-                            {bookAnyAvailableSlots && (
-                              <label className="flex items-start gap-3 cursor-pointer rounded-lg p-3 pl-10 hover:bg-background/50">
-                                <Checkbox
-                                  id="template-book-even-if-single-slot-available"
-                                  checked={bookEvenIfSingleSlotAvailable}
-                                  onCheckedChange={(c) => setBookEvenIfSingleSlotAvailable(c === true)}
-                                  className="mt-0.5 h-4 w-4"
-                                />
-                                <span className="text-sm text-foreground">Book even if single slot is available</span>
-                              </label>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      <BookingFallbackOptions
+                        idPrefix="template-"
+                        alternate={{
+                          show: groupAlternativeOption,
+                          checked: autoAllocateAlternative,
+                          onChange: setAutoAllocateAlternative,
+                        }}
+                        waitlist={{
+                          show: !bookingAsExternalTarget,
+                          label: "Add to waitlist if booking fails",
+                          checked: waitlistIntentMode,
+                          onChange: setWaitlistIntentMode,
+                        }}
+                        anySlots={{
+                          show: !bookingAsExternalTarget,
+                          checked: bookAnyAvailableSlots,
+                          onChange: setBookAnyAvailableSlots,
+                        }}
+                        singleSlot={{
+                          show: true,
+                          checked: bookEvenIfSingleSlotAvailable,
+                          onChange: setBookEvenIfSingleSlotAvailable,
+                        }}
+                      />
                     </div>
 
                     <ResearchWorkspacePicker value={researchWorkspaceId} onChange={setResearchWorkspaceId} />

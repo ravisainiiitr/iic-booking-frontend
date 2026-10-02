@@ -12,7 +12,7 @@ const loadCopilot = () => import("./index");
 const ResearchCopilot = lazy(loadCopilot);
 
 const FAB_CLASS =
-  "fixed bottom-6 right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900";
+  "fixed bottom-[calc(1.5rem+var(--booking-action-bar-h,0px))] right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900";
 
 const HELP_PROMPT_MS = 45_000;
 /** Don't re-offer the same help (same failure on the same equipment) for a while after "No thanks". */

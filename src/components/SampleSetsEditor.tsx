@@ -35,6 +35,7 @@ import {
   sampleSetFieldLimitError,
 } from "@/lib/sampleSetLimits";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
+import { InfoTip } from "@/components/booking/InfoTip";
 import {
   defaultSampleSetValues,
   MAX_SAMPLE_SETS,
@@ -74,6 +75,8 @@ type Props = {
   slotDurationMinutes?: number | null;
   /** Sets as saved (when editing), so unchanged legacy values below the minimum are not flagged. */
   storedSets?: SampleSetValues[];
+  /** With no extra sets yet, show only a compact "Add sample with different parameters" link (peak window). */
+  compact?: boolean;
 };
 
 export const SAMPLE_SET_HELPER_TEXT =
@@ -141,6 +144,7 @@ export default function SampleSetsEditor({
   allowAdd = true,
   slotDurationMinutes,
   storedSets,
+  compact = false,
 }: Props) {
   const formulaContext = { slotDurationMinutes, fallbacks: formulaFallbackValues(fields) };
   const setsRef = useRef(sets);
@@ -609,6 +613,23 @@ export default function SampleSetsEditor({
       )}
       {!allowAdd ? (
         sets.length > 0 && <p className="text-xs text-muted-foreground">{SAMPLE_SETS_SWITCHED_OFF_NOTE}</p>
+      ) : sets.length === 0 && compact ? (
+        <div className="flex items-center gap-1" data-testid="sample-sets-compact">
+          <span title={addBlockedReason ?? undefined} className="inline-flex">
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto gap-1 px-0 py-0.5"
+              disabled={addDisabled}
+              onClick={() => newSet && insertSet(sets.length, newSet)}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Add sample with different parameters
+            </Button>
+          </span>
+          <InfoTip label="About samples with different parameters">{SAMPLE_SET_HELPER_TEXT}</InfoTip>
+        </div>
       ) : sets.length === 0 ? (
         <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 dark:bg-muted/10 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <p className="text-xs text-muted-foreground sm:text-sm">{SAMPLE_SET_HELPER_TEXT}</p>
