@@ -24,7 +24,7 @@ type NativeSessionResult = {
 };
 
 type NativeEnrollResult = Omit<NativeSessionResult, "status"> & {
-  status: NativeSessionStatus | "error" | "device_lock_required" | "storage_error";
+  status: NativeSessionStatus | "error" | "device_lock_required" | "storage_error" | "already_enrolled";
   requireBiometric?: boolean;
   httpStatus?: number;
 };
@@ -116,15 +116,31 @@ export async function recoverNativeSession(rejectedToken: string, tokens: TokenA
 }
 
 /**
+ * Web token already handed to the app for enrolment. Sign-in stores the token more than once,
+ * and a second enrolment would replace the first device session, so each sign-in enrolls once.
+ */
+let enrolledWebToken: string | null = null;
+
+/**
  * After a normal sign-in inside the app, register this phone so the user stays signed in.
- * Returns the device access token to use instead of the web token, or null.
+ * Returns the device access token to use instead of the web token, or null (also for a
+ * repeated call with the same web token: the first call handles the swap).
  */
 export async function enrollNativeDevice(webToken: string): Promise<string | null> {
   if (!isNativeApp() || !webToken || isMobileSessionToken(webToken)) return null;
+  if (enrolledWebToken === webToken) return null;
+  enrolledWebToken = webToken;
+  let retryable = true;
   try {
     const result = await callNative<NativeEnrollResult>("IicSession", "enroll", { authToken: webToken });
     if (result.status === "ok" && result.accessToken) return result.accessToken;
+    if (result.status === "already_enrolled") {
+      retryable = false;
+      const session = await getNativeSession(false);
+      return session.status === "ok" && session.accessToken ? session.accessToken : null;
+    }
     if (result.status === "device_lock_required") {
+      retryable = false;
       notifyNative(
         "To stay signed in on this phone, administrator accounts need a fingerprint, face unlock or screen lock. You will need to sign in again next time.",
       );
@@ -132,11 +148,13 @@ export async function enrollNativeDevice(webToken: string): Promise<string | nul
   } catch {
     /* the web session keeps working; the user just isn't remembered on this device */
   }
+  if (retryable && enrolledWebToken === webToken) enrolledWebToken = null;
   return null;
 }
 
 export async function clearNativeSession(revoke = false): Promise<void> {
   if (!isNativeApp()) return;
+  enrolledWebToken = null;
   try {
     await callNative("IicSession", "clear", { revoke });
   } catch {
@@ -175,6 +193,24 @@ function applySession(result: NativeSessionResult, tokens: TokenAccess) {
   }
 }
 
+const LAUNCHED_KEY = "iic_app_launched";
+
+/**
+ * The app always starts on "/": a signed-in user lands on the dashboard instead of the public
+ * home page. Runs before the router mounts and only on the first load of an app session, so
+ * Home and pull-to-refresh on the home page still work.
+ */
+function openDashboardOnLaunch(tokens: TokenAccess) {
+  try {
+    if (sessionStorage.getItem(LAUNCHED_KEY)) return;
+    sessionStorage.setItem(LAUNCHED_KEY, "1");
+  } catch {
+    return;
+  }
+  if (window.location.pathname !== "/" || !tokens.getToken()) return;
+  window.history.replaceState(window.history.state, "", "/dashboard");
+}
+
 let installed = false;
 
 /**
@@ -201,6 +237,7 @@ export async function bootstrapNativeApp(tokens: TokenAccess): Promise<void> {
       });
     }
   }
+  openDashboardOnLaunch(tokens);
 
   const refreshIfNeeded = () => {
     if (document.visibilityState !== "visible") return;

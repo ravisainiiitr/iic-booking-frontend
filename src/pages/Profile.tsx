@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
@@ -100,9 +100,18 @@ const Profile = () => {
     istem_portal_acknowledged: false,
   });
 
+  // Right after a reload the auth check is still running: wait for it, then load the profile once.
+  const profileLoadStarted = useRef(false);
   useEffect(() => {
-    checkAuthAndLoadProfile();
-  }, [navigate]);
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+    if (profileLoadStarted.current) return;
+    profileLoadStarted.current = true;
+    void loadProfile();
+  }, [authLoading, isAuthenticated, navigate]);
 
   useEffect(() => {
     if (isFacultyUser()) {
@@ -131,27 +140,7 @@ const Profile = () => {
     }
   }, []);
 
-  const checkAuthAndLoadProfile = async () => {
-    // Check authentication using AuthContext
-    if (!isAuthenticated) {
-      navigate("/auth");
-      return;
-    }
-
-    // If user is authenticated but user data is not loaded yet, wait for it
-    if (authLoading) {
-      return;
-    }
-
-    if (!user) {
-      // Try to refresh user data
-      await refreshUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-      }
-
+  const loadProfile = async () => {
     try {
       await fetchProfile();
     } catch (error) {

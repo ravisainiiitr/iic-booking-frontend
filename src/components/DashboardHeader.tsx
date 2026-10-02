@@ -55,6 +55,9 @@ const DashboardHeader = () => {
   const isOnDashboard =
     location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
   const showServerClock = true;
+  const showDashboardButton = isAuthenticated && !isOnDashboard;
+  // Below lg the button sits in the clock row so it never covers the institute name.
+  const dashboardInClockRow = showServerClock && showDashboardButton;
   
   // Refs to prevent multiple simultaneous API calls
   const balanceFetchingRef = useRef(false);
@@ -308,7 +311,7 @@ const DashboardHeader = () => {
         className={cn(
           isAuthenticated ? "mx-auto w-full max-w-none px-4 py-4 sm:px-6 lg:px-8" : "container mx-auto px-4 py-4",
           showServerClock
-            ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 lg:grid-cols-[auto_minmax(0,1fr)_auto]"
+            ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 lg:grid-cols-[minmax(0,auto)_minmax(10rem,1fr)_auto]"
             : "flex items-center justify-between",
         )}
       >
@@ -317,18 +320,30 @@ const DashboardHeader = () => {
           <Link
             to="/"
             aria-label="IIC Equipment Booking Portal home"
-            className="flex items-center gap-3 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex min-w-0 items-center gap-3 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <IITRBanner size="md" />
           </Link>
         </div>
         {showServerClock && (
-          <div className="server-clock-slot col-span-2 row-start-2 flex min-w-0 justify-center lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:px-3">
+          <div
+            className={cn(
+              "server-clock-slot row-start-2 flex min-w-0 justify-center lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:px-3",
+              dashboardInClockRow ? "col-start-1" : "col-span-2",
+            )}
+          >
             <ServerClock />
           </div>
         )}
+        {dashboardInClockRow && (
+          <div className="col-start-2 row-start-2 flex justify-end lg:hidden">
+            <BackToDashboardButton />
+          </div>
+        )}
         <div className="flex items-center gap-2 sm:gap-3">
-          {isAuthenticated && !isOnDashboard && <BackToDashboardButton />}
+          {showDashboardButton && (
+            <BackToDashboardButton className={dashboardInClockRow ? "hidden lg:inline-flex" : undefined} />
+          )}
           <button
             type="button"
             onClick={() => navigate("/")}

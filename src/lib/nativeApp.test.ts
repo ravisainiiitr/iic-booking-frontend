@@ -29,8 +29,14 @@ function tokenStore(initial: string | null) {
 beforeEach(() => {
   nativePromise.mockReset();
   localStorage.clear();
+  sessionStorage.clear();
+  window.history.replaceState(null, "", "/");
   delete (window as unknown as { Capacitor?: unknown }).Capacitor;
 });
+
+function nativeCalls(method: string) {
+  return nativePromise.mock.calls.filter((call) => call[1] === method);
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -45,6 +51,12 @@ describe("in a normal browser", () => {
     await expect(mod.enrollNativeDevice("webtoken")).resolves.toBeNull();
     await expect(mod.recoverNativeSession("iicm_old", tokenStore("iicm_old"))).resolves.toBeNull();
     expect(nativePromise).not.toHaveBeenCalled();
+  });
+
+  it("keeps the home page for signed-in users", async () => {
+    const mod = await loadModule();
+    await mod.bootstrapNativeApp(tokenStore("webtoken"));
+    expect(window.location.pathname).toBe("/");
   });
 
   it("ignores a Capacitor object that is not the native app", async () => {
@@ -108,6 +120,63 @@ describe("inside the app", () => {
     const mod = await loadModule();
     await expect(mod.enrollNativeDevice("webtoken")).resolves.toBe("iicm_dev");
     expect(nativePromise).toHaveBeenCalledWith("IicSession", "enroll", { authToken: "webtoken" });
+  });
+
+  it("enrolls each web token only once", async () => {
+    nativePromise.mockResolvedValue({ status: "ok", accessToken: "iicm_dev" });
+    const mod = await loadModule();
+    const [first, second] = await Promise.all([mod.enrollNativeDevice("webtoken"), mod.enrollNativeDevice("webtoken")]);
+    expect(first).toBe("iicm_dev");
+    expect(second).toBeNull();
+    await expect(mod.enrollNativeDevice("webtoken")).resolves.toBeNull();
+    expect(nativeCalls("enroll")).toHaveLength(1);
+  });
+
+  it("may retry an enrolment that failed offline", async () => {
+    nativePromise
+      .mockResolvedValueOnce({ status: "offline" })
+      .mockResolvedValueOnce({ status: "ok", accessToken: "iicm_dev" });
+    const mod = await loadModule();
+    await expect(mod.enrollNativeDevice("webtoken")).resolves.toBeNull();
+    await expect(mod.enrollNativeDevice("webtoken")).resolves.toBe("iicm_dev");
+    expect(nativeCalls("enroll")).toHaveLength(2);
+  });
+
+  it("uses the stored device session when the app says this sign-in is already enrolled", async () => {
+    nativePromise.mockImplementation((_plugin: string, method: string) =>
+      Promise.resolve(
+        method === "enroll" ? { status: "already_enrolled" } : { status: "ok", accessToken: "iicm_saved" },
+      ),
+    );
+    const mod = await loadModule();
+    await expect(mod.enrollNativeDevice("webtoken")).resolves.toBe("iicm_saved");
+  });
+
+  it("opens the dashboard instead of the home page when launched signed in", async () => {
+    nativePromise.mockResolvedValue({ status: "ok", accessToken: "iicm_saved", accessExpiresAt: Date.now() + 1e6 });
+    const mod = await loadModule();
+    await mod.bootstrapNativeApp(tokenStore(null));
+    expect(window.location.pathname).toBe("/dashboard");
+  });
+
+  it("keeps the home page when signed out, and after the first load of the app session", async () => {
+    nativePromise.mockResolvedValue({ status: "none" });
+    let mod = await loadModule();
+    await mod.bootstrapNativeApp(tokenStore(null));
+    expect(window.location.pathname).toBe("/");
+
+    nativePromise.mockResolvedValue({ status: "ok", accessToken: "iicm_saved", accessExpiresAt: Date.now() + 1e6 });
+    mod = await loadModule();
+    await mod.bootstrapNativeApp(tokenStore(null));
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("leaves deep links alone", async () => {
+    window.history.replaceState(null, "", "/my-bookings");
+    nativePromise.mockResolvedValue({ status: "ok", accessToken: "iicm_saved", accessExpiresAt: Date.now() + 1e6 });
+    const mod = await loadModule();
+    await mod.bootstrapNativeApp(tokenStore(null));
+    expect(window.location.pathname).toBe("/my-bookings");
   });
 
   it("restores the remembered session before first render", async () => {
@@ -188,6 +257,98 @@ describe("api client inside the app", () => {
     apiClient.setToken("webtoken123");
     await vi.waitFor(() => expect(localStorage.getItem("auth_token")).toBe("iicm_dev"));
     expect(nativePromise).toHaveBeenCalledWith("IicSession", "enroll", { authToken: "webtoken123" });
+  });
+
+  it("registers the phone once when sign-in stores the token twice, and keeps the phone signed in", async () => {
+    nativePromise.mockImplementation((_plugin: string, method: string) =>
+      Promise.resolve(method === "enroll" ? { status: "ok", accessToken: "iicm_dev" } : undefined),
+    );
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+    const { apiClient } = await import("./api");
+
+    // signIn() stores the token, then AuthContext.login() stores it again.
+    apiClient.setToken("webtoken123");
+    apiClient.setToken("webtoken123");
+    await vi.waitFor(() => expect(localStorage.getItem("auth_token")).toBe("iicm_dev"));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(nativeCalls("enroll")).toHaveLength(1);
+    expect(nativeCalls("clear")).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem("auth_token")).toBe("iicm_dev");
+  });
+
+  it("never revokes when the page is already on a phone session", async () => {
+    let finishEnroll: (v: unknown) => void = () => undefined;
+    nativePromise.mockImplementation((_plugin: string, method: string) =>
+      method === "enroll" ? new Promise((r) => (finishEnroll = r)) : Promise.resolve(undefined),
+    );
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+    const { apiClient } = await import("./api");
+
+    apiClient.setToken("webtoken123");
+    apiClient.setToken("iicm_restored");
+    finishEnroll({ status: "ok", accessToken: "iicm_dev" });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(nativeCalls("clear")).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem("auth_token")).toBe("iicm_restored");
+  });
+
+  it("ends only the orphaned device session when signed out during enrolment", async () => {
+    let finishEnroll: (v: unknown) => void = () => undefined;
+    nativePromise.mockImplementation((_plugin: string, method: string) =>
+      method === "enroll" ? new Promise((r) => (finishEnroll = r)) : Promise.resolve(undefined),
+    );
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+    const { apiClient } = await import("./api");
+
+    apiClient.setToken("webtoken123");
+    apiClient.setToken(null);
+    finishEnroll({ status: "ok", accessToken: "iicm_dev" });
+    await vi.waitFor(() => expect(nativeCalls("clear")).toHaveLength(1));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/auth\/mobile\/logout\/$/);
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Token iicm_dev");
+    expect(nativeCalls("clear")[0][2]).toEqual({ revoke: false });
+    expect(localStorage.getItem("auth_token")).toBeNull();
+  });
+
+  it("logout signs the phone out on the server and clears the app session", async () => {
+    nativePromise.mockResolvedValue(undefined);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    localStorage.setItem("auth_token", "iicm_dev");
+    vi.resetModules();
+    const { apiClient } = await import("./api");
+
+    await apiClient.signOut();
+
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/auth\/logout\/$/);
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Token iicm_dev");
+    expect(nativeCalls("clear")).toEqual([["IicSession", "clear", { revoke: false }]]);
+    expect(localStorage.getItem("auth_token")).toBeNull();
+  });
+
+  it("logout asks the app to revoke the phone when the server could not be reached", async () => {
+    nativePromise.mockResolvedValue(undefined);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    localStorage.setItem("auth_token", "iicm_dev");
+    vi.resetModules();
+    const { apiClient } = await import("./api");
+
+    await apiClient.signOut();
+
+    expect(nativeCalls("clear")).toEqual([["IicSession", "clear", { revoke: true }]]);
+    expect(localStorage.getItem("auth_token")).toBeNull();
   });
 });
 

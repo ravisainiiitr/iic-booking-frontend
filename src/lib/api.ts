@@ -2151,15 +2151,35 @@ class ApiClient {
     }
   }
 
-  /** Inside the mobile app, swap a fresh web sign-in for a device session that survives restarts. */
+  /**
+   * Inside the mobile app, swap a fresh web sign-in for a device session that survives restarts.
+   * enrollNativeDevice registers each web token once, so storing the same sign-in twice is safe.
+   */
   private async rememberThisDevice(webToken: string) {
     const deviceToken = await enrollNativeDevice(webToken);
     if (!deviceToken) return;
-    if (this.getToken() === webToken) {
+    const current = this.getToken();
+    if (current === webToken) {
       this.setToken(deviceToken);
-    } else {
-      // Signed out (or in as someone else) while enrolling: drop the device session again.
-      await clearNativeSession(true);
+      return;
+    }
+    // Already on a device session: the phone is signed in, never revoke it.
+    if (isMobileSessionToken(current)) return;
+    // Signed out, or someone else signed in, while enrolling: end only that orphaned device
+    // session. The app's stored session is left alone (a newer enrolment may have replaced it).
+    await this.revokeDeviceToken(deviceToken);
+    if (!current) await clearNativeSession(false);
+  }
+
+  private async revokeDeviceToken(deviceToken: string) {
+    try {
+      await fetch(`${this.baseURL}/auth/mobile/logout/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Token ${deviceToken}` },
+        credentials: 'omit',
+      });
+    } catch {
+      /* the device session still expires on its own */
     }
   }
 

@@ -34,7 +34,14 @@ export default function MobileDevicesCard() {
 
   useEffect(() => {
     void load();
-    if (inApp) void getNativeAppInfo().then(setAppInfo);
+    if (!inApp) return;
+    void getNativeAppInfo().then(setAppInfo);
+    // The user may come back from the phone's settings after setting a screen lock.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void getNativeAppInfo().then(setAppInfo);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [inApp, load]);
 
   const revoke = async (device: MobileDeviceSession) => {
@@ -87,6 +94,7 @@ export default function MobileDevicesCard() {
   if (!inApp && devices.length === 0) return null;
 
   const others = devices.filter((d) => !d.is_current);
+  const needsScreenLock = !!appInfo && !appInfo.deviceSecure && !appInfo.appLockEnabled && !appInfo.appLockRequired;
 
   return (
     <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
@@ -112,6 +120,11 @@ export default function MobileDevicesCard() {
                   ? "Required for administrator accounts."
                   : "Asks for your fingerprint, face or phone PIN when you open the app."}
               </p>
+              {needsScreenLock && (
+                <p id="app-lock-hint" className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  Set a screen lock (PIN, pattern or fingerprint) in your phone's settings to use app lock.
+                </p>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {lockBusy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -119,6 +132,7 @@ export default function MobileDevicesCard() {
                 id="app-lock-toggle"
                 checked={appInfo.appLockEnabled}
                 disabled={lockBusy || appInfo.appLockRequired || (!appInfo.deviceSecure && !appInfo.appLockEnabled)}
+                aria-describedby={needsScreenLock ? "app-lock-hint" : undefined}
                 onCheckedChange={(v) => void toggleLock(v)}
               />
             </div>
