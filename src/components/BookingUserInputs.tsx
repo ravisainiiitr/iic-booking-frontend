@@ -23,7 +23,13 @@ import { toast } from "sonner";
 import { Pencil, Plus, Trash2, FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
-import { formatNumericBound, resolveFieldAFormulaMax, resolveNumericFieldBounds, type NumericFieldBounds } from "@/lib/numericFieldLimits";
+import {
+  formatNumericBound,
+  formulaFallbackValues,
+  resolveFormulaMax,
+  resolveNumericFieldBounds,
+  type NumericFieldBounds,
+} from "@/lib/numericFieldLimits";
 import { parseNumericInput } from "@/lib/numericInput";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
@@ -94,8 +100,6 @@ interface BookingUserInputsProps {
   onAutoOpenEditConsumed?: () => void;
   /** Used by max formulas that reference SLOT_DURATION_MINUTES. */
   slotDurationMinutes?: number | null;
-  /** External booking users are exempt from the field A max formula (same as at booking creation). */
-  skipFormulaLimits?: boolean;
   /** After booking only the equipment's OIC and main administrators may add or remove sample sets. */
   canChangeSampleSets?: boolean;
   /** The equipment's "Allow samples with different parameters" switch; when off, no set can be added. */
@@ -177,7 +181,6 @@ export function BookingUserInputs({
   autoOpenEdit = false,
   onAutoOpenEditConsumed,
   slotDurationMinutes,
-  skipFormulaLimits = false,
   canChangeSampleSets = false,
   allowSampleSets = true,
   refundWindow,
@@ -236,11 +239,9 @@ export function BookingUserInputs({
   const hasEditableFields = canEdit && editableFields.length > 0;
   const sampleSetFields = fields.filter((f) => !isCommentsInputFieldKey(f.field_key));
 
+  const formulaFallbacks = formulaFallbackValues([...fields, ...editableFields]);
   const numericBoundsFor = (f: InputFieldDef, values: Record<string, unknown>): NumericFieldBounds =>
-    resolveNumericFieldBounds(
-      f,
-      skipFormulaLimits ? undefined : resolveFieldAFormulaMax(f, values, slotDurationMinutes),
-    );
+    resolveNumericFieldBounds(f, resolveFormulaMax(f, values, slotDurationMinutes, formulaFallbacks));
 
   const comparable = (v: unknown) =>
     v === undefined || v === null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).trim();
@@ -291,7 +292,7 @@ export function BookingUserInputs({
       sampleSetFieldLimitError(
         sampleSetFields,
         editSampleSets,
-        { slotDurationMinutes, skipFormulaLimits },
+        { slotDurationMinutes, fallbacks: formulaFallbacks },
         storedSampleSets,
       )
     : null;
@@ -1144,7 +1145,6 @@ export function BookingUserInputs({
                 allowAdd={allowSampleSets}
                 addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
                 slotDurationMinutes={slotDurationMinutes}
-                skipFormulaLimits={skipFormulaLimits}
                 storedSets={storedSampleSets}
               />
             </div>

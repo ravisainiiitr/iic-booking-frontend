@@ -301,33 +301,78 @@ function strictFiniteNumber(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+type FormulaFieldLike = {
+  field_key?: string;
+  field_type?: string;
+  default_value?: unknown;
+  options?: unknown;
+  help_text?: string | null;
+};
+
 /**
- * Upper limit for field A from options.max_formula (tokens A..Z and SLOT_DURATION_MINUTES,
- * e.g. "4*B"), falling back to options.max. Mirrors the backend's _resolve_numeric_max_for_field_a.
+ * Values a max formula uses for fields a sample set leaves empty or hidden: the value the form starts
+ * each field with (its default within its limits, else its minimum). First row per key wins.
+ * Mirrors the backend `formula_fallback_value`.
  */
-export function resolveFieldAFormulaMax(
+export function formulaFallbackValues(
+  fields: ReadonlyArray<FormulaFieldLike | null | undefined> | null | undefined
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const field of fields ?? []) {
+    const key = String(field?.field_key || "");
+    if (!field || !key || key in out) continue;
+    const start =
+      String(field.field_type || "").toUpperCase().trim() === "NUMERIC"
+        ? strictFiniteNumber(initialNumericFieldValue({ ...field, is_required: true }))
+        : strictFiniteNumber(field.default_value);
+    if (start !== undefined) out[key] = start;
+  }
+  return out;
+}
+
+function formulaNumber(n: number): string {
+  const text = formatNumericBound(n);
+  return n < 0 ? `(${text})` : text;
+}
+
+/**
+ * Upper limit from a NUMERIC field's options.max_formula (field keys A–Z and SLOT_DURATION_MINUTES,
+ * e.g. "B*4", or a constant such as "1"), worked out with one sample set's `values`. Any field may have
+ * one. Only the other fields' current values are read (no recursion); an empty referenced field uses
+ * `fallbacks` (see `formulaFallbackValues`). Undefined, with a console warning, when the formula cannot
+ * be worked out, so the static limits apply. Mirrors the backend `evaluate_max_formula`.
+ */
+export function resolveFormulaMax(
   field: { field_key?: string; options?: unknown } | null | undefined,
   values: Record<string, unknown>,
   slotDurationMinutes?: number | null,
+  fallbacks?: Record<string, number>,
 ): number | undefined {
-  if (String(field?.field_key || "").toUpperCase() !== "A") return undefined;
-  const opts = optionsObject(field?.options);
   const formula = numericMaxFormula(field?.options);
-  if (formula) {
-    let expr = formula;
-    for (const token of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
-      const tokenValue = strictFiniteNumber(values[token]) ?? 0;
-      expr = expr.replace(new RegExp(`\\b${token}\\b`, "g"), String(tokenValue));
-    }
-    expr = expr.replace(/\bSLOT_DURATION_MINUTES\b/g, String(strictFiniteNumber(slotDurationMinutes) ?? 0));
-    if (!/^[0-9+\-*/().\s]+$/.test(expr)) return undefined;
-    try {
-      return strictFiniteNumber(Function(`"use strict"; return (${expr});`)());
-    } catch {
+  if (!formula) return undefined;
+  let expr = formula;
+  for (const token of Array.from(new Set(formula.match(/\b[A-Z]\b/g) ?? []))) {
+    const raw = values?.[token];
+    const value = (typeof raw === "object" ? undefined : strictFiniteNumber(raw)) ?? fallbacks?.[token];
+    if (value === undefined) {
+      console.warn(`Ignoring max formula "${formula}" on field ${field?.field_key}: field ${token} has no value or default.`);
       return undefined;
     }
+    expr = expr.replace(new RegExp(`\\b${token}\\b`, "g"), formulaNumber(value));
   }
-  return strictFiniteNumber(opts.max);
+  expr = expr.replace(/\bSLOT_DURATION_MINUTES\b/g, formulaNumber(strictFiniteNumber(slotDurationMinutes) ?? 0));
+  let result: number | undefined;
+  try {
+    if (/^[0-9+\-*/().\s]+$/.test(expr)) {
+      result = strictFiniteNumber(Function(`"use strict"; return (${expr});`)());
+    }
+  } catch {
+    result = undefined;
+  }
+  if (result === undefined) {
+    console.warn(`Ignoring max formula "${formula}" on field ${field?.field_key}: it cannot be worked out.`);
+  }
+  return result;
 }
 
 /** True when a numeric input is present and within resolved [min, max]. */

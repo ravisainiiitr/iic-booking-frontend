@@ -3302,7 +3302,6 @@ export function BookingDetailCard({
               autoOpenEdit={autoOpenEditInputs}
               onAutoOpenEditConsumed={onAutoOpenEditInputsConsumed}
               slotDurationMinutes={booking.equipment_slot_duration_minutes}
-              skipFormulaLimits={isExternalBookingType}
               canChangeSampleSets={
                 booking.viewer_can_change_sample_sets ??
                 (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager")

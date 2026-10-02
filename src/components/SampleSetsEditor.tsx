@@ -22,7 +22,7 @@ import {
   resolveTableRowCountSourceKey,
   syncTableRowsToCount,
 } from "@/lib/dynamicTableField";
-import { formatNumericBound } from "@/lib/numericFieldLimits";
+import { formatNumericBound, formulaFallbackValues } from "@/lib/numericFieldLimits";
 import { computePeriodicElementUpdates, splitElements } from "@/lib/periodicElementSelection";
 import {
   boundsWithCombinedMax,
@@ -72,8 +72,6 @@ type Props = {
   allowAdd?: boolean;
   /** Equipment slot length, for max formulas using SLOT_DURATION_MINUTES. */
   slotDurationMinutes?: number | null;
-  /** External booking users skip field A's max formula, as in sample set 1. */
-  skipFormulaLimits?: boolean;
   /** Sets as saved (when editing), so unchanged legacy values below the minimum are not flagged. */
   storedSets?: SampleSetValues[];
 };
@@ -142,10 +140,9 @@ export default function SampleSetsEditor({
   addRemoveLockedNote = "Only the Officer In-Charge or administrator can add or remove sample sets after booking.",
   allowAdd = true,
   slotDurationMinutes,
-  skipFormulaLimits = false,
   storedSets,
 }: Props) {
-  const formulaContext = { slotDurationMinutes, skipFormulaLimits };
+  const formulaContext = { slotDurationMinutes, fallbacks: formulaFallbackValues(fields) };
   const setsRef = useRef(sets);
   setsRef.current = sets;
   const [periodicTarget, setPeriodicTarget] = useState<{ index: number; field: SampleSetField } | null>(null);

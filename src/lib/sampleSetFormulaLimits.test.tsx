@@ -42,8 +42,16 @@ describe("sampleSetFieldBounds", () => {
     expect(sampleSetFieldBounds(fieldA, { A: "1", B: "1" })).toEqual({ min: 1, max: 4, step: 1 });
   });
 
-  it("skips the formula for external booking users, as sample set 1 does", () => {
-    expect(sampleSetFieldBounds(fieldA, { B: "1" }, { skipFormulaLimits: true }).max).toBe(100);
+  it("applies the formula for every user type and uses B's default when B is empty", () => {
+    expect(sampleSetFieldBounds(fieldA, { B: "1" }).max).toBe(4);
+    expect(sampleSetFieldBounds(fieldA, { B: "" }, { fallbacks: { B: 1 } }).max).toBe(4);
+  });
+
+  it("applies a formula on a field other than A, including a constant one", () => {
+    const scans = { field_key: "B", field_label: "No. of Scans", field_type: "NUMERIC", options: { max_formula: "1" } };
+    expect(sampleSetFieldBounds(scans, { A: "3", B: "1" }).max).toBe(1);
+    const spots = { field_key: "C", field_type: "NUMERIC", options: { min: 1, max_formula: "A*2" } };
+    expect(sampleSetFieldBounds(spots, { A: "3" }).max).toBe(6);
   });
 
   it("supports SLOT_DURATION_MINUTES and legacy plain-formula options", () => {
@@ -81,14 +89,52 @@ describe("sampleSetFieldLimitError", () => {
     expect(sampleSetFieldLimitError(apreo, [{ A: "1", B: "0" }])).toBe(`Sample set 2: ${B_LABEL} cannot be less than 1.`);
   });
 
-  it("ignores blanks and half-typed numbers, and external users' A formula", () => {
+  it("ignores blanks and half-typed numbers", () => {
     expect(sampleSetFieldLimitError(apreo, [{ A: "", B: "1" }, { A: "1.", B: "1" }])).toBeNull();
-    expect(sampleSetFieldLimitError(apreo, [{ A: "9", B: "1" }], { skipFormulaLimits: true })).toBeNull();
+  });
+
+  it("checks an empty B in a set against B's default", () => {
+    expect(sampleSetFieldLimitError(apreo, [{ A: "5", B: "" }])).toBe(formulaError(4, 1));
+    expect(sampleSetFieldLimitError(apreo, [{ A: "4" }])).toBeNull();
+  });
+
+  it("keeps a set left exactly as saved, but asks for a fix once it is changed", () => {
+    const stored = [{ A: "9", B: "1" }];
+    expect(sampleSetFieldLimitError(apreo, [{ A: "9", B: "1" }], {}, stored)).toBeNull();
+    expect(sampleSetFieldLimitError(apreo, [{ A: "10", B: "1" }], {}, stored)).toBe(formulaError(4, 1));
+  });
+
+  it("enforces EBSD's No. of Scans <= 1 in every set", () => {
+    const ebsd = [
+      { field_key: "A", field_label: "No. of Samples", field_type: "NUMERIC", options: { min: 1, max: 10 }, default_value: "1" },
+      { field_key: "B", field_label: "No. of Scans", field_type: "NUMERIC", options: { max_formula: "1" }, default_value: "1" },
+    ];
+    expect(sampleSetFieldLimitError(ebsd, [{ A: "2", B: "1" }])).toBeNull();
+    expect(sampleSetFieldLimitError(ebsd, [{ A: "2", B: "1" }, { A: "2", B: "2" }])).toBe(
+      "Sample set 3: No. of Scans cannot be greater than 1.",
+    );
+  });
+
+  it("does not loop or crash on circular or unworkable formulas", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const circular = [
+      { field_key: "A", field_label: "Samples", field_type: "NUMERIC", options: { min: 1, max_formula: "C*2" } },
+      { field_key: "C", field_label: "Spots", field_type: "NUMERIC", options: { min: 1, max_formula: "A" } },
+    ];
+    expect(sampleSetFieldLimitError(circular, [{ A: "4", C: "3" }])).toBeNull();
+    expect(sampleSetFieldLimitError(circular, [{ A: "2", C: "3" }])).toBe(
+      "Sample set 2: Spots cannot be greater than 2 (A, where A is Samples = 2).",
+    );
+    const broken = [{ field_key: "A", field_label: "Samples", field_type: "NUMERIC", options: { max_formula: "Z/0" } }];
+    expect(sampleSetFieldLimitError(broken, [{ A: "90" }])).toBeNull();
+    expect(sampleSetFieldLimitError(broken, [{ A: "101" }])).toBe("Sample set 2: Samples cannot be greater than 100.");
+    warn.mockRestore();
   });
 
   it("explains the formula the same way as the backend", () => {
     expect(formulaLimitNote("B*4", { B: 2 }, { B: B_LABEL })).toBe(`B × 4, where B is ${B_LABEL} = 2`);
     expect(formulaLimitNote("B*4", {}, {})).toBe("B × 4, where B = not set");
+    expect(formulaLimitNote("B*4", {}, {}, { B: 1 })).toBe("B × 4, where B = 1");
   });
 });
 
@@ -128,9 +174,16 @@ describe("SampleSetsEditor with a formula maximum (APREO)", () => {
     expect(html).toContain(formulaError(4, 1, 3));
   });
 
-  it("drops A's formula for external booking users", () => {
-    const html = render([{ A: "8", B: "1", C: "No" }], { skipFormulaLimits: true });
-    expect(inputFor(html, "A")).toContain('max="100"');
-    expect(html).not.toContain('role="alert"');
+  it("caps a constant-formula field other than A, with the hint and arrow", () => {
+    const fields: SampleSetField[] = [
+      { field_key: "A", field_label: "No. of Samples", field_type: "NUMERIC", options: { min: 1, max: 10 }, default_value: "1" },
+      { field_key: "B", field_label: "No. of Scans", field_type: "NUMERIC", options: { max_formula: "1" }, default_value: "1" },
+    ];
+    const html = renderToStaticMarkup(
+      <SampleSetsEditor fields={fields} sets={[{ A: "2", B: "2" }]} onChange={() => {}} primaryValues={{ A: "1", B: "1" }} />,
+    );
+    expect(inputFor(html, "B")).toContain('max="1"');
+    expect(inputFor(html, "B")).toContain('aria-invalid="true"');
+    expect(html).toContain("Sample set 2: No. of Scans cannot be greater than 1.");
   });
 });

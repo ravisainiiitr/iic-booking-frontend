@@ -7,8 +7,9 @@ import {
   formatNumericBound,
   isNumericInputDraft,
   numericConstraints,
+  formulaFallbackValues,
   numericMaxFormula,
-  resolveFieldAFormulaMax,
+  resolveFormulaMax,
   resolveNumericFieldBounds,
   type NumericFieldBounds,
 } from "@/lib/numericFieldLimits";
@@ -172,17 +173,26 @@ export function formatAllowance(allowance: CombinedAllowance): string {
 export type SampleSetFormulaContext = {
   /** Equipment slot length, for formulas using SLOT_DURATION_MINUTES. */
   slotDurationMinutes?: number | null;
-  /** External booking users skip field A's formula / options.max, as in sample set 1. */
-  skipFormulaLimits?: boolean;
+  /** Values used for referenced fields a set leaves empty (see `formulaFallbackValues`). */
+  fallbacks?: Record<string, number>;
 };
 
 function formulaMaxFor(field: CombinedLimitFieldDef, values: Values, ctx: SampleSetFormulaContext) {
-  return ctx.skipFormulaLimits ? undefined : resolveFieldAFormulaMax(field, values, ctx.slotDurationMinutes);
+  return resolveFormulaMax(field, values, ctx.slotDurationMinutes, ctx.fallbacks);
+}
+
+function sameValues(a: Values | undefined, b: Values | undefined): boolean {
+  if (!a || !b) return false;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if (String(a[key] ?? "").trim() !== String(b[key] ?? "").trim()) return false;
+  }
+  return true;
 }
 
 /**
- * Limits of a NUMERIC field in one sample set. A formula maximum (e.g. A <= B*4) is worked out from that
- * set's own values, exactly as sample set 1's is from its values.
+ * Limits of a NUMERIC field in one sample set. A formula maximum (e.g. A <= B*4, on any field and for
+ * every user type) is worked out from that set's own values, exactly as sample set 1's is from its values.
  */
 export function sampleSetFieldBounds(
   field: CombinedLimitFieldDef,
@@ -193,11 +203,17 @@ export function sampleSetFieldBounds(
 }
 
 /** How a formula maximum was worked out, e.g. "B × 4, where B is Number of Slots = 2" (mirrors the backend). */
-export function formulaLimitNote(formula: string, values: Values, labels: Record<string, string>): string {
+export function formulaLimitNote(
+  formula: string,
+  values: Values,
+  labels: Record<string, string>,
+  fallbacks?: Record<string, number>,
+): string {
   const refs: string[] = [];
   for (const key of new Set(formula.match(/(?<![A-Za-z0-9_])[A-Z](?![A-Za-z0-9_])/g) ?? [])) {
     const raw = values[key];
-    const n = raw === undefined || raw === null || raw === "" ? NaN : Number(String(raw).trim().replace(",", "."));
+    let n = raw === undefined || raw === null || raw === "" ? NaN : Number(String(raw).trim().replace(",", "."));
+    if (!Number.isFinite(n) && fallbacks?.[key] !== undefined) n = fallbacks[key];
     const shown = Number.isFinite(n) ? formatNumericBound(n) : "not set";
     const label = labels[key];
     refs.push(label && label !== key ? `${key} is ${label} = ${shown}` : `${key} = ${shown}`);
@@ -210,7 +226,7 @@ export function formulaLimitNote(formula: string, values: Values, labels: Record
  * First NUMERIC value outside its limits in an extra sample set, each set checked on its own values (its
  * own B for A <= B*4), named by set ("Sample set 2: …"), else null. Mirrors the backend check.
  * `storedSets` are the sets as saved when editing: an unchanged value below the minimum of 1 saved before
- * that rule is kept, as the backend does.
+ * that rule is kept, and a set left exactly as saved is not held to a formula maximum, as the backend does.
  */
 export function sampleSetFieldLimitError(
   fields: CombinedLimitFieldDef[] | null | undefined,
@@ -225,7 +241,10 @@ export function sampleSetFieldLimitError(
     const key = String(f.field_key || "");
     if (key && !(key in labels)) labels[key] = f.field_label || key;
   }
+  const fallbacks = ctx.fallbacks ?? formulaFallbackValues(fields);
   for (const [index, values] of sets.entries()) {
+    const setCtx = { ...ctx, fallbacks };
+    const unchanged = sameValues(values, storedSets[index]);
     for (const field of numeric) {
       const key = String(field.field_key || "");
       const raw = values?.[key];
@@ -234,7 +253,7 @@ export function sampleSetFieldLimitError(
       }
       const n = typeof raw === "number" ? raw : Number(String(raw).trim().replace(",", "."));
       if (!Number.isFinite(n)) continue;
-      const formulaMax = formulaMaxFor(field, values, ctx);
+      const formulaMax = formulaMaxFor(field, values, setCtx);
       const { min, max } = resolveNumericFieldBounds(field, formulaMax);
       const label = labels[key] || key;
       const prefix = `Sample set ${index + 2}: `;
@@ -249,7 +268,8 @@ export function sampleSetFieldLimitError(
       }
       if (n > max) {
         const formula = formulaMax !== undefined ? numericMaxFormula(field.options) : "";
-        const note = formula ? ` (${formulaLimitNote(formula, values, labels)})` : "";
+        if (formula && unchanged && n <= resolveNumericFieldBounds(field).max) continue;
+        const note = /[A-Z]/.test(formula) ? ` (${formulaLimitNote(formula, values, labels, fallbacks)})` : "";
         return `${prefix}${label} cannot be greater than ${formatNumericBound(max)}${note}.`;
       }
     }

@@ -1226,7 +1226,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     const limits = numericLimitsOf(f);
     const key = String(f.field_key || "").toUpperCase();
     const error = numericLimitDraftError(limits, { allowNegative: Boolean(f.allow_negative) });
-    const showFormula = key === "A" || limits.maxFormula.trim() !== "";
     const boxes = [
       { name: "min", label: "Min", placeholder: "1" },
       { name: "max", label: "Max", placeholder: "100" },
@@ -1270,22 +1269,21 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             Max is the limit for the total across all sample sets of a booking. If empty, each entry is capped at 100 and no total is enforced.
           </p>
         )}
-        {showFormula && (
-          <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-max-formula-${idx}`} className="text-[11px] font-normal text-muted-foreground">
-              Max formula (optional)
-            </Label>
-            <Input
-              id={`${idPrefix}-max-formula-${idx}`}
-              placeholder="e.g. B*4"
-              value={limits.maxFormula}
-              onChange={(e) => updateNumericLimits(idx, { maxFormula: e.target.value })}
-            />
-            <p className="text-xs text-muted-foreground">
-              e.g. B*4 — limit relative to another field, checked per sample set. Used instead of Max (external users get Max).
-            </p>
-          </div>
-        )}
+        <div className="space-y-1">
+          <Label htmlFor={`${idPrefix}-max-formula-${idx}`} className="text-[11px] font-normal text-muted-foreground">
+            Max formula (optional)
+          </Label>
+          <Input
+            id={`${idPrefix}-max-formula-${idx}`}
+            placeholder={key === "A" ? "e.g. B*4" : "e.g. A*2 or 1"}
+            value={limits.maxFormula}
+            onChange={(e) => updateNumericLimits(idx, { maxFormula: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">
+            e.g. B*4 — limit relative to another field, or a fixed number such as 1. Checked per sample set for every
+            user type; used instead of Max.
+          </p>
+        </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     );

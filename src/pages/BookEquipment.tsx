@@ -48,7 +48,9 @@ import {
   isNumericInputDraft,
   isNumericValueWithinBounds,
   numericFieldAllowsNegative,
-  resolveFieldAFormulaMax,
+  formulaFallbackValues,
+  numericMaxFormula,
+  resolveFormulaMax,
   resolveNumericFieldBounds,
 } from "@/lib/numericFieldLimits";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
@@ -616,18 +618,17 @@ function toFiniteNumber(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function resolveDynamicMaxForFieldA(
+/** Max from a NUMERIC field's max_formula (any field, every user type), worked out with `inputFieldValues`. */
+function resolveDynamicFormulaMax(
   field: any,
-  inputFieldValues: Record<string, string | boolean | string[] | number>,
+  inputFieldValues: Record<string, unknown>,
   equipmentDetail?: EquipmentDetail | null,
-  /** When true (external booking target), ignore options text / max_formula / options.max for field A. */
-  skipConfiguredMax = false
 ): number | undefined {
-  if (skipConfiguredMax) return undefined;
-  return resolveFieldAFormulaMax(
-    { field_key: "A", options: field?.options },
+  return resolveFormulaMax(
+    field,
     inputFieldValues,
     toFiniteNumber(equipmentDetail?.slot_duration_minutes),
+    formulaFallbackValues(equipmentDetail?.input_fields),
   );
 }
 
@@ -943,15 +944,8 @@ function chargeAffectingInputKeys(
     for (const field of fields) {
       const key = String(field?.field_key || "").trim();
       if (!keys.has(key)) continue;
-      const opts = field?.options;
       const maxFormula =
-        opts && typeof opts === "object" && !Array.isArray(opts)
-          ? (opts as Record<string, unknown>).max_formula
-          : key === "A" && typeof opts === "string"
-            ? opts
-            : key === "A" && Array.isArray(opts) && opts.length === 1 && typeof opts[0] === "string"
-              ? opts[0]
-              : undefined;
+        String(field?.field_type || "").toUpperCase().trim() === "NUMERIC" ? numericMaxFormula(field?.options) : "";
       for (const dep of formulaLetters(maxFormula)) {
         if (!keys.has(dep)) {
           keys.add(dep);
@@ -1283,17 +1277,14 @@ const BookEquipment = () => {
       if (raw === undefined || raw === null || raw === "" || (typeof raw === "string" && isNumericInputDraft(raw))) {
         continue;
       }
-      const formulaMax =
-        key.toUpperCase() === "A" && !bookingAsExternalTarget
-          ? resolveDynamicMaxForFieldA(field, inputFieldValues, equipmentDetail, false)
-          : undefined;
+      const formulaMax = resolveDynamicFormulaMax(field, inputFieldValues, equipmentDetail);
       if (!isNumericValueWithinBounds(raw, field, formulaMax)) {
         const { min, max } = resolveNumericFieldBounds(field, formulaMax);
         return `"${field.field_label || key}" must be between ${formatNumericBound(min)} and ${formatNumericBound(max)}.`;
       }
     }
     return null;
-  }, [equipmentDetail, inputFieldValues, calculateHiddenFieldKeys, isProformaFlow, bookingAsExternalTarget]);
+  }, [equipmentDetail, inputFieldValues, calculateHiddenFieldKeys, isProformaFlow]);
 
   const sampleSetFields = useMemo(
     () =>
@@ -1312,10 +1303,10 @@ const BookEquipment = () => {
             sampleSets,
             {
               slotDurationMinutes: toFiniteNumber(equipmentDetail?.slot_duration_minutes),
-              skipFormulaLimits: bookingAsExternalTarget,
+              fallbacks: formulaFallbackValues(equipmentDetail?.input_fields),
             }
           ),
-    [equipmentDetail, sampleSetFields, sampleSets, isProformaFlow, bookingAsExternalTarget]
+    [equipmentDetail, sampleSetFields, sampleSets, isProformaFlow]
   );
 
   /** External logistics: return samples after analysis (adds return shipping fee before GST). */
@@ -3689,10 +3680,7 @@ const BookEquipment = () => {
             continue;
           }
           if (fieldType === 'NUMERIC') {
-            const formulaMax =
-              key === "A" && !bookingAsExternalTarget
-                ? resolveDynamicMaxForFieldA(field, inputFieldValues, equipmentDetail, false)
-                : undefined;
+            const formulaMax = resolveDynamicFormulaMax(field, inputFieldValues, equipmentDetail);
             const bounds = resolveNumericFieldBounds(field, formulaMax);
             if (!isNumericValueWithinBounds(raw, field, formulaMax)) {
               if (!isCalculateChargesFlow) {
@@ -5699,15 +5687,11 @@ const BookEquipment = () => {
           return;
         }
       }
-      const formulaMax =
-        String(fieldKey || "").toUpperCase() === "A" && !bookingAsExternalTarget
-          ? resolveDynamicMaxForFieldA(
-              changedField,
-              { ...inputFieldValues, [fieldKey]: value },
-              equipmentDetail,
-              false
-            )
-          : undefined;
+      const formulaMax = resolveDynamicFormulaMax(
+        changedField,
+        { ...inputFieldValues, [fieldKey]: value },
+        equipmentDetail
+      );
       const { min, max } = resolveNumericFieldBounds(changedField, formulaMax);
       const numericValue =
         typeof value === "number"
@@ -5744,50 +5728,54 @@ const BookEquipment = () => {
     });
   }, [equipmentDetail?.input_fields, inputFieldValues]);
 
-  /** Field A's max can depend on other fields (options.max_formula, e.g. "B*4"); lowering B must pull A back within the new max. */
+  /** A field's max can depend on other fields (options.max_formula, e.g. A <= B*4); lowering B must pull A back within the new max. */
   useEffect(() => {
     const fields = equipmentDetail?.input_fields;
-    if (!Array.isArray(fields) || fields.length === 0 || repeatSourceBooking || bookingAsExternalTarget) return;
-    const fieldA = fields.find(
-      (f) =>
-        String(f?.field_key || "").toUpperCase() === "A" &&
-        String(f?.field_type || "").toUpperCase().trim() === "NUMERIC"
-    );
-    if (!fieldA) return;
-    const key = String(fieldA.field_key);
-    const raw = inputFieldValues[key];
-    if (raw === undefined || raw === "" || (typeof raw === "string" && isNumericInputDraft(raw))) return;
-    const current = typeof raw === "number" ? raw : Number(raw);
-    if (!Number.isFinite(current)) return;
-    const opts = fieldA.options;
-    const formula =
-      opts && typeof opts === "object" && !Array.isArray(opts) && typeof opts.max_formula === "string"
-        ? opts.max_formula
-        : typeof opts === "string"
-          ? opts
-          : Array.isArray(opts) && opts.length === 1 && typeof opts[0] === "string"
-            ? opts[0]
-            : "";
-    // Wait while a field used by the formula is being retyped, so A is not clamped against an empty B.
-    const referenced = Array.from(new Set(String(formula).toUpperCase().match(/\b[A-Z]\b/g) ?? []));
-    const pending = referenced.some((token) => {
-      const v = inputFieldValues[token];
-      return v === undefined || v === "" || (typeof v === "string" && isNumericInputDraft(v));
-    });
-    if (pending) return;
-    const formulaMax = resolveDynamicMaxForFieldA(fieldA, inputFieldValues, equipmentDetail, false);
-    if (formulaMax === undefined) return;
-    const { min, max } = resolveNumericFieldBounds(fieldA, formulaMax);
-    if (!(max >= min) || current <= max) return;
-    const clamped = typeof raw === "number" ? max : formatNumericBound(max);
+    if (!Array.isArray(fields) || fields.length === 0 || repeatSourceBooking) return;
+    const clamps: Array<{ key: string; label: string; value: string | number; max: number }> = [];
+    const seen = new Set<string>();
+    for (const field of fields) {
+      const key = String(field?.field_key || "");
+      if (!key || seen.has(key) || String(field?.field_type || "").toUpperCase().trim() !== "NUMERIC") continue;
+      seen.add(key);
+      const formula = numericMaxFormula(field.options);
+      if (!formula) continue;
+      const raw = inputFieldValues[key];
+      if (raw === undefined || raw === "" || (typeof raw === "string" && isNumericInputDraft(raw))) continue;
+      const current = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(current)) continue;
+      // Wait while a field used by the formula is being retyped, so A is not clamped against an empty B.
+      const referenced = Array.from(new Set(formula.toUpperCase().match(/\b[A-Z]\b/g) ?? []));
+      const pending = referenced.some((token) => {
+        const v = inputFieldValues[token];
+        return v === "" || (typeof v === "string" && isNumericInputDraft(v));
+      });
+      if (pending) continue;
+      const formulaMax = resolveDynamicFormulaMax(field, inputFieldValues, equipmentDetail);
+      if (formulaMax === undefined) continue;
+      const { min, max } = resolveNumericFieldBounds(field, formulaMax);
+      if (!(max >= min) || current <= max) continue;
+      clamps.push({
+        key,
+        label: field.field_label || key,
+        value: typeof raw === "number" ? max : formatNumericBound(max),
+        max,
+      });
+    }
+    if (clamps.length === 0) return;
     setInputFieldValues((prev) => {
-      const next: Record<string, unknown> = { ...prev, [key]: clamped };
-      applyTableRowSyncToValues(next, fields, key);
+      const next: Record<string, unknown> = { ...prev };
+      for (const c of clamps) {
+        next[c.key] = c.value;
+        applyTableRowSyncToValues(next, fields, c.key);
+      }
       return next as typeof prev;
     });
     lastCalculatedValuesRef.current = "";
-    toast.info(`${fieldA.field_label || key} adjusted to ${formatNumericBound(max)} (maximum for the current selection).`);
-  }, [equipmentDetail, inputFieldValues, repeatSourceBooking, bookingAsExternalTarget]);
+    for (const c of clamps) {
+      toast.info(`${c.label} adjusted to ${formatNumericBound(c.max)} (maximum for the current selection).`);
+    }
+  }, [equipmentDetail, inputFieldValues, repeatSourceBooking]);
 
   const handlePrint3DReady = useCallback((values: Print3DBookingValues | null) => {
     if (!values) {
@@ -8951,15 +8939,7 @@ const BookEquipment = () => {
                                 );
                               
                               case 'NUMERIC': {
-                                const formulaMax =
-                                  field.field_key === "A" && !bookingAsExternalTarget
-                                    ? resolveDynamicMaxForFieldA(
-                                        field,
-                                        inputFieldValues,
-                                        equipmentDetail,
-                                        false
-                                      )
-                                    : undefined;
+                                const formulaMax = resolveDynamicFormulaMax(field, inputFieldValues, equipmentDetail);
                                 const combinedLimit =
                                   sampleSets.length > 0
                                     ? primaryCombinedLimits.find((l) => l.key === field.field_key)
@@ -9535,7 +9515,6 @@ const BookEquipment = () => {
                         primaryValues={inputFieldValues}
                         allowAdd={sampleSetsAllowed}
                         slotDurationMinutes={toFiniteNumber(equipmentDetail?.slot_duration_minutes)}
-                        skipFormulaLimits={bookingAsExternalTarget}
                       />
                     </div>
                   )}

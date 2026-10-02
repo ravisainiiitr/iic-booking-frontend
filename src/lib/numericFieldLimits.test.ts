@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  formulaFallbackValues,
   initialNumericFieldValue,
   isNumericHelpTextConvention,
   isNumericValueWithinBounds,
@@ -8,7 +9,7 @@ import {
   numericFieldAllowsBelowOne,
   numericHelpTextForDisplay,
   numericMaxFormula,
-  resolveFieldAFormulaMax,
+  resolveFormulaMax,
   resolveNumericFieldBounds,
 } from "@/lib/numericFieldLimits";
 import { configuredStaticMax } from "@/lib/sampleSetLimits";
@@ -115,11 +116,37 @@ describe("readers agree with the resolver", () => {
     );
   });
 
-  it("evaluates field A's formula, falling back to options.max", () => {
-    expect(resolveFieldAFormulaMax({ field_key: "A", options: { max_formula: "B*4" } }, { B: 2 })).toBe(8);
-    expect(resolveFieldAFormulaMax({ field_key: "A", options: "B*4" }, { B: 3 })).toBe(12);
-    expect(resolveFieldAFormulaMax({ field_key: "A", options: { max: 5 } }, {})).toBe(5);
-    expect(resolveFieldAFormulaMax({ field_key: "B", options: { max_formula: "A*2" } }, { A: 1 })).toBeUndefined();
+  it("evaluates any field's formula; no formula leaves the static limits to resolveNumericFieldBounds", () => {
+    expect(resolveFormulaMax({ field_key: "A", options: { max_formula: "B*4" } }, { B: 2 })).toBe(8);
+    expect(resolveFormulaMax({ field_key: "A", options: "B*4" }, { B: 3 })).toBe(12);
+    expect(resolveFormulaMax({ field_key: "A", options: { max: 5 } }, {})).toBeUndefined();
+    expect(resolveFormulaMax({ field_key: "B", options: { max_formula: "A*2" } }, { A: 1 })).toBe(2);
+    expect(resolveFormulaMax({ field_key: "B", options: { max_formula: "1" } }, {})).toBe(1);
+    expect(resolveFormulaMax({ field_key: "C", options: { max_formula: "A-B" } }, { A: 1, B: 3 })).toBe(-2);
+  });
+
+  it("uses the referenced field's default, else its minimum, when a set leaves it empty", () => {
+    const fallbacks = formulaFallbackValues([
+      { field_key: "A", field_type: "NUMERIC", options: { min: 1, max_formula: "B*4" }, default_value: "1" },
+      { field_key: "B", field_type: "NUMERIC", options: { min: 1, max: 20 }, default_value: "2" },
+      { field_key: "C", field_type: "NUMERIC", options: { min: 3 }, default_value: "" },
+      { field_key: "D", field_type: "RADIO", options: ["Yes", "No"], default_value: "No" },
+    ]);
+    expect(fallbacks).toEqual({ A: 1, B: 2, C: 3 });
+    const fieldA = { field_key: "A", options: { max_formula: "B*4" } };
+    expect(resolveFormulaMax(fieldA, { B: "" }, null, fallbacks)).toBe(8);
+    expect(resolveFormulaMax(fieldA, {}, null, fallbacks)).toBe(8);
+    expect(resolveFormulaMax({ field_key: "A", options: { max_formula: "C*2" } }, {}, null, fallbacks)).toBe(6);
+  });
+
+  it("ignores, with a warning, a formula that cannot be worked out", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(resolveFormulaMax({ field_key: "A", options: { max_formula: "Z*2" } }, { B: 1 })).toBeUndefined();
+    expect(resolveFormulaMax({ field_key: "A", options: { max_formula: "B/0" } }, { B: 1 })).toBeUndefined();
+    expect(resolveFormulaMax({ field_key: "A", options: { max_formula: "B**" } }, { B: 1 })).toBeUndefined();
+    expect(resolveFormulaMax({ field_key: "A", options: { max_formula: "B*4" } }, { B: [1] })).toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(4);
+    warn.mockRestore();
   });
 });
 
