@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { prepareBookingAssistantHandoff } from "@/lib/bookingAssistantPrefill";
 import { ASSISTANT_CARD_TYPES, AssistantCard, type AssistantActionHandler } from "./AssistantCards";
+import { CopilotMarkdown } from "./CopilotMarkdown";
+import { safeHref } from "./markdown";
 import { INTELLIGENCE_CARD_TYPES, IntelligenceCard, renderedChoiceKeys } from "./IntelligenceCards";
 import { isViteCopilotEnabled } from "./softGate";
 
@@ -230,6 +232,7 @@ const DEFAULT_COMMANDS: CommandAction[] = [
   { id: "reschedule", label: "Reschedule booking", prompt: "Reschedule my next booking." },
   { id: "cancel_booking", label: "Cancel booking", prompt: "Cancel my next booking." },
   { id: "wallet", label: "Wallet balance", prompt: "What is my wallet balance?" },
+  { id: "recharge", label: "How to recharge", prompt: "How do I recharge my wallet?" },
   { id: "ra_status", label: "Remote Analysis", prompt: "What is my Remote Analysis status?" },
   { id: "research_help", label: "Research Help", prompt: "How do I prepare a sample for FESEM?" },
 ];
@@ -263,29 +266,23 @@ function copilotErrorMessage(res: { error?: string | null; status?: number | nul
   }
   return res.error || "Booking Assistant could not complete that request. You can continue using the booking portal.";
 }
-function SimpleMarkdown({ text }: { text: string }) {
-  const lines = text.split("\n");
+/** Sources worth showing: none for Booking Assistant live-data answers, and only entries with a title. */
+function visibleCitations(msg: CopilotMessage): NonNullable<CopilotMessage["citations"]> {
+  if (msg.metadata?.booking_assistant) return [];
+  return (msg.citations || []).filter((c) => Boolean(c.title));
+}
+
+function TypingIndicator({ slow }: { slow: boolean }) {
   return (
-    <div className="space-y-2 text-sm leading-relaxed">
-      {lines.map((line, i) => {
-        if (!line.trim()) return <div key={i} className="h-2" />;
-        const html = line
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-          .replace(/`([^`]+)`/g, "<code class=\"rounded bg-black/10 px-1 py-0.5 text-xs\">$1</code>");
-        const isBullet = /^\s*[-*]\s+/.test(line);
-        if (isBullet) {
-          return (
-            <div key={i} className="flex gap-2 pl-1">
-              <span className="text-muted-foreground">•</span>
-              <span dangerouslySetInnerHTML={{ __html: html.replace(/^\s*[-*]\s+/, "") }} />
-            </div>
-          );
-        }
-        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
-      })}
+    <div className="flex justify-start" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-xs text-muted-foreground">
+        <span className="flex gap-1" aria-hidden="true">
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.3s]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.15s]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70" />
+        </span>
+        <span>{slow ? "Searching the portal guides…" : "Booking Assistant is typing…"}</span>
+      </div>
     </div>
   );
 }
@@ -755,6 +752,15 @@ export default function ResearchCopilot({
   const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
   const [open, setOpen] = useState(initialOpen);
   const [loading, setLoading] = useState(false);
+  const [slowReply, setSlowReply] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setSlowReply(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSlowReply(true), 4000);
+    return () => window.clearTimeout(t);
+  }, [loading]);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [backendEnabled, setBackendEnabled] = useState<boolean | null>(initialBackendEnabled);
   const skipMountGate = useRef(initialBackendEnabled !== null);
@@ -1454,7 +1460,13 @@ export default function ResearchCopilot({
                             </div>
                           ) : null}
                           {msg.role === "assistant" ? (
-                            <SimpleMarkdown text={msg.content} />
+                            <CopilotMarkdown
+                              text={msg.content}
+                              onNavigate={(href) => {
+                                setOpen(false);
+                                navigate(href);
+                              }}
+                            />
                           ) : (
                             <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                           )}
@@ -1480,15 +1492,15 @@ export default function ResearchCopilot({
                               onAckProposal={ackProposal}
                             />
                           )}
-                          {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
+                          {msg.role === "assistant" && visibleCitations(msg).length > 0 && (
                             <div className="mt-3 border-t border-border/60 pt-2">
                               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                {msg.citations.some((c) => c.source_type === "manual")
+                                {visibleCitations(msg).some((c) => c.source_type === "manual")
                                   ? "Sources · Equipment manual"
-                                  : "Sources · Knowledge document"}
+                                  : "Sources"}
                               </div>
                               <ul className="mt-1 space-y-1">
-                                {msg.citations.map((c, idx) => (
+                                {visibleCitations(msg).map((c, idx) => (
                                   <li key={`${c.source_id || c.title}-${idx}`} className="text-xs">
                                     <span className="mr-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
                                       {c.source_type === "manual"
@@ -1510,16 +1522,18 @@ export default function ResearchCopilot({
                                           </button>
                                         ) : null}
                                       </span>
-                                    ) : c.url ? (
+                                    ) : safeHref(c.url) ? (
                                       <button
                                         type="button"
                                         className="text-left text-amber-800 underline-offset-2 hover:underline dark:text-amber-200"
                                         onClick={() => {
-                                          if (c.url?.startsWith("/")) {
+                                          const href = safeHref(c.url);
+                                          if (!href) return;
+                                          if (href.startsWith("/")) {
                                             setOpen(false);
-                                            navigate(c.url);
-                                          } else if (c.url) {
-                                            window.open(c.url, "_blank", "noopener,noreferrer");
+                                            navigate(href);
+                                          } else {
+                                            window.open(href, "_blank", "noopener,noreferrer");
                                           }
                                         }}
                                       >
@@ -1618,13 +1632,7 @@ export default function ResearchCopilot({
                         </div>
                       </div>
                     ))}
-                    {loading && (
-                      <div className="flex justify-start">
-                        <div className="rounded-2xl bg-muted px-4 py-3">
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        </div>
-                      </div>
-                    )}
+                    {loading && <TypingIndicator slow={slowReply} />}
                     <div ref={scrollRef} />
                   </div>
                 </ScrollArea>

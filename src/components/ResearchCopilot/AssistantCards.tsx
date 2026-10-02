@@ -1099,32 +1099,68 @@ function EquipmentInfo({ card, onNavigate }: Props) {
   );
 }
 
-function Bookings({ card, onNavigate }: Props) {
+const STOPPED_STATUSES = new Set(["CANCELLED", "REFUNDED", "ABSENT", "BOOKING_NOT_UTILIZED"]);
+
+function Bookings({ card, busy, onAction, onNavigate }: Props) {
   const items = arr(card.items);
   return (
     <Shell title={str(card.title) || "Bookings"}>
-      <div className="space-y-1.5">
-        {items.map((b, i) => (
-          <button
-            key={`${str(b.reference)}-${i}`}
-            type="button"
-            onClick={() => onNavigate(str(b.href))}
-            className="flex w-full items-start justify-between gap-2 rounded-lg border bg-background px-3 py-2 text-left text-xs hover:bg-muted"
-          >
-            <span className="min-w-0">
-              <span className="block font-medium">{str(b.equipment)}</span>
-              <span className="block break-all text-[11px] text-muted-foreground">
-                {str(b.when)}
-                {b.reference ? ` · ${str(b.reference)}` : ""}
-              </span>
-            </span>
-            <span className="flex shrink-0 flex-col items-end gap-1">
-              <StatusPill ok={str(b.status) !== "CANCELLED"} label={str(b.status_label)} />
-              {num(b.charge) !== null ? <span className="text-[11px] text-muted-foreground">{inr(b.charge)}</span> : null}
-            </span>
-          </button>
-        ))}
-      </div>
+      <ol className="space-y-1.5" aria-label={str(card.title) || "Bookings"}>
+        {items.map((b, i) => {
+          const actions = arr(b.actions).filter((a) => str(a.action_type) && a.enabled !== false);
+          const ref = str(b.reference);
+          return (
+            <li key={`${ref}-${i}`} className="rounded-lg border bg-background text-xs">
+              <button
+                type="button"
+                onClick={() => onNavigate(str(b.href))}
+                aria-label={`${i + 1}. ${str(b.equipment)}, ${str(b.when)}, ${ref}, ${str(b.status_label)} — open in My Bookings`}
+                className="flex w-full items-start justify-between gap-2 rounded-t-lg px-3 py-2 text-left hover:bg-muted"
+              >
+                <span className="flex min-w-0 gap-2">
+                  {items.length > 1 ? (
+                    <span className="mt-0.5 text-[10px] font-semibold text-muted-foreground" aria-hidden>
+                      {i + 1}
+                    </span>
+                  ) : null}
+                  <span className="min-w-0">
+                    <span className="block font-medium">{str(b.equipment)}</span>
+                    <span className="block break-all text-[11px] text-muted-foreground">
+                      {str(b.when)}
+                      {ref ? ` · ${ref}` : ""}
+                    </span>
+                    {b.cutoff && b.self_service_open ? (
+                      <span className="block text-[10px] text-muted-foreground">Change or cancel until {str(b.cutoff)}</span>
+                    ) : null}
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <StatusPill ok={!STOPPED_STATUSES.has(str(b.status))} label={str(b.status_label)} />
+                  {num(b.charge) !== null ? <span className="text-[11px] text-muted-foreground">{inr(b.charge)}</span> : null}
+                </span>
+              </button>
+              {actions.length ? (
+                <div className="flex flex-wrap gap-1 border-t px-2 py-1.5" role="group" aria-label={`Actions for ${ref || str(b.equipment)}`}>
+                  {actions.map((a) => (
+                    <Button
+                      key={str(a.id) || str(a.label)}
+                      type="button"
+                      size="sm"
+                      variant={a.primary ? "default" : "outline"}
+                      disabled={busy}
+                      className="h-7 rounded-full px-2.5 text-[11px]"
+                      onClick={() => onAction(str(a.utterance) || str(a.label), str(a.action_type), (a.payload as Rec) || {})}
+                    >
+                      {str(a.label)}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+      {card.prompt ? <p className="mt-2 text-xs font-medium text-foreground">{str(card.prompt)}</p> : null}
     </Shell>
   );
 }
