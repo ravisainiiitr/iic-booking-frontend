@@ -52,6 +52,10 @@ import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTime } from "@/lib/bookingDates";
+import { cancelRescheduleDeadline, inputEditRefundDeadlineText } from "@/lib/bookingDeadlines";
+import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
+import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
+import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -68,6 +72,7 @@ interface Booking extends BookingRef {
   equipment_name: string;
   wallet_owner_name?: string | null;
   equipment_reschedule_hours_threshold?: number;
+  input_edit_refund_deadline?: string | null;
   charge_profile: number;
   user_type_snapshot: string;
   user_type_snapshot_display?: string | null;
@@ -762,24 +767,7 @@ const MyBookings = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const statusLower = status.toLowerCase();
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-500",
-      confirmed: "bg-blue-500",
-      approved: "bg-blue-500",
-      booked: "bg-blue-500",
-      in_progress: "bg-green-500",
-      completed: "bg-green-500",
-      cancelled: "bg-red-500",
-      rejected: "bg-red-500",
-      absent: "bg-orange-500",
-      refunded: "bg-purple-500",
-      booking_not_utilized: "bg-amber-600",
-      waitlisted: "bg-amber-500",
-    };
-    return colors[statusLower] || "bg-gray-500";
-  };
+  const getStatusColor = (status: string) => bookingStatusBadgeClass(status);
 
   const formatBookingStartDate = (startTime: string | null | undefined) =>
     formatBookingDateTime(startTime, { dateStyle: "short", timeStyle: "short" });
@@ -1321,6 +1309,171 @@ const MyBookings = () => {
     }
   };
 
+  /** Owner-facing cancel/reschedule cutoff. Staff viewing others, finance, operators and external users (no self-service) get none. */
+  const getOwnerDeadline = (booking: Booking, now: Date) => {
+    if (isAccountsFinanceUser || isLabOperatorUser) return null;
+    if (isWaitlistedEntry(booking)) {
+      return canShowTableCancelButton(booking) ? cancelRescheduleDeadline(booking, now) : null;
+    }
+    if (restrictedExternalUserType) return null;
+    if (user?.id == null || Number(booking.user) !== Number(user.id)) return null;
+    return cancelRescheduleDeadline(booking, now);
+  };
+
+  const renderBookingDeadline = (booking: Booking, now: Date, className?: string) => {
+    const isOwn = user?.id != null && Number(booking.user) === Number(user.id);
+    return (
+      <BookingDeadlineNote
+        deadline={getOwnerDeadline(booking, now)}
+        secondaryText={isOwn && !isWaitlistedEntry(booking) ? inputEditRefundDeadlineText(booking, now) : null}
+        className={className}
+      />
+    );
+  };
+
+  const renderBookingIdButton = (booking: Booking, touch = false) =>
+    isWaitlistedEntry(booking) ? (
+      <button
+        type="button"
+        onClick={() => showWaitlistDetail(booking)}
+        className={`inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-500 hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+          touch ? "min-h-10 text-left" : ""
+        }`}
+      >
+        {booking.virtual_booking_id || booking.waitlist_code || "Waitlisted"}
+        <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => showBookingDetail(booking)}
+        className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+          touch ? "min-h-10 text-left " : ""
+        }${
+          booking.status.toUpperCase() === "COMPLETED"
+            ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
+            : "text-primary hover:text-primary/80"
+        }`}
+      >
+        {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+        <IstemFbrSeal
+          requireIstemFbr={booking.require_istem_fbr}
+          istemFbrStatus={booking.istem_fbr_status}
+        />
+        <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+      </button>
+    );
+
+  const formatListStart = (booking: Booking) =>
+    isWaitlistedEntry(booking)
+      ? (booking.created_at ? new Date(booking.created_at).toLocaleString() : "—")
+      : formatBookingStartDate(booking.start_time);
+
+  /** Row actions shared by the desktop table and the phone card list; `touch` makes targets ≥ 40px. */
+  const renderBookingActions = (booking: Booking, touch = false) => {
+    const btn = touch ? "h-10 px-3" : undefined;
+    return (
+      <>
+        {!isWaitlistedEntry(booking) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={btn}
+            onClick={() => showBookingDetail(booking)}
+          >
+            View
+          </Button>
+        )}
+        {!isWaitlistedEntry(booking) &&
+          booking.status.toUpperCase() === "COMPLETED" &&
+          booking.has_results === true && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={btn}
+            disabled={resultsLoadingId === booking.booking_id}
+            onClick={() => handleResultsClick(booking)}
+          >
+            {resultsLoadingId === booking.booking_id ? "…" : "Results"}
+          </Button>
+        )}
+        {user?.id != null &&
+          Number(booking.user) === Number(user.id) &&
+          canRebook(booking as RebookSourceBooking) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={btn}
+            title="Book this equipment again with the same details"
+            onClick={() => {
+              const url = prepareRebook(booking as RebookSourceBooking);
+              if (url) navigate(url);
+            }}
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1" />
+            Book again
+          </Button>
+        )}
+        {canAddToCalendar(booking) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={btn}
+            title="One-time copy of this booking (.ics). It will not follow later reschedules or cancellations; use Sync to calendar for automatic updates."
+            disabled={calendarIcsLoadingId === getRealBookingId(booking)}
+            onClick={() => downloadBookingCalendar(booking)}
+          >
+            <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+            {calendarIcsLoadingId === getRealBookingId(booking) ? "…" : "Add to calendar"}
+          </Button>
+        )}
+        {!isAccountsFinanceUser &&
+          !isLabOperatorUser &&
+          (!currentUserType ||
+            !isExternalBookingUserType(currentUserType)) &&
+          canCancelOrReschedule(booking.status) &&
+          canReschedule(booking) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={btn}
+            onClick={() => {
+              setSelectedBooking(booking);
+              setRescheduleDialogOpen(true);
+            }}
+          >
+            Reschedule
+          </Button>
+        )}
+        {canShowTableCancelButton(booking) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`text-destructive hover:text-destructive ${btn ?? ""}`}
+            onClick={() => handleCancelClick(booking)}
+          >
+            Cancel
+          </Button>
+        )}
+        {canRateBooking(booking) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={btn}
+            onClick={() => {
+              showBookingDetail(booking);
+              setRatingDraft((prev) => ({ ...prev, [getBookingKey(booking)]: { stars: 0, feedback: "" } }));
+            }}
+          >
+            Rate
+          </Button>
+        )}
+      </>
+    );
+  };
+
+  const listNow = new Date();
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1389,6 +1542,7 @@ const MyBookings = () => {
                   }}
                   onClear={clearBookingFilters}
                 />
+                <BookingStatusLegend className="pt-2" />
               </CardHeader>
               {!loading && bookings.length === 0 ? (
               <CardContent className="py-12 text-center">
@@ -1425,6 +1579,7 @@ const MyBookings = () => {
               ) : (
               <>
               <CardContent className="p-0">
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -1469,41 +1624,13 @@ const MyBookings = () => {
                       bookings.map((booking) => (
                       <TableRow key={booking.booking_id} className="group">
                         <TableCell className="font-medium">
-                          {isWaitlistedEntry(booking) ? (
-                            <button
-                              type="button"
-                              onClick={() => showWaitlistDetail(booking)}
-                              className="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-500 hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded"
-                            >
-                              {booking.virtual_booking_id || booking.waitlist_code || "Waitlisted"}
-                              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => showBookingDetail(booking)}
-                              className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
-                                booking.status.toUpperCase() === "COMPLETED"
-                                  ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
-                                  : "text-primary hover:text-primary/80"
-                              }`}
-                            >
-                              {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
-                              <IstemFbrSeal
-                                requireIstemFbr={booking.require_istem_fbr}
-                                istemFbrStatus={booking.istem_fbr_status}
-                              />
-                              <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                            </button>
-                          )}
+                          {renderBookingIdButton(booking)}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {isWaitlistedEntry(booking)
-                            ? (booking.created_at ? new Date(booking.created_at).toLocaleString() : "—")
-                            : formatBookingStartDate(booking.start_time)}
+                          {formatListStart(booking)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {formatDuration(booking.total_time_minutes)}
@@ -1518,101 +1645,53 @@ const MyBookings = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap justify-end gap-1">
-                            {!isWaitlistedEntry(booking) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => showBookingDetail(booking)}
-                              >
-                                View
-                              </Button>
-                            )}
-                            {!isWaitlistedEntry(booking) &&
-                              booking.status.toUpperCase() === "COMPLETED" &&
-                              booking.has_results === true && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={resultsLoadingId === booking.booking_id}
-                                onClick={() => handleResultsClick(booking)}
-                              >
-                                {resultsLoadingId === booking.booking_id ? "…" : "Results"}
-                              </Button>
-                            )}
-                            {user?.id != null &&
-                              Number(booking.user) === Number(user.id) &&
-                              canRebook(booking as RebookSourceBooking) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Book this equipment again with the same details"
-                                onClick={() => {
-                                  const url = prepareRebook(booking as RebookSourceBooking);
-                                  if (url) navigate(url);
-                                }}
-                              >
-                                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                                Book again
-                              </Button>
-                            )}
-                            {canAddToCalendar(booking) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="One-time copy of this booking (.ics). It will not follow later reschedules or cancellations; use Sync to calendar for automatic updates."
-                                disabled={calendarIcsLoadingId === getRealBookingId(booking)}
-                                onClick={() => downloadBookingCalendar(booking)}
-                              >
-                                <CalendarPlus className="h-3.5 w-3.5 mr-1" />
-                                {calendarIcsLoadingId === getRealBookingId(booking) ? "…" : "Add to calendar"}
-                              </Button>
-                            )}
-                            {!isAccountsFinanceUser &&
-                              !isLabOperatorUser &&
-                              (!currentUserType ||
-                                !isExternalBookingUserType(currentUserType)) &&
-                              canCancelOrReschedule(booking.status) &&
-                              canReschedule(booking) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedBooking(booking);
-                                  setRescheduleDialogOpen(true);
-                                }}
-                              >
-                                Reschedule
-                              </Button>
-                            )}
-                            {canShowTableCancelButton(booking) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleCancelClick(booking)}
-                              >
-                                Cancel
-                              </Button>
-                            )}
-                            {canRateBooking(booking) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  showBookingDetail(booking);
-                                  setRatingDraft((prev) => ({ ...prev, [getBookingKey(booking)]: { stars: 0, feedback: "" } }));
-                                }}
-                              >
-                                Rate
-                              </Button>
-                            )}
+                            {renderBookingActions(booking)}
                           </div>
+                          {renderBookingDeadline(booking, listNow, "mt-1 flex flex-col items-end text-right")}
                         </TableCell>
                       </TableRow>
                     ))
                     )}
                   </TableBody>
                 </Table>
+                </div>
+                <ul className="divide-y md:hidden" aria-label="Bookings">
+                  {loading && bookings.length === 0
+                    ? [1, 2, 3, 4].map((i) => (
+                        <li key={i} className="space-y-3 p-4" aria-hidden>
+                          <div className="animate-pulse space-y-2">
+                            <div className="flex justify-between gap-2">
+                              <div className="h-4 w-28 rounded bg-muted" />
+                              <div className="h-5 w-16 rounded-full bg-muted" />
+                            </div>
+                            <div className="h-4 w-40 rounded bg-muted" />
+                            <div className="h-4 w-full rounded bg-muted" />
+                            <div className="h-10 w-32 rounded bg-muted" />
+                          </div>
+                        </li>
+                      ))
+                    : bookings.map((booking) => (
+                        <li key={booking.booking_id} className="space-y-2 p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            {renderBookingIdButton(booking, true)}
+                            <Badge className={`mt-2 shrink-0 ${getStatusColor(booking.status)}`}>
+                              {booking.status_display}
+                            </Badge>
+                          </div>
+                          <p className="break-words font-medium">{booking.equipment_name}</p>
+                          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                            <dt className="text-muted-foreground">{isWaitlistedEntry(booking) ? "Requested" : "Start"}</dt>
+                            <dd>{formatListStart(booking)}</dd>
+                            <dt className="text-muted-foreground">Duration</dt>
+                            <dd>{formatDuration(booking.total_time_minutes)}</dd>
+                            <dt className="text-muted-foreground">Cost</dt>
+                            <dd className="font-medium text-primary">₹{Number(booking.total_charge).toFixed(2)}</dd>
+                          </dl>
+                          {renderBookingDeadline(booking, listNow)}
+                          <div className="-ml-3 flex flex-wrap gap-1">{renderBookingActions(booking, true)}</div>
+                        </li>
+                      ))}
+                </ul>
               </CardContent>
               {totalCount > 0 && (
                 <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/20">

@@ -55,6 +55,9 @@ import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleT
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
+import { cancelRescheduleDeadline, inputEditRefundDeadlineText } from "@/lib/bookingDeadlines";
+import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
+import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -71,6 +74,10 @@ export interface BookingDetailCardBooking extends BookingRef {
   equipment_code: string;
   equipment_name: string;
   wallet_owner_name?: string | null;
+  /** Owner cancel/reschedule window in hours before start (default 48). */
+  equipment_reschedule_hours_threshold?: number | null;
+  /** False when equipment is not ACTIVE (e.g. under maintenance). */
+  equipment_is_operational?: boolean;
   charge_profile: number;
   user_type_snapshot: string;
   user_type_snapshot_display?: string | null;
@@ -432,19 +439,7 @@ function BookingLifecycleCountdown({
 }
 
 function getStatusColor(status: string): string {
-  const statusLower = status.toLowerCase();
-  const colors: Record<string, string> = {
-    booked: "bg-blue-500",
-    disruption_pending: "bg-amber-500",
-    under_maintenance: "bg-yellow-600",
-    other_disruption: "bg-orange-600",
-    completed: "bg-green-500",
-    cancelled: "bg-red-500",
-    absent: "bg-orange-500",
-    refunded: "bg-purple-500",
-    booking_not_utilized: "bg-amber-600",
-  };
-  return colors[statusLower] || "bg-gray-500";
+  return bookingStatusBadgeClass(status);
 }
 
 function canMarkBookingNotUtilized(booking: BookingDetailCardBooking): boolean {
@@ -1470,6 +1465,23 @@ export function BookingDetailCard({
   const isBookingOwnerView =
     !isOperatorOrManager && currentUserId != null && booking.user === currentUserId;
   const oicContacts = Array.isArray(booking.oic_contacts) ? booking.oic_contacts : [];
+  const isOwnBooking = currentUserId != null && Number(booking.user) === Number(currentUserId);
+  const deadlineNow = new Date();
+  /** Owner cancel/reschedule cutoff (same window as My Bookings); none for staff roles or external self-service. */
+  const ownerDeadlineRaw =
+    isOwnBooking && !isOperator && !isFinanceUser && !isHold && !isExternalBookingType
+      ? cancelRescheduleDeadline(booking, deadlineNow)
+      : null;
+  const ownerDeadline =
+    ownerDeadlineRaw?.kind === "waitlist" && !onUserCancelClick ? null : ownerDeadlineRaw;
+  const ownerDeadlinePassed = ownerDeadline?.kind === "passed";
+  /** Non-staff owners reschedule via the owner endpoint, so hide the button when My Bookings would. */
+  const ownerRescheduleBlocked =
+    !isOperator &&
+    !isManagerOrAdmin &&
+    (ownerDeadlinePassed || ownerDeadline?.kind === "disruption_waiting");
+  const ownerEditRefundText =
+    isOwnBooking && !isWaitlistedEntry ? inputEditRefundDeadlineText(booking, deadlineNow) : null;
 
   return (
     <div id="booking-detail-section" className="mt-6 scroll-mt-6">
@@ -2047,6 +2059,11 @@ export function BookingDetailCard({
                 Actions are disabled while booking is in hold state.
               </p>
             )}
+            <BookingDeadlineNote
+              deadline={ownerDeadline}
+              secondaryText={ownerEditRefundText}
+              className="mb-2 text-sm"
+            />
             <div className="flex flex-wrap gap-2">
               {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
                 <SampleSubmittedAction
@@ -2334,7 +2351,8 @@ export function BookingDetailCard({
                   const ownerMayCancel =
                     isOwn &&
                     !isOperator &&
-                    !isExternalBookingUserType(booking.user_type_snapshot);
+                    !isExternalBookingUserType(booking.user_type_snapshot) &&
+                    !ownerDeadlinePassed;
                   // Admin / Dept Admin / OIC: cancel others within server-enforced scope (list already scoped).
                   const staffMayCancelOther =
                     Boolean(isManagerOrAdmin) && !isOwn && !isWaitlistedEntry;
@@ -2413,7 +2431,8 @@ export function BookingDetailCard({
                 !isLabInchargeUser &&
                 !isFinanceUser &&
                 canPerformAction(booking, "reschedule", isOperator) &&
-                !isExternalSelfView && (
+                !isExternalSelfView &&
+                !ownerRescheduleBlocked && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("reschedule", booking)}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Reschedule
