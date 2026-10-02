@@ -1,14 +1,71 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  initialNumericFieldValue,
   isNumericHelpTextConvention,
+  isNumericValueWithinBounds,
   numericConstraints,
+  numericFieldAllowsBelowOne,
   numericHelpTextForDisplay,
   numericMaxFormula,
   resolveFieldAFormulaMax,
   resolveNumericFieldBounds,
 } from "@/lib/numericFieldLimits";
 import { configuredStaticMax } from "@/lib/sampleSetLimits";
+
+describe("minimum of 1", () => {
+  it("raises an unset or zero min to 1 and keeps a higher configured min", () => {
+    expect(resolveNumericFieldBounds({ options: { min: 0, max: 5 } }).min).toBe(1);
+    expect(resolveNumericFieldBounds({ options: [], help_text: "0\n10\n1" }).min).toBe(1);
+    expect(resolveNumericFieldBounds({ options: { min: 2, max: 8 } }).min).toBe(2);
+    expect(isNumericValueWithinBounds("0", { options: [] })).toBe(false);
+    expect(isNumericValueWithinBounds(-1, { options: [] })).toBe(false);
+    expect(isNumericValueWithinBounds("1", { options: [] })).toBe(true);
+  });
+
+  it("raises a formula max of 0 to the min", () => {
+    expect(resolveNumericFieldBounds({ field_key: "A", options: { max_formula: "B*4" } } as never, 0)).toEqual({
+      min: 1,
+      max: 1,
+      step: 1,
+    });
+  });
+
+  it.each([
+    [{ options: { min: 0.1, max: 5, step: 0.1 }, default_value: "0.1" }, 0.1], // PXRD [A] scan speed
+    [{ options: [], default_value: "0.02" }, 0], // PXRD [B] step size
+    [{ options: { min: -7, max: 16.3, step: 0.1 }, default_value: "-7" }, -7], // UPS (eV)
+    [{ options: { allow_negative: true, max: 10 } }, -10],
+    [{ options: { step: 0.5, max: 10 } }, 0],
+  ])("keeps the min of decimal / negative fields %#", (field, min) => {
+    expect(numericFieldAllowsBelowOne(field)).toBe(true);
+    expect(resolveNumericFieldBounds(field).min).toBe(min);
+  });
+
+  it.each(["0", "", null, "1", "16.3"])("a default of %j does not lift the minimum", (def) => {
+    expect(numericFieldAllowsBelowOne({ options: [], default_value: def })).toBe(false);
+  });
+
+  it("can skip the floor (legacy values)", () => {
+    expect(resolveNumericFieldBounds({ options: [] }, undefined, { applyMinFloor: false }).min).toBe(0);
+  });
+
+  it("uses a fractional default's resolution when Step is not set", () => {
+    expect(resolveNumericFieldBounds({ options: [], default_value: "0.02" }).step).toBe(0.01);
+    expect(resolveNumericFieldBounds({ options: [], default_value: "16.3" }).step).toBe(0.1);
+    expect(resolveNumericFieldBounds({ options: [], default_value: "5" }).step).toBe(1);
+    expect(resolveNumericFieldBounds({ options: { step: 0.5 }, default_value: "0.02" }).step).toBe(0.5);
+  });
+
+  it("starts optional fields blank when their default is below the min or missing", () => {
+    expect(initialNumericFieldValue({ field_key: "D", options: [], default_value: "0", is_required: false })).toBe("");
+    expect(initialNumericFieldValue({ field_key: "D", options: [], default_value: "", is_required: false })).toBe("");
+    expect(initialNumericFieldValue({ field_key: "D", options: [], default_value: "0", is_required: true })).toBe("1");
+    expect(initialNumericFieldValue({ field_key: "C", options: [], default_value: "", is_required: true })).toBe("1");
+    expect(initialNumericFieldValue({ field_key: "D", options: [], default_value: "4", is_required: false })).toBe("4");
+    expect(initialNumericFieldValue({ field_key: "D", options: [], default_value: "0.02", is_required: true })).toBe("0.02");
+  });
+});
 
 describe("numericConstraints", () => {
   it("prefers options over help-text lines", () => {
@@ -26,7 +83,7 @@ describe("numericConstraints", () => {
   it("returns undefined (not the UI defaults) when nothing is configured", () => {
     const c = numericConstraints({ options: [], help_text: "" });
     expect([c.min, c.max, c.step, c.maxFormula]).toEqual([undefined, undefined, undefined, ""]);
-    expect(resolveNumericFieldBounds({ options: [], help_text: "" })).toEqual({ min: 0, max: 100, step: 1 });
+    expect(resolveNumericFieldBounds({ options: [], help_text: "" })).toEqual({ min: 1, max: 100, step: 1 });
   });
 
   it("ignores a non-positive options step in favour of the help text", () => {

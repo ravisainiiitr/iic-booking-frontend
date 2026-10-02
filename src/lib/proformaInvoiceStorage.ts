@@ -216,8 +216,12 @@ export function mergeProformaLineIntoInputFieldValues(
         base[key] = initialNumericFieldValue(field);
       } else {
         const { min, max } = resolveNumericFieldBounds(field);
-        const clamped = Math.min(max, Math.max(min, n));
-        base[key] = formatNumericBound(clamped);
+        // An optional value saved below the minimum (e.g. 0 before the minimum of 1) was "not used".
+        if (n < min && field.is_required === false) {
+          base[key] = "";
+        } else {
+          base[key] = formatNumericBound(Math.min(max, Math.max(min, n)));
+        }
       }
       continue;
     }

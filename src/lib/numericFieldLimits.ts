@@ -177,24 +177,72 @@ export function numericHelpTextForDisplay(field: { field_type?: string; help_tex
   return text;
 }
 
+/** Number inputs cannot go below 1 unless the field is set up for decimal or negative values. */
+export const NUMERIC_MIN_FLOOR = 1;
+
+type NumericFieldConfigLike = {
+  options?: unknown;
+  help_text?: string | null;
+  default_value?: unknown;
+};
+
+function strictDefaultNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || typeof value === "boolean") return undefined;
+  const raw = String(value).trim().replace(",", ".");
+  if (!raw) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * True when the equipment set the field up for decimal or negative values, so the minimum of 1 does not
+ * apply: Allow negative, a negative or fractional Min (e.g. -7 eV, 0.1 s/step), a Step below 1, or a
+ * negative / fractional default (e.g. a 0.02 degree step size). A Min of 0 alone is not such a signal.
+ * Mirrors the backend `numeric_field_allows_below_one`.
+ */
+export function numericFieldAllowsBelowOne(field: NumericFieldConfigLike | null | undefined): boolean {
+  const opts = optionsObject(field?.options);
+  if (isTruthyOption(opts.allow_negative) || isTruthyOption(opts.allowNegative)) return true;
+  const configured = numericConstraints(field);
+  if (configured.min !== undefined && configured.min < NUMERIC_MIN_FLOOR && configured.min !== 0) return true;
+  if (configured.step !== undefined && configured.step < 1) return true;
+  const def = strictDefaultNumber(field?.default_value);
+  return def !== undefined && def < NUMERIC_MIN_FLOOR && def !== 0;
+}
+
+/** Resolution of a fractional default (0.02 → 0.01), so an unset Step does not round it away. */
+function stepFromDefault(value: unknown): number | undefined {
+  const n = strictDefaultNumber(value);
+  if (n === undefined || Number.isInteger(n)) return undefined;
+  const text = Math.abs(n).toFixed(10).replace(/0+$/, "");
+  const places = text.includes(".") ? text.length - text.indexOf(".") - 1 : 0;
+  return places > 0 ? Number((10 ** -places).toFixed(places)) : undefined;
+}
+
+export type ResolveNumericBoundsOptions = {
+  /** Set false to get the configured minimum without the floor of 1 (e.g. for legacy values). */
+  applyMinFloor?: boolean;
+};
+
 export function resolveNumericFieldBounds(
-  field: {
-    options?: unknown;
-    help_text?: string | null;
-  } | null | undefined,
-  formulaMax?: number | null
+  field: NumericFieldConfigLike | null | undefined,
+  formulaMax?: number | null,
+  { applyMinFloor = true }: ResolveNumericBoundsOptions = {}
 ): NumericFieldBounds {
   const opts = optionsObject(field?.options);
   const configured = numericConstraints(field);
 
   let min = configured.min ?? DEFAULT_NUMERIC_MIN;
+  if (applyMinFloor && min < NUMERIC_MIN_FLOOR && !numericFieldAllowsBelowOne(field)) {
+    min = NUMERIC_MIN_FLOOR;
+  }
   let max: number;
   if (formulaMax !== undefined && formulaMax !== null && Number.isFinite(formulaMax)) {
     max = Number(formulaMax);
   } else {
     max = configured.max ?? DEFAULT_NUMERIC_MAX;
   }
-  const step = configured.step ?? DEFAULT_NUMERIC_STEP;
+  const step = configured.step ?? stepFromDefault(field?.default_value) ?? DEFAULT_NUMERIC_STEP;
 
   // Explicit allow_negative: if min is still non-negative, open the floor to -max.
   const allowNegative =
@@ -216,24 +264,30 @@ export function formatNumericBound(n: number): string {
 /**
  * Initial / default value for a NUMERIC dynamic field.
  * Honours configured min/max (including negative lower limits and negative defaults).
- * When default is blank: A/B prefer 1 if that lies in range (legacy sample/slot counts), else min.
+ * An optional field starts blank when it has no default or its default is below the minimum (e.g. a
+ * legacy default of 0), so nothing is charged for a value the user did not choose.
+ * A required field with a blank default: A/B prefer 1 if that lies in range (sample/slot counts), else min.
  */
 export function initialNumericFieldValue(field: {
   field_key?: string;
   default_value?: unknown;
   options?: unknown;
   help_text?: string | null;
+  is_required?: boolean;
 }): string {
   const bounds = resolveNumericFieldBounds(field);
   const { min, max } = bounds;
+  const required = field.is_required !== false;
   const raw = field.default_value;
   if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
     const parsed = Number(String(raw).trim().replace(",", "."));
     if (Number.isFinite(parsed)) {
+      if (parsed < min && !required) return "";
       const clamped = Math.min(max, Math.max(min, parsed));
       return formatNumericBound(clamped);
     }
   }
+  if (!required) return "";
   const key = String(field.field_key || "").toUpperCase();
   if ((key === "A" || key === "B") && 1 >= min && 1 <= max) {
     return "1";

@@ -45,16 +45,14 @@ import {
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import {
   formatNumericBound,
-  formatStepAttr,
   initialNumericFieldValue,
   isNumericInputDraft,
   isNumericValueWithinBounds,
-  nudgeNumericValue,
   numericFieldAllowsNegative,
   resolveFieldAFormulaMax,
   resolveNumericFieldBounds,
-  roundToStepPrecision,
 } from "@/lib/numericFieldLimits";
+import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { formatINR } from "@/lib/money";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
@@ -154,7 +152,7 @@ import SampleSetsEditor, { type SampleSetField } from "@/components/SampleSetsEd
 import { DynamicFieldRow } from "@/components/DynamicFieldRow";
 import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
 import { readSampleSets, withSampleSets, withoutSampleSets, type SampleSetValues } from "@/lib/sampleSets";
-import { combinedLimitError } from "@/lib/sampleSetLimits";
+import { boundsWithCombinedMax, combinedLimitError, combinedLimits, maxForPrimarySet } from "@/lib/sampleSetLimits";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { takeBookingAssistantPrefill } from "@/lib/bookingAssistantPrefill";
@@ -1200,6 +1198,10 @@ const BookEquipment = () => {
         : combinedLimitError(equipmentDetail?.input_fields, inputFieldValues, sampleSets),
     [equipmentDetail, inputFieldValues, sampleSets]
   );
+  const primaryCombinedLimits = useMemo(
+    () => (equipmentDetail?.profile_type === "PRINT_3D" ? [] : combinedLimits(equipmentDetail?.input_fields)),
+    [equipmentDetail]
+  );
   /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
   const [sampleInfoExpanded, setSampleInfoExpanded] = useState(true);
   const [chargeCalcExpanded, setChargeCalcExpanded] = useState(true);
@@ -1302,6 +1304,31 @@ const BookEquipment = () => {
     }
     return false;
   }, [isCalculateChargesFlow, chargeEstimateUserType, isExternalUser, userType, adminManageMode, adminBookForUserId, usersList]);
+
+  /** First shown NUMERIC field holding a value outside its limits (e.g. a 0 from an older template). */
+  const numericInputLimitError = useMemo(() => {
+    const fields = equipmentDetail?.input_fields;
+    if (!fields?.length || equipmentDetail?.profile_type === "PRINT_3D") return null;
+    for (const field of fields) {
+      if (String(field?.field_type || "").toUpperCase().trim() !== "NUMERIC") continue;
+      const key = String(field?.field_key || "").trim();
+      if (!key || calculateHiddenFieldKeys.has(key)) continue;
+      if (isProformaFlow && isNonChargeAffectingInputField(field)) continue;
+      const raw = inputFieldValues[key];
+      if (raw === undefined || raw === null || raw === "" || (typeof raw === "string" && isNumericInputDraft(raw))) {
+        continue;
+      }
+      const formulaMax =
+        key.toUpperCase() === "A" && !bookingAsExternalTarget
+          ? resolveDynamicMaxForFieldA(field, inputFieldValues, equipmentDetail, false)
+          : undefined;
+      if (!isNumericValueWithinBounds(raw, field, formulaMax)) {
+        const { min, max } = resolveNumericFieldBounds(field, formulaMax);
+        return `"${field.field_label || key}" must be between ${formatNumericBound(min)} and ${formatNumericBound(max)}.`;
+      }
+    }
+    return null;
+  }, [equipmentDetail, inputFieldValues, calculateHiddenFieldKeys, isProformaFlow, bookingAsExternalTarget]);
 
   /** External logistics: return samples after analysis (adds return shipping fee before GST). */
   const [sampleReturnAfterAnalysis, setSampleReturnAfterAnalysis] = useState<boolean>(false);
@@ -3687,6 +3714,8 @@ const BookEquipment = () => {
         }
         }
       }
+      // Any other shown number outside its limits: the box itself says what to change.
+      if (numericInputLimitError) return;
     }
 
     // If no input fields, we still need to call the API with empty values
@@ -3795,7 +3824,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys, numericInputLimitError]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -4045,7 +4074,7 @@ const BookEquipment = () => {
       : (!hasInputFields || allRequiredFilled);
 
     // Calculate charge when inputs are sufficient
-    if (readyToCalculate && !sampleSetLimitError) {
+    if (readyToCalculate && !sampleSetLimitError && !numericInputLimitError) {
       const currentValuesHash = buildChargeCalculationHash({
         inputFieldValues,
         printAnalysisId,
@@ -4089,7 +4118,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, sampleSets, sampleSetLimitError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
+  }, [inputFieldValues, sampleSets, sampleSetLimitError, numericInputLimitError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
@@ -5658,7 +5687,8 @@ const BookEquipment = () => {
       (f: any) => String(f?.field_key || "").toUpperCase() === String(fieldKey || "").toUpperCase()
     );
     const changedFieldType = String(changedField?.field_type || "").toUpperCase().trim();
-    // NUMERIC: clamp to resolved min/max (help_text / options / defaults 0–100)
+    // NUMERIC: clamp to resolved min/max (help_text / options / defaults 1–100). Typed text below the min
+    // is kept until the box loses focus (NumericFieldInput corrects it and says why).
     // Allow intermediate signed drafts ("-", "-.") when negatives are configured.
     if (changedFieldType === "NUMERIC") {
       if (typeof value === "string" && isNumericInputDraft(value)) {
@@ -5695,12 +5725,9 @@ const BookEquipment = () => {
             : undefined;
       if (numericValue !== undefined && Number.isFinite(numericValue)) {
         if (numericValue < min) {
-          value = typeof value === "number" ? min : String(min);
+          if (typeof value === "number") value = min;
         } else if (numericValue > max) {
-          toast.error(
-            `${changedField?.field_label || fieldKey}: cannot be greater than ${formatNumericBound(max)}`
-          );
-          value = typeof value === "number" ? max : String(max);
+          value = typeof value === "number" ? max : formatNumericBound(max);
         }
       }
     }
@@ -8929,96 +8956,31 @@ const BookEquipment = () => {
                                         false
                                       )
                                     : undefined;
-                                const bounds = resolveNumericFieldBounds(field, formulaMax);
-                                const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
-                                const allowsNegative = numericFieldAllowsNegative(bounds);
-                                const stepAttr = formatStepAttr(effectiveStep);
-                                const currentRaw = inputFieldValues[field.field_key];
-                                const nudge = (direction: 1 | -1) => {
-                                  if (repeatSourceBooking) return;
-                                  handleInputFieldChange(
-                                    field.field_key,
-                                    nudgeNumericValue(currentRaw as string | number | undefined, direction, bounds)
-                                  );
-                                };
+                                const combinedLimit =
+                                  sampleSets.length > 0
+                                    ? primaryCombinedLimits.find((l) => l.key === field.field_key)
+                                    : undefined;
+                                const { bounds, maxHint } = boundsWithCombinedMax(
+                                  resolveNumericFieldBounds(field, formulaMax),
+                                  combinedLimit,
+                                  combinedLimit ? maxForPrimarySet(combinedLimit, sampleSets) : undefined
+                                );
                                 return (
-                                  <div>
-                                    <div className="inline-flex items-stretch">
-                                      <Input
-                                        id={field.field_key}
-                                        type="number"
-                                        inputMode={allowsNegative ? "text" : "decimal"}
-                                        value={
-                                          currentRaw === undefined || currentRaw === null
-                                            ? ""
-                                            : String(currentRaw)
-                                        }
-                                        onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "ArrowUp") {
-                                            e.preventDefault();
-                                            nudge(1);
-                                          } else if (e.key === "ArrowDown") {
-                                            e.preventDefault();
-                                            nudge(-1);
-                                          }
-                                        }}
-                                        onBlur={(e) => {
-                                          const value = e.target.value.trim();
-                                          if (value === "" || isNumericInputDraft(value)) {
-                                            if (value === "-" || value === "-." || value === "." || value === "") {
-                                              return;
-                                            }
-                                          }
-                                          const n = Number(value.replace(",", "."));
-                                          if (!Number.isFinite(n)) {
-                                            handleInputFieldChange(field.field_key, formatNumericBound(effectiveMin));
-                                            return;
-                                          }
-                                          let next = roundToStepPrecision(n, effectiveStep);
-                                          if (next < effectiveMin) next = effectiveMin;
-                                          if (next > effectiveMax) {
-                                            toast.error(
-                                              `${field.field_label || field.field_key}: cannot be greater than ${formatNumericBound(effectiveMax)}`
-                                            );
-                                            next = effectiveMax;
-                                          }
-                                          handleInputFieldChange(field.field_key, formatNumericBound(next));
-                                        }}
-                                        required={field.is_required}
-                                        min={effectiveMin}
-                                        max={effectiveMax}
-                                        step={stepAttr}
-                                        placeholder={field.default_value || formatNumericBound(effectiveMin)}
-                                        disabled={!!repeatSourceBooking}
-                                        className="w-28 rounded-r-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                      />
-                                      <div className="flex flex-col shrink-0">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-5 w-7 rounded-none rounded-tr-md border-input border-l-0 border-b-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                          disabled={!!repeatSourceBooking}
-                                          aria-label={`Increase by ${stepAttr}`}
-                                          onClick={() => nudge(1)}
-                                        >
-                                          <ChevronUp className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-5 w-7 rounded-none rounded-br-md border-input border-l-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                          disabled={!!repeatSourceBooking}
-                                          aria-label={`Decrease by ${stepAttr}`}
-                                          onClick={() => nudge(-1)}
-                                        >
-                                          <ChevronDown className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </div>
+                                  <NumericFieldInput
+                                    id={field.field_key}
+                                    value={inputFieldValues[field.field_key]}
+                                    bounds={bounds}
+                                    maxHint={maxHint}
+                                    label={String(field.field_label || field.field_key)}
+                                    onValueChange={(next) => handleInputFieldChange(field.field_key, next)}
+                                    required={field.is_required}
+                                    placeholder={
+                                      field.is_required
+                                        ? field.default_value || formatNumericBound(bounds.min)
+                                        : "Optional"
+                                    }
+                                    disabled={!!repeatSourceBooking}
+                                  />
                                 );
                               }
                               

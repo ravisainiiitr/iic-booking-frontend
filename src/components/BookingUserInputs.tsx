@@ -20,10 +20,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, FileText, Info } from "lucide-react";
+import { Pencil, Plus, Trash2, FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
-import { formatNumericBound, formatStepAttr, isNumericInputDraft, nudgeNumericValue, numericFieldAllowsNegative, resolveFieldAFormulaMax, resolveNumericFieldBounds, roundToStepPrecision, type NumericFieldBounds } from "@/lib/numericFieldLimits";
+import { formatNumericBound, resolveFieldAFormulaMax, resolveNumericFieldBounds, type NumericFieldBounds } from "@/lib/numericFieldLimits";
+import { parseNumericInput } from "@/lib/numericInput";
+import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
 import { dynamicFieldControlWidth } from "@/lib/dynamicFieldLayout";
 import { DynamicFieldRow } from "@/components/DynamicFieldRow";
@@ -43,7 +45,7 @@ import SampleSetsEditor, { PeriodicElementsField } from "@/components/SampleSets
 import { computePeriodicElementUpdates } from "@/lib/periodicElementSelection";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import { readSampleSets, SAMPLE_SETS_KEY, type SampleSetValues } from "@/lib/sampleSets";
-import { combinedLimitError } from "@/lib/sampleSetLimits";
+import { boundsWithCombinedMax, combinedLimitError, combinedLimits, maxForPrimarySet } from "@/lib/sampleSetLimits";
 import {
   inputEditRefundNotice,
   type InputEditRefundViewer,
@@ -59,6 +61,7 @@ export interface InputFieldDef {
   /** Choice list for RADIO/COMBO; NUMERIC fields carry a limits object (e.g. { min, max_formula }). */
   options?: (string | { value?: string; label?: string })[];
   help_text?: string;
+  default_value?: string | null;
   source_element_field_key?: string | null;
 }
 
@@ -230,7 +233,14 @@ export function BookingUserInputs({
       skipFormulaLimits ? undefined : resolveFieldAFormulaMax(f, values, slotDurationMinutes),
     );
 
-  /** First numeric-limit violation in `values`, mirroring the backend check on save. */
+  const comparable = (v: unknown) =>
+    v === undefined || v === null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).trim();
+
+  /**
+   * First numeric-limit violation in `values`, mirroring the backend check on save. A value saved before the
+   * minimum of 1 (e.g. 0) in a field the user cannot edit is kept while unchanged, as the backend does;
+   * in an editable field the box asks the user to change it.
+   */
   const numericLimitError = (values: Record<string, unknown>): { key: string; message: string } | null => {
     const numericDefs = new Map<string, InputFieldDef>();
     [...fields, ...editableFields].forEach((f) => {
@@ -243,14 +253,18 @@ export function BookingUserInputs({
       if (!Number.isFinite(n)) continue;
       const { min, max } = numericBoundsFor(f, values);
       const label = f.field_label || f.field_key;
-      if (n < min) return { key: f.field_key, message: `${label} cannot be less than ${formatNumericBound(min)}.` };
+      if (n < min) {
+        const keptLegacyValue =
+          !editableFields.some((e) => e.field_key === f.field_key) &&
+          comparable(raw) === comparable(iv[f.field_key]) &&
+          n >= resolveNumericFieldBounds(f, undefined, { applyMinFloor: false }).min;
+        if (keptLegacyValue) continue;
+        return { key: f.field_key, message: `${label} cannot be less than ${formatNumericBound(min)}.` };
+      }
       if (n > max) return { key: f.field_key, message: `${label} cannot be greater than ${formatNumericBound(max)}.` };
     }
     return null;
   };
-
-  const comparable = (v: unknown) =>
-    v === undefined || v === null || v === "" ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).trim();
   const valuesChangedFrom = (values: Record<string, unknown>) =>
     Object.keys({ ...iv, ...values }).some(
       (k) => !isCommentsInputFieldKey(k) && comparable(values[k]) !== comparable(iv[k]),
@@ -835,95 +849,41 @@ export function BookingUserInputs({
                     }
                   >
                   {type === "NUMERIC" && (() => {
-                    const bounds = numericBoundsFor(f, editFormValues);
-                    const { min: effectiveMin, max: effectiveMax, step: effectiveStep } = bounds;
+                    const combinedLimit =
+                      editSampleSets.length > 0
+                        ? combinedLimits(sampleSetFields).find((l) => l.key === f.field_key)
+                        : undefined;
+                    const available = combinedLimit ? maxForPrimarySet(combinedLimit, editSampleSets) : undefined;
+                    const current = parseNumericInput(val);
+                    // A combined total already over the maximum before this edit is handled by the sample-set message.
+                    const { bounds, maxHint } = boundsWithCombinedMax(
+                      numericBoundsFor(f, editFormValues),
+                      combinedLimit,
+                      available !== undefined && (current === undefined || current <= available) ? available : undefined
+                    );
                     const fieldLimitError = editLimitError?.key === f.field_key ? editLimitError.message : null;
-                    const allowsNegative = numericFieldAllowsNegative(bounds);
-                    const stepAttr = formatStepAttr(effectiveStep);
-                    const nudge = (direction: 1 | -1) => {
-                      updateFormValue(
-                        f.field_key,
-                        Number(nudgeNumericValue(val as string | number | undefined, direction, bounds))
-                      );
-                    };
+                    const allowedId = `edit-${f.field_key}-allowed`;
                     return (
                       <div className="space-y-1.5">
-                        <div className="inline-flex items-stretch">
-                          <Input
-                            id={`edit-${f.field_key}`}
-                            type="number"
-                            inputMode={allowsNegative ? "text" : "decimal"}
-                            className="text-base h-10 w-28 rounded-r-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            min={effectiveMin}
-                            max={effectiveMax}
-                            step={stepAttr}
-                            value={val === undefined || val === null || val === "" ? "" : String(val)}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "" || isNumericInputDraft(v)) {
-                                if (v.trim().startsWith("-") && !allowsNegative) {
-                                  updateFormValue(f.field_key, effectiveMin);
-                                  return;
-                                }
-                                updateFormValue(f.field_key, v);
-                                return;
-                              }
-                              updateFormValue(f.field_key, v);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "ArrowUp") {
-                                e.preventDefault();
-                                nudge(1);
-                              } else if (e.key === "ArrowDown") {
-                                e.preventDefault();
-                                nudge(-1);
-                              }
-                            }}
-                            onBlur={() => {
-                              if (val === "" || val === undefined || val === null || isNumericInputDraft(String(val))) {
-                                if (String(val) === "-" || String(val) === "-." || String(val) === ".") return;
-                                return;
-                              }
-                              const n = Number(String(val).replace(",", "."));
-                              if (!Number.isFinite(n)) {
-                                updateFormValue(f.field_key, effectiveMin);
-                                return;
-                              }
-                              let next = roundToStepPrecision(n, effectiveStep);
-                              next = Math.min(effectiveMax, Math.max(effectiveMin, next));
-                              updateFormValue(f.field_key, next);
-                            }}
-                          />
-                          <div className="flex flex-col shrink-0">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-5 w-7 rounded-none rounded-tr-md border-input border-l-0 border-b-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label={`Increase by ${stepAttr}`}
-                              onClick={() => nudge(1)}
-                            >
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-5 w-7 rounded-none rounded-br-md border-input border-l-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label={`Decrease by ${stepAttr}`}
-                              onClick={() => nudge(-1)}
-                            >
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
+                        <NumericFieldInput
+                          id={`edit-${f.field_key}`}
+                          value={val}
+                          bounds={bounds}
+                          maxHint={maxHint}
+                          label={String(f.field_label || f.field_key)}
+                          required={f.is_required}
+                          inputClassName="text-base h-10"
+                          describedBy={allowedId}
+                          onValueChange={(next) => updateFormValue(f.field_key, next)}
+                          onCommit={(next) => updateFormValue(f.field_key, next === "" ? "" : Number(next))}
+                        />
                         {fieldLimitError ? (
-                          <p className="text-xs font-medium text-destructive" role="alert">
+                          <p id={allowedId} className="text-xs font-medium text-destructive" role="alert">
                             {fieldLimitError}
                           </p>
                         ) : (
-                          <p className="text-xs text-muted-foreground">
-                            Allowed: {formatNumericBound(effectiveMin)} – {formatNumericBound(effectiveMax)}
+                          <p id={allowedId} className="text-xs text-muted-foreground">
+                            Allowed: {formatNumericBound(bounds.min)} – {formatNumericBound(bounds.max)}
                           </p>
                         )}
                       </div>

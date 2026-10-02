@@ -13,6 +13,7 @@ export type CombinedLimitFieldDef = {
   field_type?: string;
   options?: unknown;
   help_text?: string | null;
+  default_value?: unknown;
   is_required?: boolean;
 };
 
@@ -108,6 +109,31 @@ export function combinedLimitError(
 export function maxForExtraSet(limit: CombinedLimit, primary: Values, sets: Values[], index: number): number {
   const others = sumOver([primary, ...sets.filter((_, i) => i !== index)], limit.key);
   return Math.max(0, limit.max - others);
+}
+
+/** Largest value sample set 1 may hold for `limit` given the extra sample sets. */
+export function maxForPrimarySet(limit: CombinedLimit, sets: Values[]): number {
+  return Math.max(0, limit.max - sumOver(sets, limit.key));
+}
+
+export function combinedMaxReachedHint(limit: CombinedLimit): string {
+  return `Combined max of ${formatNumericBound(limit.max)} reached across all sample sets`;
+}
+
+/**
+ * Bounds for one sample set's A / B input when what is left of the combined maximum (`available`) is
+ * tighter than the field's own maximum; `maxHint` then explains the limit next to the box.
+ */
+export function boundsWithCombinedMax<B extends { min: number; max: number; step: number }>(
+  bounds: B,
+  limit: CombinedLimit | undefined,
+  available: number | undefined,
+): { bounds: B; maxHint?: string } {
+  if (!limit || available === undefined || !(available < bounds.max)) return { bounds };
+  return {
+    bounds: { ...bounds, max: Math.max(bounds.min, available) },
+    maxHint: combinedMaxReachedHint(limit),
+  };
 }
 
 /**

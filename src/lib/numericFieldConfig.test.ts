@@ -4,6 +4,7 @@ import {
   applyNumericLimitDraft,
   EMPTY_NUMERIC_LIMIT_DRAFT,
   maxFormulaError,
+  MIN_BELOW_ONE_MESSAGE,
   numericLimitDraftError,
   numericLimitDraftFromField,
 } from "@/lib/numericFieldConfig";
@@ -43,6 +44,16 @@ describe("numericLimitDraftError", () => {
     expect(numericLimitDraftError(draft({ min: "1", max: "2", step: "1" }))).toBeNull();
     expect(numericLimitDraftError(draft({ min: "0.5", max: "2.5", step: "0.5" }))).toBeNull();
     expect(maxFormulaError("SLOT_DURATION_MINUTES/30 + A")).toBeNull();
+  });
+
+  it("does not allow a min below 1 unless decimals or negatives are allowed", () => {
+    expect(numericLimitDraftError(draft({ min: "0" }))).toBe(MIN_BELOW_ONE_MESSAGE);
+    expect(numericLimitDraftError(draft({ min: "0", max: "5", step: "1" }))).toBe(MIN_BELOW_ONE_MESSAGE);
+    expect(numericLimitDraftError(draft({ min: "0.5" }))).toBe(MIN_BELOW_ONE_MESSAGE);
+    expect(numericLimitDraftError(draft({ min: "0", step: "0.1" }))).toBeNull();
+    expect(numericLimitDraftError(draft({ min: "0" }), { allowNegative: true })).toBeNull();
+    expect(numericLimitDraftError(draft({ min: "-7", step: "0.1" }))).toBeNull();
+    expect(numericLimitDraftError(draft({ min: "2" }))).toBeNull();
   });
 });
 

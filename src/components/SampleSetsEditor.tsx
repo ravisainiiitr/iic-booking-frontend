@@ -22,15 +22,17 @@ import {
   resolveTableRowCountSourceKey,
   syncTableRowsToCount,
 } from "@/lib/dynamicTableField";
-import { formatNumericBound, formatStepAttr, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
+import { formatNumericBound, resolveNumericFieldBounds } from "@/lib/numericFieldLimits";
 import { computePeriodicElementUpdates, splitElements } from "@/lib/periodicElementSelection";
 import {
+  boundsWithCombinedMax,
   combinedAllowances,
   combinedLimitMessage,
   fitNewSampleSet,
   formatAllowance,
   maxForExtraSet,
 } from "@/lib/sampleSetLimits";
+import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { MAX_SAMPLE_SETS, type SampleSetValues } from "@/lib/sampleSets";
 
 export type SampleSetField = {
@@ -271,30 +273,23 @@ export default function SampleSetsEditor({
           />
         );
       case "NUMERIC": {
-        const bounds = resolveNumericFieldBounds(field);
-        const { min, step } = bounds;
         const limit = allowances.find((a) => a.key === key);
-        const max = limit ? Math.max(min, Math.min(bounds.max, maxForExtraSet(limit, primaryValues, sets, index))) : bounds.max;
+        const { bounds, maxHint } = boundsWithCombinedMax(
+          resolveNumericFieldBounds(field),
+          limit,
+          limit ? maxForExtraSet(limit, primaryValues, sets, index) : undefined,
+        );
         return (
-          <Input
+          <NumericFieldInput
             id={id}
-            type="number"
-            value={raw === undefined || raw === null ? "" : String(raw)}
-            min={min}
-            max={max}
-            step={formatStepAttr(step)}
-            placeholder={field.default_value || ""}
+            value={raw}
+            bounds={bounds}
+            maxHint={maxHint}
+            label={`Sample set ${index + 2}: ${field.field_label || key}`}
+            required={field.is_required}
+            placeholder={field.is_required ? field.default_value || "" : "Optional"}
             disabled={disabled}
-            className="w-28 tabular-nums"
-            onChange={(e) => update(index, key, e.target.value)}
-            onBlur={(e) => {
-              const value = e.target.value.trim();
-              if (value === "") return;
-              const n = Number(value.replace(",", "."));
-              if (!Number.isFinite(n)) return;
-              if (n < min) update(index, key, String(min));
-              else if (n > max) update(index, key, String(max));
-            }}
+            onValueChange={(next) => update(index, key, next)}
           />
         );
       }

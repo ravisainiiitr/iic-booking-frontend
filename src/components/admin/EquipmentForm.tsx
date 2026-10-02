@@ -24,6 +24,8 @@ import { toast } from "sonner";
 import { linesToOptions, normalizeOptionsList, optionsToLines } from "@/lib/dynamicFieldOptions";
 import {
   applyNumericLimitDraft,
+  MIN_BELOW_ONE_MESSAGE,
+  MIN_FLOOR_NOTE,
   numericLimitDraftError,
   numericLimitDraftFromField,
   type NumericLimitDraft,
@@ -868,7 +870,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       seen.add(key);
       seenKeysByUserType.set(ut, seen);
       if (String(inputFields[i].field_type || "").toUpperCase() === "NUMERIC") {
-        const limitError = numericLimitDraftError(numericLimitsOf(inputFields[i]));
+        const limitError = numericLimitDraftError(numericLimitsOf(inputFields[i]), {
+          allowNegative: Boolean(inputFields[i].allow_negative),
+        });
         if (limitError) {
           toast.error(`Dynamic input field ${key} (${ut}): ${limitError}`);
           return;
@@ -1170,10 +1174,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const renderNumericLimits = (f: InputFieldRow, idx: number, idPrefix: string) => {
     const limits = numericLimitsOf(f);
     const key = String(f.field_key || "").toUpperCase();
-    const error = numericLimitDraftError(limits);
+    const error = numericLimitDraftError(limits, { allowNegative: Boolean(f.allow_negative) });
     const showFormula = key === "A" || limits.maxFormula.trim() !== "";
     const boxes = [
-      { name: "min", label: "Min", placeholder: "0" },
+      { name: "min", label: "Min", placeholder: "1" },
       { name: "max", label: "Max", placeholder: "100" },
       { name: "step", label: "Step", placeholder: "1" },
     ] as const;
@@ -1209,6 +1213,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             </div>
           ))}
         </div>
+        {error !== MIN_BELOW_ONE_MESSAGE && <p className="text-xs text-muted-foreground">{MIN_FLOOR_NOTE}</p>}
         {(key === "A" || key === "B") && !limits.maxFormula.trim() && (
           <p className="text-xs text-muted-foreground">
             Max is the limit for the total across all sample sets of a booking. If empty, each entry is capped at 100 and no total is enforced.

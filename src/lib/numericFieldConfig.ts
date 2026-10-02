@@ -6,6 +6,7 @@
 import {
   formatNumericBound,
   isNumericHelpTextConvention,
+  NUMERIC_MIN_FLOOR,
   numericConstraints,
   parseNumericHelpText,
 } from "@/lib/numericFieldLimits";
@@ -47,8 +48,21 @@ export function maxFormulaError(formula: string): string | null {
   return null;
 }
 
-/** First problem with the boxes (min ≤ max, step > 0, whole numbers with a whole step, formula syntax), else null. */
-export function numericLimitDraftError(draft: NumericLimitDraft): string | null {
+export const MIN_BELOW_ONE_MESSAGE =
+  "Min must be at least 1: number inputs cannot be 0. For decimal values set a Step below 1; " +
+  "for negative values tick Allow negative.";
+
+export const MIN_FLOOR_NOTE =
+  "Minimum is 1 for number inputs (use a Step below 1 for decimals, or tick Allow negative).";
+
+/**
+ * First problem with the boxes (min ≤ max, step > 0, whole numbers with a whole step, min of at least 1
+ * unless decimals or negatives are allowed, formula syntax), else null.
+ */
+export function numericLimitDraftError(
+  draft: NumericLimitDraft,
+  { allowNegative = false }: { allowNegative?: boolean } = {},
+): string | null {
   const values: Partial<Record<keyof typeof LABELS, number>> = {};
   for (const key of ["min", "max", "step"] as const) {
     const n = parseBox(draft[key]);
@@ -67,6 +81,9 @@ export function numericLimitDraftError(draft: NumericLimitDraft): string | null 
         return `${LABELS[key]} must be a whole number when Step is a whole number.`;
       }
     }
+  }
+  if (min !== undefined && min >= 0 && min < NUMERIC_MIN_FLOOR && !allowNegative && !(step !== undefined && step < 1)) {
+    return MIN_BELOW_ONE_MESSAGE;
   }
   return maxFormulaError(draft.maxFormula);
 }

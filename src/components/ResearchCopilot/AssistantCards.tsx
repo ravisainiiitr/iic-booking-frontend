@@ -650,6 +650,7 @@ function FieldControl({
   }
   const n = num(values[f.key]);
   const outOfRange = f.type === "NUMERIC" && n !== null && ((f.min !== undefined && n < f.min) || (f.max !== undefined && n > f.max));
+  const atMax = f.type === "NUMERIC" && n !== null && f.max !== undefined && n === f.max;
   return (
     <label htmlFor={id} className="block text-xs">
       {label}
@@ -666,10 +667,17 @@ function FieldControl({
         onChange={(e) => set(f.key, e.target.value)}
         className="h-8 text-xs"
         aria-invalid={outOfRange}
+        aria-valuemin={f.type === "NUMERIC" ? f.min : undefined}
+        aria-valuemax={f.type === "NUMERIC" ? f.max : undefined}
+        aria-describedby={f.type === "NUMERIC" ? `${id}-limit-hint` : undefined}
       />
       {f.type === "NUMERIC" && (f.min !== undefined || f.max !== undefined) ? (
-        <span className={`mt-0.5 block text-[11px] ${outOfRange ? "text-destructive" : "text-muted-foreground"}`}>
-          Allowed {f.min ?? 0}–{f.max ?? "…"}
+        <span
+          id={`${id}-limit-hint`}
+          aria-live="polite"
+          className={`mt-0.5 block text-[11px] ${outOfRange ? "text-destructive" : atMax ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
+        >
+          {atMax ? `Max ${f.max} reached` : `Allowed ${f.min ?? 1}–${f.max ?? "…"}`}
         </span>
       ) : f.help && f.type !== "NUMERIC" ? (
         <span className="mt-0.5 block text-[11px] text-muted-foreground">{f.help}</span>
