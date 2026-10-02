@@ -9,11 +9,11 @@ export const EMPTY_DASHBOARD_MENU_LAYOUT: DashboardMenuLayout = { groups: [], or
 const FACULTY_DASHBOARD_MENU_HEAD = [
   "browse_equipment",
   "view_bookings",
-  "booking_templates",
+  "student_management",
   "wallet_management",
   "my_research",
   "shared_with_me",
-  "student_management",
+  "booking_templates",
   "urgent_booking_requests",
   "view_results",
   "proforma_invoice",

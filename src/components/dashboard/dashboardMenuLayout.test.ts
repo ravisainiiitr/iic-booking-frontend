@@ -51,10 +51,10 @@ describe("facultyDashboardMenuOrder", () => {
     expect(orderMenuIds(facultyMenu, facultyDashboardMenuOrder(facultyMenu))).toEqual([
       "browse_equipment",
       "view_bookings",
-      "booking_templates",
+      "student_management",
       "wallet_management",
       "my_research",
-      "student_management",
+      "booking_templates",
       "urgent_booking_requests",
       "view_results",
       "proforma_invoice",
@@ -85,10 +85,10 @@ describe("facultyDashboardMenuOrder", () => {
     expect(orderMenuIds(reported, facultyDashboardMenuOrder(reported))).toEqual([
       "browse_equipment",
       "view_bookings",
-      "booking_templates",
+      "student_management",
       "wallet_management",
       "my_research",
-      "student_management",
+      "booking_templates",
       "urgent_booking_requests",
       "view_results",
       "proforma_invoice",
@@ -114,7 +114,7 @@ describe("facultyDashboardMenuOrder", () => {
   it("shows Shared with me in My Research's place when My Research is off", () => {
     const ids = facultyMenu.map((id) => (id === "my_research" ? "shared_with_me" : id));
     const ordered = orderMenuIds(ids, facultyDashboardMenuOrder(ids));
-    expect(ordered.slice(3, 6)).toEqual(["wallet_management", "shared_with_me", "student_management"]);
+    expect(ordered.slice(3, 6)).toEqual(["wallet_management", "shared_with_me", "booking_templates"]);
   });
 });
 
