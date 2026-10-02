@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
+import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -1446,6 +1447,7 @@ const Profile = () => {
           </CardContent>
         </Card>
         {user && <LoginPasswordCard />}
+        {user && <MobileDevicesCard />}
       </main>
     </div>
   );

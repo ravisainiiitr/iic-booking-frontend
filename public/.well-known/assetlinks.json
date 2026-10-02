@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ac.in.iitr.iicbooking",
+      "sha256_cert_fingerprints": [
+        "E2:8A:46:A5:DC:A8:75:DD:B0:DE:14:FB:E2:8E:6D:9D:5E:B4:82:A7:25:1F:15:32:2E:7C:43:46:01:BA:A7:C7"
+      ]
+    }
+  }
+]

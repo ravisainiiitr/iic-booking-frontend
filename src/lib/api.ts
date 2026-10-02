@@ -1,5 +1,12 @@
 import { type BookingRef } from "@/lib/bookingRef";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
+import {
+  clearNativeSession,
+  enrollNativeDevice,
+  isMobileSessionToken,
+  isNativeApp,
+  recoverNativeSession,
+} from "@/lib/nativeApp";
 import type { MyBookingQuota } from "@/lib/bookingQuota";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
@@ -67,6 +74,18 @@ const getApiBaseUrl = (): string => {
 };
 
 export const API_BASE_URL = getApiBaseUrl();
+
+export interface MobileDeviceSession {
+  id: number;
+  device_name: string;
+  platform: string;
+  app_version: string;
+  created_at: string;
+  last_used_at: string | null;
+  refresh_expires_at: string;
+  require_biometric: boolean;
+  is_current: boolean;
+}
 
 export interface UserIdentityCard {
   user_id: number;
@@ -1710,8 +1729,10 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {},
     exposeHeaders?: string[],
+    isRetryAfterSessionRefresh = false,
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
+    const sentToken = this.token;
     const isFormDataBody =
       typeof FormData !== "undefined" && options.body instanceof FormData;
     const headers: HeadersInit = {
@@ -1737,6 +1758,16 @@ class ApiClient {
       if (!response.ok) {
         // 401: session expired or invalidated (e.g. single session login elsewhere, or inactivity)
         if (response.status === 401) {
+          // In the mobile app an expired device access token is renewed silently, once.
+          if (!isRetryAfterSessionRefresh && sentToken && isMobileSessionToken(sentToken)) {
+            const renewed = await recoverNativeSession(sentToken, {
+              getToken: () => this.getToken(),
+              setToken: (token) => this.setToken(token),
+            });
+            if (renewed) {
+              return this.request<T>(endpoint, options, exposeHeaders, true);
+            }
+          }
           this.setToken(null);
           localStorage.removeItem('user');
           if (this.onUnauthorized) {
@@ -2115,6 +2146,21 @@ class ApiClient {
     } else {
       localStorage.removeItem('auth_token');
     }
+    if (token && isNativeApp() && !isMobileSessionToken(token)) {
+      void this.rememberThisDevice(token);
+    }
+  }
+
+  /** Inside the mobile app, swap a fresh web sign-in for a device session that survives restarts. */
+  private async rememberThisDevice(webToken: string) {
+    const deviceToken = await enrollNativeDevice(webToken);
+    if (!deviceToken) return;
+    if (this.getToken() === webToken) {
+      this.setToken(deviceToken);
+    } else {
+      // Signed out (or in as someone else) while enrolling: drop the device session again.
+      await clearNativeSession(true);
+    }
   }
 
   getToken(): string | null {
@@ -2461,6 +2507,21 @@ class ApiClient {
     });
   }
 
+  /** Phones signed in through the IIC Booking app (each can be signed out remotely). */
+  async listMobileDevices() {
+    return this.request<{ results: MobileDeviceSession[] }>('/auth/mobile/devices/');
+  }
+
+  async revokeMobileDevice(id: number) {
+    return this.request<{ message?: string }>(`/auth/mobile/devices/${id}/revoke/`, { method: 'POST' });
+  }
+
+  async revokeOtherMobileDevices() {
+    return this.request<{ revoked?: number; message?: string }>('/auth/mobile/devices/revoke-all/', {
+      method: 'POST',
+    });
+  }
+
   async signOut() {
     try {
       // Call the logout API endpoint
@@ -2472,12 +2533,14 @@ class ApiClient {
       // This ensures local state is cleared even if API call fails
       this.setToken(null);
       localStorage.removeItem('user');
+      await clearNativeSession(!!response.error);
 
       return response;
     } catch (error: any) {
       // Even if API call fails, clear local storage
       this.setToken(null);
       localStorage.removeItem('user');
+      await clearNativeSession(true);
       
       return {
         error: error.message || 'Failed to logout',
