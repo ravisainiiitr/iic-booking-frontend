@@ -1390,6 +1390,8 @@ export function BookingDetailCard({
     (e) => String(e.status || "").toUpperCase() === "RETURNED"
   );
   const traceHasReturned = returnShippingAccountsLocked;
+  /** Sample analysed (lifecycle step Analyzed, or booking Completed): Accounts can arrange the return shipment. */
+  const analyzedDoneForStaffActions = traceHasAnalyzed || isCompleted;
 
   const latestAcceptReject = [...sampleTraceList]
     .filter((e) => ["SAMPLE_ACCEPTED", "SAMPLE_REJECTED"].includes(String(e.status || "").toUpperCase()))

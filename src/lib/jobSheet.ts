@@ -97,6 +97,23 @@ export function telHref(phone: string | null | undefined): string | null {
   return digits.length >= 6 ? `tel:${digits}` : null;
 }
 
+/** Above this many table columns (Set + inputs) the job sheet prints on landscape A4. */
+export const PRINT_LANDSCAPE_MIN_COLUMNS = 7;
+/** Above this many columns landscape is not wide enough either, so the print font gets smaller. */
+export const PRINT_COMPACT_MIN_COLUMNS = 11;
+
+/** Page classes for printing `node`: landscape and/or compact when its widest table has many columns. */
+export function printLayoutClasses(node: ParentNode): string[] {
+  const widest = Array.from(node.querySelectorAll<HTMLElement>("[data-print-columns]")).reduce(
+    (max, el) => Math.max(max, Number(el.dataset.printColumns) || 0),
+    0,
+  );
+  const classes: string[] = [];
+  if (widest >= PRINT_LANDSCAPE_MIN_COLUMNS) classes.push("print-jobsheet-landscape");
+  if (widest >= PRINT_COMPACT_MIN_COLUMNS) classes.push("print-jobsheet-compact");
+  return classes;
+}
+
 /** Print only `node` (a clone in a top-level container), so long pages leave no blank sheets and the app shell is hidden. */
 export function printElement(node: HTMLElement | null): void {
   if (!node) {
@@ -109,9 +126,10 @@ export function printElement(node: HTMLElement | null): void {
   portal.id = "jobsheet-print-portal";
   portal.appendChild(node.cloneNode(true));
   doc.body.appendChild(portal);
-  doc.documentElement.classList.add("print-jobsheet");
+  const pageClasses = ["print-jobsheet", ...printLayoutClasses(portal)];
+  doc.documentElement.classList.add(...pageClasses);
   const cleanup = () => {
-    doc.documentElement.classList.remove("print-jobsheet");
+    doc.documentElement.classList.remove(...pageClasses);
     portal.remove();
     window.removeEventListener("afterprint", cleanup);
   };

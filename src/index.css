@@ -170,6 +170,10 @@
   size: A4 portrait;
   margin: 12mm;
 }
+@page jobsheet-landscape {
+  size: A4 landscape;
+  margin: 10mm;
+}
 @media print {
   html.print-jobsheet body > *:not(#jobsheet-print-portal) {
     display: none !important;
@@ -186,6 +190,17 @@
     font-size: 10.5pt;
     color: #000;
     background: #fff;
+  }
+  html.print-jobsheet.print-jobsheet-landscape #jobsheet-print-portal {
+    page: jobsheet-landscape;
+  }
+  html.print-jobsheet.print-jobsheet-compact #jobsheet-print-portal {
+    font-size: 9pt;
+  }
+  html.print-jobsheet.print-jobsheet-compact #jobsheet-print-portal .jobsheet-table th,
+  html.print-jobsheet.print-jobsheet-compact #jobsheet-print-portal .jobsheet-table td {
+    padding: 2.5pt 4pt !important;
+    font-size: 8.5pt !important;
   }
   #jobsheet-print-portal * {
     color: #000 !important;

@@ -88,6 +88,33 @@ describe("BookingDetailCard job sheet", () => {
     expect(html).toContain("For Invoice Related Query");
   });
 
+  it("shows Accounts the return shipping actions once an external user's sample is analysed", () => {
+    const external = (status: string) =>
+      ({
+        ...booking,
+        user_type_snapshot: "industry",
+        user_type_snapshot_display: "Industry",
+        sample_return_after_analysis: true,
+        status,
+        status_display: status,
+      }) as unknown as BookingDetailCardBooking;
+    const asFinance = (b: BookingDetailCardBooking) =>
+      renderToStaticMarkup(
+        <MemoryRouter>
+          <BookingDetailCard
+            booking={b}
+            onClose={() => {}}
+            onUpdated={() => {}}
+            isOperator={false}
+            currentUserType="finance"
+            currentUserId={11}
+          />
+        </MemoryRouter>,
+      );
+    expect(asFinance(external("COMPLETED"))).toContain("Return shipping label");
+    expect(asFinance(external("BOOKED"))).not.toContain("Return shipping label");
+  });
+
   it("leaves the Officer In Charge's view unchanged", () => {
     const html = renderCard({ isOperator: false, isManagerOrAdmin: true, currentUserType: "manager", currentUserId: 50 });
     expect(html).not.toContain("Job sheet");

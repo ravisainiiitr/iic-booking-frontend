@@ -15,7 +15,7 @@ const fields = [
 afterEach(cleanup);
 
 describe("SampleRequirementsTable", () => {
-  it("shows a single set as a Parameter | Value table without blank fields or comments", () => {
+  it("shows a single set as one row, without blank fields or comments", () => {
     render(
       <SampleRequirementsTable
         fields={fields}
@@ -24,16 +24,19 @@ describe("SampleRequirementsTable", () => {
     );
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Parameter", "Value"]);
-    const rowHeaders = within(table).getAllByRole("rowheader").map((h) => h.textContent);
-    expect(rowHeaders).toEqual(["No. of Samples", "Sample form", "Scan range (2θ, degrees)"]);
-    expect(within(table).getByText("Powder")).toBeTruthy();
+    expect(headers).toEqual(["Set", "No. of Samples", "Sample form", "Scan range (2θ, degrees)"]);
+    expect(within(table).getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Set 1"]);
+    const cells = within(table).getAllByRole("cell").map((c) => c.textContent);
+    expect(cells).toEqual(["4", "Powder", "10–80"]);
+    expect(table.querySelector("tfoot")).toBeNull();
+    expect(table.querySelector(".jobsheet-diff")).toBeNull();
     expect(table.textContent).not.toContain("Handle with gloves");
+    expect(screen.getByText("1 sample set")).toBeTruthy();
     expect(screen.getByText("4 samples")).toBeTruthy();
-    expect(table.querySelector("caption")?.textContent).toBe("Sample requirements");
+    expect(table.getAttribute("data-print-columns")).toBe("4");
   });
 
-  it("shows several sets as columns, flags differing values and totals the samples", () => {
+  it("shows several sets as rows, tints values that vary from Set 1 and totals the samples", () => {
     render(
       <SampleRequirementsTable
         fields={fields}
@@ -50,24 +53,37 @@ describe("SampleRequirementsTable", () => {
     );
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Parameter", "Set 14 samples", "Set 23 samples", "Set 35 samples"]);
-    const formRow = within(table).getByRole("rowheader", { name: /Sample form/ }).closest("tr")!;
-    expect(formRow.textContent).toContain("Varies");
-    const cells = within(formRow).getAllByRole("cell");
-    expect(cells.map((c) => c.textContent?.replace(" (differs from Set 1)", ""))).toEqual(["Powder", "Liquid", "Powder"]);
-    expect(cells[1].className).toContain("jobsheet-diff");
-    expect(cells[2].className).not.toContain("jobsheet-diff");
-    expect(table.querySelector("tfoot")?.textContent).toContain("12 across 3 sets");
+    expect(headers).toEqual(["Set", "No. of Samples", "Sample form", "Scan range (2θ, degrees)"]);
+    const bodyRows = Array.from(table.querySelectorAll("tbody tr"));
+    const text = (row: Element) =>
+      within(row as HTMLElement)
+        .getAllByRole("cell")
+        .map((c) => c.textContent?.replace(" (varies from Set 1)", ""));
+    expect(bodyRows.map((r) => r.querySelector("th")?.textContent)).toEqual(["Set 1", "Set 2", "Set 3"]);
+    expect(bodyRows.map(text)).toEqual([
+      ["4", "Powder", "10–80"],
+      ["3", "Liquid", "10–80"],
+      ["5", "Powder", "5–90"],
+    ]);
+    const set2 = within(bodyRows[1] as HTMLElement).getAllByRole("cell");
+    expect(set2[1].className).toContain("jobsheet-diff");
+    expect(set2[2].className).not.toContain("jobsheet-diff");
+    const footer = Array.from(table.querySelectorAll("tfoot th, tfoot td")).map((c) => c.textContent);
+    expect(footer).toEqual(["Total", "12", "", ""]);
     expect(screen.getByText("3 sample sets")).toBeTruthy();
+    expect(screen.getByText(/Tinted values vary from Set 1/)).toBeTruthy();
   });
 
-  it("turns the table (one row per set) when there are many sets and few parameters", () => {
+  it("keeps sets as rows whatever the number of sets and parameters (no transposing)", () => {
     const sets = Array.from({ length: 7 }, (_, i) => ({ A: String(i + 1), B: "pwd" }));
     render(<SampleRequirementsTable fields={fields} inputValues={{ A: "1", B: "pwd", _sample_sets: sets }} />);
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
     expect(headers).toEqual(["Set", "No. of Samples", "Sample form"]);
-    expect(within(table).getAllByRole("rowheader").slice(0, 2).map((h) => h.textContent)).toEqual(["Set 1", "Set 2"]);
+    expect(within(table).getAllByRole("rowheader").map((h) => h.textContent)).toEqual([
+      ...Array.from({ length: 8 }, (_, i) => `Set ${i + 1}`),
+      "Total",
+    ]);
   });
 
   it("renders links and nested table inputs", () => {
